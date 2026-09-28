@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "agent-hq",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["-e", "process.env.PORT='4311';import('./src/server.js')"],
+      "port": 4311
+    }
+  ]
+}
