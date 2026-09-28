@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { validateCriteria } from './domain.js';
 import { resolveModel, validateExecutor } from './models.js';
 import { DEFAULT_POLICY } from './policy.js';
-import { nextTeam, TEAMS } from './teams.js';
+import { nextStep, REVIEWS, TEAMS, WORKERS } from './teams.js';
 import { validateProjectId } from './workspaces.js';
 
 export const GoalStatus = Object.freeze({
@@ -57,7 +57,7 @@ export class GoalScheduler {
       round: 0, attempt: 0, nextRunAt: now, evidence: [],
       testFixAttempts: 0, noProgressRounds: 0, bestCriteriaMet: 0, recentDiffs: [],
       autoRun: input.autoRun === true, question: null, proposal: null,
-      team: input.kind === 'team' ? { step: 'plan', task: '', feedback: '', cycle: 1 } : null,
+      team: input.kind === 'team' ? { step: 'plan', task: '', feedback: '', cycle: 1, worker: 'dev', reviews: [], reviewNotes: [] } : null,
       createdAt: now, updatedAt: now,
     };
     this.store.saveGoal(goal);
@@ -271,7 +271,9 @@ export class GoalScheduler {
       errorKind: result.errorKind ?? null, diffHash: result.diffHash ?? null, evidence: roundEvidence, actualModel,
       simulated: result.simulated === true,
       answer: typeof result.answer === 'string' ? result.answer.slice(0, 4000) : null,
-      claims: Array.isArray(result.claims) ? result.claims.slice(0, 20) : [] });
+      claims: Array.isArray(result.claims) ? result.claims.slice(0, 20) : [],
+      plan: result.plan ? { nextTask: result.plan.nextTask, team: result.plan.team ?? 'dev', reviews: result.plan.reviews ?? [] } : null,
+      review: result.review ? { verdict: result.review.verdict, issues: result.review.issues, blocking: result.review.blocking } : null });
     if (goal.status !== GoalStatus.RUNNING) return;
     const decided = goal.kind === 'team' && result.outcome === 'completed'
       ? this.decideTeam(goal, result, evidence, now) : this.decide(goal, result, evidence, now);
@@ -285,14 +287,16 @@ export class GoalScheduler {
   }
 
   // One step of the team rotation. The next step starts right away (no timer) until the goal is proven,
-  // the planning team needs 대장, development stops making progress, or a limit is hit.
+  // a team needs 대장, the work stops making progress, or a limit is hit.
+  //   plan → worker (dev | design) → [security] → [policy] → qa → plan
   decideTeam(goal, result, evidence, now) {
     const step = goal.team.step;
-    const team = { ...goal.team };
+    const team = { worker: 'dev', reviews: [], reviewNotes: [], ...goal.team };
     const proven = goal.completionCriteria.every(c => evidence.some(e => e.criterion === c));
     const review = (reason, extra = {}) => ({ evidence, ...extra, team, status: GoalStatus.REVIEW_REQUIRED, reason, nextRunAt: null });
-    const advance = (extra = {}) => ({ evidence, ...extra, reason: null, question: null, status: GoalStatus.SCHEDULED,
-      nextRunAt: iso(now), team: { ...team, step: nextTeam(step) } });
+    const goTo = (next, extra = {}) => ({ evidence, ...extra, reason: null, question: null, status: GoalStatus.SCHEDULED,
+      nextRunAt: iso(now), team: { ...team, step: next } });
+    const advance = (extra = {}) => goTo(nextStep(team), extra);
     const finish = (improvements) => ({ evidence, team, status: GoalStatus.VERIFIED, reason: null, nextRunAt: null, autoRun: false,
       proposal: improvements.length ? { items: improvements, status: 'pending', at: iso(now) } : null });
 
@@ -301,11 +305,30 @@ export class GoalScheduler {
       if (!plan) return review('unclear_plan');
       if (plan.needsDecision) return review('needs_decision', { question: plan.needsDecision });
       if (plan.allDone && proven) return finish([]);
+      team.worker = WORKERS.includes(plan.team) ? plan.team : 'dev';
+      team.reviews = REVIEWS.filter(r => (plan.reviews ?? []).includes(r));
+      team.reviewNotes = [];
       team.task = plan.allDone ? '완료 여부 최종 확인' : plan.nextTask;
-      if (plan.allDone) return { ...advance(), team: { ...team, step: 'qa' } };
+      return plan.allDone ? goTo('qa') : advance();
+    }
+    if (REVIEWS.includes(step)) {
+      // Reviewers only look. A blocking finding sends the work back to planning; a question stops for 대장.
+      const name = TEAMS[step].name;
+      const verdict = result.review;
+      if (!verdict) return review('unclear_review');
+      if (verdict.needsDecision) return review('needs_decision', { question: `[${name}] ${verdict.needsDecision}` });
+      team.reviews = team.reviews.filter(r => r !== step);
+      if (verdict.blocking) {
+        team.feedback = `[${name}] 고쳐야 할 문제:\n- ${verdict.issues.join('\n- ')}`;
+        team.reviews = [];
+        team.reviewNotes = [];
+        team.cycle = (team.cycle ?? 1) + 1;
+        return goTo('plan');
+      }
+      team.reviewNotes = [...team.reviewNotes, ...verdict.issues.map(i => `[${name}] ${i}`)];
       return advance();
     }
-    if (step === 'dev') {
+    if (WORKERS.includes(step)) {
       // Progress means new evidence or a workspace change not seen before; only development rounds count.
       const diffIsNew = Boolean(result.diffHash) && !goal.recentDiffs.includes(result.diffHash);
       const progressed = evidence.length > goal.bestCriteriaMet || diffIsNew;
@@ -316,7 +339,8 @@ export class GoalScheduler {
       return advance(extra);
     }
     const findings = result.findings ?? { feedback: '', improvements: [] };
-    team.feedback = findings.feedback;
+    team.feedback = [findings.feedback, ...team.reviewNotes].filter(Boolean).join('\n');
+    team.reviewNotes = [];
     if (proven) return finish(findings.improvements ?? []);
     team.cycle = (team.cycle ?? 1) + 1;
     return advance();

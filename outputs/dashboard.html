@@ -157,7 +157,8 @@ h2{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em}
 /* 팀 */
 .teams{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0}
 .team{padding:18px 20px;border-left:1px solid var(--line)}
-.team:first-child{border-left:0}
+.team:nth-child(3n+1){border-left:0}
+.team:nth-child(n+4){border-top:1px solid var(--line)}
 .team .h{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .team .nm{font-weight:600}
 .team .role{font-size:12.5px;color:var(--text-3);margin-top:4px;min-height:40px}
@@ -413,7 +414,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
   <!-- 개요 -->
   <sc-if value="{{pt.over}}">
     <sc-if value="{{w.isTeam}}">
-      <div class="flow-lg" aria-label="팀 흐름">
+      <div class="flow-lg" style="{{w.flowCols}}" aria-label="이번 순환의 팀 흐름">
         <sc-for list="{{w.flowLg}}" as="f"><div class="{{f.cls}}"><div class="t">{{f.name}}<span class="tool">{{f.tool}}</span></div><div class="d">{{f.d}}</div></div></sc-for>
       </div>
     </sc-if>
@@ -421,7 +422,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
       <div class="stack">
         <sc-if value="{{w.hasQuestion}}">
           <div class="card attn">
-            <div class="lbl">기획팀 질문 · 대장의 답이 필요합니다</div>
+            <div class="lbl">{{w.askedBy}} 질문 · 대장의 답이 필요합니다</div>
             <div class="big">{{w.question}}</div>
             <div style="margin-top: 12px"><label class="hint" for="ws-answer">답변</label><textarea class="ta" id="ws-answer" placeholder="답을 적으면 기획팀이 이어서 계획합니다" value="{{w.draft}}" onChange="{{w.onDraft}}"></textarea></div>
             <div class="row-f" style="margin-top: 10px"><button class="btn pri sm" onClick="{{w.sendAnswer}}">답변 보내고 계속</button></div>
@@ -547,11 +548,11 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 
 <!-- ================= 팀 ================= -->
 <sc-if value="{{vTeams}}">
-  <div class="page-h"><div><h1>팀</h1><p class="lede">세 팀이 돌아가며 프로젝트를 진행합니다. 팀은 역할이고, 실행 도구와 모델은 그 역할을 수행하는 수단입니다.</p></div></div>
+  <div class="page-h"><div><h1>팀</h1><p class="lede">기획팀과 검증팀은 매 순환에, 개발팀·디자인팀은 맡은 작업에, 보안팀·정책팀은 기획팀이 부를 때만 참여합니다. 팀은 역할이고, 실행 도구와 모델은 그 역할을 수행하는 수단입니다.</p></div></div>
   <div class="stack">
     <sc-for list="{{teams}}" as="t">
       <div class="card">
-        <div class="row-f" style="justify-content: space-between"><h2>{{t.name}}</h2><span class="{{t.pillCls}}"><i></i>{{t.stL}}</span></div>
+        <div class="row-f" style="justify-content: space-between"><div class="row-f"><h2>{{t.name}}</h2><span class="kind">{{t.kind}}</span></div><span class="{{t.pillCls}}"><i></i>{{t.stL}}</span></div>
         <p class="hint" style="margin: 4px 0 14px">{{t.role}}</p>
         <dl class="facts"><dt>실행 도구</dt><dd class="mono small">{{t.tool}}</dd><dt>권한</dt><dd>{{t.access}}</dd><dt>모델</dt><dd class="mono small">{{t.model}}</dd><dt>오늘</dt><dd class="num">{{t.today}}회</dd><dt>지금</dt><dd>{{t.now}}</dd></dl>
         <sc-if value="{{t.hasRecent}}">
@@ -595,7 +596,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
       <div class="field"><label for="np-goal">목표</label><textarea class="ta" id="np-goal" placeholder="무엇을, 어떤 상태까지 만들지" value="{{np.goal}}" onChange="{{np.onGoal}}"></textarea></div>
       <div class="field"><label for="np-crit">완료 조건</label><textarea class="ta" id="np-crit" placeholder="한 줄에 하나씩. 예: index.html 파일이 있다" value="{{np.crit}}" onChange="{{np.onCrit}}"></textarea>
         <div class="hint">파일로 확인할 수 있게 쓰면 엔진이 직접 확인해 자동으로 끝냅니다.</div></div>
-      <div class="note"><b>진행 방식</b> · 기획팀(Claude Code) → 개발팀(Claude Code) → 검증팀(Codex)이 돌아가며 진행합니다. 완료 조건이 모두 확인되면 멈추고 개선안을 올립니다. 대장의 결정이 필요하면 질문을 남깁니다. 하루 {{limits.day}}단계까지 실행합니다.</div>
+      <div class="note"><b>진행 방식</b> · 기획팀이 다음 작업을 정해 개발팀 또는 디자인팀에 맡기고, 필요하면 보안팀·정책팀이 검토한 뒤 검증팀이 확인합니다. 완료 조건이 모두 확인되면 멈추고 개선안을 올립니다. 대장의 결정이 필요하면 질문을 남깁니다. 하루 {{limits.day}}단계까지 실행합니다.</div>
       <sc-if value="{{np.real}}"><div class="note" style="background: var(--stop-soft); color: var(--stop)"><b style="color: var(--stop)">실제 실행 모드</b> · 시작하면 실제 AI가 실행되고 구독 사용량이 쓰입니다.</div></sc-if>
       <sc-if value="{{np.hasError}}"><div class="hint" style="color: var(--stop)" role="alert">{{np.error}}</div></sc-if>
     </div>
@@ -661,13 +662,21 @@ function build(nodes, parent, vals, scope) {
 // ---- 표시용 도우미 ----
 const TOOL = { 'claude-code': 'Claude Code', codex: 'Codex' };
 const TEAMS = [
-  { id: 'plan', name: '기획팀', tool: 'claude-code', access: '읽기 전용', role: '현재 상태와 검증팀 피드백을 보고 다음 작업 하나를 정합니다. 사람의 결정이 필요하면 대장에게 질문합니다.' },
-  { id: 'dev', name: '개발팀', tool: 'claude-code', access: '작업 폴더 안 파일 쓰기 (명령 실행 없음)', role: '기획팀이 정한 작업을 작업 폴더 안에서 수행하고, 완료 조건을 확인할 방법을 함께 보고합니다.' },
-  { id: 'qa', name: '검증팀', tool: 'codex', access: 'Codex 샌드박스 안에서 테스트 실행', role: '완료 조건을 확인하고 부족한 점을 기획팀에 넘깁니다. 모두 확인되면 다음 개선안을 제안합니다.' },
+  { id: 'plan', name: '기획팀', kind: '매 순환', tool: 'claude-code', access: '읽기 전용', role: '현재 상태와 피드백을 보고 다음 작업 하나를 정합니다. 개발팀·디자인팀 중 누가 할지, 보안·정책 검토가 필요한지도 정합니다. 사람의 결정이 필요하면 대장에게 질문합니다.' },
+  { id: 'dev', name: '개발팀', kind: '작업', tool: 'claude-code', access: '작업 폴더 안 파일 쓰기 (명령 실행 없음)', role: '코드·데이터·문서 작업을 작업 폴더 안에서 하고, 완료 조건을 확인할 방법을 함께 보고합니다.' },
+  { id: 'design', name: '디자인팀', kind: '작업', tool: 'claude-code', access: '작업 폴더 안 파일 쓰기 (명령 실행 없음)', role: '화면·UI·레이아웃·시각 스타일을 HTML/CSS나 디자인 문서로 만듭니다. 기획팀이 화면 작업이라고 판단할 때 맡습니다.' },
+  { id: 'security', name: '보안팀', kind: '필요할 때 검토', tool: 'codex', access: 'Codex 읽기 전용 샌드박스', role: '입력 처리·로그인·비밀정보·네트워크·의존성을 다루는 작업을 검토합니다. 막아야 할 문제가 있으면 기획팀으로 되돌립니다.' },
+  { id: 'policy', name: '정책팀', kind: '필요할 때 검토', tool: 'claude-code', access: '읽기 전용', role: '라이선스·외부 API와 데이터 약관·개인정보·외부 게시를 검토합니다. 대장의 결정이 필요하면 질문을 남기고 멈춥니다.' },
+  { id: 'qa', name: '검증팀', kind: '매 순환', tool: 'codex', access: 'Codex 샌드박스 안에서 테스트 실행', role: '완료 조건을 확인하고 부족한 점을 기획팀에 넘깁니다. 모두 확인되면 다음 개선안을 제안합니다.' },
 ];
-const TEAM_NAME = { plan: '기획팀', dev: '개발팀', qa: '검증팀' };
+const TEAM_NAME = { plan: '기획팀', dev: '개발팀', design: '디자인팀', security: '보안팀', policy: '정책팀', qa: '검증팀' };
+// 이번 순환에서 거치는 팀: 기획 → 작업팀 → [요청된 검토] → 검증
+// 검토팀 질문은 "[정책팀] …" 형태로 온다. 접두어가 없으면 기획팀 질문이다.
+const askedBy = (q) => { const m = /^\[([^\]]+)\]/.exec(q || ''); return m ? m[1] : '기획팀'; };
+const stripAsker = (q) => (q || '').replace(/^\[[^\]]+\]\s*/, '');
+const pathOf = (team) => ['plan', (team && team.worker) || 'dev'].concat((team && team.plannedReviews) || (team && team.reviews) || [], ['qa']);
 const REASON = {
-  needs_decision: '기획팀이 대장의 결정을 기다립니다', unclear_plan: '기획팀이 다음 작업을 정하지 못했습니다',
+  unclear_review: '검토팀의 결과를 읽지 못해 멈췄습니다', needs_decision: '팀이 대장의 결정을 기다립니다', unclear_plan: '기획팀이 다음 작업을 정하지 못했습니다',
   no_progress: '개발 단계에서 3번 연속 진전이 없어 멈췄습니다', awaiting_review: '엔진이 확인하지 못한 조건이 남아 멈췄습니다',
   daily_cap: '오늘 실행 한도에 닿아 내일 이어서 합니다', pinned_model_unavailable: '고정한 모델을 쓸 수 없어 기다립니다',
   network_error: '네트워크 오류로 잠시 후 다시 시도합니다', network_retries_exhausted: '네트워크 오류가 계속되어 멈췄습니다',
@@ -789,7 +798,14 @@ class Component extends DCLogic {
     const P = this.projects();
     const byId = {}; P.forEach((p) => { byId[p.id] = p; });
 
-    const flowOf = (p) => ['plan', 'dev', 'qa'].map((k, i) => ({ l: TEAM_NAME[k].replace('팀', ''), sep: i > 0,
+    // 기획팀이 이번 작업에 부른 검토는 실행 기록의 계획에서 읽는다 (진행 중에 목록이 줄어들기 때문).
+    const cyclePath = (p) => {
+      const g = p.goal, team = Object.assign({}, g.team || {});
+      const lastPlan = p.runs.filter((r) => r.goal.id === g.id && r.plan).sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''))[0];
+      if (lastPlan) { team.worker = lastPlan.plan.team; team.plannedReviews = lastPlan.plan.reviews; }
+      return pathOf(team);
+    };
+    const flowOf = (p) => (p.isTeam ? cyclePath(p) : ['plan', 'dev', 'qa']).map((k, i) => ({ l: TEAM_NAME[k].replace('팀', ''), sep: i > 0,
       cls: 's' + (p.isTeam && p.goal.team && p.goal.team.step === k && RUNNING_LIKE.includes(p.goal.status) && p.goal.autoRun ? ' on' : '') }));
     const rowOf = (p) => ({ name: p.name, single: !p.isTeam, stL: p.st.l, pillCls: pillCls(p.st.tone), proven: p.proven, total: p.total,
       sub: p.isTeam && p.goal.team && p.goal.team.task ? '지금 작업 · ' + clip(p.goal.team.task, 90) : clip(p.goal.objective, 90),
@@ -803,7 +819,7 @@ class Component extends DCLogic {
       const see = { l: '프로젝트 보기', cls: 'btn ghost sm', go: open };
       if (g.status === 'review_required' && g.reason === 'needs_decision') {
         const inputId = 'ans-' + g.id;
-        inbox.push({ icon: ICON.question, icoCls: 'ico', title: '기획팀 질문', project: p.name, body: '답을 주면 기획팀이 이어서 계획합니다.', question: g.question,
+        inbox.push({ icon: ICON.question, icoCls: 'ico', title: askedBy(g.question) + ' 질문', project: p.name, body: '답을 주면 기획팀이 이어서 계획합니다.', question: stripAsker(g.question),
           isQuestion: true, inputId: inputId, draft: s.drafts[g.id] || '', open: open,
           onDraft: (e) => { const d = Object.assign({}, this.state.drafts); d[g.id] = e.target.value; this.setState({ drafts: d }); },
           send: () => this.sendAnswer(g.id) });
@@ -827,7 +843,7 @@ class Component extends DCLogic {
       const mine = allRuns.filter((r) => r.team === t.id).sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
       const working = P.filter((p) => p.goal.status === 'running' && p.goal.team && p.goal.team.step === t.id);
       const lastModel = (mine.find((r) => r.actualModel) || {}).actualModel;
-      return { name: t.name, role: t.role, access: t.access, tool: TOOL[t.tool], model: lastModel || '확인 필요',
+      return { name: t.name, kind: t.kind, role: t.role, access: t.access, tool: TOOL[t.tool], model: lastModel || '확인 필요',
         today: mine.filter((r) => sameDay(r.startedAt)).length,
         stL: working.length ? '작업 중' : '대기', pillCls: pillCls(working.length ? 'run' : 'idle'),
         now: working.length ? working.map((p) => p.name).join(', ') + ' 작업 중' : (mine[0] ? '최근 · ' + mine[0].project.name + ' (' + ago(mine[0].finishedAt || mine[0].startedAt) + ')' : '아직 작업 기록 없음'),
@@ -858,14 +874,15 @@ class Component extends DCLogic {
           this.say('실행 중입니다');
           this.api('POST', '/api/goals/' + g.id + '/run', {}).then((eng) => { this.setState({ eng: eng }); this.say('실행 1회가 끝났습니다'); }).catch((e) => this.say(korErr(e.message)));
         },
-        flowLg: ['plan', 'dev', 'qa'].map((k) => {
+        flowLg: cyclePath(wp).map((k) => {
           const on = team.step === k && RUNNING_LIKE.concat(['paused', 'review_required']).includes(g.status);
           const t = TEAMS.find((x) => x.id === k);
           const n = wp.runs.filter((r) => r.team === k && r.goal.id === g.id).length;
           return { name: t.name, tool: TOOL[t.tool], cls: 'fstep' + (on ? ' on' : ''),
             d: on ? (g.status === 'running' ? '지금 작업 중' : '다음 차례') : (n ? n + '번 참여' : '아직 참여 전') };
         }),
-        hasQuestion: g.status === 'review_required' && g.reason === 'needs_decision', question: g.question,
+        flowCols: 'grid-template-columns: repeat(' + cyclePath(wp).length + ', minmax(0, 1fr))',
+        hasQuestion: g.status === 'review_required' && g.reason === 'needs_decision', question: stripAsker(g.question), askedBy: askedBy(g.question),
         draft: s.drafts[g.id] || '', onDraft: (e) => { const d = Object.assign({}, this.state.drafts); d[g.id] = e.target.value; this.setState({ drafts: d }); },
         sendAnswer: () => this.sendAnswer(g.id),
         hasProposal: !!(g.proposal && g.proposal.status === 'pending'), proposal: g.proposal ? g.proposal.items : [],
@@ -906,7 +923,10 @@ class Component extends DCLogic {
           if (r.status === 'running') res = '작업 중입니다.';
           else if (r.simulated) res = '모의 실행이라 실제 작업은 하지 않았습니다.';
           else if (!ok) res = reasonText(r.errorKind + '_error') || ('오류 · ' + r.errorKind);
-          else if (r.team === 'plan') res = '다음 작업을 정했습니다.';
+          else if (r.team === 'plan') res = r.plan ? TEAM_NAME[r.plan.team] + '에 맡김 · ' + clip(r.plan.nextTask, 120)
+            + (r.plan.reviews.length ? ' · 검토: ' + r.plan.reviews.map((x) => TEAM_NAME[x]).join(', ') : '') : '다음 작업을 정하지 못했습니다.';
+          else if (r.team === 'security' || r.team === 'policy') res = !r.review ? '검토 결과 형식을 읽지 못했습니다.'
+            : r.review.verdict === 'pass' ? '문제 없음' : (r.review.blocking ? '막아야 할 문제 ' : '참고할 점 ') + r.review.issues.length + '건 · ' + clip(r.review.issues.join(' / '), 160);
           else res = '엔진 확인 ' + (r.evidence || []).length + '/' + r.goal.completionCriteria.length + ' 조건';
           return { when: fmt(r.startedAt), who: r.team ? TEAM_NAME[r.team] : '실행 ' + r.round + '회', tool: TOOL[r.executor || 'claude-code'] + ' · ' + (r.actualModel || '모델 확인 필요'),
             resL: resL, pillCls: pillCls(tone), res: res, hasAnswer: !!r.answer, answer: r.answer ? cleanAnswer(r.answer) : '' };

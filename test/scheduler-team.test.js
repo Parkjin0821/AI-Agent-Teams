@@ -130,6 +130,75 @@ test('only started projects run automatically; stop and start control it', async
   store.close();
 });
 
+const planFor = (team, reviews = []) => ({ outcome: 'completed', plan: { nextTask: '화면 작업', team, reviews, needsDecision: null, allDone: false } });
+
+test('the planning team can hand a task to the design team', async () => {
+  const { calls, scheduler, add, store } = setup((team, n) => ({
+    plan: planFor('design'),
+    design: { outcome: 'completed', evidence: ev(0), diffHash: `d${n}` },
+    qa: { outcome: 'completed', evidence: ev(0), findings: { feedback: 'f', improvements: [] } },
+  })[team]);
+  add();
+  await ticks(scheduler, 3);
+  assert.deepEqual(calls.map(c => [c.team, c.executor]), [['plan', 'claude-code'], ['design', 'claude-code'], ['qa', 'codex']]);
+  store.close();
+});
+
+test('requested reviews run between the work and verification; blocking issues go back to planning', async () => {
+  const { store, calls, scheduler, add } = setup((team, n) => ({
+    plan: planFor('dev', ['security', 'policy']),
+    dev: { outcome: 'completed', evidence: [], diffHash: `d${n}` },
+    security: { outcome: 'completed', review: { verdict: 'issues', issues: ['API 키가 코드에 있음'], blocking: true, needsDecision: null } },
+    policy: { outcome: 'completed', review: { verdict: 'pass', issues: [], blocking: false, needsDecision: null } },
+  })[team]);
+  const g = add();
+  await ticks(scheduler, 4);
+  assert.deepEqual(calls.map(c => c.team), ['plan', 'dev', 'security', 'plan'], 'policy and qa are skipped after a blocking issue');
+  assert.equal(calls[2].executor, 'codex');
+  assert.match(calls[3].feedback, /보안팀.*\n- API 키가 코드에 있음/);
+  assert.equal(store.getGoal(g.id).team.cycle, 2);
+  const runs = store.listRuns(g.id);
+  assert.deepEqual(runs[0].plan, { nextTask: '화면 작업', team: 'dev', reviews: ['security', 'policy'] }, 'the plan summary is kept on the run');
+  assert.deepEqual(runs[2].review, { verdict: 'issues', issues: ['API 키가 코드에 있음'], blocking: true }, 'the review verdict is kept on the run');
+  store.close();
+});
+
+test('non-blocking review notes reach the planning team together with the verification feedback', async () => {
+  const { calls, scheduler, add, store } = setup((team, n) => ({
+    plan: planFor('dev', ['policy']),
+    dev: { outcome: 'completed', evidence: [], diffHash: `d${n}` },
+    policy: { outcome: 'completed', review: { verdict: 'issues', issues: ['폰트 라이선스 표기 필요'], blocking: false, needsDecision: null } },
+    qa: { outcome: 'completed', evidence: [], findings: { feedback: '합계 틀림', improvements: [] } },
+  })[team]);
+  add();
+  await ticks(scheduler, 5);
+  assert.deepEqual(calls.map(c => c.team), ['plan', 'dev', 'policy', 'qa', 'plan']);
+  assert.match(calls[4].feedback, /합계 틀림/);
+  assert.match(calls[4].feedback, /\[정책팀\] 폰트 라이선스 표기 필요/);
+  store.close();
+});
+
+test('a reviewer can stop to ask 대장; a malformed review stops too', async () => {
+  const asking = setup((team) => ({
+    plan: planFor('dev', ['policy']), dev: { outcome: 'completed', evidence: [], diffHash: 'd' },
+    policy: { outcome: 'completed', review: { verdict: 'issues', issues: [], blocking: false, needsDecision: 'GPL 코드를 써도 될까요?' } },
+  })[team]);
+  const g1 = asking.add();
+  await ticks(asking.scheduler, 4);
+  const s1 = asking.store.getGoal(g1.id);
+  assert.deepEqual([s1.status, s1.reason, s1.question], ['review_required', 'needs_decision', '[정책팀] GPL 코드를 써도 될까요?']);
+  asking.store.close();
+
+  const broken = setup((team) => ({
+    plan: planFor('dev', ['security']), dev: { outcome: 'completed', evidence: [], diffHash: 'd' },
+    security: { outcome: 'completed', review: null },
+  })[team]);
+  const g2 = broken.add();
+  await ticks(broken.scheduler, 4);
+  assert.deepEqual([broken.store.getGoal(g2.id).status, broken.store.getGoal(g2.id).reason], ['review_required', 'unclear_review']);
+  broken.store.close();
+});
+
 test('concurrency: at most 2 at once, Codex at most 1, one round per project', async () => {
   const releases = [];
   const { calls, scheduler, add, store } = setup(() => new Promise(resolve => releases.push(resolve)));

@@ -1,5 +1,5 @@
 import { listWorkspaceFiles, parseReport, reportInstructions, verifyReport, workspaceFingerprint } from './evidence.js';
-import { parsePlan, qaFindings, teamPrompt } from './teams.js';
+import { parsePlan, parseReview, qaFindings, REVIEWS, teamPrompt } from './teams.js';
 
 // Bridges the goal scheduler to the CLI adapter. After a real run the engine reads the tool's final
 // answer, runs the checks it proposed inside the workspace, and only passing checks become evidence.
@@ -21,13 +21,16 @@ export function createGoalRunner({ adapter, workspaces, store }) {
       if (result.outcome === 'simulated') {
         // Simulation shows the rotation moving but never proves anything, so it stops on "no progress".
         return { outcome: 'completed', simulated: true, evidence: [], claims: [], diffHash: null,
-          plan: team === 'plan' ? { nextTask: '모의 실행 · 실제 작업 없음', needsDecision: null, allDone: false } : undefined,
+          plan: team === 'plan' ? { nextTask: '모의 실행 · 실제 작업 없음', team: 'dev', reviews: [], needsDecision: null, allDone: false } : undefined,
+          review: REVIEWS.includes(team) ? { verdict: 'pass', issues: [], blocking: false, needsDecision: null } : undefined,
           findings: team === 'qa' ? { feedback: '모의 실행이라 확인한 것이 없습니다', improvements: [] } : undefined };
       }
       const base = { model: result.model ?? null, answer: result.answer ?? null };
       if (result.outcome === 'limited') return { ...base, outcome: 'error', errorKind: 'limit' };
       if (result.outcome !== 'completed') return { ...base, outcome: 'error', errorKind: result.errorKind ?? 'unclassified' };
       if (team === 'plan') return { ...base, outcome: 'completed', evidence: [], claims: [], diffHash: null, plan: parsePlan(result.answer) };
+      // Reviewers only look: their verdict steers the rotation but is never evidence of completion.
+      if (REVIEWS.includes(team)) return { ...base, outcome: 'completed', evidence: [], claims: [], diffHash: null, review: parseReview(result.answer) };
       const report = parseReport(result.answer);
       const { evidence, claims } = verifyReport(report, goal.completionCriteria, cwd);
       return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd),

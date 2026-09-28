@@ -1,43 +1,62 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { nextTeam, parsePlan, qaFindings, TEAMS, teamPrompt } from '../src/teams.js';
+import { nextStep, parsePlan, parseReview, qaFindings, TEAMS, teamPrompt } from '../src/teams.js';
 
 const goal = { objective: '가계부 웹앱을 만든다', completionCriteria: ['index.html 파일이 있다', '합계 계산 테스트 통과'] };
 
-test('three teams rotate plan → dev → qa → plan, each with its own tool and access', () => {
-  assert.deepEqual([nextTeam(null), nextTeam('plan'), nextTeam('dev'), nextTeam('qa')], ['plan', 'dev', 'qa', 'plan']);
-  assert.deepEqual(Object.values(TEAMS).map(t => [t.id, t.executor, t.access]),
-    [['plan', 'claude-code', 'read'], ['dev', 'claude-code', 'write'], ['qa', 'codex', 'write']]);
+test('six teams, each with its own tool and access', () => {
+  assert.deepEqual(Object.values(TEAMS).map(t => [t.id, t.executor, t.access]), [
+    ['plan', 'claude-code', 'read'], ['dev', 'claude-code', 'write'], ['design', 'claude-code', 'write'],
+    ['security', 'codex', 'read'], ['policy', 'claude-code', 'read'], ['qa', 'codex', 'write']]);
 });
 
-test('planning prompt carries the goal, criteria, files and QA feedback and asks for a plan block', () => {
-  const p = teamPrompt('plan', { goal, team: { feedback: '합계가 틀림' }, files: ['index.html'] });
-  assert.match(p, /기획팀/);
-  assert.match(p, /가계부 웹앱을 만든다/);
-  assert.match(p, /2\. 합계 계산 테스트 통과/);
-  assert.match(p, /index\.html/);
-  assert.match(p, /합계가 틀림/);
-  assert.match(p, /AGENT_HQ_PLAN/);
+test('the rotation follows what the planning team asked for', () => {
+  const base = { step: 'plan', worker: 'dev', reviews: [] };
+  assert.equal(nextStep(base), 'dev');
+  assert.equal(nextStep({ ...base, worker: 'design' }), 'design');
+  assert.equal(nextStep({ ...base, step: 'dev' }), 'qa', 'no reviews requested → straight to verification');
+  assert.equal(nextStep({ ...base, step: 'dev', reviews: ['security', 'policy'] }), 'security');
+  assert.equal(nextStep({ ...base, step: 'security', reviews: ['policy'] }), 'policy');
+  assert.equal(nextStep({ ...base, step: 'policy', reviews: [] }), 'qa');
+  assert.equal(nextStep({ ...base, step: 'qa' }), 'plan');
+  assert.equal(nextStep({ step: undefined }), 'plan');
 });
 
-test('dev prompt gives the one task and asks for the checkable report; qa prompt asks for feedback and improvements', () => {
-  const dev = teamPrompt('dev', { goal, team: { task: '합계 함수 작성' }, files: [] });
-  assert.match(dev, /개발팀/);
-  assert.match(dev, /합계 함수 작성/);
-  assert.match(dev, /AGENT_HQ_REPORT/);
-  const qa = teamPrompt('qa', { goal, team: { task: '합계 함수 작성' }, files: ['sum.js'] });
-  assert.match(qa, /검증팀/);
-  assert.match(qa, /"feedback"/);
-  assert.match(qa, /"improvements"/);
-  assert.match(qa, /Do not change/);
-});
-
-test('the plan block is parsed; a missing block is null', () => {
-  const plan = parsePlan('다음은 이것입니다.\nAGENT_HQ_PLAN\n{"next_task":"합계 함수 작성","needs_decision":null,"all_done":false}');
-  assert.deepEqual(plan, { nextTask: '합계 함수 작성', needsDecision: null, allDone: false });
+test('the plan says which team works next and which reviews to run', () => {
+  const plan = parsePlan('AGENT_HQ_PLAN {"next_task":"로그인 화면","team":"design","reviews":["policy","security","other"],"needs_decision":null,"all_done":false}');
+  assert.deepEqual(plan, { nextTask: '로그인 화면', team: 'design', reviews: ['security', 'policy'], needsDecision: null, allDone: false });
+  assert.equal(parsePlan('AGENT_HQ_PLAN {"next_task":"합계 함수","team":"hacker"}').team, 'dev', 'unknown team falls back to development');
+  assert.deepEqual(parsePlan('AGENT_HQ_PLAN {"next_task":"합계 함수"}').reviews, []);
   assert.equal(parsePlan('계획 없음'), null);
-  assert.equal(parsePlan('AGENT_HQ_PLAN {"next_task":""}'), null, 'an empty task without a decision or done is not a plan');
-  assert.deepEqual(parsePlan('AGENT_HQ_PLAN {"needs_decision":"결제 정보가 필요합니다"}').needsDecision, '결제 정보가 필요합니다');
+});
+
+test('planning prompt explains when to call design, security and policy', () => {
+  const p = teamPrompt('plan', { goal, team: { feedback: '보안팀: 비밀번호가 평문' }, files: ['index.html'] });
+  assert.match(p, /디자인팀/);
+  assert.match(p, /보안팀/);
+  assert.match(p, /정책팀/);
+  assert.match(p, /"reviews"/);
+  assert.match(p, /비밀번호가 평문/);
+});
+
+test('each team has its own prompt; reviewers must not change files', () => {
+  for (const step of ['dev', 'design', 'qa']) assert.match(teamPrompt(step, { goal, team: { task: 't' }, files: [] }), /AGENT_HQ_REPORT/);
+  for (const step of ['security', 'policy']) {
+    const p = teamPrompt(step, { goal, team: { task: 't' }, files: [] });
+    assert.match(p, /AGENT_HQ_REVIEW/);
+    assert.match(p, /Do not change/);
+  }
+  assert.match(teamPrompt('design', { goal, team: { task: 't' }, files: [] }), /디자인팀/);
+  assert.throws(() => teamPrompt('marketing', { goal, team: {}, files: [] }), /unknown/);
+});
+
+test('a review block is parsed; a missing block is null', () => {
+  assert.deepEqual(parseReview('AGENT_HQ_REVIEW {"verdict":"issues","issues":["API 키가 코드에 있음",""],"blocking":true,"needs_decision":null}'),
+    { verdict: 'issues', issues: ['API 키가 코드에 있음'], blocking: true, needsDecision: null });
+  assert.deepEqual(parseReview('AGENT_HQ_REVIEW {"verdict":"pass"}'), { verdict: 'pass', issues: [], blocking: false, needsDecision: null });
+  assert.equal(parseReview('AGENT_HQ_REVIEW {"verdict":"maybe"}'), null);
+  assert.equal(parseReview('검토함'), null);
+  assert.equal(parseReview('AGENT_HQ_REVIEW {"verdict":"issues","needs_decision":"GPL 코드를 써도 될까요?"}').needsDecision, 'GPL 코드를 써도 될까요?');
 });
 
 test('QA findings are trimmed and bounded', () => {

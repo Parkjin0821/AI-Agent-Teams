@@ -59,7 +59,22 @@ test('team rounds use the team prompt and access, and return the parsed plan', a
   assert.deepEqual([seen.provider, seen.access], ['claude', 'read']);
   assert.match(seen.prompt, /기획팀/);
   assert.match(seen.prompt, /notes\.md/);
-  assert.deepEqual(result.plan, { nextTask: 'README 작성', needsDecision: null, allDone: false });
+  assert.deepEqual(result.plan, { nextTask: 'README 작성', team: 'dev', reviews: [], needsDecision: null, allDone: false });
+  assert.equal(result.evidence.length, 0);
+});
+
+test('review teams run read-only and return the parsed review, never evidence', async () => {
+  let seen;
+  const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(), 'hq-gr-')));
+  const adapter = { enabled: true, run: async (provider, prompt, onEvent, opts) => {
+    seen = { provider, prompt, access: opts.access };
+    return { outcome: 'completed', answer: '검토했습니다.\nAGENT_HQ_REVIEW {"verdict":"issues","issues":["비밀번호 평문 저장"],"blocking":true,"needs_decision":null}' };
+  } };
+  const g = { ...teamGoal, team: { ...teamGoal.team, step: 'security', task: '로그인' } };
+  const result = await createGoalRunner({ adapter, workspaces, store }).run(g, { executor: 'codex', team: 'security', access: 'read', model: null });
+  assert.deepEqual([seen.provider, seen.access], ['codex', 'read']);
+  assert.match(seen.prompt, /보안팀/);
+  assert.deepEqual(result.review, { verdict: 'issues', issues: ['비밀번호 평문 저장'], blocking: true, needsDecision: null });
   assert.equal(result.evidence.length, 0);
 });
 
