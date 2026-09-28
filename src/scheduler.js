@@ -1,22 +1,25 @@
 import { randomUUID } from 'node:crypto';
 import { validateCriteria } from './domain.js';
+import { resolveModel, validateExecutor } from './models.js';
 import { DEFAULT_POLICY } from './policy.js';
 import { validateProjectId } from './workspaces.js';
 
 export const GoalStatus = Object.freeze({
-  SCHEDULED: 'scheduled', RUNNING: 'running', RETRY_WAIT: 'retry_wait', VERIFIED: 'verified',
+  SCHEDULED: 'scheduled', RUNNING: 'running', RETRY_WAIT: 'retry_wait', VERIFIED: 'verified', MODEL_WAIT: 'model_wait',
   REVIEW_REQUIRED: 'review_required', BLOCKED: 'blocked', RECOVERY_REQUIRED: 'recovery_required',
 });
-const DUE = [GoalStatus.SCHEDULED, GoalStatus.RETRY_WAIT];
+const DUE = [GoalStatus.SCHEDULED, GoalStatus.RETRY_WAIT, GoalStatus.MODEL_WAIT];
 const RESUMABLE = [GoalStatus.REVIEW_REQUIRED, GoalStatus.BLOCKED, GoalStatus.RECOVERY_REQUIRED];
 const NON_RETRYABLE = ['auth', 'limit', 'permission'];
 const iso = ms => new Date(ms).toISOString();
 
 // Drives repeated rounds toward a goal. Time comes only from the injected clock and all state lives in
 // SQLite, so the scheduler holds nothing that a restart could lose. It never resumes interrupted work itself.
+// The model is resolved only when a round is claimed, i.e. after the previous round's run record (the
+// checkpoint) is saved; a policy change during a round therefore takes effect from the next round.
 export class GoalScheduler {
-  constructor({ store, runner, clock = { now: () => Date.now() }, policy = DEFAULT_POLICY }) {
-    Object.assign(this, { store, runner, clock, policy });
+  constructor({ store, runner, clock = { now: () => Date.now() }, policy = DEFAULT_POLICY, registry = null }) {
+    Object.assign(this, { store, runner, clock, policy, registry });
     for (const goal of store.listGoals().filter(g => g.status === GoalStatus.RUNNING)) {
       for (const run of store.listRuns(goal.id).filter(r => r.status === 'running')) store.saveRun({ ...run, status: 'interrupted' });
       this.update(goal, { status: GoalStatus.RECOVERY_REQUIRED, reason: 'interrupted_by_restart', nextRunAt: null });
@@ -29,9 +32,16 @@ export class GoalScheduler {
     if (!Object.hasOwn(intervals, input?.kind)) throw new Error('kind must be research or improvement');
     if (!input.objective?.trim()) throw new Error('objective is required');
     if (!input.completionCriteria?.length) throw new Error('Goal requires explicit completion criteria');
+    const modelOverride = input.modelOverride ?? { mode: 'inherit' };
+    if (!['inherit', 'pinned'].includes(modelOverride.mode) || (modelOverride.mode === 'pinned' && !modelOverride.model)) {
+      throw new Error('modelOverride must be inherit or pinned with a model');
+    }
     const now = iso(this.clock.now());
     const goal = {
       id: randomUUID(), projectId: validateProjectId(input.projectId ?? 'default'), kind: input.kind,
+      executor: validateExecutor(input.executor ?? 'claude-code'),
+      modelOverride: modelOverride.mode === 'pinned' ? { mode: 'pinned', model: modelOverride.model } : { mode: 'inherit' },
+      activeModel: null,
       objective: input.objective.trim(), completionCriteria: validateCriteria(input.completionCriteria),
       intervalMs: intervals[input.kind], status: GoalStatus.SCHEDULED, reason: null,
       round: 0, attempt: 0, nextRunAt: now, evidence: [],
@@ -66,11 +76,23 @@ export class GoalScheduler {
       return this.store.transaction(() => {
         const goal = this.store.getGoal(goalId);
         if (!goal || !DUE.includes(goal.status) || Date.parse(goal.nextRunAt) > now) return null;
-        if (goal.status === GoalStatus.RETRY_WAIT) goal.attempt++;
+        const model = this.resolveFor(goal);
+        if (model.state === 'waiting') {
+          // Never swap in another model on our own; wait until the pinned one is usable or fallback is allowed.
+          if (goal.status !== GoalStatus.MODEL_WAIT) {
+            this.update(goal, { status: GoalStatus.MODEL_WAIT, waitingFrom: goal.status, reason: model.reason });
+            void this.store.emit({ type: 'goal.model_wait', goalId, model: model.model, reason: model.reason });
+          }
+          return null;
+        }
+        const from = goal.status === GoalStatus.MODEL_WAIT ? goal.waitingFrom : goal.status;
+        if (from === GoalStatus.RETRY_WAIT) goal.attempt++;
         else { goal.round++; goal.attempt = 0; }
         const run = this.store.insertRun({ id: randomUUID(), goalId, round: goal.round, attempt: goal.attempt,
-          status: 'running', startedAt: iso(now) });
-        this.update(goal, { status: GoalStatus.RUNNING });
+          status: 'running', startedAt: iso(now), executor: goal.executor ?? 'claude-code',
+          requestedModel: model.model, modelSource: model.source, fallbackFrom: model.fallbackFrom ?? null,
+          policyVersion: model.policyVersion });
+        this.update(goal, { status: GoalStatus.RUNNING, waitingFrom: null, reason: null });
         return run;
       });
     } catch (error) {
@@ -83,7 +105,10 @@ export class GoalScheduler {
     const goal = this.store.getGoal(run.goalId);
     await this.store.emit({ type: 'goal.run_started', goalId: goal.id, round: run.round, attempt: run.attempt });
     let result;
-    try { result = await this.runner.run(structuredClone(goal), { round: run.round, attempt: run.attempt }); }
+    try {
+      result = await this.runner.run(structuredClone(goal),
+        { round: run.round, attempt: run.attempt, executor: run.executor, model: run.requestedModel });
+    }
     catch (error) { result = { outcome: 'error', errorKind: error.kind }; }
     await this.settle(run, result ?? {});
   }
@@ -92,11 +117,13 @@ export class GoalScheduler {
     const now = this.clock.now();
     const goal = this.store.getGoal(run.goalId);
     const evidence = this.evidenceFor(goal, result.evidence);
+    // Only the tool's own report says which model actually ran; the requested model is not proof.
+    const actualModel = typeof result.model === 'string' && result.model ? result.model : null;
     // Provider messages and logs are not persisted: they may carry secrets and are not evidence.
     this.store.saveRun({ ...run, status: 'finished', finishedAt: iso(now), outcome: result.outcome ?? 'invalid_result',
-      errorKind: result.errorKind ?? null, diffHash: result.diffHash ?? null, evidence });
+      errorKind: result.errorKind ?? null, diffHash: result.diffHash ?? null, evidence, actualModel });
     if (goal.status !== GoalStatus.RUNNING) return;
-    this.update(goal, this.decide(goal, result, evidence, now));
+    this.update(goal, { ...this.decide(goal, result, evidence, now), activeModel: actualModel });
     await this.store.emit({ type: `goal.${goal.status}`, goalId: goal.id, round: run.round, reason: goal.reason });
   }
 
@@ -140,6 +167,25 @@ export class GoalScheduler {
       }
     }
     return [...byCriterion.values()];
+  }
+
+  resolveFor(goal) {
+    const executor = goal.executor ?? 'claude-code';
+    if (!this.registry) return { state: 'ready', model: null, source: 'executor_default', policyVersion: null };
+    const project = this.registry.getPolicy(`project:${goal.projectId}`);
+    return { ...resolveModel({ executor, project, task: goal.modelOverride, catalog: this.registry.catalog() }),
+      policyVersion: project.version };
+  }
+
+  // requested = what the current/last round asked for, actual = what the tool reported, next = what the
+  // next round would use. A settings change shows up as changePending, never as a changed actual model.
+  modelStatus(goalId) {
+    const goal = this.store.getGoal(goalId);
+    const run = this.store.listRuns(goalId).at(-1);
+    const next = this.resolveFor(goal);
+    return { executor: goal.executor ?? 'claude-code', requested: run?.requestedModel ?? null, actual: goal.activeModel ?? null,
+      next: next.model, nextState: next.state,
+      changePending: Boolean(run) && (next.state !== 'ready' || next.model !== run.requestedModel) };
   }
 
   update(goal, changes) {
