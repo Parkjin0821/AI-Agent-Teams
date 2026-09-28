@@ -42,13 +42,52 @@ Claude Code는 일반 구현, Codex는 중요·복잡한 변경과 검토를 담
 - 시안: 팀 카드에 `팀 · 도구 · 확인 필요`, 프로젝트 상세에 모델 설정(자동/고정/대체 허용) — 화면 상태만, 엔진 미연결.
 - 테스트 45개 통과(신규 23개).
 
-## 남은 작업
-- 실제 모델 목록 등록: 공식 문서 URL과 계정 확인(격리 실행 성공)을 거쳐 카탈로그에 넣어야 함. 현재 카탈로그는 비어 있음.
-- 어댑터: `--model` 전달, 실행 도구가 보고한 실제 모델·도구 버전 파싱, 평가 지표(테스트 통과율·실행 시간·권한 위반) 수집.
-- 새 모델 '발견'의 자동화 없음(수동 등록만). 서버 API/대시보드 연결 없음.
-- 대시보드 개편(시안) 완료: 상황실(확인함 급한 3건 → 진행 중 프로젝트 → 사용량 → 팀 요약), 프로젝트 목록(검색·상태 필터·새 프로젝트), 프로젝트 작업실(개요/작업·팀/결과물/실행·로그/검증/설정), 한도 대기와 실행 대기 구분, 잔여율 통일·Fable 포함 상한. 모두 예시 데이터이며 서버 API와 연결 안 됨.
-- 실행기(runner) 실제 연결: Orchestrator/CliAgentAdapter 결과를 `{ outcome, errorKind, evidence, diffHash }`로 변환. 오류 분류(network/auth/limit/permission)는 공식 CLI 출력 확인 후 구현.
-- 서버에 tick 주기 실행 연결 및 API(목표 등록·재개·조회). 증거 검증 주체(사람/검증 역할) 결정.
+## 화면-엔진 연결 — 3차 슬라이스 (모의 실행, 2026-09-28)
+- `src/app.js` `createApp`: 서버 조립(테스트 가능). `src/server.js`는 실행만. 30초마다 `scheduler.tick()`.
+- API: `GET /api/engine`(목표·회차·모델 상태·정책·카탈로그·최근 이벤트), `POST /api/goals`, `POST /api/goals/:id/pause|resume`, `POST /api/engine/tick`, `PUT /api/projects/:id/model-policy`. 쓰기 요청은 `application/json`만 허용(다른 사이트의 몰래 요청 차단), 본문 1MB 제한.
+- 스케줄러: 일시정지(실행 중이면 그 회차 저장 후 정지)·재개, 목표 이름(title), 회차 기록에 `simulated` 표시.
+- `src/goal-runner.js`: 어댑터 연결. 모의 실행이면 근거 0건·모델 없음으로 보고 → 모의 실행으로는 절대 ‘검증 완료’가 되지 않음. 원문 출력은 저장하지 않음.
+- 대시보드: ‘엔진’ 표시 프로젝트는 실제 엔진 데이터. 새 프로젝트 등록·일시정지/재개·예약 회차 실행·모델 정책(자동/고정/대체 허용)·실행 회차·로그·체크포인트·확인함(멈춘 목표) 연결. ‘예시’ 프로젝트와 사용량·팀은 여전히 가상.
+- 테스트 55개 통과(신규 10개: `test/scheduler-pause.test.js`, `test/app.test.js`).
+
+## 실제 CLI 1회 시험 (2026-09-28, `node scripts/cli-smoke.mjs`)
+- 설치 확인: Claude Code 2.1.265(`%APPDATA%\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe`), codex-cli 0.158.0-alpha(Codex 앱 번들 `%LOCALAPPDATA%\OpenAI\Codex\bin\<버전>\codex.exe`, PATH에 없음). `AGENT_HQ_CLAUDE_BIN`/`AGENT_HQ_CODEX_BIN`으로 지정 가능.
+- 어댑터(`src/adapters.js`): 프롬프트는 stdin으로만 전달, 셸 미사용. Claude Code는 `acceptEdits` + `--tools=Read,Write,Edit`(명령 실행 도구 없음), Codex는 `workspace-write` 샌드박스 + `--skip-git-repo-check --ephemeral`. 실제 모델은 도구가 출력한 값만 사용. 오류 분류(auth/limit/network/permission/timeout/not_installed). 제한 시간 초과 시 프로세스 트리 종료.
+- 하위 CLI에는 바깥 Claude 세션 변수(`CLAUDE_CODE_*` 등, 메시지 토큰 포함)를 넘기지 않음(`childEnv`).
+- 결과: **Codex 성공** — 14초, `hello.txt` 내용 일치를 스크립트가 직접 확인, 다른 파일 없음. Codex `--json` 출력에는 모델 이름이 없어 모델은 ‘확인 필요’.
+- 결과: **Claude Code** — 처음엔 CLI 미로그인으로 인증 실패. 사용자가 `claude auth login`(claude.ai 계정) 후 재시험 **성공**: 12.5초, `hello.txt` 내용 일치 확인, 다른 파일 없음, 도구가 보고한 모델 `claude-opus-5[1m]`.
+- 서버의 실제 실행은 여전히 기본 꺼짐(`AGENT_HQ_ENABLE_EXEC=1`일 때만, `.claude/launch.json`의 `agent-hq-real`). 실제 실행에서도 근거(evidence) 추출은 미구현이라 ‘검증 완료’로 자동 판정되지 않음.
+- 실제 실행 안전장치: 실제 실행이 켜지면 30초 자동 실행 꺼짐, `POST /api/engine/tick`(일괄 실행) 거부. `POST /api/goals/:id/run`으로 목표 하나를 한 회차만 실행(일정 무시, 일시정지·모델 대기·완료 상태는 존중). 화면은 빨간 ‘실제 실행 모드’ 띠와 ‘실제 실행 1회 (사용량 소모)’ 버튼 + 확인 창.
+- 시험용 목표(household-budget, model-demo)와 관련 기록은 로컬 DB에서 삭제함.
+
+## 결과 도출·자동 종료 (2026-09-28)
+- 목표 종류 `task`(한 번 실행, 반복 없음) 추가, 화면 기본값. 한 회차 후 모든 조건이 증명되면 즉시 `verified`, 아니면 재실행하지 않고 `review_required(awaiting_review)`로 멈춤. `research`/`improvement`만 주기 반복.
+- `src/evidence.js`: 프롬프트에 조건 번호와 보고 형식(`AGENT_HQ_REPORT` + JSON) 요청. 허용 확인 방식은 `file_exists`, `file_contains`뿐이며 작업 폴더 밖 경로·링크 탈출 거부. 엔진이 직접 확인해 통과한 것만 근거. 작업 폴더 지문(`workspaceFingerprint`)으로 진전 판단.
+- 어댑터가 최종 답변을 스트림에서 추출(Claude `result`, Codex `agent_message`). 회차 기록에 답변(최대 4,000자)과 조건별 보고(claims) 저장. 원문 출력은 여전히 저장 안 함.
+- `confirmCriterion`/`POST /api/goals/:id/confirm`: 엔진이 확인 못 한 조건을 대장이 확인(‘대장 확인’ 근거, 이후 회차에도 유지). 모두 채워지면 `verified`.
+- 화면: 결과물 탭 ‘AI 실행 결과’, 검증 탭 조건별 확인 결과·‘완료로 확인’, 개요 ‘대장 확인 대기’(결과 보기/완료 확인/한 번 더 실행), 실행·로그 제목을 ‘엔진 기록’으로.
+- 기존 `hello` 목표(research, 일시정지)는 이 기능 이전에 실행되어 답변이 저장되지 않았음.
+- 프로젝트 삭제: `DELETE /api/projects/:id`(JSON 필수) — 목표·실행 기록·해당 로그·모델 정책 삭제, 실행 중이면 거부. 작업 폴더 파일은 `deleteFiles: true`일 때만 삭제(`ProjectWorkspaces.remove`, 링크면 거부). `project.deleted` 감사 이벤트 남김. 화면: 작업실 설정 탭 ‘프로젝트 삭제’(확인 2단계: 삭제 여부 → 파일 삭제 여부). 예시 프로젝트는 ‘예시 숨기기’(화면에서만).
+- 버그 수정(실제 실행에서 발견): 도구가 `done:false`라고 한 조건도 확인 통과만으로 근거가 되어 `helloworld`가 잘못 `verified`됨. 이제 `done:true`인 조건만 근거. 프롬프트에 “스스로 쓴 상태 메모는 증거가 아님” 추가. 한계: 파일 확인은 파일 존재/내용만 증명하며 주장의 참을 증명하지 않음.
+- 테스트 89개 통과.
+
+## 팀 순환 엔진과 대시보드 리디자인 (2026-09-28)
+- 사용자 방향: ID 입력 없음, 고정 주기 없음, 팀이 돌아가며 스스로 판단해 진행. 결정(사용자 선택): 시작하면 끝까지 자동 / 프로젝트당 하루 최대 회차 + 사용량 규칙 / 완료 후 개선안은 대장 승인 후 계속.
+- `src/teams.js`: 기획팀(Claude Code, 읽기)·개발팀(Claude Code, 쓰기)·검증팀(Codex, 샌드박스) 순환, 팀별 지시문, `AGENT_HQ_PLAN` 해석, 검증팀 feedback/improvements.
+- 스케줄러 `kind: 'team'`: 다음 단계를 즉시 예약(타이머 없음). 멈춤 조건: 모든 조건 증명(→`verified`+개선안 `proposal`), 기획팀 질문(`needs_decision`, `answer()`로 재개), 개발 단계 무진전 3회, 하루 한도(`maxRoundsPerDay` 10, 다음 날 자정 재개), 오류. `start/stop/answer/acceptProposal/dismissProposal`. `tick()`이 동시 실행(전체 2·Claude Code 2·Codex 1·프로젝트당 1) 강제.
+- 서버: `POST /api/projects`(ID 자동 `p-…`), `/api/goals/:id/start|stop|answer|proposal/accept|proposal/dismiss`. 실제 실행 모드에서도 타이머는 ‘시작한’ 프로젝트만 진행(`autoScope: started`). 어댑터 `access: read|write`.
+- 사용량 규칙: 공식 잔여량 조회 수단이 없어 적용 불가(‘확인 불가’). 대신 CLI 한도 오류로 정지 + 하루 회차 한도.
+- 대시보드 리디자인(Vercel/Linear 기준, redesign 스킬): 예시 데이터 전부 제거하고 실제 엔진 데이터만 표시. 상단 내비(홈·프로젝트·팀·사용량), Geist + Pretendard, 강조색 1개. 홈: 요약·확인 필요(질문 답변/개선안 승인/멈춤 재시작)·프로젝트·팀. 프로젝트: 팀 흐름, 개요/활동/검증/설정. 새 프로젝트 슬라이드 패널(이름 선택·목표·완료 조건, 만들기만/만들고 시작). 빈 상태·연결 끊김 상태 포함.
+- 테스트 105개 통과. 화면은 팀을 흉내 내는 가짜 실행기 임시 서버로 전체 흐름(생성→순환→완료→개선안 승인, 질문→답변, 하루 한도, 삭제)과 375px 레이아웃 확인.
+
+## 남은 작업 (2026-09-28 기준)
+- 팀 순환을 실제 AI로 한 프로젝트 끝까지 돌려 보는 검증(지금까지 실제 실행은 단일 실행 목표만; 팀 순환은 가짜 실행기로만 확인).
+- 실제 모델 목록 등록: 공식 문서 URL과 계정 확인(격리 실행 성공)을 거쳐 카탈로그에 넣어야 함. 현재 카탈로그는 비어 있음. 모델 평가·변경 파이프라인은 API/화면 미연결.
+- 팀 확장(디자인·보안·정책·플랫폼 개선)과 팀별 실행 도구·모델 설정 화면.
+- Codex `--json` 출력에 모델 이름이 없어 검증팀 모델은 ‘확인 필요’로 남음.
+- 완료 근거는 파일 존재·내용 확인뿐(주장의 참은 증명 못 함). 테스트 실행 결과를 근거로 쓰려면 격리된 명령 실행 확인 방식이 필요.
+- 구독 잔여량 공식 조회 수단 없음 → 사용량 규칙은 ‘확인 불가’. 공식 수단이 생기면 연결.
+- 기존 Orchestrator(`/api/tasks`) 경로는 화면에서 쓰지 않음 — 정리 또는 팀 엔진으로 통합 검토.
 
 ## (참고) 원래 계획: 지속 실행 엔진
 1. 기존 코드와 npm test부터 확인한다. 기존 변경을 보존한다.

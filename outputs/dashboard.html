@@ -3,1025 +3,603 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AGENT HQ 대시보드</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans+KR:wght@400;500;600;700&amp;display=swap">
+<title>AGENT HQ</title>
+<meta name="description" content="AI 팀이 프로젝트를 기획·개발·검증하며 진행하는 로컬 작업 공간">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23111'/%3E%3Cpath d='M9 22V10h3v4.8h8V10h3v12h-3v-4.6h-8V22z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
-:root{--bg:#F3F2EE;--sf:#FFFFFF;--sf2:#F8F7F3;--ln:#E3E1D9;--ln2:#D2CFC5;--ink:#16161A;--ink2:#44444C;--ink3:#62626A;--side:#141519;--side2:#1F2126;--side-ink:#EDECE7;--side-mut:#A7A6A0}
+:root{
+  --bg:#FAFAFA;--surface:#FFFFFF;--subtle:#F4F4F5;--line:#E7E7EA;--line-strong:#D4D4D8;
+  --text:#0A0A0B;--text-2:#52525B;--text-3:#71717A;--text-4:#A1A1AA;
+  --accent:#2E5BFF;--accent-soft:#EEF2FF;--accent-ink:#1E3FCC;
+  --run:#2E5BFF;--done:#15803D;--done-soft:#EDFAF1;--attn:#B45309;--attn-soft:#FFF7E8;--stop:#C2410C;--stop-soft:#FFF1EB;--idle:#A1A1AA;
+  --r-sm:6px;--r:10px;--r-lg:14px;
+  --shadow:0 1px 2px rgba(17,17,26,.04),0 4px 16px rgba(17,17,26,.04);
+  --font:"Geist","Pretendard Variable",Pretendard,-apple-system,"Malgun Gothic",sans-serif;
+  --mono:"Geist Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased;word-break:keep-all}
-button{font:inherit;color:inherit;cursor:pointer}
-input,textarea{font:inherit;color:inherit}
-:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
-.hq{display:grid;grid-template-columns:244px minmax(0,1fr);min-height:100vh}
-.hq.is-narrow{grid-template-columns:minmax(0,1fr)}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;word-break:keep-all;overflow-wrap:anywhere}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums}
+.skip{position:absolute;left:-999px;top:8px;background:var(--text);color:#fff;padding:8px 12px;border-radius:var(--r-sm);z-index:100}
+.skip:focus{left:8px}
 
-/* 사이드바 */
-.side{position:sticky;top:0;height:100vh;overflow:auto;background:var(--side);color:var(--side-ink);padding:20px 14px;display:flex;flex-direction:column;gap:22px}
-.is-narrow .side{display:none}
-.brand{display:flex;align-items:center;gap:10px;padding:2px 8px}
-.logo{width:32px;height:32px;border-radius:9px;background:#F3F2EE;color:#141519;display:grid;place-items:center;font-weight:600;font-size:12px;font-family:"IBM Plex Mono",monospace;flex:none}
-.brand b{font-size:15px;letter-spacing:.04em;display:block}
-.brand small{display:block;font-size:12px;color:var(--side-mut);margin-top:1px}
-.nav{display:flex;flex-direction:column;gap:2px}
-.nav-b{display:flex;align-items:center;gap:11px;min-height:42px;padding:0 10px;border:0;background:transparent;border-radius:9px;color:var(--side-mut);font-size:14px;font-weight:500;text-align:left;width:100%}
-.nav-b:hover{background:var(--side2);color:var(--side-ink)}
-.nav-b.on{background:#2B2D34;color:#fff}
-.nav-b svg{width:18px;height:18px;flex:none}
-.cnt{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;background:#F3A06A;color:#26140A;border-radius:6px;padding:1px 7px}
-.plist{display:flex;flex-direction:column;gap:1px}
-.side h4{margin:0 0 6px;padding:0 10px;font-size:11.5px;letter-spacing:.1em;color:var(--side-mut);font-weight:600}
-.sp{display:flex;align-items:center;gap:10px;min-height:36px;padding:0 10px;border:0;background:transparent;border-radius:8px;color:var(--side-mut);font-size:13px;text-align:left;width:100%}
-.sp:hover{background:var(--side2);color:var(--side-ink)}
-.sp.on{background:#2B2D34;color:#fff}
-.sp span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sd{width:8px;height:8px;border-radius:50%;flex:none;background:#8A8A92}
-.sd-run{background:#5B73F2}.sd-queue{background:#8A93A6}.sd-limit{background:#D19A2A}.sd-approve{background:#E0803A}.sd-review{background:#8E5BD6}.sd-stall{background:#E0503F}.sd-done{background:#2BA864}.sd-paused{background:#6E6E76}.sd-plan{background:#B9B6AC}
-.ops{border-top:1px solid #2B2D34;padding:16px 8px 0;display:flex;flex-direction:column;gap:12px}
-.ops h4{padding:0}
-.op{display:flex;flex-direction:column;gap:3px}
-.op .k{font-size:12.5px;color:var(--side-mut)}
-.op .v{font-size:15px;font-weight:600;color:var(--side-ink)}
-.op .v em{font-style:normal;font-size:12px;color:var(--side-mut);font-weight:400;margin-left:6px}
-.slots{display:flex;gap:4px;margin-top:4px}
-.slots i{height:6px;flex:1;border-radius:3px;background:#8FA2FF}
-.slots i.off{background:#34363E}
-.side-note{margin-top:auto;font-size:12px;color:var(--side-mut);border:1px dashed #3B3D45;border-radius:10px;padding:11px 12px;line-height:1.55}
-.side-note b{color:#F6CF84;font-weight:600}
+/* 상단 바 */
+.top{position:sticky;top:0;z-index:20;background:rgba(250,250,250,.86);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1200px;margin:0 auto;padding:0 24px;height:56px;display:flex;align-items:center;gap:20px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em;font-size:14.5px;flex:none;border:0;background:none;padding:0}
+.mark{width:24px;height:24px;border-radius:7px;background:var(--text);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700;font-family:var(--mono)}
+.tabs-top{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.tabs-top::-webkit-scrollbar{display:none}
+.tt{border:0;background:none;padding:6px 10px;border-radius:var(--r-sm);color:var(--text-3);font-weight:500;white-space:nowrap;transition:color .15s,background .15s}
+.tt:hover{color:var(--text);background:var(--subtle)}
+.tt.on{color:var(--text);background:var(--subtle)}
+.tt .n{margin-left:6px;font-family:var(--mono);font-size:11.5px;color:var(--attn);font-weight:600}
+.top-r{margin-left:auto;display:flex;align-items:center;gap:10px;flex:none}
+.mode{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:var(--text-2);padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);white-space:nowrap}
+.mode i{width:7px;height:7px;border-radius:50%;background:var(--idle)}
+.mode.real{color:var(--stop);border-color:#F5C9B5;background:var(--stop-soft)}
+.mode.real i{background:var(--stop);box-shadow:0 0 0 3px rgba(194,65,12,.15)}
+.mode.off{color:var(--text-3)}
 
-/* 상단 */
-.main{min-width:0;display:flex;flex-direction:column}
-.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:12px 32px;background:rgba(243,242,238,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--ln)}
-.is-narrow .top{padding:10px 14px;flex-wrap:wrap}
-.m-brand{display:none;align-items:center;gap:8px;font-weight:700;font-size:15px;letter-spacing:.04em}
-.m-brand .logo{background:var(--ink);color:#fff;width:28px;height:28px}
-.is-narrow .m-brand{display:flex}
-.search{position:relative;flex:1;max-width:540px}
-.is-narrow .search{order:3;flex-basis:100%;max-width:none}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.search input{width:100%;height:42px;border:1px solid var(--ln2);border-radius:10px;background:var(--sf);padding:0 12px 0 38px;font-size:14px}
-.search input::placeholder{color:#76767D}
-.search svg{position:absolute;left:12px;top:12px;width:18px;height:18px;color:var(--ink3)}
-.results{position:absolute;top:48px;left:0;right:0;background:var(--sf);border:1px solid var(--ln2);border-radius:12px;box-shadow:0 14px 36px rgba(20,20,25,.14);padding:6px;max-height:380px;overflow:auto;z-index:30}
-.res{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;border:0;background:none;text-align:left;padding:10px;border-radius:8px;min-height:48px}
-.res:hover{background:var(--sf2)}
-.res b{font-weight:600;font-size:14px;display:block}
-.res small{display:block;color:var(--ink3);font-size:12.5px;margin-top:2px}
-.res-empty{padding:14px;font-size:13.5px;color:var(--ink3)}
-.kind{font-size:11.5px;color:var(--ink2);border:1px solid var(--ln2);border-radius:6px;padding:2px 7px;white-space:nowrap;flex:none}
-.sample{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#6E4300;background:#FBEFD2;border:1px solid #ECD49A;padding:6px 11px;border-radius:999px;white-space:nowrap}
-.sample i{width:6px;height:6px;border-radius:50%;background:#B7791F}
-.me{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600}
-.av{width:34px;height:34px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:600}
-.mnav{display:none;gap:6px;overflow-x:auto;padding:10px 14px;border-bottom:1px solid var(--ln);background:var(--bg)}
-.is-narrow .mnav{display:flex}
-.chip{flex:none;border:1px solid var(--ln2);background:var(--sf);border-radius:999px;padding:0 14px;min-height:40px;font-size:13.5px;font-weight:500}
-.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+/* 버튼 */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 13px;border-radius:var(--r-sm);border:1px solid var(--line-strong);background:var(--surface);font-weight:500;font-size:13.5px;white-space:nowrap;transition:background .15s,border-color .15s,transform .08s}
+.btn:hover{background:var(--subtle)}
+.btn:active{transform:translateY(1px)}
+.btn.pri{background:var(--text);border-color:var(--text);color:#fff}
+.btn.pri:hover{background:#27272A}
+.btn.danger{color:var(--stop);border-color:#F2C6B4}
+.btn.danger:hover{background:var(--stop-soft)}
+.btn.ghost{border-color:transparent;background:none;color:var(--text-2)}
+.btn.ghost:hover{background:var(--subtle);color:var(--text)}
+.btn.sm{height:28px;padding:0 10px;font-size:12.5px}
+.link{border:0;background:none;padding:0;color:var(--accent-ink);font-weight:500}
+.link:hover{text-decoration:underline;text-underline-offset:3px}
 
-/* 공통 */
-.wrap{width:100%;max-width:1320px;margin:0 auto;padding:28px 32px 72px;display:flex;flex-direction:column;gap:26px}
-.is-narrow .wrap{padding:18px 14px 56px;gap:22px}
-.ph h1{margin:0;font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1.3}
-.is-narrow .ph h1{font-size:23px}
-.ph h1 em{font-style:normal;color:#B4410E}
-.ph p{margin:8px 0 0;color:var(--ink2);font-size:14.5px;line-height:1.55}
-.ph-row{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
-.sec-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
-.sec-h h2{margin:0;font-size:18px;font-weight:700}
-.sec-h .aside{font-size:13px;color:var(--ink3)}
-.ex{display:inline-block;font-size:11px;font-weight:600;color:#6E4300;background:#FBEFD2;border-radius:4px;padding:2px 6px;margin-left:8px;vertical-align:3px}
-.panel{background:var(--sf);border:1px solid var(--ln);border-radius:14px;min-width:0}
-.pad{padding:16px 20px}
-.pn-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 20px;border-bottom:1px solid var(--ln);flex-wrap:wrap}
-.pn-h h2{margin:0;font-size:16.5px;font-weight:700;display:flex;align-items:center;gap:10px}
-.pn-h .aside{font-size:12.5px;color:var(--ink3)}
-.big{font-family:"IBM Plex Mono",monospace;font-size:15px;font-weight:600;background:#B4410E;color:#fff;border-radius:7px;padding:1px 8px}
-.big.zero{background:#17803D}
-.h3{margin:0 0 10px;font-size:13px;font-weight:700;color:var(--ink2)}
-.h3row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
-.btn{min-height:38px;padding:0 13px;border-radius:8px;border:1px solid var(--ln2);background:var(--sf);font-size:13px;font-weight:600;white-space:nowrap}
-.is-narrow .btn{min-height:44px}
-.btn:hover{background:var(--sf2)}
-.btn.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
-.btn.pri:hover{background:#2C2C33}
-.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;font-size:13px;min-height:32px}
-.lnk:hover{text-decoration:underline;text-underline-offset:3px}
-.acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.cl{display:none;font-size:11.5px;color:var(--ink3);margin-bottom:2px}
-.is-narrow .cl,.is-mid .cl{display:block}
-.s{font-size:12.5px;color:var(--ink3);line-height:1.5}
-.warn-t{color:#8E2A1D;font-weight:500}
-.none-t{color:var(--ink3)}
-.goal{font-size:15.5px;line-height:1.65;font-weight:500;margin:0}
-.callout{border-radius:11px;padding:12px 14px;font-size:13.5px;line-height:1.55;background:#FBE9E6;color:#7D2016;font-weight:500}
-.callout.info{background:#EEF0FB;color:#26307E}
-.callout.warn{background:#FBF1D6;color:#5E3E00}
-.empty{border:1px dashed var(--ln2);border-radius:12px;padding:22px;text-align:center;font-size:13.5px;color:var(--ink3);line-height:1.6}
-.tool{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-family:"IBM Plex Mono",monospace;color:var(--ink2);border:1px solid var(--ln2);border-radius:6px;padding:2px 7px;background:var(--sf2);white-space:nowrap}
-.tool i{width:6px;height:6px;border-radius:50%;background:var(--ink2)}
-.asg{font-size:12.5px;color:var(--ink2);font-family:"IBM Plex Mono",monospace}
-.unk{color:#744C00;font-weight:600}
-.lchip{border:1px solid var(--ln2);background:var(--sf);border-radius:8px;min-height:38px;padding:0 12px;font-size:13px;font-weight:600;text-align:left}
-.lchip:hover{background:var(--sf2)}
-.linkchips{display:flex;gap:6px;flex-wrap:wrap}
-.seg{display:inline-flex;border:1px solid var(--ln2);border-radius:9px;padding:2px;background:var(--sf2);flex-wrap:wrap}
-.seg button{border:0;background:none;min-height:36px;padding:0 13px;border-radius:7px;font-size:13px;font-weight:500;color:var(--ink2)}
-.seg button.on{background:var(--sf);color:var(--ink);font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.1)}
-.kv{display:grid;grid-template-columns:70px minmax(0,1fr);gap:6px 10px;font-size:13px;margin:0;line-height:1.5}
-.kv dt{color:var(--ink3)}
-.kv dd{margin:0;color:var(--ink2)}
+/* 레이아웃 */
+main{max-width:1200px;margin:0 auto;padding:36px 24px 96px}
+.page-h{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:28px}
+h1{margin:0;font-size:26px;line-height:1.25;letter-spacing:-.025em;font-weight:600;text-wrap:balance}
+.lede{margin:6px 0 0;color:var(--text-3);max-width:62ch;text-wrap:pretty}
+h2{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em}
+.sec{margin-top:40px}
+.sec:first-of-type{margin-top:0}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+.sec-h .meta{font-size:12.5px;color:var(--text-3)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow)}
+.muted{color:var(--text-3)}
+.small{font-size:12.5px}
+.hint{font-size:12.5px;color:var(--text-3);line-height:1.6}
 
-/* 상태 */
-.st{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;padding:4px 10px 4px 9px;border-radius:999px;white-space:nowrap;justify-self:start}
-.st::before{content:"";width:8px;height:8px;flex:none;box-sizing:border-box}
-.st-run{color:#1D43C9;background:#E6EBFC}
-.st-run::before{border-radius:50%;background:currentColor;box-shadow:0 0 0 3px rgba(29,67,201,.2)}
-.st-queue{color:#394358;background:#E6E9F0}
-.st-queue::before{border:2px solid currentColor;border-radius:2px}
-.st-limit{color:#744C00;background:#F9EDCB}
-.st-limit::before{background:currentColor;height:3px;width:10px;border-radius:2px}
-.st-review{color:#5F23B0;background:#F0E9FB}
-.st-review::before{border-radius:50%;border:2px solid currentColor}
-.st-approve{color:#A33A0B;background:#FCE9D9}
-.st-approve::before{background:currentColor;transform:rotate(45deg);width:7px;height:7px}
-.st-stall{color:#A51F14;background:#FBE1DD}
-.st-stall::before{background:currentColor;border-radius:1px}
-.st-paused{color:#44444C;background:#ECEAE4}
-.st-paused::before{width:7px;height:9px;border-left:2.5px solid currentColor;border-right:2.5px solid currentColor}
-.st-plan{color:#55555D;background:#F1F0EC}
-.st-plan::before{border-radius:50%;border:1.5px dashed currentColor}
-.st-done{color:#166B34;background:#DDF1E3}
-.st-done::before{width:5px;height:9px;border:solid currentColor;border-width:0 2px 2px 0;transform:rotate(45deg) translateY(-1px)}
-.legend{display:flex;gap:6px;flex-wrap:wrap}
-.legend .st{font-size:11.5px;padding:2px 8px 2px 7px}
-.rv{display:inline-block;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;white-space:nowrap}
-.rv-pass{background:#DDF1E3;color:#166B34}
-.rv-cond{background:#F9EDCB;color:#744C00}
-.rv-prog{background:#F0E9FB;color:#5F23B0}
-.rv-wait{background:#EDEBE5;color:#4A4A52}
-.rv-rej{background:#FBE1DD;color:#A51F14}
+/* 통계 */
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
+.stat{padding:16px 20px;border-left:1px solid var(--line)}
+.stat:first-child{border-left:0}
+.stat .k{font-size:12.5px;color:var(--text-3)}
+.stat .v{font-size:24px;font-weight:600;letter-spacing:-.02em;margin-top:2px;font-variant-numeric:tabular-nums}
+.stat .v small{font-size:13px;color:var(--text-4);font-weight:500;margin-left:3px}
+.stat.attn .v{color:var(--attn)}
 
-/* 상황실 */
-.strip{display:flex;gap:8px;flex-wrap:wrap}
-.strip span{font-size:13px;background:var(--sf);border:1px solid var(--ln);border-radius:9px;padding:7px 12px;color:var(--ink2)}
-.strip b{color:var(--ink);font-weight:600;margin-left:4px}
-.inb{display:grid;grid-template-columns:52px minmax(0,1fr);gap:12px;padding:15px 20px;border-bottom:1px solid var(--ln)}
-.is-narrow .inb{padding:14px 16px}
-.ty{font-size:12px;font-weight:700;border-radius:6px;padding:4px 0;text-align:center;align-self:start;margin-top:1px}
-.ty-ap{background:#E8EAFB;color:#2531A8}
-.ty-ch{background:#F0E9FB;color:#5F23B0}
-.ty-inc{background:#FBE3E0;color:#A51F14}
-.inb .t{font-weight:600;font-size:14.5px;line-height:1.45;background:none;border:0;padding:0;text-align:left}
-.inb .t:hover{text-decoration:underline;text-underline-offset:3px}
-.inb .d{font-size:13px;color:var(--ink2);margin-top:3px;line-height:1.5}
-.resolved{font-size:13px;color:#166B34;font-weight:600;margin-top:8px;display:flex;align-items:center;gap:6px}
-.more{width:100%;border:0;background:none;min-height:46px;font-size:13.5px;font-weight:600;color:var(--acc);border-radius:0 0 14px 14px}
-.more:hover{background:var(--sf2)}
-.orow{display:grid;grid-template-columns:minmax(0,1fr) 96px 104px;gap:18px;align-items:center;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--ln);padding:14px 20px}
-.orow:last-child{border-bottom:0}
-.orow:hover{background:var(--sf2)}
-.is-narrow .orow{grid-template-columns:minmax(0,1fr) auto;gap:10px}
-.is-narrow .orow .crit{display:none}
-.p-name{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.o-next{font-size:13px;color:var(--ink2);margin-top:3px;line-height:1.5}
-.crit .n{font-family:"IBM Plex Mono",monospace;font-size:16px;font-weight:600}
-.crit .n small{color:var(--ink3);font-size:13px}
-.crit .s{margin-top:1px}
-.ugrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.is-narrow .ugrid{grid-template-columns:minmax(0,1fr)}
-.ucard{padding:15px 18px;display:flex;flex-direction:column;gap:12px}
-.acct-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-.acct-h b{font-size:15px;font-weight:700}
-.minis{display:grid;grid-template-columns:repeat(auto-fit,minmax(124px,1fr));gap:10px}
-.mini{border:1px solid var(--ln);border-radius:10px;padding:10px 11px;min-width:0}
-.mini.hit{border-color:#E4ADA5;background:#FDF3F1}
-.mini.sub{border-style:dashed;background:var(--sf2)}
-.mini .k{font-size:12px;color:var(--ink2);font-weight:600}
-.mini .m-v{font-size:20px}
-.mini .m-meta{font-size:11.5px}
-.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
-.tcard{display:flex;flex-direction:column;gap:10px;text-align:left;background:var(--sf);border:1px solid var(--ln);border-radius:14px;padding:15px;width:100%;min-width:0}
-.tcard:hover{border-color:var(--ln2);box-shadow:0 6px 18px rgba(20,20,25,.07)}
-.tcard.alert{border-color:#E6B3AB}
-.t-h{display:flex;justify-content:space-between;gap:8px;align-items:center}
-.t-name{font-size:15.5px;font-weight:700}
+/* 상태 표시 */
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--text-2);white-space:nowrap}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--idle);flex:none}
+.pill.run i{background:var(--run);box-shadow:0 0 0 3px rgba(46,91,255,.14);animation:pulse 1.8s ease-in-out infinite}
+.pill.run{color:var(--accent-ink)}
+.pill.wait i{background:var(--attn)}
+.pill.attn{color:var(--attn)} .pill.attn i{background:var(--attn)}
+.pill.stop{color:var(--stop)} .pill.stop i{background:var(--stop)}
+.pill.done{color:var(--done)} .pill.done i{background:var(--done)}
+@keyframes pulse{50%{box-shadow:0 0 0 5px rgba(46,91,255,.06)}}
+@media (prefers-reduced-motion:reduce){.pill.run i{animation:none}*{transition:none!important}}
 
-/* 사용량 미터 */
-.m-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.m-top .k{font-size:12.5px;color:var(--ink2);font-weight:600}
-.m-v{font-family:"IBM Plex Mono",monospace;font-size:26px;font-weight:600;letter-spacing:-.02em}
-.m-v.na{font-family:"IBM Plex Sans KR",sans-serif;font-size:15px;color:var(--ink3)}
-.bar{position:relative;height:8px;background:#ECEAE3;border-radius:99px;margin:8px 0 7px}
-.bar i{display:block;height:100%;border-radius:99px;background:var(--ink)}
-.hit .bar i{background:#B42318}
-.bar .th{position:absolute;top:-4px;bottom:-4px;width:2px;background:#B42318;border-radius:1px}
-.bar.unknown{background:repeating-linear-gradient(135deg,#E3E1D9 0 6px,#F8F7F3 6px 12px)}
-.bar.unknown i,.bar.unknown .th{display:none}
-.m-meta{font-size:12px;color:var(--ink3);line-height:1.6}
-.m-meta b{color:var(--ink2);font-weight:600}
-.m-flag{display:inline-block;font-size:12px;font-weight:700;color:#fff;background:#B42318;border-radius:5px;padding:1px 7px;margin-bottom:4px}
-.m-ok{display:inline-block;font-size:12px;font-weight:600;color:#166B34;margin-bottom:4px}
-.m-unk{display:inline-block;font-size:12px;font-weight:600;color:#4A4A52;margin-bottom:4px}
-.duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
-.is-narrow .duo,.is-mid .duo{grid-template-columns:minmax(0,1fr)}
-.usage{padding:16px 20px 18px;display:flex;flex-direction:column;gap:14px}
-.meters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.is-narrow .meters{grid-template-columns:minmax(0,1fr)}
-.meter{border:1px solid var(--ln);border-radius:11px;padding:12px 13px;min-width:0}
-.meter.hit{border-color:#E4ADA5;background:#FDF3F1}
-.submeter{border:1px dashed var(--ln2);border-radius:11px;padding:12px 13px;background:var(--sf2)}
-.subhead{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
-.subhead b{font-size:13px}
-.subtag{font-size:11.5px;font-weight:600;color:var(--ink2);border:1px solid var(--ln2);border-radius:5px;padding:1px 6px;background:var(--sf)}
-.swap{font-size:12.5px;color:var(--ink2);line-height:1.5}
-.u-note{font-size:12px;color:var(--ink3);border-top:1px dashed var(--ln2);padding-top:12px;line-height:1.6}
-.rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.is-narrow .rules,.is-mid .rules{grid-template-columns:minmax(0,1fr)}
-.rule{background:var(--sf);border:1px solid var(--ln);border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.6;color:var(--ink2)}
-.rule b{display:block;color:var(--ink);font-size:14px;margin-bottom:4px}
+/* 팀 흐름 */
+.flow{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-4)}
+.flow .s{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.flow .s b{width:6px;height:6px;border-radius:2px;background:var(--line-strong)}
+.flow .s.on{color:var(--text);font-weight:600}
+.flow .s.on b{background:var(--accent)}
+.flow .sep{width:10px;height:1px;background:var(--line-strong)}
+.flow-lg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
+.fstep{padding:14px 18px;border-left:1px solid var(--line);position:relative}
+.fstep:first-child{border-left:0}
+.fstep .t{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:600;font-size:13.5px}
+.fstep .d{font-size:12.5px;color:var(--text-3);margin-top:3px}
+.fstep.on{background:linear-gradient(180deg,var(--accent-soft),var(--surface) 70%)}
+.fstep.on::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--accent)}
+.fstep .tool{font-family:var(--mono);font-size:11.5px;color:var(--text-3);font-weight:400}
 
-/* 표 공통 */
-.tbl{background:var(--sf);border:1px solid var(--ln);border-radius:14px;overflow:hidden}
-.row{display:grid;gap:14px;align-items:center;padding:12px 18px;border:0;border-bottom:1px solid var(--ln);width:100%;text-align:left;background:none;font-size:13.5px;line-height:1.5}
-.row:last-child{border-bottom:0}
-button.row:hover{background:var(--sf2)}
-.row.head{font-size:12px;font-weight:600;color:var(--ink3);background:var(--sf2)}
-.is-narrow .row.head,.is-mid .row.head{display:none}
-.is-narrow .row,.is-mid .row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;gap:8px 14px}
-.is-narrow .row > .wide,.is-mid .row > .wide{grid-column:1 / -1}
-.plrow{grid-template-columns:minmax(0,2fr) 104px minmax(0,1fr) 84px minmax(0,1.4fr) minmax(0,1.4fr);align-items:start;padding:15px 18px}
-.plrow .p-goal{display:block;font-size:13px;color:var(--ink2);margin-top:4px}
-.urow{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1.6fr) 70px}
-.ubar{height:6px;background:#ECEAE3;border-radius:3px}
-.ubar i{display:block;height:100%;border-radius:3px;background:#6E6E76}
-.rawrow{grid-template-columns:80px 100px minmax(0,1.2fr) 100px minmax(0,1.3fr) 110px}
-.regrow{grid-template-columns:minmax(0,1.3fr) 76px minmax(0,1.2fr) 70px minmax(0,1.5fr) 92px 92px}
-.r-name{font-weight:700;font-family:"IBM Plex Mono",monospace;font-size:14px}
-.r-sub{font-size:12px;color:var(--ink3);font-family:"IBM Plex Sans KR",sans-serif;font-weight:400;margin-top:2px}
+/* 목록 행 */
+.list{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden}
+.prow{display:grid;grid-template-columns:minmax(0,1fr) 200px 150px 88px 76px;gap:20px;align-items:center;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:14px 20px;transition:background .12s}
+.prow:first-child{border-top:0}
+.prow:hover{background:#FCFCFD}
+.prow .name{font-weight:600;font-size:14px;letter-spacing:-.005em;display:flex;align-items:center;gap:8px}
+.prow .sub{font-size:12.5px;color:var(--text-3);margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.prow .c{font-size:12.5px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.prow .c small{color:var(--text-4)}
+.prow .when{font-size:12px;color:var(--text-4);text-align:right}
+.kind{font-size:11px;font-weight:500;color:var(--text-3);border:1px solid var(--line);border-radius:4px;padding:0 5px;line-height:18px}
 
-/* 프로젝트 목록 */
-.pbar{display:flex;flex-direction:column;gap:12px}
-.pinput{width:100%;max-width:460px;height:42px;border:1px solid var(--ln2);border-radius:10px;background:var(--sf);padding:0 12px;font-size:14px}
-.filters{display:flex;gap:6px;flex-wrap:wrap}
-.fchip{border:1px solid var(--ln2);background:var(--sf);border-radius:999px;min-height:36px;padding:0 12px;font-size:13px;font-weight:500;display:inline-flex;gap:6px;align-items:center}
-.fchip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-.fchip .mono{font-size:12px;opacity:.75}
+/* 확인함 */
+.inbox{display:flex;flex-direction:column}
+.item{padding:16px 20px;border-top:1px solid var(--line);display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px}
+.item:first-child{border-top:0}
+.ico{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--attn-soft);color:var(--attn)}
+.ico.stop{background:var(--stop-soft);color:var(--stop)}
+.ico.done{background:var(--done-soft);color:var(--done)}
+.ico svg{width:15px;height:15px}
+.item .t{font-weight:600;font-size:14px}
+.item .t .proj{color:var(--text-3);font-weight:500}
+.item .b{color:var(--text-2);margin-top:3px;max-width:72ch}
+.item .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:flex-start}
+.q{margin-top:8px;padding:10px 12px;border-radius:var(--r);background:var(--subtle);color:var(--text);max-width:72ch}
+.ta{width:100%;min-height:68px;resize:vertical;border:1px solid var(--line-strong);border-radius:var(--r);padding:9px 11px;background:var(--surface);line-height:1.55;transition:border-color .15s,box-shadow .15s}
+.ta:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(46,91,255,.12)}
+.input{width:100%;height:36px;border:1px solid var(--line-strong);border-radius:var(--r-sm);padding:0 11px;background:var(--surface);transition:border-color .15s,box-shadow .15s}
+.input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(46,91,255,.12)}
+.ul{margin:8px 0 0;padding-left:18px;color:var(--text-2)}
+.ul li{margin:2px 0}
 
-/* 프로젝트 작업실 */
-.crumb{font-size:13px;color:var(--ink3);display:flex;gap:6px;align-items:center}
-.ws-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}
-.ws-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.ws-title h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.3}
-.is-narrow .ws-title h1{font-size:22px}
-.cyc{font-size:11.5px;color:var(--ink3);font-weight:500;border:1px solid var(--ln2);border-radius:5px;padding:1px 6px}
-.ws-goal{margin:8px 0 0;font-size:15px;color:var(--ink2);line-height:1.6;max-width:780px}
-.ws-switch{display:flex;gap:6px;align-items:center;overflow-x:auto;padding-bottom:2px}
-.ws-switch .k{font-size:12px;color:var(--ink3);font-weight:600;flex:none;margin-right:4px}
-.swc{flex:none;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--ln2);background:var(--sf);border-radius:999px;min-height:36px;padding:0 12px;font-size:13px;font-weight:500}
-.swc.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);font-weight:700}
-.wtabs{display:flex;gap:2px;border-bottom:1px solid var(--ln2);overflow-x:auto;margin-top:-6px}
-.wtab{border:0;background:none;padding:0 14px;min-height:46px;font-size:14.5px;font-weight:500;color:var(--ink3);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
-.wtab.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:700}
-.tn{font-family:"IBM Plex Mono",monospace;font-size:11.5px;background:var(--sf2);border:1px solid var(--ln);border-radius:5px;padding:0 5px;color:var(--ink2);font-weight:500}
-.wgrid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:18px;align-items:start}
-.is-narrow .wgrid,.is-mid .wgrid{grid-template-columns:minmax(0,1fr)}
-.col{display:flex;flex-direction:column;gap:16px;min-width:0}
-.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
-.stp{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--ink3)}
-.stp i{height:5px;border-radius:3px;background:#E3E1D9}
-.stp.done{color:var(--ink2)}
-.stp.done i{background:#5B5B63}
-.stp.now{color:var(--acc);font-weight:700}
-.stp.now i{background:var(--acc)}
-.vsum{display:flex;gap:18px;flex-wrap:wrap;font-size:14px;color:var(--ink2);align-items:baseline}
-.vsum b{font-family:"IBM Plex Mono",monospace;font-size:22px;color:var(--ink);margin-right:4px}
-.trow{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;border:0;background:none;padding:10px 0;border-bottom:1px solid var(--ln);text-align:left}
-.trow:last-child{border-bottom:0}
-.trow:hover .asg{text-decoration:underline}
-.path{font-size:13.5px;background:var(--sf2);border:1px solid var(--ln);border-radius:8px;padding:8px 10px;margin-bottom:6px;overflow-wrap:anywhere}
-.tkrow{grid-template-columns:minmax(0,1.6fr) minmax(0,1.5fr) 104px minmax(0,1.3fr)}
-.tk-t{font-weight:600}
-.chat{display:flex;flex-direction:column;gap:10px;padding:16px 20px;max-height:360px;overflow:auto}
-.msg{max-width:86%;border-radius:12px;padding:10px 12px;background:var(--sf2);border:1px solid var(--ln)}
-.msg.me{align-self:flex-end;background:#EEF0FB;border-color:#D6DBF6}
-.m-by{font-size:12px;color:var(--ink3);margin-bottom:3px}
-.m-t{font-size:14px;line-height:1.55}
-.form{display:flex;flex-direction:column;gap:8px}
-.form label{font-size:13px;font-weight:600;color:var(--ink2)}
-.form textarea{width:100%;min-height:84px;border:1px solid var(--ln2);border-radius:10px;padding:10px 12px;font-size:14px;resize:vertical;background:var(--sf);line-height:1.5}
-.form .pinput{max-width:none}
-.form-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-.form-row small{font-size:12px;color:var(--ink3)}
-.chat-form{padding:14px 20px 18px;border-top:1px solid var(--ln)}
-.agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
-.acard{display:flex;flex-direction:column;background:var(--sf);border:1px solid var(--ln);border-radius:14px;overflow:hidden;min-width:0}
-.acard.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
-.thumb{height:132px;background:#EDEBE5;display:flex;align-items:center;justify-content:center;padding:16px;border-bottom:1px solid var(--ln)}
-.a-body{padding:13px 15px 15px;display:flex;flex-direction:column;gap:6px}
-.a-name{font-size:15px;font-weight:700}
-.a-meta{font-size:12.5px;color:var(--ink3);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.vtag{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;color:var(--ink);background:var(--sf2);border:1px solid var(--ln2);border-radius:5px;padding:1px 6px}
-.doc{width:62%;height:100%;background:#fff;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.08);padding:12px;display:flex;flex-direction:column;gap:6px}
-.doc i{height:5px;border-radius:3px;background:#E3E1DA}
-.doc i.h{height:8px;width:70%;background:#3A3A42}
-.doc i.s{width:55%}
-.slide{width:88%;aspect-ratio:16/9;background:#18191E;border-radius:4px;padding:10px;display:flex;flex-direction:column;justify-content:space-between;color:#fff}
-.slide b{font-size:11px}
-.slide .bars,.slidepv .bars{display:flex;align-items:flex-end;gap:5px;height:40%}
-.slide .bars i,.slidepv .bars i{flex:1;background:#8FA2FF;border-radius:2px 2px 0 0}
-.dsn{width:88%;height:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.dsn div{background:#fff;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.08);padding:8px;display:flex;flex-direction:column;gap:5px}
-.dsn i{height:5px;border-radius:3px;background:#E3E1DA}
-.dsn i.blk{height:34%;background:#2B2C32}
-.wthumb{width:88%;height:100%;background:#fff;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.08);overflow:hidden;display:flex;flex-direction:column}
-.wthumb .u{height:14px;background:var(--sf2);border-bottom:1px solid var(--ln)}
-.wthumb .b{flex:1;padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:5px}
-.wthumb .b i{background:#E9E7E1;border-radius:3px}
-.vb{padding:18px 20px 22px;display:flex;flex-direction:column;gap:20px}
-.is-narrow .vb{padding:14px 16px 18px}
-.pv-bar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap}
-.pv-stage{background:#E7E5DE;border-radius:12px;padding:16px;display:flex;justify-content:center;overflow:hidden}
-.pv-frame{background:#fff;border-radius:8px;border:1px solid var(--ln2);overflow:hidden;width:100%;transition:width .25s ease}
-.pv-frame.app{width:290px;border-radius:24px;border-width:6px;border-color:#2A2B30}
-.pv-url{height:28px;background:var(--sf2);border-bottom:1px solid var(--ln);display:flex;align-items:center;gap:6px;padding:0 10px;font-size:11px;color:var(--ink3);font-family:"IBM Plex Mono",monospace}
-.pv-url i{width:7px;height:7px;border-radius:50%;background:#D4D1C7}
-.mk{padding:14px;display:flex;flex-direction:column;gap:10px}
-.mk-h{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:13px}
-.mk-s{height:28px;border-radius:7px;background:#F1F0EC;font-size:11px;color:#6A6A71;display:flex;align-items:center;padding:0 10px}
-.mk-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.pv-frame.app .mk-g{grid-template-columns:minmax(0,1fr)}
-.mk-c{border:1px solid #E6E4DD;border-radius:8px;padding:9px;display:flex;flex-direction:column;gap:5px}
-.mk-c b{font-size:11.5px}
-.mk-c span{height:5px;border-radius:3px;background:#E9E7E1}
-.mk-c span.s{width:60%}
-.mk-tag{font-size:10px;color:#2531A8;background:#E8EAFB;border-radius:4px;padding:1px 5px;align-self:flex-start}
-.mk-hero{border-radius:8px;background:#1B1C21;color:#fff;padding:18px 14px;font-size:15px;font-weight:700;line-height:1.35}
-.mk-hero small{display:block;font-size:10.5px;font-weight:400;color:#B9B8B2;margin-top:6px}
-.big-pv{background:#EDEBE5;border-radius:12px;padding:20px;display:flex;justify-content:center}
-.docpv{background:#fff;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.08);padding:22px;width:100%;max-width:460px;display:flex;flex-direction:column;gap:10px}
-.docpv h4{margin:0;font-size:17px}
-.docpv p{margin:0;font-size:13.5px;line-height:1.6;color:var(--ink2)}
-.pvmeta{font-size:12px;color:var(--ink3);font-family:"IBM Plex Mono",monospace}
-.slidepv{background:#18191E;color:#fff;border-radius:6px;width:100%;max-width:460px;aspect-ratio:16/9;padding:18px;display:flex;flex-direction:column;justify-content:space-between}
-.slidepv h4{margin:0;font-size:16px}
-.slidepv p{margin:0;font-size:12px;color:#C9C8C2;line-height:1.5}
-.dsnpv{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:460px}
-.dsnpv figure{margin:0;display:flex;flex-direction:column;gap:6px}
-.dsnpv figcaption{font-size:12.5px;font-weight:600;color:var(--ink2)}
-.dsnpv .fr{background:#fff;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.08);aspect-ratio:3/4;padding:10px;display:flex;flex-direction:column;gap:6px}
-.dsnpv .fr i{height:6px;border-radius:3px;background:#E3E1DA}
-.dsnpv .fr i.blk{height:40%;background:#2B2C32}
-.dsnpv .fr .gr{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:5px}
-.dsnpv .fr .gr i{height:auto;background:#D9D6CD}
-.vlist{border:1px solid var(--ln);border-radius:11px}
-.vi{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--ln)}
-.vi:last-child{border-bottom:0}
-.vi.cur{background:#F4F5FD}
-.vi .vn{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:14px}
-.vi .vt{font-size:13.5px;font-weight:500;line-height:1.45}
-.vi .vs{font-size:12px;color:var(--ink3);margin-top:2px}
-.curb{font-size:12px;font-weight:700;color:var(--acc)}
-.reqs{display:flex;flex-direction:column;gap:8px;margin-top:4px}
-.req{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:13.5px;border:1px solid var(--ln);border-radius:9px;padding:10px 12px}
-.req small{font-size:12px;color:var(--ink3);white-space:nowrap}
-.flrow{grid-template-columns:minmax(0,1.6fr) 90px 110px 110px 84px}
-.term-h{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink3);margin-bottom:8px;gap:8px;flex-wrap:wrap}
-.term{background:#111215;color:#D8D7D1;border-radius:11px;padding:14px 16px;font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.75;overflow-x:auto}
-.term .ln{display:flex;gap:14px;white-space:pre}
-.term .ts{color:#86857F;flex:none}
-.term .cmd{color:#A7BCFF}
-.term .ok{color:#83D8A0}
-.term .warn{color:#F2C86F}
-.term .err{color:#FF978A}
-.rnrow{grid-template-columns:56px 48px 100px minmax(0,1.3fr) minmax(0,1.3fr)}
-.cprow{padding:12px 20px;border-bottom:1px solid var(--ln)}
-.cprow:last-child{border-bottom:0}
-.cprow .t{font-size:14px;font-weight:500;line-height:1.5}
-.horow{padding:13px 20px;border-bottom:1px solid var(--ln);display:flex;flex-direction:column;gap:4px}
-.horow:last-child{border-bottom:0}
-.ho-m{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px;flex-wrap:wrap}
-.pnote{padding:14px 20px}
-.vrow{grid-template-columns:36px minmax(0,1.4fr) minmax(0,1.6fr) 84px 120px;scroll-margin-top:90px}
-.vrow.hl{background:#FFF6DB;outline:2px solid #E0B454;outline-offset:-2px}
-.vrow .ev{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink2);overflow-wrap:anywhere}
-.vrow .ev.none-t{color:var(--ink3)}
-.setgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
-.is-narrow .setgrid,.is-mid .setgrid{grid-template-columns:minmax(0,1fr)}
-.stack{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
-.stack > .callout,.stack > .kv,.stack > .tbl{align-self:stretch}
-.olist{margin:0 0 4px;padding-left:20px;font-size:14px;line-height:1.7}
-.tprow{grid-template-columns:minmax(0,1.3fr) minmax(0,1.2fr) minmax(0,1.5fr)}
+/* 빈 화면 */
+.empty{padding:48px 24px;text-align:center;color:var(--text-3)}
+.empty .h{color:var(--text);font-weight:600;font-size:15px}
+.empty p{margin:6px auto 16px;max-width:46ch}
+.empty.sm{padding:22px 20px}
+.offline{padding:12px 16px;border:1px solid #F2C6B4;background:var(--stop-soft);color:var(--stop);border-radius:var(--r);margin-bottom:20px;font-weight:500}
 
-/* 반복 목표·도구 */
-.rlist{display:flex;flex-direction:column;gap:12px}
-.rcard{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.6fr) minmax(0,1fr) minmax(0,1.4fr);gap:20px;align-items:start;text-align:left;background:var(--sf);border:1px solid var(--ln);border-radius:14px;padding:18px 20px;width:100%}
-.rcard:hover{border-color:var(--ln2);box-shadow:0 6px 18px rgba(20,20,25,.07)}
-.is-narrow .rcard,.is-mid .rcard{grid-template-columns:minmax(0,1fr);gap:12px}
-.rc-k{font-size:12px;color:var(--ink3);font-weight:600;margin-bottom:4px}
-.rc-v{font-size:14px;line-height:1.5}
-.rc-next{font-family:"IBM Plex Mono",monospace;font-size:18px;font-weight:600}
-.rc-name{font-size:16px;font-weight:700;margin-bottom:6px}
+/* 팀 */
+.teams{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0}
+.team{padding:18px 20px;border-left:1px solid var(--line)}
+.team:first-child{border-left:0}
+.team .h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.team .nm{font-weight:600}
+.team .role{font-size:12.5px;color:var(--text-3);margin-top:4px;min-height:40px}
+.team dl{display:grid;grid-template-columns:64px minmax(0,1fr);gap:4px 10px;margin:12px 0 0;font-size:12.5px}
+.team dt{color:var(--text-4)}
+.team dd{margin:0;color:var(--text-2)}
 
-/* 상세 패널 */
-.scrim{position:fixed;inset:0;background:rgba(20,20,26,.3);z-index:40;border:0;padding:0;cursor:default;width:100%}
-.drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--sf);z-index:41;display:flex;flex-direction:column;box-shadow:-14px 0 44px rgba(20,20,25,.18)}
-.d-h{padding:16px 22px 14px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid var(--ln)}
-.is-narrow .d-h{padding:12px 16px}
-.d-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.d-kind{font-size:12.5px;color:var(--ink3);font-weight:600;display:flex;align-items:center;gap:6px}
-.x{width:42px;height:42px;border-radius:9px;border:1px solid var(--ln2);background:var(--sf);display:grid;place-items:center;flex:none}
-.x:hover{background:var(--sf2)}
-.d-title{margin:0;font-size:21px;font-weight:700;letter-spacing:-.01em;line-height:1.35}
-.d-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.d-b{flex:1;overflow:auto;padding:20px 22px 40px;display:flex;flex-direction:column;gap:22px}
-.is-narrow .d-b{padding:16px 16px 40px}
-.blk h3{margin:0 0 10px;font-size:13px;font-weight:700;color:var(--ink2)}
-.evs{display:flex;flex-wrap:wrap;gap:6px}
-.evc{font-size:12px;font-family:"IBM Plex Mono",monospace;color:var(--ink2);background:var(--sf2);border:1px solid var(--ln);border-radius:6px;padding:3px 7px}
-.evc.ok{color:#166B34;border-color:#BCE0C7;background:#F0F9F2}
-.evc.wait{color:#744C00;border-color:#ECD49A;background:#FDF7E7}
-.clist{display:flex;flex-direction:column;border:1px solid var(--ln);border-radius:11px}
-.ci{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--ln);font-size:14px}
-.ci:last-child{border-bottom:0}
-.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:11px;font-size:13.5px;z-index:60;box-shadow:0 10px 30px rgba(0,0,0,.25);max-width:calc(100% - 32px);line-height:1.5}
+/* 프로젝트 상세 */
+.crumb{font-size:12.5px;color:var(--text-3);display:flex;gap:6px;align-items:center;margin-bottom:10px}
+.ws-h{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap}
+.ws-h .goal{margin:8px 0 0;color:var(--text-2);max-width:70ch}
+.ws-h .acts{display:flex;gap:8px;flex:none}
+.ptabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:28px 0 24px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.ptabs::-webkit-scrollbar{display:none}
+.pt{border:0;background:none;padding:8px 4px;margin-right:14px;color:var(--text-3);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .15s}
+.pt:hover{color:var(--text)}
+.pt.on{color:var(--text);border-bottom-color:var(--text)}
+.pt .n{font-family:var(--mono);font-size:11.5px;color:var(--text-4);margin-left:5px}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:28px;align-items:start}
+.stack{display:flex;flex-direction:column;gap:16px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);padding:18px 20px}
+.card.attn{border-color:#F3D9A8;background:linear-gradient(180deg,var(--attn-soft),var(--surface) 60%)}
+.card.done{border-color:#BFE6CB;background:linear-gradient(180deg,var(--done-soft),var(--surface) 60%)}
+.card.stop{border-color:#F2C6B4;background:linear-gradient(180deg,var(--stop-soft),var(--surface) 60%)}
+.card .lbl{font-size:12px;font-weight:500;color:var(--text-3);margin-bottom:6px}
+.card .big{font-size:15px;font-weight:500;line-height:1.6}
+.answer{white-space:pre-wrap;color:var(--text-2);line-height:1.7;max-height:320px;overflow:auto}
+.facts{display:grid;grid-template-columns:96px minmax(0,1fr);gap:8px 12px;margin:0;font-size:13px}
+.facts dt{color:var(--text-3)}
+.facts dd{margin:0;color:var(--text);min-width:0}
+.bar{height:4px;border-radius:2px;background:var(--subtle);overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--text)}
+.crit{display:flex;flex-direction:column}
+.cr{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:10px;padding:12px 0;border-top:1px solid var(--line);align-items:start}
+.cr:first-child{border-top:0;padding-top:2px}
+.ck{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line-strong);margin-top:2px;display:grid;place-items:center}
+.ck.ok{background:var(--done);border-color:var(--done)}
+.ck.no{border-color:var(--stop)}
+.ck svg{width:10px;height:10px}
+.cr .t{font-weight:500}
+.cr .e{font-size:12.5px;color:var(--text-3);margin-top:2px}
+.cr .e.ok{color:var(--done)}
+
+/* 활동 */
+.tl{display:flex;flex-direction:column}
+.ev{display:grid;grid-template-columns:84px minmax(0,1fr);gap:16px;padding:16px 20px;border-top:1px solid var(--line)}
+.ev:first-child{border-top:0}
+.ev .when{font-size:12px;color:var(--text-4);padding-top:2px}
+.ev .who{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:600}
+.ev .who .tool{font-family:var(--mono);font-size:11.5px;color:var(--text-3);font-weight:400}
+.ev .res{margin-top:3px;color:var(--text-2)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--accent-ink);font-weight:500;font-size:12.5px;list-style:none;display:inline-flex;align-items:center;gap:4px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"";width:0;height:0;border-left:4px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .15s}
+details[open] summary::before{transform:rotate(90deg)}
+details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border-radius:var(--r);font-size:13px}
+.log{font-family:var(--mono);font-size:12px;color:var(--text-2);padding:14px 20px;line-height:1.9;max-height:360px;overflow:auto}
+.log .ts{color:var(--text-4);margin-right:12px}
+
+/* 표 형태 목록 (table 안에는 반복 태그를 넣을 수 없어 grid로 만든다) */
+.urow{display:grid;grid-template-columns:minmax(0,1fr) 110px 150px 180px;gap:16px;align-items:center;padding:12px 20px;border-top:1px solid var(--line);font-size:13px;font-variant-numeric:tabular-nums}
+.urow.head{border-top:0;font-size:12px;font-weight:500;color:var(--text-3);background:#FCFCFD;padding:10px 20px}
+.urow.head + .urow{border-top:1px solid var(--line)}
+@media (max-width:900px){.urow{grid-template-columns:minmax(0,1fr) auto}.urow.head{display:none}}
+
+/* 설정 */
+.seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--subtle);border:1px solid var(--line)}
+.seg button{border:0;background:none;height:28px;padding:0 12px;border-radius:6px;color:var(--text-3);font-weight:500;font-size:13px;transition:background .15s,color .15s}
+.seg button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.row-f{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.danger-zone{border-color:#F2C6B4}
+.danger-zone .lbl{color:var(--stop)}
+
+/* 슬라이드 패널 */
+.scrim{position:fixed;inset:0;background:rgba(10,10,11,.28);z-index:40;border:0;padding:0;width:100%;cursor:default;animation:fade .15s ease-out}
+.sheet{position:fixed;top:0;right:0;bottom:0;width:min(480px,100%);background:var(--surface);z-index:41;display:flex;flex-direction:column;box-shadow:-24px 0 60px rgba(10,10,11,.12);animation:slide .22s cubic-bezier(.2,.8,.2,1)}
+.sheet-h{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.sheet-b{padding:22px 24px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:18px}
+.sheet-f{padding:16px 24px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;background:#FCFCFD}
+.field label{display:block;font-weight:500;font-size:13px;margin-bottom:6px}
+.field .opt{color:var(--text-4);font-weight:400}
+.field .hint{margin-top:6px}
+.note{padding:12px 14px;border-radius:var(--r);background:var(--subtle);font-size:12.5px;color:var(--text-2);line-height:1.65}
+.note b{color:var(--text)}
+@keyframes fade{from{opacity:0}}
+@keyframes slide{from{transform:translateX(24px);opacity:0}}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 16px;border-radius:var(--r);font-size:13px;z-index:60;box-shadow:0 10px 30px rgba(0,0,0,.2);max-width:calc(100% - 32px);animation:fade .15s}
+
+/* 반응형 */
+@media (max-width:900px){
+  .top-in{padding:0 16px;gap:12px}
+  main{padding:24px 16px 80px}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stat:nth-child(3){border-left:0}
+  .stat:nth-child(n+3){border-top:1px solid var(--line)}
+  .prow{grid-template-columns:minmax(0,1fr) auto;gap:6px 12px}
+  .prow .flow,.prow .when,.prow .c{grid-column:1 / -1}
+  .prow .when{text-align:left}
+  .teams,.flow-lg{grid-template-columns:minmax(0,1fr)}
+  .team,.fstep{border-left:0;border-top:1px solid var(--line)}
+  .team:first-child,.fstep:first-child{border-top:0}
+  .grid2{grid-template-columns:minmax(0,1fr)}
+  .ev{grid-template-columns:minmax(0,1fr);gap:4px}
+  .mode span{display:none}
+  .brand .word{display:none}
+}
 </style>
 </head>
 <body>
+<a class="skip" href="#main">본문으로 건너뛰기</a>
 <div id="app"></div>
 <template id="tpl">
-<div class="{{rootCls}}" style="--acc: {{accent}}">
-
-<aside class="side" aria-label="주 메뉴">
-  <div class="brand"><span class="logo">HQ</span><span><b>AGENT HQ</b><small>대장 전용 작업 공간</small></span></div>
-  <nav class="nav">
-    <sc-for list="{{navItems}}" as="n">
-      <button class="{{n.cls}}" onClick="{{n.go}}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{n.icon}}"></path></svg><span>{{n.l}}</span><sc-if value="{{n.hasCnt}}"><span class="cnt">{{n.cnt}}</span></sc-if></button>
-    </sc-for>
-  </nav>
-  <div class="plist">
-    <h4>프로젝트 작업실</h4>
-    <sc-for list="{{sideProjects}}" as="sp"><button class="{{sp.cls}}" onClick="{{sp.go}}"><i class="{{sp.dot}}"></i><span>{{sp.name}}</span></button></sc-for>
-  </div>
-  <div class="ops">
-    <h4>운영 규칙</h4>
-    <div class="op"><span class="k">동시 실행 (전체 최대 2)</span><span class="v mono">{{running}} / 2<em>Claude Code {{runClaude}}/2 · Codex {{runCodex}}/1</em></span><div class="slots"><sc-for list="{{slots}}" as="sl"><i class="{{sl}}"></i></sc-for></div></div>
-    <div class="op"><span class="k">조사 주기</span><span class="v">6시간마다<em>다음 18:00</em></span></div>
-    <div class="op"><span class="k">개선 점검</span><span class="v">하루 1회<em>다음 09-29 03:00</em></span></div>
-  </div>
-  <div class="side-note"><b>시안용 예시 데이터</b><br>진행률·사용량·활동·모델 설정은 모두 가상입니다. 실제 계정이나 에이전트와 연결되어 있지 않습니다.</div>
-</aside>
-
-<div class="main">
-  <header class="top">
-    <div class="m-brand"><span class="logo">HQ</span>AGENT HQ</div>
-    <div class="search">
-      <label class="sr" for="hq-search">프로젝트·팀·결과물·도구 검색</label>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
-      <input id="hq-search" type="search" placeholder="프로젝트, 팀, 결과물, 스킬·MCP 검색" value="{{q}}" onChange="{{onQ}}" autocomplete="off">
-      <sc-if value="{{hasQ}}">
-        <div class="results">
-          <sc-for list="{{results}}" as="r"><button class="res" onClick="{{r.open}}"><span><b>{{r.label}}</b><small>{{r.sub}}</small></span><span class="kind">{{r.kind}}</span></button></sc-for>
-          <sc-if value="{{noResults}}"><div class="res-empty">‘{{q}}’와 일치하는 항목이 없습니다.</div></sc-if>
-        </div>
-      </sc-if>
+<div style="--accent: {{accent}}">
+<header class="top">
+  <div class="top-in">
+    <button class="brand" onClick="{{goHome}}" aria-label="홈으로"><span class="mark">HQ</span><span class="word">AGENT HQ</span></button>
+    <nav class="tabs-top" aria-label="주 메뉴">
+      <sc-for list="{{nav}}" as="n"><button class="{{n.cls}}" aria-current="{{n.cur}}" onClick="{{n.go}}">{{n.l}}<sc-if value="{{n.hasN}}"><span class="n">{{n.n}}</span></sc-if></button></sc-for>
+    </nav>
+    <div class="top-r">
+      <span class="{{modeCls}}" title="{{modeTitle}}"><i></i><span>{{modeL}}</span></span>
+      <button class="btn pri sm" onClick="{{openNew}}">새 프로젝트</button>
     </div>
-    <span class="sample"><i></i>시안용 예시 데이터</span>
-    <div class="me"><span class="av">대</span><span>대장</span></div>
-  </header>
-  <nav class="mnav" aria-label="보기 전환">
-    <sc-for list="{{navItems}}" as="n"><button class="{{n.chip}}" onClick="{{n.go}}">{{n.l}}</button></sc-for>
-  </nav>
+  </div>
+</header>
 
-  <div class="wrap">
+<main id="main">
+  <sc-if value="{{offline}}"><div class="offline" role="alert">엔진 서버에 연결할 수 없습니다. 서버가 켜져 있는지 확인해 주세요.</div></sc-if>
 
-<!-- ============ 상황실 ============ -->
-<sc-if value="{{vOverview}}">
-    <div class="ph">
-      <h1>대장, 확인할 항목이 <em>{{openCount}}건</em> 있습니다</h1>
-      <p>상황실 · 9월 28일 (월) 14:32 기준 예시 시나리오. 프로젝트 상세는 프로젝트를 골랐을 때 작업실에서 보여줍니다.</p>
-    </div>
-    <div class="strip"><sc-for list="{{strip}}" as="sx"><span>{{sx.k}}<b class="mono">{{sx.v}}</b></span></sc-for></div>
+<!-- ================= 홈 ================= -->
+<sc-if value="{{vHome}}">
+  <div class="page-h">
+    <div><h1>{{greeting}}</h1><p class="lede">{{homeLede}}</p></div>
+  </div>
 
-    <section class="panel" aria-labelledby="inbox-h">
-      <div class="pn-h"><h2 id="inbox-h">대장 확인함 <span class="{{openCls}}">{{openCount}}</span></h2><span class="aside">급한 순서 · 처리 버튼은 시안 동작만 합니다</span></div>
-      <sc-for list="{{inboxShown}}" as="a">
-        <div class="inb">
-          <span class="{{a.tyCls}}">{{a.ty}}</span>
-          <div>
-            <button class="t" onClick="{{a.open}}">{{a.title}}</button>
-            <div class="d">{{a.brief}}</div>
-            <sc-if value="{{a.isOpen}}"><div class="acts"><sc-for list="{{a.acts}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for><button class="btn" onClick="{{a.open}}">자세히</button></div></sc-if>
-            <sc-if value="{{a.isDone}}"><div class="resolved"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3.5 8.5l3 3 6-7"></path></svg>{{a.resText}} · 시안 처리</div></sc-if>
-          </div>
-        </div>
-      </sc-for>
-      <sc-if value="{{hasMoreInbox}}"><button class="more" aria-expanded="{{inboxAll}}" onClick="{{toggleInbox}}">{{inboxMoreL}}</button></sc-if>
+  <sc-if value="{{hasProjects}}">
+    <section class="sec" aria-label="요약">
+      <div class="stats">
+        <div class="stat"><div class="k">진행 중</div><div class="v">{{st.active}}<small>개</small></div></div>
+        <div class="{{st.attnCls}}"><div class="k">확인 필요</div><div class="v">{{st.inbox}}<small>건</small></div></div>
+        <div class="stat"><div class="k">오늘 실행한 단계</div><div class="v">{{st.today}}<small>회</small></div></div>
+        <div class="stat"><div class="k">완료</div><div class="v">{{st.done}}<small>개</small></div></div>
+      </div>
     </section>
 
-    <section>
-      <div class="sec-h"><h2>진행 중 프로젝트<span class="ex">예시</span></h2><button class="lnk" onClick="{{goProjects}}">전체 프로젝트 보기 →</button></div>
-      <div class="panel">
-        <sc-for list="{{activeProjects}}" as="p">
-          <button class="orow" onClick="{{p.open}}">
-            <div><div class="p-name">{{p.name}}</div><div class="o-next">다음 · {{p.next}}</div></div>
-            <div class="crit"><div class="n">{{p.ok}}<small> / {{p.all}}</small></div><div class="s">검증 통과</div></div>
-            <span class="{{p.stCls}}">{{p.stL}}</span>
+    <section class="sec" aria-labelledby="inbox-h">
+      <div class="sec-h"><h2 id="inbox-h">확인 필요</h2><span class="meta">팀이 대장의 결정을 기다리는 일</span></div>
+      <div class="list inbox">
+        <sc-for list="{{inbox}}" as="it">
+          <div class="item">
+            <span class="{{it.icoCls}}" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{it.icon}}"></path></svg></span>
+            <div>
+              <div class="t">{{it.title}} <span class="proj">· {{it.project}}</span></div>
+              <div class="b">{{it.body}}</div>
+              <sc-if value="{{it.isQuestion}}">
+                <div class="q">{{it.question}}</div>
+                <div class="acts" style="flex-direction: column; align-items: stretch; max-width: 72ch">
+                  <label class="hint" for="{{it.inputId}}">답변</label>
+                  <textarea class="ta" id="{{it.inputId}}" placeholder="예: 결제 기능은 빼고 진행해" value="{{it.draft}}" onChange="{{it.onDraft}}"></textarea>
+                  <div class="row-f"><button class="btn pri sm" onClick="{{it.send}}">답변 보내고 계속</button><button class="btn ghost sm" onClick="{{it.open}}">프로젝트 보기</button></div>
+                </div>
+              </sc-if>
+              <sc-if value="{{it.isProposal}}">
+                <ul class="ul"><sc-for list="{{it.items}}" as="x"><li>{{x}}</li></sc-for></ul>
+                <div class="acts"><button class="btn pri sm" onClick="{{it.accept}}">승인하고 계속</button><button class="btn sm" onClick="{{it.dismiss}}">보류</button><button class="btn ghost sm" onClick="{{it.open}}">프로젝트 보기</button></div>
+              </sc-if>
+              <sc-if value="{{it.isIssue}}">
+                <div class="acts"><sc-for list="{{it.actions}}" as="a"><button class="{{a.cls}}" onClick="{{a.go}}">{{a.l}}</button></sc-for></div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+        <sc-if value="{{inboxEmpty}}"><div class="empty sm">확인할 일이 없습니다. 팀이 결정을 기다리면 여기에 나타납니다.</div></sc-if>
+      </div>
+    </section>
+
+    <section class="sec" aria-labelledby="proj-h">
+      <div class="sec-h"><h2 id="proj-h">프로젝트</h2><button class="link small" onClick="{{goProjects}}">모두 보기</button></div>
+      <div class="list">
+        <sc-for list="{{homeProjects}}" as="p">
+          <button class="prow" onClick="{{p.open}}">
+            <span style="min-width: 0"><span class="name">{{p.name}}<sc-if value="{{p.single}}"><span class="kind">단일 실행</span></sc-if></span><span class="sub">{{p.sub}}</span></span>
+            <span class="flow" aria-label="팀 흐름"><sc-for list="{{p.flow}}" as="f"><sc-if value="{{f.sep}}"><span class="sep"></span></sc-if><span class="{{f.cls}}"><b></b>{{f.l}}</span></sc-for></span>
+            <span class="{{p.pillCls}}"><i></i>{{p.stL}}</span>
+            <span class="c">{{p.proven}}<small>/{{p.total}} 조건</small></span>
+            <span class="when">{{p.ago}}</span>
           </button>
         </sc-for>
       </div>
     </section>
 
-    <section>
-      <div class="sec-h"><h2>사용량 · 잔여율<span class="ex">예시</span></h2><button class="lnk" onClick="{{goUsage}}">공급자 원래 표시·상세 →</button></div>
-      <div class="ugrid">
-        <sc-for list="{{accounts}}" as="ac">
-          <div class="panel ucard">
-            <div class="acct-h"><b>{{ac.name}}</b><span class="{{ac.stCls}}">{{ac.stL}}</span></div>
-            <div class="minis">
-              <sc-for list="{{ac.all}}" as="m">
-                <div class="{{m.miniCls}}">
-                  <div class="m-top"><span class="k">{{m.k}}</span><span class="{{m.vCls}}">{{m.vTxt}}</span></div>
-                  <div class="{{m.barCls}}"><i style="width: {{m.pct}}%"></i><span class="th" style="left: {{m.th}}%"></span></div>
-                  <div class="m-meta">{{m.short}}</div>
-                </div>
-              </sc-for>
-            </div>
-          </div>
-        </sc-for>
-      </div>
-    </section>
-
-    <section>
-      <div class="sec-h"><h2>팀 요약<span class="ex">예시</span></h2><div class="legend"><sc-for list="{{legend}}" as="lg"><span class="{{lg.c}}">{{lg.l}}</span></sc-for></div></div>
-      <div class="tgrid">
+    <section class="sec" aria-labelledby="team-h">
+      <div class="sec-h"><h2 id="team-h">팀</h2><button class="link small" onClick="{{goTeams}}">자세히</button></div>
+      <div class="panel teams">
         <sc-for list="{{teams}}" as="t">
-          <button class="{{t.cls}}" onClick="{{t.open}}">
-            <div class="t-h"><span class="t-name">{{t.name}}</span><span class="{{t.stCls}}">{{t.stL}}</span></div>
-            <dl class="kv">
-              <dt>프로젝트</dt><dd>{{t.projName}}</dd>
-              <dt>현재 작업</dt><dd>{{t.task}}</dd>
-              <dt>막힌 이유</dt><dd class="{{t.blockCls}}">{{t.blockTxt}}</dd>
-              <dt>다음 행동</dt><dd>{{t.next}}</dd>
-            </dl>
-          </button>
+          <div class="team">
+            <div class="h"><span class="nm">{{t.name}}</span><span class="{{t.pillCls}}"><i></i>{{t.stL}}</span></div>
+            <div class="role">{{t.now}}</div>
+            <dl><dt>실행 도구</dt><dd class="mono small">{{t.tool}} · {{t.model}}</dd><dt>오늘</dt><dd class="num">{{t.today}}회</dd></dl>
+          </div>
         </sc-for>
       </div>
     </section>
+  </sc-if>
+
+  <sc-if value="{{noProjects}}">
+    <div class="panel empty">
+      <div class="h">첫 프로젝트를 만들어 보세요</div>
+      <p>목표와 완료 조건만 적으면 됩니다. 기획팀이 할 일을 정하고, 개발팀이 만들고, 검증팀이 확인하며 끝날 때까지 이어서 진행합니다.</p>
+      <button class="btn pri" onClick="{{openNew}}">새 프로젝트</button>
+    </div>
+  </sc-if>
 </sc-if>
 
-<!-- ============ 프로젝트 목록 ============ -->
+<!-- ================= 프로젝트 목록 ================= -->
 <sc-if value="{{vProjects}}">
-    <div class="ph-row">
-      <div class="ph"><h1>프로젝트</h1><p>목표·상태·담당 팀·검증된 완료 조건·막힌 이유·다음 행동. 행을 누르면 프로젝트 작업실로 이동합니다.</p></div>
-      <button class="btn pri" onClick="{{openNew}}">＋ 새 프로젝트</button>
-    </div>
-    <div class="pbar">
-      <label class="sr" for="p-search">프로젝트 검색</label>
-      <input class="pinput" id="p-search" type="search" placeholder="프로젝트 이름·목표·팀 검색" value="{{pq}}" onChange="{{onPq}}" autocomplete="off">
-      <div class="filters" role="group" aria-label="상태 필터"><sc-for list="{{filters}}" as="f"><button class="{{f.cls}}" aria-pressed="{{f.on}}" onClick="{{f.go}}">{{f.l}} <span class="mono">{{f.n}}</span></button></sc-for></div>
-    </div>
-    <div class="tbl">
-      <div class="row plrow head"><span>프로젝트 · 목표</span><span>상태</span><span>담당 팀</span><span>검증 통과</span><span>막힌 이유</span><span>다음 행동</span></div>
-      <sc-for list="{{plist}}" as="p">
-        <button class="row plrow" onClick="{{p.open}}">
-          <span class="wide"><span class="p-name">{{p.name}}</span><span class="p-goal">{{p.goal}}</span></span>
-          <span><span class="cl">상태</span><span class="{{p.stCls}}">{{p.stL}}</span></span>
-          <span><span class="cl">담당 팀</span>{{p.teamNames}}</span>
-          <span class="crit"><span class="cl">검증 통과</span><span class="n">{{p.ok}}<small> / {{p.all}}</small></span></span>
-          <span class="{{p.blockCls}}"><span class="cl">막힌 이유</span>{{p.blockTxt}}</span>
-          <span><span class="cl">다음 행동</span>{{p.next}}</span>
-        </button>
-      </sc-for>
-      <sc-if value="{{plistEmpty}}"><div class="res-empty">조건에 맞는 프로젝트가 없습니다.</div></sc-if>
-    </div>
-</sc-if>
-
-<!-- ============ 프로젝트 작업실 ============ -->
-<sc-if value="{{vProject}}">
-    <div class="crumb"><button class="lnk" onClick="{{goProjects}}">프로젝트</button><span>/</span><span>{{w.name}}</span></div>
-    <div class="ws-head">
-      <div>
-        <div class="ws-title"><h1>{{w.name}}</h1><span class="{{w.stCls}}">{{w.stL}}</span><span class="cyc">{{w.cycle}}</span></div>
-        <p class="ws-goal">{{w.goal}}</p>
-      </div>
-      <sc-if value="{{w.canPause}}"><button class="{{w.pauseCls}}" onClick="{{w.togglePause}}">{{w.pauseL}}</button></sc-if>
-    </div>
-    <div class="ws-switch" role="group" aria-label="프로젝트 전환"><span class="k">프로젝트 전환</span><sc-for list="{{switcher}}" as="sw"><button class="{{sw.cls}}" aria-pressed="{{sw.on}}" onClick="{{sw.go}}"><i class="{{sw.dot}}"></i>{{sw.name}}</button></sc-for></div>
-    <div class="wtabs" role="tablist" aria-label="작업실 탭"><sc-for list="{{wtabs}}" as="tb"><button class="{{tb.cls}}" role="tab" aria-selected="{{tb.on}}" onClick="{{tb.go}}">{{tb.l}}<sc-if value="{{tb.hasN}}"><span class="tn">{{tb.n}}</span></sc-if></button></sc-for></div>
-
-    <!-- 개요 -->
-    <sc-if value="{{wt.over}}">
-      <div class="wgrid">
-        <div class="col">
-          <sc-if value="{{w.isPaused}}"><div class="callout info">일시정지됨 · 새 회차를 시작하지 않습니다 (시안)</div></sc-if>
-          <sc-if value="{{w.hasBlock}}"><div class="callout warn">막힌 이유 · {{w.block}}</div></sc-if>
-          <section class="panel pad"><h3 class="h3">다음 행동</h3><p class="goal">{{w.next}}</p></section>
-          <section class="panel pad"><h3 class="h3">진행 단계 · {{w.cycle}}</h3><div class="steps"><sc-for list="{{w.stages}}" as="sg"><div class="{{sg.cls}}"><i></i>{{sg.l}}</div></sc-for></div></section>
-          <section class="panel pad">
-            <div class="h3row"><h3 class="h3">검증 요약</h3><button class="lnk" onClick="{{goVerify}}">검증 근거 보기 →</button></div>
-            <div class="vsum"><span><b>{{w.pass}}</b>통과</span><span><b>{{w.fail}}</b>미통과</span><span><b>{{w.none}}</b>미검증</span><span class="s">완료 조건 {{w.all}}개 중</span></div>
-          </section>
-        </div>
-        <div class="col">
-          <section class="panel pad"><h3 class="h3">참여 팀 · 실행 도구 · 모델</h3>
-            <sc-for list="{{w.teams}}" as="tm"><button class="trow" onClick="{{tm.open}}"><span class="asg">{{tm.assign}}</span><span class="{{tm.stCls}}">{{tm.stL}}</span></button></sc-for>
-            <sc-if value="{{w.noTeams}}"><div class="s">아직 배정된 팀이 없습니다.</div></sc-if>
-          </section>
-          <section class="panel pad"><h3 class="h3">작업 폴더</h3><div class="mono path">projects/{{w.slug}}</div><div class="s">이 작업실의 작업·대화·파일·터미널·로그는 이 폴더와 프로젝트 기준으로만 표시됩니다 (예시).</div></section>
-        </div>
-      </div>
-    </sc-if>
-
-    <!-- 작업·팀 -->
-    <sc-if value="{{wt.tasks}}">
-      <section class="tbl">
-        <div class="pn-h"><h2>작업</h2><span class="aside">{{w.name}} · 예시</span></div>
-        <div class="row tkrow head"><span>작업</span><span>팀 · 실행 도구 · 모델</span><span>상태</span><span>막힌 이유</span></div>
-        <sc-for list="{{w.tasks}}" as="tk">
-          <div class="row tkrow"><span class="tk-t wide">{{tk.t}}</span><span class="asg"><span class="cl">담당</span>{{tk.assign}}</span><span><span class="{{tk.stCls}}">{{tk.stL}}</span></span><span class="{{tk.blockCls}}"><span class="cl">막힌 이유</span>{{tk.blockTxt}}</span></div>
-        </sc-for>
-        <sc-if value="{{w.noTasks}}"><div class="pnote s">진행 중인 작업이 없습니다.</div></sc-if>
-      </section>
-      <section class="panel">
-        <div class="pn-h"><h2>프로젝트 대화</h2><span class="aside">{{w.name}} 전용 · 예시</span></div>
-        <div class="chat">
-          <sc-for list="{{w.chat}}" as="mg"><div class="{{mg.cls}}"><div class="m-by">{{mg.by}} · <span class="mono">{{mg.at}}</span></div><div class="m-t">{{mg.t}}</div></div></sc-for>
-          <sc-if value="{{w.noChat}}"><div class="s">아직 대화가 없습니다.</div></sc-if>
-        </div>
-        <div class="form chat-form">
-          <label for="chat-in">{{w.name}}에 보낼 메시지</label>
-          <textarea id="chat-in" placeholder="예: 모바일 수정이 끝나면 알려줘" value="{{chatDraft}}" onChange="{{onChat}}"></textarea>
-          <div class="form-row"><small>이 프로젝트 대화에만 기록됩니다. 실제 에이전트에는 전달되지 않습니다 (시안)</small><button class="btn pri" onClick="{{sendChat}}">보내기</button></div>
-        </div>
-      </section>
-    </sc-if>
-
-    <!-- 결과물 -->
-    <sc-if value="{{wt.arts}}">
-      <div class="agrid">
-        <sc-for list="{{w.arts}}" as="ar">
-          <div class="{{ar.cls}}">
-            <div class="thumb">
-              <sc-if value="{{ar.isWeb}}"><div class="wthumb"><div class="u"></div><div class="b"><i></i><i></i><i></i><i></i></div></div></sc-if>
-              <sc-if value="{{ar.isDoc}}"><div class="doc"><i class="h"></i><i></i><i></i><i class="s"></i><i></i><i class="s"></i></div></sc-if>
-              <sc-if value="{{ar.isSlide}}"><div class="slide"><b>{{ar.name}}</b><div class="bars"><i style="height:40%"></i><i style="height:70%"></i><i style="height:55%"></i><i style="height:90%"></i></div></div></sc-if>
-              <sc-if value="{{ar.isDesign}}"><div class="dsn"><div><i class="blk"></i><i></i><i></i></div><div><i></i><i class="blk"></i><i></i></div></div></sc-if>
-            </div>
-            <div class="a-body">
-              <span class="a-name">{{ar.name}}</span>
-              <span class="a-meta"><span class="vtag">{{ar.cur}}</span>{{ar.kindL}} · {{ar.team}}</span>
-              <div class="acts"><button class="btn pri" onClick="{{ar.view}}">{{ar.viewL}}</button><button class="btn" onClick="{{ar.edit}}">수정 요청</button></div>
-            </div>
-          </div>
-        </sc-for>
-      </div>
-      <sc-if value="{{w.noArts}}"><div class="empty">아직 결과물이 없습니다.</div></sc-if>
-
-      <sc-if value="{{hasArt}}">
-        <section class="panel" id="viewer" aria-label="결과물 보기">
-          <div class="pn-h"><h2>{{av.name}} <span class="vtag">{{av.cur}}</span></h2><span class="aside">{{av.kindL}} · {{av.team}} · 예시 화면</span></div>
-          <div class="vb">
-            <sc-if value="{{av.isWeb}}">
-              <div>
-                <div class="pv-bar"><div class="seg" role="group" aria-label="미리보기 크기"><button class="{{pvWebCls}}" onClick="{{pvWeb}}">웹</button><button class="{{pvAppCls}}" onClick="{{pvApp}}">앱 (390)</button></div><span class="s">스테이징 미리보기 · 예시 화면</span></div>
-                <div class="pv-stage"><div class="{{pvFrameCls}}">
-                  <div class="pv-url"><i></i><i></i><i></i>{{av.url}}</div>
-                  <sc-if value="{{av.pvHub}}"><div class="mk">
-                    <div class="mk-h"><span>리서치 허브</span><span style="font-weight: 400; font-size: 11px; color: #6A6A71">주제 12 · 자료 318</span></div>
-                    <div class="mk-s">‘에이전트 평가’ 관련 자료 찾기</div>
-                    <div class="mk-g">
-                      <div class="mk-c"><span class="mk-tag">요약 완료</span><b>에이전트 평가 지표 정리</b><span></span><span class="s"></span></div>
-                      <div class="mk-c"><span class="mk-tag">연결 4</span><b>도구 호출 실패 사례</b><span></span><span class="s"></span></div>
-                      <div class="mk-c"><span class="mk-tag">요약 완료</span><b>장기 작업 메모리 설계</b><span></span><span class="s"></span></div>
-                      <div class="mk-c"><span class="mk-tag">검토 필요</span><b>PDF 표 추출 정확도</b><span></span><span class="s"></span></div>
-                    </div>
-                  </div></sc-if>
-                  <sc-if value="{{av.pvPort}}"><div class="mk">
-                    <div class="mk-h"><span>[이름] 포트폴리오</span><span style="font-weight: 400; font-size: 11px; color: #6A6A71">작업 · 소개 · 연락</span></div>
-                    <div class="mk-hero">생각을 제품으로 옮기는 일<small>A안 · 편집형 레이아웃</small></div>
-                    <div class="mk-g"><div class="mk-c"><b>프로젝트 1</b><span></span><span class="s"></span></div><div class="mk-c"><b>프로젝트 2</b><span></span><span class="s"></span></div></div>
-                  </div></sc-if>
-                </div></div>
-              </div>
-            </sc-if>
-            <sc-if value="{{av.isFile}}">
-              <div class="big-pv">
-                <sc-if value="{{av.isDoc}}"><div class="docpv"><div class="pvmeta">{{av.cur}} · {{av.vDate}}</div><h4>{{av.head}}</h4><sc-for list="{{av.lines}}" as="li"><p>{{li.t}}</p></sc-for></div></sc-if>
-                <sc-if value="{{av.isSlide}}"><div class="slidepv"><div><h4>{{av.head}}</h4><sc-for list="{{av.lines}}" as="li"><p>{{li.t}}</p></sc-for></div><div class="bars"><i style="height:40%"></i><i style="height:70%"></i><i style="height:55%"></i><i style="height:90%"></i><i style="height:65%"></i></div></div></sc-if>
-                <sc-if value="{{av.isDesign}}"><div class="dsnpv"><figure><div class="fr"><i class="blk"></i><i></i><i style="width: 60%"></i></div><figcaption>A · 편집형</figcaption></figure><figure><div class="fr"><div class="gr"><i></i><i></i><i></i><i></i></div><i style="width: 70%"></i></div><figcaption>B · 그리드형</figcaption></figure></div></sc-if>
-              </div>
-            </sc-if>
-            <div class="blk"><h3>관련 검증 근거</h3><div class="linkchips"><sc-for list="{{av.crit}}" as="c"><button class="lchip" onClick="{{c.go}}">{{c.l}}</button></sc-for></div></div>
-            <sc-if value="{{av.hasVersions}}">
-              <div class="blk"><h3>버전 기록</h3>
-                <div class="vlist"><sc-for list="{{av.versions}}" as="v">
-                  <div class="{{v.cls}}"><span class="vn">{{v.id}}</span><div><div class="vt">{{v.note}}</div><div class="vs">{{v.date}} · {{v.by}}</div></div>
-                    <sc-if value="{{v.isCur}}"><span class="curb">현재</span></sc-if>
-                    <sc-if value="{{v.canRevert}}"><button class="btn" onClick="{{v.revert}}">되돌리기</button></sc-if>
-                  </div>
-                </sc-for></div>
-              </div>
-            </sc-if>
-            <div class="blk"><h3>수정 요청</h3>
-              <div class="form">
-                <label for="req-in">{{av.team}}에 보낼 요청</label>
-                <textarea id="req-in" placeholder="예: 3장 수치에 출처 링크를 붙여줘" value="{{draft}}" onChange="{{onDraft}}"></textarea>
-                <div class="form-row"><small>담당 팀 대기열에 ‘검토 대기’로 들어갑니다 (시안)</small><button class="btn pri" onClick="{{submitReq}}">요청 보내기</button></div>
-              </div>
-              <div class="reqs"><sc-for list="{{av.reqs}}" as="rq"><div class="req"><span>{{rq.t}}</span><small>{{rq.st}}</small></div></sc-for></div>
-            </div>
-          </div>
-        </section>
-      </sc-if>
-
-      <section class="tbl">
-        <div class="pn-h"><h2>파일</h2><span class="aside">projects/{{w.slug}} · 예시</span></div>
-        <div class="row flrow head"><span>경로</span><span>변경</span><span>시각</span><span>작성</span><span></span></div>
-        <sc-for list="{{w.files}}" as="fl">
-          <div class="row flrow"><span class="mono wide">{{fl.p}}</span><span class="mono"><span class="cl">변경</span>{{fl.ch}}</span><span class="mono"><span class="cl">시각</span>{{fl.at}}</span><span><span class="cl">작성</span>{{fl.by}}</span><button class="btn" onClick="{{fl.open}}">열기</button></div>
-        </sc-for>
-        <sc-if value="{{w.noFiles}}"><div class="pnote s">파일이 없습니다.</div></sc-if>
-      </section>
-    </sc-if>
-
-    <!-- 실행·로그 -->
-    <sc-if value="{{wt.runs}}">
-      <div class="wgrid">
-        <div class="col">
-          <section class="panel pad">
-            <div class="term-h"><span>터미널 · projects/{{w.slug}}</span><span>예시 로그 · 실제 세션 아님</span></div>
-            <div class="term"><sc-for list="{{w.log}}" as="ln"><div class="ln"><span class="ts">{{ln.ts}}</span><span class="{{ln.c}}">{{ln.tx}}</span></div></sc-for></div>
-            <sc-if value="{{w.noLog}}"><div class="s" style="margin-top: 8px">아직 실행 기록이 없습니다.</div></sc-if>
-          </section>
-          <section class="tbl">
-            <div class="pn-h"><h2>실행 회차</h2><span class="aside">모델은 실행 도구가 보고한 값만 표시</span></div>
-            <div class="row rnrow head"><span>회차</span><span>시도</span><span>시작</span><span>실행 도구 · 모델</span><span>결과</span></div>
-            <sc-for list="{{w.runs}}" as="rn">
-              <div class="row rnrow"><span class="mono"><span class="cl">회차</span>{{rn.n}}</span><span class="mono"><span class="cl">시도</span>{{rn.a}}</span><span class="mono"><span class="cl">시작</span>{{rn.start}}</span><span class="asg"><span class="cl">실행 도구 · 모델</span>{{rn.tm}}</span><span><span class="{{rn.cls}}">{{rn.res}}</span></span></div>
-            </sc-for>
-            <sc-if value="{{w.noRuns}}"><div class="pnote s">실행 회차가 없습니다.</div></sc-if>
-          </section>
-        </div>
-        <div class="col">
-          <section class="panel">
-            <div class="pn-h"><h2>체크포인트</h2></div>
-            <sc-for list="{{w.cps}}" as="cp"><div class="cprow"><div class="s mono">{{cp.at}}</div><div class="t">{{cp.t}}</div><div class="s">다음 · {{cp.next}}</div></div></sc-for>
-            <sc-if value="{{w.noCps}}"><div class="pnote s">체크포인트가 없습니다.</div></sc-if>
-          </section>
-          <section class="panel">
-            <div class="pn-h"><h2>실행 도구·모델 교대 기록</h2></div>
-            <sc-for list="{{w.handoffs}}" as="ho">
-              <div class="horow"><div class="s mono">{{ho.at}}</div><div class="ho-m"><span class="asg">{{ho.from}}</span><span aria-hidden="true">→</span><span class="asg">{{ho.to}}</span></div><div class="s">사유 · {{ho.why}}</div><div class="s">전달 · {{ho.carried}}</div></div>
-            </sc-for>
-            <sc-if value="{{w.noHandoffs}}"><div class="pnote s">{{w.handoffNote}}</div></sc-if>
-          </section>
-        </div>
-      </div>
-    </sc-if>
-
-    <!-- 검증 -->
-    <sc-if value="{{wt.verify}}">
-      <div class="vsum"><span><b>{{w.pass}}</b>통과</span><span><b>{{w.fail}}</b>미통과</span><span><b>{{w.none}}</b>미검증</span><span class="s">모든 조건이 근거와 함께 통과해야 완료로 판단합니다. 실행 도구의 자체 완료 보고는 근거로 보지 않습니다.</span></div>
-      <div class="tbl">
-        <div class="row vrow head"><span>#</span><span>완료 조건</span><span>근거</span><span>결과</span><span>검증 시각</span></div>
-        <sc-for list="{{w.crit}}" as="c">
-          <div class="{{c.rowCls}}" id="{{c.anchor}}"><span class="mono">{{c.i}}</span><span class="wide" style="font-weight: 500">{{c.t}}</span><span class="{{c.eCls}}"><span class="cl">근거</span>{{c.e}}</span><span><span class="{{c.rCls}}">{{c.rL}}</span></span><span class="mono"><span class="cl">검증 시각</span>{{c.at}}<span class="s" style="display: block">{{c.by}}</span></span></div>
-        </sc-for>
-      </div>
-    </sc-if>
-
-    <!-- 설정 -->
-    <sc-if value="{{wt.settings}}">
-      <div class="setgrid">
-        <section class="panel pad"><div class="stack">
-          <h3 class="h3">모델 기본 정책 <span class="ex">시안 · 엔진 미연결</span></h3>
-          <div class="seg" role="group" aria-label="프로젝트 기본 모델 정책"><button class="{{m.autoCls}}" aria-pressed="{{m.isAuto}}" onClick="{{m.setAuto}}">자동 선택</button><button class="{{m.pinCls}}" aria-pressed="{{m.isPin}}" onClick="{{m.setPin}}">특정 모델 고정</button></div>
-          <sc-if value="{{m.isAuto}}"><div class="callout info">승인된 기본 모델이 있으면 그 모델을, 없으면 실행 도구의 기본 모델을 씁니다. 지금은 승인된 기본 모델이 없어 모델은 ‘확인 필요’입니다.</div></sc-if>
-          <sc-if value="{{m.isPin}}">
-            <div class="callout warn">고정할 모델 · 확인 필요. 공식 지원과 이 계정의 사용 가능 여부를 확인하기 전에는 고를 수 없습니다. 고정 모델을 쓸 수 없으면 다른 모델로 바꾸지 않고 대기합니다.</div>
-            <button class="{{m.fbCls}}" aria-pressed="{{m.fb}}" onClick="{{m.toggleFb}}">대체 모델 허용 · {{m.fbL}}</button>
-          </sc-if>
-          <dl class="kv"><dt>실행 중</dt><dd class="unk">확인 필요 · 실행 도구의 보고 없음</dd><dt>다음 회차</dt><dd>{{m.next}}</dd></dl>
-          <div class="s">변경은 체크포인트 저장 후 다음 회차부터 적용됩니다. 설정만 바꿨다고 실행 중 모델이 바뀐 것으로 표시하지 않습니다.</div>
-        </div></section>
-
-        <section class="panel pad"><div class="stack">
-          <h3 class="h3">작업별 예외 <span class="ex">시안</span></h3>
-          <sc-if value="{{w.noTasks}}"><div class="s">작업이 없습니다.</div></sc-if>
-          <div class="tbl">
-            <sc-for list="{{w.taskPols}}" as="tp">
-              <div class="row tprow"><span class="wide" style="font-weight: 600">{{tp.t}}</span><span class="asg">{{tp.assign}}</span>
-                <span class="stack"><span class="seg" role="group" aria-label="작업 모델 정책"><button class="{{tp.inhCls}}" onClick="{{tp.setInherit}}">기본 정책 따름</button><button class="{{tp.pinCls}}" onClick="{{tp.setPin}}">모델 지정</button></span><sc-if value="{{tp.isPin}}"><span class="s warn-t">지정 모델 확인 필요 → 이 작업은 대기</span></sc-if></span>
-              </div>
-            </sc-for>
-          </div>
-        </div></section>
-
-        <section class="panel pad"><div class="stack">
-          <h3 class="h3">실행 도구·주기</h3>
-          <dl class="kv"><dt>실행 도구</dt><dd>일반 작업 Claude Code · 중요·복잡한 변경 Codex (운영 기준)</dd><dt>동시 실행</dt><dd>전체 2 · Claude Code 2 · Codex 1</dd><dt>반복 주기</dt><dd>{{w.cadence}}</dd></dl>
-        </div></section>
-
-        <section class="panel pad"><div class="stack">
-          <h3 class="h3">완료 조건</h3>
-          <ol class="olist"><sc-for list="{{w.crit}}" as="c"><li>{{c.t}}</li></sc-for></ol>
-          <button class="btn" onClick="{{editCrit}}">완료 조건 수정 (시안)</button>
-        </div></section>
-
-        <section class="panel pad"><div class="stack">
-          <h3 class="h3">작업 폴더·권한</h3>
-          <dl class="kv"><dt>폴더</dt><dd class="mono">projects/{{w.slug}}</dd><dt>외부 게시</dt><dd>대장 승인 필요</dd><dt>비밀정보</dt><dd>로그·체크포인트에 저장하지 않음</dd></dl>
-        </div></section>
-
-        <section class="panel pad"><div class="stack">
-          <h3 class="h3">프로젝트 정리</h3>
-          <div class="acts" style="margin-top: 0"><sc-if value="{{w.canPause}}"><button class="btn" onClick="{{w.togglePause}}">{{w.pauseL}}</button></sc-if><button class="btn" onClick="{{archive}}">보관 (시안)</button></div>
-        </div></section>
-      </div>
-    </sc-if>
-</sc-if>
-
-<!-- ============ 결과물 (전체) ============ -->
-<sc-if value="{{vArtifacts}}">
-    <div class="ph"><h1>결과물</h1><p>모든 프로젝트의 결과물입니다. 보기를 누르면 해당 프로젝트 작업실의 결과물 탭으로 이동합니다.</p></div>
-    <div class="agrid">
-      <sc-for list="{{allArts}}" as="ar">
-        <div class="acard">
-          <div class="thumb">
-            <sc-if value="{{ar.isWeb}}"><div class="wthumb"><div class="u"></div><div class="b"><i></i><i></i><i></i><i></i></div></div></sc-if>
-            <sc-if value="{{ar.isDoc}}"><div class="doc"><i class="h"></i><i></i><i></i><i class="s"></i><i></i><i class="s"></i></div></sc-if>
-            <sc-if value="{{ar.isSlide}}"><div class="slide"><b>{{ar.name}}</b><div class="bars"><i style="height:40%"></i><i style="height:70%"></i><i style="height:55%"></i><i style="height:90%"></i></div></div></sc-if>
-            <sc-if value="{{ar.isDesign}}"><div class="dsn"><div><i class="blk"></i><i></i><i></i></div><div><i></i><i class="blk"></i><i></i></div></div></sc-if>
-          </div>
-          <div class="a-body">
-            <span class="a-name">{{ar.name}}</span>
-            <span class="a-meta"><span class="vtag">{{ar.cur}}</span>{{ar.kindL}} · {{ar.projName}}</span>
-            <div class="acts"><button class="btn pri" onClick="{{ar.view}}">{{ar.viewL}}</button><button class="btn" onClick="{{ar.edit}}">수정 요청</button></div>
-          </div>
-        </div>
-      </sc-for>
-    </div>
-</sc-if>
-
-<!-- ============ 반복 목표 ============ -->
-<sc-if value="{{vRecurring}}">
-    <div class="ph"><h1>반복 목표</h1><p>주기마다 조사 → 실행 → 검증을 돌리는 목표입니다. 대기 중이면 이유를 함께 표시합니다.</p></div>
-    <div class="rlist">
-      <sc-for list="{{recs}}" as="rc">
-        <button class="rcard" onClick="{{rc.open}}">
-          <div><div class="rc-name">{{rc.name}}</div><span class="{{rc.stCls}}">{{rc.stL}}</span><div class="rc-v s" style="margin-top: 8px">{{rc.cadence}}</div></div>
-          <div><div class="rc-k">이번 주기 결과 · {{rc.at}}</div><div class="rc-v">{{rc.result}}</div></div>
-          <div><div class="rc-k">다음 실행</div><div class="rc-next">{{rc.next}}</div></div>
-          <div><div class="rc-k">대기 이유</div><div class="rc-v">{{rc.wait}}</div></div>
-        </button>
-      </sc-for>
-    </div>
-</sc-if>
-
-<!-- ============ 레지스트리 ============ -->
-<sc-if value="{{vRegistry}}">
-    <div class="ph"><h1>스킬 · 플러그인 · MCP</h1><p>팀이 쓰는 확장 도구의 출처·버전·권한과 보안팀·정책팀 검토 상태입니다. 이름과 버전은 예시입니다.</p></div>
-    <div class="tbl">
-      <div class="row regrow head"><span>이름</span><span>유형</span><span>출처</span><span>버전</span><span>권한</span><span>보안 검토</span><span>정책 검토</span></div>
-      <sc-for list="{{tools}}" as="tl">
-        <button class="row regrow" onClick="{{tl.open}}">
-          <span class="r-name wide">{{tl.name}}<span class="r-sub" style="display: block">{{tl.note}}</span></span>
-          <span><span class="cl">유형</span>{{tl.type}}</span>
-          <span><span class="cl">출처</span>{{tl.src}}</span>
-          <span class="mono"><span class="cl">버전</span>{{tl.ver}}</span>
-          <span><span class="cl">권한</span>{{tl.perm}}</span>
-          <span><span class="cl">보안 검토</span><span class="{{tl.secCls}}">{{tl.secL}}</span></span>
-          <span><span class="cl">정책 검토</span><span class="{{tl.polCls}}">{{tl.polL}}</span></span>
-        </button>
-      </sc-for>
-    </div>
-</sc-if>
-
-<!-- ============ 사용량 ============ -->
-<sc-if value="{{vUsage}}">
-    <div class="ph"><h1>사용량</h1><p>모든 한도를 잔여율로 통일해 보여줍니다. 계정 한도와 팀별 작업 사용량은 별개입니다. 모든 값은 시안용 예시입니다.</p></div>
-    <div class="duo">
-      <sc-for list="{{accounts}}" as="ac">
-        <section class="panel">
-          <div class="pn-h"><h2>{{ac.name}} 계정</h2><span class="{{ac.stCls}}">{{ac.stL}}</span></div>
-          <div class="usage">
-            <div class="meters">
-              <sc-for list="{{ac.meters}}" as="m">
-                <div class="{{m.cls}}">
-                  <div class="m-top"><span class="k">{{m.k}}</span><span class="{{m.vCls}}">{{m.vTxt}}</span></div>
-                  <div class="{{m.barCls}}"><i style="width: {{m.pct}}%"></i><span class="th" style="left: {{m.th}}%"></span></div>
-                  <sc-if value="{{m.hit}}"><span class="m-flag">중단 기준 도달</span></sc-if>
-                  <sc-if value="{{m.safe}}"><span class="m-ok">기준 이내</span></sc-if>
-                  <sc-if value="{{m.unknown}}"><span class="m-unk">확인 불가 · 새 작업 배정 보류</span></sc-if>
-                  <div class="m-meta">{{m.rule}}<br>초기화 <b>{{m.reset}}</b> · 조회 <b>{{m.checked}}</b></div>
-                </div>
-              </sc-for>
-            </div>
-            <sc-if value="{{ac.hasSub}}">
-              <div class="submeter">
-                <div class="subhead"><b>{{ac.sub.k}}</b><span class="subtag">전체 주간 한도에 포함된 모델별 상한</span></div>
-                <div class="{{ac.sub.innerCls}}">
-                  <div class="m-top"><span class="k">잔여율</span><span class="{{ac.sub.vCls}}">{{ac.sub.vTxt}}</span></div>
-                  <div class="{{ac.sub.barCls}}"><i style="width: {{ac.sub.pct}}%"></i><span class="th" style="left: {{ac.sub.th}}%"></span></div>
-                  <sc-if value="{{ac.sub.hit}}"><span class="m-flag">Fable 작업 중단</span></sc-if>
-                  <sc-if value="{{ac.sub.safe}}"><span class="m-ok">기준 이내</span></sc-if>
-                  <div class="m-meta">{{ac.sub.rule}}<br>초기화 <b>{{ac.sub.reset}}</b> · 조회 <b>{{ac.sub.checked}}</b></div>
-                </div>
-                <div class="u-note">Fable 사용분은 전체 주간 한도에서도 함께 차감됩니다. 추가로 주어지는 사용량이 아닙니다.</div>
-              </div>
-            </sc-if>
-            <div class="swap">{{ac.note}}</div>
-          </div>
-        </section>
-      </sc-for>
-    </div>
-    <div class="rules">
-      <div class="rule"><b>5시간 한도</b>잔여 3% 미만이면 새 작업을 멈추고 ‘한도 대기’로 표시합니다.</div>
-      <div class="rule"><b>주간 한도</b>잔여 10% 이하이면 새 작업을 멈춥니다. Fable 상한에도 같은 기준을 적용합니다.</div>
-      <div class="rule"><b>값이 없을 때</b>0%로 처리하지 않고 ‘확인 불가’로 표시하며, 추정하지 않습니다. 확인되지 않은 계정에는 새 작업을 배정하지 않습니다.</div>
-    </div>
-    <section>
-      <div class="sec-h"><h2>공급자 원래 표시<span class="ex">예시</span></h2><span class="aside">공급자 화면의 표시 방식 그대로 · 잔여율 환산과 함께</span></div>
-      <div class="tbl">
-        <div class="row rawrow head"><span>계정</span><span>구간</span><span>공급자 원래 표시</span><span>잔여율</span><span>중단 기준</span><span>상태</span></div>
-        <sc-for list="{{rawRows}}" as="rr">
-          <div class="row rawrow"><span style="font-weight: 600">{{rr.acct}}</span><span>{{rr.k}}</span><span class="mono"><span class="cl">공급자 원래 표시</span>{{rr.raw}}</span><span class="mono"><span class="cl">잔여율</span>{{rr.rem}}</span><span><span class="cl">중단 기준</span>{{rr.rule}}</span><span><span class="{{rr.stCls}}">{{rr.stL}}</span></span></div>
-        </sc-for>
-      </div>
-    </section>
-    <section>
-      <div class="sec-h"><h2>팀별 작업 사용량<span class="ex">예시 추정치</span></h2><span class="aside">이번 주 작업 시간 · 계정 한도 비율이 아님</span></div>
-      <div class="tbl">
-        <div class="row urow head"><span>팀</span><span>실행 도구 · 모델</span><span>작업 시간 비중</span><span>시간</span></div>
-        <sc-for list="{{teamUse}}" as="u">
-          <div class="row urow"><span style="font-weight: 600">{{u.name}}</span><span class="asg">{{u.tm}}</span><div class="ubar wide"><i style="width: {{u.pct}}%"></i></div><span class="mono">{{u.h}}h</span></div>
-        </sc-for>
-      </div>
-    </section>
-</sc-if>
-
+  <div class="page-h">
+    <div><h1>프로젝트</h1><p class="lede">각 프로젝트는 기획 → 개발 → 검증을 돌며 진행됩니다. 행을 누르면 상세로 이동합니다.</p></div>
+    <button class="btn pri" onClick="{{openNew}}">새 프로젝트</button>
   </div>
-</div>
+  <div class="list">
+    <sc-for list="{{allProjects}}" as="p">
+      <button class="prow" onClick="{{p.open}}">
+        <span style="min-width: 0"><span class="name">{{p.name}}<sc-if value="{{p.single}}"><span class="kind">단일 실행</span></sc-if></span><span class="sub">{{p.sub}}</span></span>
+        <span class="flow" aria-label="팀 흐름"><sc-for list="{{p.flow}}" as="f"><sc-if value="{{f.sep}}"><span class="sep"></span></sc-if><span class="{{f.cls}}"><b></b>{{f.l}}</span></sc-for></span>
+        <span class="{{p.pillCls}}"><i></i>{{p.stL}}</span>
+        <span class="c">{{p.proven}}<small>/{{p.total}} 조건</small></span>
+        <span class="when">{{p.ago}}</span>
+      </button>
+    </sc-for>
+    <sc-if value="{{noProjects}}"><div class="empty"><div class="h">아직 프로젝트가 없습니다</div><p>새 프로젝트를 만들면 여기에 나타납니다.</p><button class="btn pri" onClick="{{openNew}}">새 프로젝트</button></div></sc-if>
+  </div>
+</sc-if>
 
-<!-- ============ 상세 패널 ============ -->
-<sc-if value="{{hasSel}}">
-  <button class="scrim" aria-label="상세 패널 닫기" onClick="{{close}}"></button>
-  <aside class="drawer" role="dialog" aria-modal="true" aria-label="{{d.title}}">
-    <div class="d-h">
-      <div class="d-top"><span class="d-kind">{{d.kind}}<span class="ex" style="margin-left: 2px">예시</span></span><button class="x" aria-label="닫기" onClick="{{close}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
-      <h2 class="d-title">{{d.title}}</h2>
-      <div class="d-meta"><sc-if value="{{d.hasSt}}"><span class="{{d.stCls}}">{{d.stL}}</span></sc-if><sc-if value="{{d.hasAssign}}"><span class="asg">{{d.assign}}</span></sc-if></div>
+<!-- ================= 프로젝트 상세 ================= -->
+<sc-if value="{{vProject}}">
+  <div class="crumb"><button class="link" onClick="{{goProjects}}">프로젝트</button><span aria-hidden="true">/</span><span>{{w.name}}</span></div>
+  <div class="ws-h">
+    <div style="min-width: 0">
+      <div class="row-f"><h1>{{w.name}}</h1><span class="{{w.pillCls}}"><i></i>{{w.stL}}</span></div>
+      <p class="goal">{{w.objective}}</p>
     </div>
-    <div class="d-b">
+    <div class="acts">
+      <sc-if value="{{w.canStart}}"><button class="btn pri" onClick="{{w.start}}">{{w.startL}}</button></sc-if>
+      <sc-if value="{{w.canStop}}"><button class="btn" onClick="{{w.stop}}">멈춤</button></sc-if>
+      <sc-if value="{{w.canRunOnce}}"><button class="btn pri" onClick="{{w.runOnce}}">실행 1회</button></sc-if>
+    </div>
+  </div>
 
-      <sc-if value="{{isTeam}}">
-        <div class="blk"><h3>담당 프로젝트</h3><button class="lchip" onClick="{{d.openProj}}">{{d.projName}} →</button></div>
-        <div class="blk"><h3>현재 작업</h3><p class="goal">{{d.task}}</p></div>
-        <div class="{{d.blockCallout}}">막힌 이유 · {{d.blockTxt}}</div>
-        <div class="blk"><h3>다음 행동</h3><p class="goal" style="font-size: 15px">{{d.next}}</p></div>
-        <div class="blk"><h3>팀 · 실행 도구 · 모델</h3><div class="callout info">{{d.name}}은(는) 역할 단위의 팀, {{d.tool}}은(는) 실행 도구, 모델은 그 도구가 실행하는 AI 모델입니다. 모델은 공식 지원과 이 계정의 사용 가능 여부를 확인하기 전까지 ‘확인 필요’로 표시하며 임의의 목록을 만들지 않습니다.</div></div>
-        <div class="blk"><h3>이번 주 팀 작업 사용량 (예시 추정치)</h3><div class="rc-v"><span class="mono" style="font-size: 20px; font-weight: 600">{{d.hours}}h</span> · 계정 한도 비율과 별개</div></div>
-        <div class="blk"><button class="btn" onClick="{{d.openLog}}">작업실에서 실행·로그 보기</button></div>
-      </sc-if>
+  <nav class="ptabs" aria-label="프로젝트 탭"><sc-for list="{{ptabs}}" as="tb"><button class="{{tb.cls}}" aria-current="{{tb.cur}}" onClick="{{tb.go}}">{{tb.l}}<sc-if value="{{tb.hasN}}"><span class="n">{{tb.n}}</span></sc-if></button></sc-for></nav>
 
-      <sc-if value="{{isAppr}}">
-        <div class="blk"><h3>상황</h3><p class="goal" style="font-size: 15px">{{d.body}}</p></div>
-        <div class="blk"><h3>판단 근거</h3><div class="evs"><sc-for list="{{d.ev}}" as="e"><span class="{{e.c}}">{{e.t}}</span></sc-for></div></div>
-        <div class="blk"><h3>영향 범위</h3><p class="goal" style="font-size: 14px; color: #44444C">{{d.impact}}</p></div>
-        <div class="blk"><h3>관련 프로젝트</h3><button class="lchip" onClick="{{d.openProj}}">{{d.projName}} 작업실 열기 →</button></div>
-        <sc-if value="{{d.isOpen}}"><div class="acts"><sc-for list="{{d.acts}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for></div></sc-if>
-        <sc-if value="{{d.isDone}}"><div class="callout info">‘{{d.resText}}’로 처리했습니다. 시안이므로 실제 작업은 실행되지 않습니다.</div></sc-if>
-      </sc-if>
-
-      <sc-if value="{{isTool}}">
-        <dl class="kv" style="grid-template-columns: 76px minmax(0,1fr); font-size: 14px">
-          <dt>유형</dt><dd>{{d.type}}</dd><dt>출처</dt><dd>{{d.src}}</dd><dt>버전</dt><dd class="mono">{{d.ver}}</dd><dt>요청 권한</dt><dd>{{d.perm}}</dd><dt>사용 팀</dt><dd>{{d.used}}</dd>
-        </dl>
-        <div class="blk"><h3>보안 검토 · <span class="{{d.secCls}}">{{d.secL}}</span></h3><div class="clist"><sc-for list="{{d.secChecks}}" as="c"><div class="ci"><span>{{c.t}}</span><span class="{{c.cls}}">{{c.l}}</span></div></sc-for></div></div>
-        <div class="blk"><h3>정책 검토 · <span class="{{d.polCls}}">{{d.polL}}</span></h3><div class="clist"><sc-for list="{{d.polChecks}}" as="c"><div class="ci"><span>{{c.t}}</span><span class="{{c.cls}}">{{c.l}}</span></div></sc-for></div></div>
-      </sc-if>
-
-      <sc-if value="{{isRec}}">
-        <dl class="kv" style="grid-template-columns: 86px minmax(0,1fr); font-size: 14px">
-          <dt>주기</dt><dd>{{d.cadence}}</dd><dt>다음 실행</dt><dd class="mono">{{d.next}}</dd><dt>대기 이유</dt><dd>{{d.wait}}</dd><dt>담당</dt><dd>{{d.team}}</dd>
-        </dl>
-        <div class="blk"><h3>이번 주기 결과 · {{d.at}}</h3><p class="goal" style="font-size: 15px">{{d.result}}</p></div>
-        <div class="blk"><h3>최근 주기</h3><div class="clist"><sc-for list="{{d.history}}" as="h"><div class="ci"><span><span class="mono s">{{h.at}}</span> · {{h.r}}</span><span class="{{h.stCls}}">{{h.stL}}</span></div></sc-for></div></div>
-      </sc-if>
-
-      <sc-if value="{{isNew}}">
-        <div class="form">
-          <label for="np-name">프로젝트 이름</label>
-          <input class="pinput" id="np-name" placeholder="예: 가계부 자동 정리" value="{{np.name}}" onChange="{{onNpName}}" autocomplete="off">
-          <label for="np-goal">목표</label>
-          <textarea id="np-goal" placeholder="무엇을, 어떤 상태까지 만들지 적어주세요" value="{{np.goal}}" onChange="{{onNpGoal}}"></textarea>
-          <label for="np-crit">완료 조건 (한 줄에 하나)</label>
-          <textarea id="np-crit" placeholder="예: 월별 합계가 원본과 일치한다" value="{{np.crit}}" onChange="{{onNpCrit}}"></textarea>
-          <div class="form-row"><small>완료 조건이 없으면 만들 수 없습니다. 시안에만 추가되며 실제 실행은 하지 않습니다.</small><button class="btn pri" onClick="{{createProject}}">만들기</button></div>
+  <!-- 개요 -->
+  <sc-if value="{{pt.over}}">
+    <sc-if value="{{w.isTeam}}">
+      <div class="flow-lg" aria-label="팀 흐름">
+        <sc-for list="{{w.flowLg}}" as="f"><div class="{{f.cls}}"><div class="t">{{f.name}}<span class="tool">{{f.tool}}</span></div><div class="d">{{f.d}}</div></div></sc-for>
+      </div>
+    </sc-if>
+    <div class="grid2" style="margin-top: 20px">
+      <div class="stack">
+        <sc-if value="{{w.hasQuestion}}">
+          <div class="card attn">
+            <div class="lbl">기획팀 질문 · 대장의 답이 필요합니다</div>
+            <div class="big">{{w.question}}</div>
+            <div style="margin-top: 12px"><label class="hint" for="ws-answer">답변</label><textarea class="ta" id="ws-answer" placeholder="답을 적으면 기획팀이 이어서 계획합니다" value="{{w.draft}}" onChange="{{w.onDraft}}"></textarea></div>
+            <div class="row-f" style="margin-top: 10px"><button class="btn pri sm" onClick="{{w.sendAnswer}}">답변 보내고 계속</button></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{w.hasProposal}}">
+          <div class="card done">
+            <div class="lbl">완료 · 검증팀의 개선안</div>
+            <ul class="ul" style="margin-top: 0"><sc-for list="{{w.proposal}}" as="x"><li>{{x}}</li></sc-for></ul>
+            <div class="row-f" style="margin-top: 12px"><button class="btn pri sm" onClick="{{w.accept}}">승인하고 계속</button><button class="btn sm" onClick="{{w.dismiss}}">보류</button></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{w.hasIssue}}">
+          <div class="{{w.issueCls}}">
+            <div class="lbl">{{w.issueTitle}}</div>
+            <div class="big">{{w.issueText}}</div>
+            <div class="row-f" style="margin-top: 12px"><sc-for list="{{w.issueActions}}" as="a"><button class="{{a.cls}}" onClick="{{a.go}}">{{a.l}}</button></sc-for></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{w.hasTask}}">
+          <div class="card"><div class="lbl">{{w.taskLbl}}</div><div class="big">{{w.task}}</div></div>
+        </sc-if>
+        <sc-if value="{{w.hasFeedback}}">
+          <div class="card"><div class="lbl">검증팀 피드백</div><div class="answer">{{w.feedback}}</div></div>
+        </sc-if>
+        <sc-if value="{{w.hasLatest}}">
+          <div class="card">
+            <div class="row-f" style="justify-content: space-between"><div class="lbl" style="margin: 0">최근 결과 · {{w.latest.who}}</div><button class="link small" onClick="{{w.goActivity}}">전체 활동</button></div>
+            <div class="answer" style="margin-top: 8px">{{w.latest.text}}</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{w.noRuns}}"><div class="card"><div class="empty sm" style="padding: 8px 0">아직 실행한 단계가 없습니다. ‘{{w.startL}}’을 누르면 기획팀부터 시작합니다.</div></div></sc-if>
+      </div>
+      <aside class="stack" aria-label="프로젝트 정보">
+        <div class="card">
+          <div class="lbl">완료 조건 · {{w.proven}}/{{w.total}} 확인</div>
+          <div class="bar"><i style="width: {{w.pct}}%"></i></div>
+          <div class="crit" style="margin-top: 12px">
+            <sc-for list="{{w.crit}}" as="c"><div class="cr"><span class="{{c.ckCls}}"><sc-if value="{{c.ok}}"><svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.2l2.2 2.2 4.8-5"></path></svg></sc-if></span><div style="min-width: 0"><div class="t small">{{c.t}}</div></div><span></span></div></sc-for>
+          </div>
+          <button class="link small" style="margin-top: 8px" onClick="{{w.goVerify}}">근거 보기</button>
         </div>
-      </sc-if>
-
+        <div class="card">
+          <dl class="facts">
+            <dt>진행 방식</dt><dd>{{w.kindL}}</dd>
+            <dt>회차</dt><dd class="num">{{w.cycleL}}</dd>
+            <dt>오늘</dt><dd class="num">{{w.today}} / {{limits.day}}회</dd>
+            <dt>작업 폴더</dt><dd class="mono small">projects/{{w.id}}</dd>
+            <dt>만든 날</dt><dd class="num">{{w.created}}</dd>
+          </dl>
+        </div>
+      </aside>
     </div>
+  </sc-if>
+
+  <!-- 활동 -->
+  <sc-if value="{{pt.activity}}">
+    <div class="list tl">
+      <sc-for list="{{w.activity}}" as="a">
+        <div class="ev">
+          <div class="when">{{a.when}}</div>
+          <div style="min-width: 0">
+            <div class="who">{{a.who}}<span class="tool">{{a.tool}}</span><span class="{{a.pillCls}}"><i></i>{{a.resL}}</span></div>
+            <div class="res">{{a.res}}</div>
+            <sc-if value="{{a.hasAnswer}}"><details><summary>답변 보기</summary><div class="answer">{{a.answer}}</div></details></sc-if>
+          </div>
+        </div>
+      </sc-for>
+      <sc-if value="{{w.noRuns}}"><div class="empty sm">아직 활동이 없습니다.</div></sc-if>
+    </div>
+    <details class="panel" style="margin-top: 16px; padding: 4px 0">
+      <summary style="padding: 12px 20px">엔진 기록 {{w.logCount}}건</summary>
+      <div class="log"><sc-for list="{{w.log}}" as="l"><div><span class="ts">{{l.ts}}</span>{{l.tx}}</div></sc-for></div>
+    </details>
+  </sc-if>
+
+  <!-- 검증 -->
+  <sc-if value="{{pt.verify}}">
+    <div class="card">
+      <div class="lbl">완료 조건 · {{w.proven}}/{{w.total}} 확인</div>
+      <p class="hint" style="margin: 0 0 8px">엔진이 작업 폴더에서 직접 확인했거나 대장이 확인한 것만 통과로 칩니다. AI가 “했다”고 말한 것만으로는 통과가 아닙니다.</p>
+      <div class="crit">
+        <sc-for list="{{w.crit}}" as="c">
+          <div class="cr">
+            <span class="{{c.ckCls}}"><sc-if value="{{c.ok}}"><svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.2l2.2 2.2 4.8-5"></path></svg></sc-if></span>
+            <div style="min-width: 0"><div class="t">{{c.t}}</div><div class="{{c.eCls}}">{{c.e}}</div></div>
+            <sc-if value="{{c.canConfirm}}"><button class="btn sm" onClick="{{c.confirm}}">완료로 확인</button></sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <sc-if value="{{w.hasHistory}}">
+      <div class="sec-h" style="margin-top: 28px"><h2>이전 목표</h2></div>
+      <div class="list"><sc-for list="{{w.history}}" as="h"><div class="ev"><div class="when">{{h.when}}</div><div><div class="who">{{h.title}}<span class="{{h.pillCls}}"><i></i>{{h.stL}}</span></div><div class="res">{{h.sub}}</div></div></div></sc-for></div>
+    </sc-if>
+  </sc-if>
+
+  <!-- 설정 -->
+  <sc-if value="{{pt.settings}}">
+    <div class="stack" style="max-width: 720px">
+      <div class="card">
+        <div class="lbl">모델</div>
+        <p class="hint" style="margin: 0 0 12px">자동 선택은 각 팀의 실행 도구가 기본 모델을 씁니다. 고정한 모델을 쓸 수 없으면 다른 모델로 바꾸지 않고 기다립니다. 변경은 다음 단계부터 적용됩니다.</p>
+        <div class="seg" role="group" aria-label="모델 정책"><button class="{{m.autoCls}}" aria-pressed="{{m.isAuto}}" onClick="{{m.setAuto}}">자동 선택</button><button class="{{m.pinCls}}" aria-pressed="{{m.isPin}}" onClick="{{m.setPin}}">모델 고정</button></div>
+        <sc-if value="{{m.isPin}}">
+          <div class="row-f" style="margin-top: 12px"><input class="input" style="max-width: 320px" id="pin-in" placeholder="공식 문서의 모델 ID" value="{{pinDraft}}" onChange="{{onPin}}" autocomplete="off"><button class="btn sm" onClick="{{m.applyPin}}">저장</button></div>
+          <div class="row-f" style="margin-top: 10px"><button class="btn ghost sm" aria-pressed="{{m.fb}}" onClick="{{m.toggleFb}}">대체 모델 허용 · {{m.fbL}}</button></div>
+        </sc-if>
+        <dl class="facts" style="margin-top: 16px"><dt>현재 정책</dt><dd>{{m.summary}} <span class="muted small">· v{{m.version}}</span></dd><dt>최근 모델</dt><dd class="mono small">{{m.actual}}</dd></dl>
+      </div>
+      <div class="card">
+        <div class="lbl">한도</div>
+        <dl class="facts"><dt>하루 최대</dt><dd>{{limits.day}}단계 (넘으면 다음 날 이어서)</dd><dt>동시 실행</dt><dd>전체 {{limits.all}} · Claude Code {{limits.claude}} · Codex {{limits.codex}}</dd><dt>진전 없음</dt><dd>개발 단계 3번 연속이면 멈추고 알림</dd></dl>
+      </div>
+      <div class="card danger-zone">
+        <div class="lbl">프로젝트 삭제</div>
+        <p class="hint" style="margin: 0 0 12px">목표·실행 기록·로그·모델 정책을 지웁니다. 작업 폴더 파일은 한 번 더 물어본 뒤에만 지웁니다. 실행 중에는 삭제할 수 없습니다.</p>
+        <button class="btn danger" onClick="{{w.remove}}">프로젝트 삭제</button>
+      </div>
+    </div>
+  </sc-if>
+</sc-if>
+
+<!-- ================= 팀 ================= -->
+<sc-if value="{{vTeams}}">
+  <div class="page-h"><div><h1>팀</h1><p class="lede">세 팀이 돌아가며 프로젝트를 진행합니다. 팀은 역할이고, 실행 도구와 모델은 그 역할을 수행하는 수단입니다.</p></div></div>
+  <div class="stack">
+    <sc-for list="{{teams}}" as="t">
+      <div class="card">
+        <div class="row-f" style="justify-content: space-between"><h2>{{t.name}}</h2><span class="{{t.pillCls}}"><i></i>{{t.stL}}</span></div>
+        <p class="hint" style="margin: 4px 0 14px">{{t.role}}</p>
+        <dl class="facts"><dt>실행 도구</dt><dd class="mono small">{{t.tool}}</dd><dt>권한</dt><dd>{{t.access}}</dd><dt>모델</dt><dd class="mono small">{{t.model}}</dd><dt>오늘</dt><dd class="num">{{t.today}}회</dd><dt>지금</dt><dd>{{t.now}}</dd></dl>
+        <sc-if value="{{t.hasRecent}}">
+          <div class="lbl" style="margin-top: 16px">최근 작업</div>
+          <div class="crit"><sc-for list="{{t.recent}}" as="r"><div class="cr" style="grid-template-columns: 84px minmax(0,1fr) auto"><span class="small muted num">{{r.when}}</span><span class="small">{{r.project}} · {{r.res}}</span><span></span></div></sc-for></div>
+        </sc-if>
+      </div>
+    </sc-for>
+  </div>
+</sc-if>
+
+<!-- ================= 사용량 ================= -->
+<sc-if value="{{vUsage}}">
+  <div class="page-h"><div><h1>사용량</h1><p class="lede">토큰을 아끼기 위한 한도와 오늘 실행한 단계 수입니다.</p></div></div>
+  <div class="stack">
+    <div class="card attn">
+      <div class="lbl">구독 잔여량 · 확인 불가</div>
+      <div class="big">Claude Code와 Codex 모두 구독 잔여량을 읽어 올 공식 방법이 없어 표시하지 않습니다.</div>
+      <p class="hint" style="margin: 8px 0 0">대신 실행 중 한도 초과 오류가 나면 그 자리에서 멈추고, 프로젝트마다 하루 {{limits.day}}단계까지만 실행합니다. 추정한 숫자는 보여 주지 않습니다.</p>
+    </div>
+    <div class="list" role="table" aria-label="프로젝트별 오늘 실행">
+      <div class="urow head" role="row"><span role="columnheader">프로젝트</span><span role="columnheader">오늘 실행</span><span role="columnheader">한도 사용</span><span role="columnheader">상태</span></div>
+      <sc-for list="{{usageRows}}" as="u"><div class="urow" role="row"><span role="cell">{{u.name}}</span><span class="mono" role="cell">{{u.today}}</span><span role="cell"><span class="bar" style="display: block; width: 120px; margin: 0"><i style="width: {{u.pct}}%"></i></span></span><span role="cell" class="{{u.pillCls}}"><i></i>{{u.stL}}</span></div></sc-for>
+      <sc-if value="{{noProjects}}"><div class="empty sm">프로젝트가 없습니다.</div></sc-if>
+    </div>
+    <div class="card">
+      <div class="lbl">오늘 실행 도구별</div>
+      <dl class="facts"><sc-for list="{{toolRows}}" as="r"><dt>{{r.tool}}</dt><dd class="num">{{r.n}}회 · 동시 최대 {{r.cap}}</dd></sc-for></dl>
+    </div>
+  </div>
+</sc-if>
+</main>
+
+<!-- ================= 새 프로젝트 ================= -->
+<sc-if value="{{showNew}}">
+  <button class="scrim" aria-label="닫기" onClick="{{closeNew}}"></button>
+  <aside class="sheet" role="dialog" aria-modal="true" aria-labelledby="new-h">
+    <div class="sheet-h"><h2 id="new-h">새 프로젝트</h2><button class="btn ghost sm" onClick="{{closeNew}}" aria-label="닫기">닫기</button></div>
+    <div class="sheet-b">
+      <div class="field"><label for="np-title">이름 <span class="opt">(선택)</span></label><input class="input" id="np-title" placeholder="예: 가계부 앱" value="{{np.title}}" onChange="{{np.onTitle}}" autocomplete="off"></div>
+      <div class="field"><label for="np-goal">목표</label><textarea class="ta" id="np-goal" placeholder="무엇을, 어떤 상태까지 만들지" value="{{np.goal}}" onChange="{{np.onGoal}}"></textarea></div>
+      <div class="field"><label for="np-crit">완료 조건</label><textarea class="ta" id="np-crit" placeholder="한 줄에 하나씩. 예: index.html 파일이 있다" value="{{np.crit}}" onChange="{{np.onCrit}}"></textarea>
+        <div class="hint">파일로 확인할 수 있게 쓰면 엔진이 직접 확인해 자동으로 끝냅니다.</div></div>
+      <div class="note"><b>진행 방식</b> · 기획팀(Claude Code) → 개발팀(Claude Code) → 검증팀(Codex)이 돌아가며 진행합니다. 완료 조건이 모두 확인되면 멈추고 개선안을 올립니다. 대장의 결정이 필요하면 질문을 남깁니다. 하루 {{limits.day}}단계까지 실행합니다.</div>
+      <sc-if value="{{np.real}}"><div class="note" style="background: var(--stop-soft); color: var(--stop)"><b style="color: var(--stop)">실제 실행 모드</b> · 시작하면 실제 AI가 실행되고 구독 사용량이 쓰입니다.</div></sc-if>
+      <sc-if value="{{np.hasError}}"><div class="hint" style="color: var(--stop)" role="alert">{{np.error}}</div></sc-if>
+    </div>
+    <div class="sheet-f"><button class="btn" onClick="{{np.createOnly}}">만들기만</button><button class="btn pri" onClick="{{np.createStart}}">만들고 시작</button></div>
   </aside>
 </sc-if>
 
@@ -1029,7 +607,7 @@ button.row:hover{background:var(--sf2)}
 </div>
 </template>
 <script>
-// Minimal renderer for the design's template syntax: {{path}}, <sc-if value>, <sc-for list as>, on* handlers.
+// Minimal renderer for the template syntax: {{path}}, <sc-if value>, <sc-for list as>, on* handlers.
 class DCLogic {
   constructor(props) { this.props = props; this.state = {}; }
   setState(patch) {
@@ -1058,7 +636,6 @@ function build(nodes, parent, vals, scope) {
     }
     const el = node.cloneNode(false);
     for (const { name, value } of [...node.attributes]) {
-      if (name.startsWith('hint-')) { el.removeAttribute(name); continue; }
       if (name.startsWith('on')) {
         el.removeAttribute(name);
         const fn = exact(value, vals, scope), type = name.slice(2);
@@ -1081,595 +658,368 @@ function build(nodes, parent, vals, scope) {
   }
 }
 
+// ---- 표시용 도우미 ----
+const TOOL = { 'claude-code': 'Claude Code', codex: 'Codex' };
+const TEAMS = [
+  { id: 'plan', name: '기획팀', tool: 'claude-code', access: '읽기 전용', role: '현재 상태와 검증팀 피드백을 보고 다음 작업 하나를 정합니다. 사람의 결정이 필요하면 대장에게 질문합니다.' },
+  { id: 'dev', name: '개발팀', tool: 'claude-code', access: '작업 폴더 안 파일 쓰기 (명령 실행 없음)', role: '기획팀이 정한 작업을 작업 폴더 안에서 수행하고, 완료 조건을 확인할 방법을 함께 보고합니다.' },
+  { id: 'qa', name: '검증팀', tool: 'codex', access: 'Codex 샌드박스 안에서 테스트 실행', role: '완료 조건을 확인하고 부족한 점을 기획팀에 넘깁니다. 모두 확인되면 다음 개선안을 제안합니다.' },
+];
+const TEAM_NAME = { plan: '기획팀', dev: '개발팀', qa: '검증팀' };
+const REASON = {
+  needs_decision: '기획팀이 대장의 결정을 기다립니다', unclear_plan: '기획팀이 다음 작업을 정하지 못했습니다',
+  no_progress: '개발 단계에서 3번 연속 진전이 없어 멈췄습니다', awaiting_review: '엔진이 확인하지 못한 조건이 남아 멈췄습니다',
+  daily_cap: '오늘 실행 한도에 닿아 내일 이어서 합니다', pinned_model_unavailable: '고정한 모델을 쓸 수 없어 기다립니다',
+  network_error: '네트워크 오류로 잠시 후 다시 시도합니다', network_retries_exhausted: '네트워크 오류가 계속되어 멈췄습니다',
+  auth_error: '로그인이 필요합니다 (CLI 인증 오류)', limit_error: '구독 사용 한도에 닿아 멈췄습니다',
+  permission_error: '권한 오류로 멈췄습니다', unclassified_error: '알 수 없는 오류로 멈췄습니다', invalid_result: '실행 결과를 읽지 못했습니다',
+  interrupted_by_restart: '서버가 다시 켜지면서 진행 중이던 단계가 끊겼습니다', test_fix_exhausted: '테스트 수정 2번에도 실패했습니다'
+};
+const reasonText = (r) => REASON[r] || r || '';
+const pad = (n) => String(n).padStart(2, '0');
+const fmt = (iso) => { if (!iso) return '—'; const d = new Date(iso); return pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const ago = (iso) => {
+  if (!iso) return '';
+  const s = (Date.now() - Date.parse(iso)) / 1000;
+  if (s < 60) return '방금'; if (s < 3600) return Math.floor(s / 60) + '분 전'; if (s < 86400) return Math.floor(s / 3600) + '시간 전';
+  return fmt(iso).slice(0, 5);
+};
+const sameDay = (iso) => iso && new Date(iso).toDateString() === new Date().toDateString();
+const clip = (t, n) => (t && t.length > n ? t.slice(0, n - 1) + '…' : (t || ''));
+const cleanAnswer = (text) => {
+  let t = text || '';
+  for (const mark of ['AGENT_HQ_REPORT', 'AGENT_HQ_PLAN']) { const at = t.lastIndexOf(mark); if (at >= 0) t = t.slice(0, at); }
+  return t.replace(/\s+$/, '') || '(답변 없음)';
+};
+const ERRORS = [[/completion criteria|completionCriteria/, '완료 조건을 한 줄 이상 적어 주세요.'], [/objective/, '목표를 적어 주세요.'], [/title/, '이름은 100자 이내로 적어 주세요.'],
+  [/pinned policy requires a model/, '고정할 모델 ID를 적어 주세요.'], [/running round/, '실행 중인 단계가 끝난 뒤에 삭제할 수 있습니다.'],
+  [/already verified/, '이미 완료된 목표입니다.'], [/not waiting for an answer/, '지금은 답변을 기다리는 상태가 아닙니다.'], [/answer is empty/, '답변을 적어 주세요.'],
+  [/no pending proposal/, '처리할 개선안이 없습니다.'], [/Failed to fetch|NetworkError/, '서버에 연결할 수 없습니다.']];
+const korErr = (m) => { const hit = ERRORS.find((x) => x[0].test(m)); return hit ? hit[1] : m; };
+const ICON = {
+  question: 'M6 6.2a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9v.6M8 11.2v.1M8 14.5A6.5 6.5 0 1 0 8 1.5a6.5 6.5 0 0 0 0 13z',
+  proposal: 'M8 1.5v2M3.4 3.4l1.4 1.4M12.6 3.4l-1.4 1.4M5.5 11.5h5M6.2 14h3.6M8 5.5a3 3 0 0 0-1.8 5.4c.3.2.5.6.5 1v.1h2.6v-.1c0-.4.2-.8.5-1A3 3 0 0 0 8 5.5z',
+  issue: 'M8 5.2v3.6M8 11v.1M7 2.2L1.4 12.4c-.4.7.1 1.6.9 1.6h11.4c.8 0 1.3-.9.9-1.6L9 2.2c-.4-.8-1.6-.8-2 0z',
+  model: 'M2.5 5L8 2l5.5 3v6L8 14l-5.5-3zM8 8l5.5-3M8 8v6M8 8L2.5 5'
+};
+
+// 목표 상태 → 화면 상태
+function stateOf(g) {
+  if (!g) return { l: '비어 있음', tone: 'idle' };
+  switch (g.status) {
+    case 'running': return { l: (g.team ? TEAM_NAME[g.team.step] + ' 작업 중' : '실행 중') + (g.pauseRequested ? ' · 멈춤 예약' : ''), tone: 'run' };
+    case 'scheduled':
+      if (g.reason === 'daily_cap') return { l: '오늘 한도 · 내일 이어서', tone: 'wait' };
+      if (g.kind === 'team') return g.autoRun ? { l: '다음 단계 준비', tone: 'run' } : { l: g.round ? '멈춤' : '시작 전', tone: 'idle' };
+      return { l: '실행 대기', tone: 'idle' };
+    case 'paused': return { l: '멈춤', tone: 'idle' };
+    case 'retry_wait': return { l: '재시도 대기', tone: 'wait' };
+    case 'model_wait': return { l: '모델 대기', tone: 'attn' };
+    case 'review_required': return { l: g.reason === 'needs_decision' ? '대장 답변 필요' : '확인 필요', tone: 'attn' };
+    case 'blocked': return { l: '중단됨', tone: 'stop' };
+    case 'recovery_required': return { l: '복구 필요', tone: 'stop' };
+    case 'verified': return { l: g.proposal && g.proposal.status === 'pending' ? '완료 · 개선안 있음' : '완료', tone: 'done' };
+    default: return { l: g.status, tone: 'idle' };
+  }
+}
+const pillCls = (tone) => 'pill ' + tone;
+const RUNNING_LIKE = ['scheduled', 'running', 'retry_wait', 'model_wait'];
+
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    const chats = {};
-    this.D().projects.forEach((p) => { chats[p.id] = p.chat.slice(); });
-    this.state = {
-      view: 'overview', pid: 'p1', wtab: 'over', art: null, hl: null, sel: null,
-      q: '', pq: '', pf: 'all', inboxAll: false, resolved: {}, paused: {}, mpol: {}, taskPol: {},
-      cur: { art1: 'v4', art2: 'v2', art3: 'v3', art4: 'v2', art5: 'v1' },
-      reqs: { art1: [{ t: '요약 품질 기준을 수치로 명시해줘', st: '반영됨 · v4' }], art2: [{ t: 'B안 카드 간격을 조금 더 넓게', st: '검토 대기' }] },
-      chats: chats, chatDraft: '', draft: '', pv: 'web', extra: [], np: { name: '', goal: '', crit: '' },
-      w: (typeof window !== 'undefined' ? window.innerWidth : 1440), toast: ''
-    };
+    this.state = { view: 'home', pid: null, ptab: 'over', eng: null, offline: false, toast: '',
+      showNew: false, np: { title: '', goal: '', crit: '', error: '' }, drafts: {}, pinOpen: {}, pinDraft: '' };
   }
   componentDidMount() {
-    this._r = () => this.setState({ w: window.innerWidth });
-    window.addEventListener('resize', this._r);
+    this.refresh();
+    try {
+      this._es = new EventSource('/api/events');
+      this._es.onmessage = (m) => {
+        let e; try { e = JSON.parse(m.data); } catch (err) { return; }
+        if (e.type && (e.type.indexOf('goal.') === 0 || e.type.indexOf('project.') === 0)) { clearTimeout(this._rt); this._rt = setTimeout(() => this.refresh(), 200); }
+      };
+    } catch (err) { /* 파일로 열면 이벤트 스트림이 없다 */ }
+    this._poll = setInterval(() => this.refresh(), 20000);
+    this._clock = setInterval(() => scheduleRender(), 30000); // "N분 전" 갱신
   }
-  say(m) {
-    this.setState({ toast: m });
-    clearTimeout(this._t);
-    this._t = setTimeout(() => this.setState({ toast: '' }), 2800);
+  async api(method, url, body) {
+    const res = await fetch(url, { method: method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || String(res.status));
+    return data;
   }
-  later(fn) { setTimeout(fn, 40); }
-  toTop() { window.scrollTo(0, 0); }
-  go(view) { this.setState({ view: view, sel: null, q: '' }); this.toTop(); }
-  openProject(pid, tab, extra) {
-    this.setState(Object.assign({ view: 'project', pid: pid, wtab: tab || 'over', art: null, hl: null, sel: null, q: '', chatDraft: '', draft: '', pv: 'web' }, extra || {}));
-    this.toTop();
+  refresh() {
+    return fetch('/api/engine').then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then((eng) => this.setState({ eng: eng, offline: false }))
+      .catch(() => this.setState({ offline: true }));
   }
-  showArt(pid, id, edit) {
-    if (this.state.view === 'project' && this.state.pid === pid && this.state.wtab === 'arts') this.setState({ art: id, draft: '', pv: 'web' });
-    else this.openProject(pid, 'arts', { art: id });
-    this.later(() => {
-      const v = document.getElementById('viewer');
-      if (v) v.scrollIntoView({ block: 'start', behavior: 'smooth' });
-      if (edit) { const t = document.getElementById('req-in'); if (t) t.focus({ preventScroll: true }); }
-    });
+  say(m) { this.setState({ toast: m }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: '' }), 3200); }
+  act(promise, okMsg) { return promise.then((v) => { this.refresh(); if (okMsg) this.say(okMsg); return v; }).catch((e) => this.say(korErr(e.message))); }
+  go(view) { this.setState({ view: view }); window.scrollTo(0, 0); }
+  openProject(id, tab) { this.setState({ view: 'project', pid: id, ptab: tab || 'over' }); window.scrollTo(0, 0); }
+  isReal() { return !!(this.state.eng && this.state.eng.mode === 'execution'); }
+  limits() {
+    const l = (this.state.eng && this.state.eng.limits) || {};
+    return { day: l.maxRoundsPerDay || 10, all: l.maxConcurrent || 2, claude: (l.providerConcurrent || {}).claude || 2, codex: (l.providerConcurrent || {}).codex || 1 };
   }
-  goCrit(i) {
-    this.setState({ wtab: 'verify', hl: i });
-    this.later(() => { const r = document.getElementById('crit-' + i); if (r) r.scrollIntoView({ block: 'center', behavior: 'smooth' }); });
+  confirmStart(name) {
+    if (!this.isReal()) return true;
+    return window.confirm('‘' + name + '’ 프로젝트를 시작합니다.\n\n기획팀 → 개발팀 → 검증팀이 돌아가며 끝날 때까지 진행합니다.\n실제 AI가 실행되고 구독 사용량이 쓰입니다 (하루 최대 ' + this.limits().day + '단계).\n\n시작할까요?');
   }
-  open(kind, id) { this.setState({ sel: { kind: kind, id: id }, q: '' }); }
 
-  D() {
-    if (this._d) return this._d;
-    const ST = {
-      run: { l: '실행 중', c: 'st st-run' }, queue: { l: '실행 대기', c: 'st st-queue' }, limit: { l: '한도 대기', c: 'st st-limit' },
-      review: { l: '검토 대기', c: 'st st-review' }, approve: { l: '승인 대기', c: 'st st-approve' }, stall: { l: '정체 중단', c: 'st st-stall' },
-      paused: { l: '일시정지', c: 'st st-paused' }, plan: { l: '준비 중', c: 'st st-plan' }, done: { l: '검증 완료', c: 'st st-done' }
-    };
-    const RVC = { pass: { l: '통과', c: 'rv rv-pass' }, fail: { l: '미통과', c: 'rv rv-rej' }, none: { l: '미검증', c: 'rv rv-wait' } };
-    const RV = { pass: { l: '통과', c: 'rv rv-pass' }, cond: { l: '조건부', c: 'rv rv-cond' }, prog: { l: '검토 중', c: 'rv rv-prog' }, wait: { l: '대기', c: 'rv rv-wait' }, rej: { l: '반려', c: 'rv rv-rej' } };
-    const TOOL = { 'claude-code': 'Claude Code', codex: 'Codex' };
-    const L = (ts, c, tx) => ({ ts: ts, c: c, tx: tx });
-    const E = (t, c) => ({ t: t, c: 'evc' + (c ? ' ' + c : '') });
-    const teams = [
-      { id: 'dev', name: '개발팀', status: 'run', tool: 'claude-code', proj: 'p1', task: '리서치 허브 모바일 카드 레이아웃 수정 (#57)', block: '', next: '수정 후 검증팀에 스크린샷 회귀 요청', hours: 9.4 },
-      { id: 'qa', name: '검증팀', status: 'run', tool: 'claude-code', proj: 'p1', task: '요약 적합률 재평가 (모바일 카드 30건)', block: '', next: '결과를 완료 조건 #2 근거로 첨부', hours: 5.5 },
-      { id: 'sec', name: '보안팀', status: 'limit', tool: 'codex', proj: 'p2', task: 'MCP 서버 fs-watch 권한 검토', block: 'Codex 5시간 잔여 2% (계정 한도)', next: '16:40 초기화 후 자동 재개', hours: 2.0 },
-      { id: 'plan', name: '기획팀', status: 'queue', tool: 'claude-code', proj: 'p3', task: '주간 동향 슬라이드 8~10장 작성', block: '동시 실행 슬롯 2/2 사용 중 (한도 아님)', next: '슬롯이 비면 대기열 1순위로 시작', hours: 6.1 },
-      { id: 'platform', name: '플랫폼 개선팀', status: 'queue', tool: 'claude-code', proj: 'p2', task: '인계 누락 자동 탐지 규칙 구현', block: '동시 실행 슬롯 2/2 사용 중 (한도 아님)', next: '대기열 2순위', hours: 4.0 },
-      { id: 'design', name: '디자인팀', status: 'approve', tool: 'claude-code', proj: 'p4', task: '포트폴리오 메인 시안 A/B', block: '대장 선택 대기 · 1일 4시간 경과', next: '선택 확정 시 하위 페이지 3종 확장', hours: 3.2 },
-      { id: 'policy', name: '정책팀', status: 'stall', tool: 'claude-code', proj: 'p3', task: '외부 뉴스 API 약관 제7조 해석', block: '같은 쟁점 3회 반복, 진전 없음', next: '대장에게 조항 원문 요청 (확인함 등록)', hours: 1.8 }
-    ];
-    const projects = [
-      { id: 'p1', slug: 'research-hub', name: '개인 리서치 허브 v2', status: 'run', stage: 1, cycle: '3회차', cadence: '없음 (목표 달성형)',
-        goal: '흩어진 링크·PDF·메모를 주제별로 자동 요약하고 서로 연결하는 개인용 웹앱을 스테이징에 배포한다.',
-        block: '', next: '모바일 카드 겹침 2곳 수정 후 스크린샷 회귀 재실행 (테스트 수정 1/2)', teams: ['dev', 'qa', 'sec'],
-        crit: [
-          { t: '주요 흐름 E2E 테스트 전부 통과', r: 'pass', e: 'e2e 38/38 통과 · run #214', at: '09-28 10:12', by: '검증팀' },
-          { t: '요약 적합률 샘플 평가 90% 이상', r: 'pass', e: '50건 중 46건 적합 (92%) · eval-0928.csv', at: '09-28 13:51', by: '검증팀' },
-          { t: '보안 점검 High 이슈 0건', r: 'pass', e: 'SR-09 · High 0 / Med 2', at: '09-28 12:30', by: '보안팀' },
-          { t: '모바일 360px 레이아웃 깨짐 없음', r: 'fail', e: '카드 겹침 2곳 · shot-0928-1407.png', at: '09-28 14:07', by: '검증팀' },
-          { t: '스테이징 24시간 오류율 1% 미만', r: 'none', e: '배포 승인 후 측정', at: '', by: '' }
-        ],
-        tasks: [
-          { t: '모바일 카드 레이아웃 수정 (#57)', team: 'dev', s: 'run', block: '' },
-          { t: '요약 적합률 재평가 (모바일 카드 30건)', team: 'qa', s: 'run', block: '' },
-          { t: 'Med 이슈 2건 수정 여부 결정', team: 'sec', s: 'review', block: '대장 검토 필요' },
-          { t: '스테이징 배포', team: 'dev', s: 'approve', block: '대장 승인 필요 (확인함)' }
-        ],
-        arts: [
-          { id: 'w1', kind: 'web', name: '리서치 허브 스테이징', team: '개발팀', build: 'build #214', url: 'staging.research-hub.local', pv: 'hub', crit: [0, 3] },
-          { id: 'art1', kind: 'doc', name: '리서치 허브 v2 기획서', team: '기획팀', crit: [1, 2], versions: [
-            { id: 'v4', date: '09-27 18:20', by: '기획팀 · Claude Code', note: '완료 조건 5개로 정리, 요약 품질 수치화', head: '리서치 허브 v2 기획서', lines: ['목표: 흩어진 자료를 주제별로 자동 요약하고 연결한다.', '완료 조건 5개: E2E, 요약 적합률 90%, 보안 High 0, 모바일 360px, 오류율 1%.', '범위 밖: 팀 공유 기능, 유료 결제.'] },
-            { id: 'v3', date: '09-25 10:02', by: '기획팀 · Claude Code', note: '모바일 360px 대응 요구 추가', head: '리서치 허브 v2 기획서', lines: ['모바일 360px 대응을 필수 요구로 추가.', '요약 품질 기준은 “충분히 정확” (수치 없음).'] },
-            { id: 'v2', date: '09-22 16:40', by: '기획팀 · Claude Code', note: '보안 점검 항목 추가', head: '리서치 허브 v2 기획서 (초안)', lines: ['목표: 자료 요약과 연결.', '보안 점검 항목 추가.'] }
-          ] }
-        ],
-        files: [
-          { p: 'src/components/SourceCard.tsx', ch: '+18 −6', at: '14:02', by: '개발팀' },
-          { p: 'src/styles/cards.css', ch: '+9 −3', at: '14:03', by: '개발팀' },
-          { p: 'e2e/mobile.spec.ts', ch: '+2 −0', at: '14:06', by: '검증팀' },
-          { p: 'docs/eval-0928.csv', ch: '새 파일', at: '13:51', by: '검증팀' }
-        ],
-        chat: [
-          { by: '대장', at: '09-28 11:02', t: '모바일 화면부터 먼저 봐줘. 배포는 내가 승인할게.' },
-          { by: '개발팀 · Claude Code', at: '14:08', t: '카드 겹침 2곳을 확인했습니다. 수정 후 검증팀에 스크린샷 회귀를 요청하겠습니다.' }
-        ],
-        log: [L('13:40:02', 'cmd', '$ codex exec --task research-hub#57'), L('13:57:40', 'err', 'STOP  Codex 5시간 잔여 2% < 3% (중단 기준)'), L('13:58:01', 'warn', 'SAVE  체크포인트 cp-3 저장 → Claude Code로 교대'), L('14:02:11', 'cmd', '$ claude -p "research-hub#57 이어서"'), L('14:02:40', '', '수정  src/components/SourceCard.tsx  (+18 −6)'), L('14:05:31', 'ok', 'PASS  124 passed, 0 failed (27.8s)'), L('14:07:15', 'err', 'FAIL  모바일 360px 카드 겹침 2곳 → 완료 조건 #4 미통과'), L('14:07:16', 'warn', 'RETRY 레이아웃 재수정 (테스트 수정 1/2)')],
-        runs: [
-          { n: 3, a: 1, start: '14:02', tool: 'claude-code', res: '진행 중 · 테스트 수정 1/2', rc: 'prog' },
-          { n: 3, a: 0, start: '13:40', tool: 'codex', res: '한도 중단 → 교대', rc: 'cond' },
-          { n: 2, a: 1, start: '09-27 20:11', tool: 'codex', res: '완료 · 조건 3/5 통과', rc: 'pass' },
-          { n: 2, a: 0, start: '09-27 20:10', tool: 'codex', res: '네트워크 오류 → 1분 후 재시도', rc: 'cond' },
-          { n: 1, a: 0, start: '09-26 09:00', tool: 'claude-code', res: '완료 · 조건 1/5 통과', rc: 'pass' }
-        ],
-        cps: [
-          { at: '14:07', t: 'SourceCard·cards.css 수정 · 단위 테스트 124/124', next: '모바일 겹침 2곳 재수정' },
-          { at: '13:58', t: 'cp-3 · 교대 전 저장: 변경 파일 2 · 검증 근거 3', next: 'Claude Code에서 #57 이어서' },
-          { at: '09-27 20:40', t: '2회차 종료 · 완료 조건 3/5', next: '모바일 레이아웃 수정' }
-        ],
-        handoffs: [{ at: '09-28 13:58', from: 'codex', to: 'claude-code', why: 'Codex 5시간 잔여 2% (중단 기준 3% 미만)', carried: '체크포인트 cp-3 · 변경 파일 2 · 검증 근거 3' }] },
-      { id: 'p2', slug: 'agent-hq', name: 'AGENT HQ 플랫폼 개선', status: 'limit', stage: 1, cycle: '5회차', cadence: '개선 점검 하루 1회 (03:00)',
-        goal: '팀 간 인계 때 맥락 누락을 줄여 재작업 요청을 주당 5건 이하로 낮춘다.',
-        block: '보안팀은 Codex 5시간 잔여 2%로 한도 대기, 플랫폼 개선팀은 동시 실행 슬롯 2/2로 실행 대기', next: '16:40 Codex 초기화 후 fs-watch 권한 검토 재개', teams: ['platform', 'sec'],
-        crit: [
-          { t: '인계 템플릿 7개 팀 적용', r: 'pass', e: '템플릿 v2 · 커밋 a41c9e · 적용 7/7', at: '09-28 09:12', by: '플랫폼 개선팀' },
-          { t: '2주 연속 재작업 요청 주 5건 이하', r: 'fail', e: '1주차 6건 (기준 초과)', at: '09-28 09:00', by: '검증팀' },
-          { t: '인계 누락 자동 탐지 오탐률 10% 미만', r: 'none', e: '규칙 구현 전', at: '', by: '' }
-        ],
-        tasks: [
-          { t: '인계 누락 자동 탐지 규칙 구현', team: 'platform', s: 'queue', block: '동시 실행 슬롯 2/2 사용 중 (대기열 2순위)' },
-          { t: 'MCP 서버 fs-watch 권한 검토', team: 'sec', s: 'limit', block: 'Codex 5시간 잔여 2% · 16:40 초기화' }
-        ],
-        arts: [{ id: 'art4', kind: 'doc', name: '인계 템플릿 v2', team: '플랫폼 개선팀', crit: [0], versions: [
-          { id: 'v2', date: '09-28 09:12', by: '플랫폼 개선팀 · Claude Code', note: '체크포인트·검증 근거 항목 추가', head: '팀 간 인계 템플릿 v2', lines: ['필수: 목표, 완료 조건, 변경 파일, 검증 근거, 다음 행동.', '비밀정보는 기록하지 않는다.'] },
-          { id: 'v1', date: '09-21 10:00', by: '플랫폼 개선팀 · Claude Code', note: '초안', head: '팀 간 인계 템플릿', lines: ['목표와 다음 행동만 기록.'] }
-        ] }],
-        files: [{ p: 'docs/handoff-template-v2.md', ch: '+64 −12', at: '09:12', by: '플랫폼 개선팀' }, { p: 'src/rules/handoff-check.js', ch: '초안', at: '11:20', by: '플랫폼 개선팀' }],
-        chat: [{ by: '대장', at: '09-27 18:00', t: '인계할 때 검증 근거가 빠지지 않게 해줘.' }, { by: '플랫폼 개선팀 · Claude Code', at: '09-28 09:13', t: '템플릿 v2를 7개 팀에 적용했습니다. 누락 탐지 규칙은 슬롯이 비면 시작합니다.' }],
-        log: [L('09:00:04', 'cmd', '$ claude -p "인계 템플릿 v2 적용"'), L('09:12:40', 'ok', 'DONE  7개 팀 템플릿 적용 · 커밋 a41c9e'), L('11:30:00', 'warn', 'WAIT  동시 실행 슬롯 2/2 → 실행 대기 (대기열 2순위)'), L('12:02:10', 'cmd', '$ codex exec --task review-mcp-fs-watch'), L('12:15:33', '', '요청 권한: fs.write(~/), shell.exec'), L('13:57:40', 'err', 'STOP  Codex 5시간 잔여 2% < 3% → 한도 대기 (16:40 초기화)')],
-        runs: [
-          { n: 5, a: 0, start: '11:30', tool: 'claude-code', res: '실행 대기 · 슬롯 2/2 (플랫폼 개선팀)', rc: 'wait' },
-          { n: 4, a: 1, start: '12:02', tool: 'codex', res: '한도 중단 · 보안팀', rc: 'rej' },
-          { n: 4, a: 0, start: '09:00', tool: 'claude-code', res: '완료 · 조건 1/3 통과', rc: 'pass' }
-        ],
-        cps: [{ at: '13:57', t: '보안 검토 초안 저장 · 요청 권한 목록 확인', next: 'Codex 초기화 후 셸 실행 범위 검토' }, { at: '09:12', t: '템플릿 v2 적용 완료 · 7/7', next: '누락 탐지 규칙 구현' }],
-        handoffs: [], handoffNote: '교대 기록 없음 · Claude Code 슬롯이 가득 차 교대하지 않고 Codex 초기화를 기다립니다.' },
-      { id: 'p3', slug: 'market-weekly', name: '주간 시장 동향 리포트', status: 'queue', stage: 1, cycle: '9월 4주', cadence: '매주 월 09:00',
-        goal: '매주 월요일 오전, 관심 산업 5개의 동향을 10장 이내 슬라이드로 정리한다.',
-        block: '기획팀은 동시 실행 슬롯 2/2로 실행 대기, 정책팀은 약관 해석이 3회 진전 없어 정체 중단', next: '슬롯이 비면 슬라이드 8~10장 작성 재개 · 약관 원문은 대장 확인 필요', teams: ['plan', 'policy'],
-        crit: [
-          { t: '모든 주장에 출처 링크 연결', r: 'pass', e: '출처 누락 0건 · 링크 42건 자동 점검', at: '09-28 10:41', by: '검증팀' },
-          { t: '10장 이내, 장마다 핵심 3줄 요약', r: 'none', e: '초안 7/10장', at: '', by: '' },
-          { t: '주요 수치 2개 이상 출처로 교차 확인', r: 'none', e: '미착수', at: '', by: '' }
-        ],
-        tasks: [
-          { t: '슬라이드 8~10장 작성', team: 'plan', s: 'queue', block: '동시 실행 슬롯 2/2 사용 중 (대기열 1순위)' },
-          { t: '외부 뉴스 API 약관 제7조 해석', team: 'policy', s: 'stall', block: '같은 쟁점 3회 반복, 진전 없음' }
-        ],
-        arts: [{ id: 'art3', kind: 'slide', name: '9월 4주 시장 동향', team: '기획팀', crit: [0, 1], versions: [
-          { id: 'v3', date: '09-28 10:41', by: '기획팀 · Claude Code', note: '7/10장 작성 · 슬롯 대기로 멈춤', head: '9월 4주 · 관심 산업 5개 동향', lines: ['7/10장 작성됨 · 출처 링크 42건', '수치 교차 확인 전 (미검증)'] },
-          { id: 'v2', date: '09-27 22:00', by: '기획팀 · Claude Code', note: '구성안 10장 확정', head: '9월 4주 · 구성안', lines: ['10장 구성과 장별 핵심 질문'] },
-          { id: 'v1', date: '09-27 21:10', by: '기획팀 · Claude Code', note: '템플릿 적용', head: '주간 동향 템플릿', lines: ['표지 · 요약 · 산업별 5장 · 시사점'] }
-        ] }],
-        files: [{ p: 'slides/2026-09-w4.pptx', ch: '7/10장', at: '10:41', by: '기획팀' }, { p: 'notes/sources.md', ch: '+42 링크', at: '10:40', by: '기획팀' }],
-        chat: [{ by: '대장', at: '09-28 08:50', t: '이번 주는 반도체 비중을 늘려줘.' }, { by: '정책팀 · Claude Code', at: '13:39', t: '약관 제7조 해석이 세 번 모두 갈렸습니다. 원문 조항이나 제공사 답변이 필요합니다.' }],
-        log: [L('09:00:00', '', '주기 실행 · 9월 4주'), L('09:00:02', 'cmd', '$ claude -p "9월 4주 동향 슬라이드"'), L('10:41:18', '', '슬라이드 7/10 생성 · 출처 링크 42건 연결'), L('10:41:20', 'warn', 'WAIT  동시 실행 슬롯 2/2 → 실행 대기 (한도 문제 아님)'), L('13:10:02', '', '정책팀 · 약관 제7조 해석 (1/3)'), L('13:39:12', 'err', 'STALL 같은 쟁점 3회 반복, 진전 없음 → 정체 중단')],
-        runs: [{ n: 4, a: 0, start: '09:00', tool: 'claude-code', res: '7/10장 후 실행 대기', rc: 'wait' }, { n: 3, a: 0, start: '09-21 09:00', tool: 'claude-code', res: '완료 · 대장 확인', rc: 'pass' }],
-        cps: [{ at: '13:39', t: '정책팀 해석 시도 3회 기록', next: '대장 원문 확인 대기' }, { at: '10:41', t: '슬라이드 7/10장 · 출처 42건', next: '8~10장 작성' }],
-        handoffs: [], handoffNote: '교대 기록 없음.' },
-      { id: 'p4', slug: 'portfolio', name: '포트폴리오 사이트 리뉴얼', status: 'approve', stage: 1, cycle: '2회차', cadence: '없음 (목표 달성형)',
-        goal: '작업 사례 6개를 읽기 쉽게 보여주는 개인 포트폴리오를 새로 만든다.',
-        block: '메인 시안 A/B 선택 대기 · 1일 4시간 경과', next: '대장이 A/B 중 하나를 고르면 하위 페이지 3종 확장', teams: ['design', 'dev'],
-        crit: [
-          { t: '메인 시안 확정', r: 'none', e: '대장 선택 대기', at: '', by: '' },
-          { t: 'Lighthouse 접근성 95점 이상', r: 'none', e: '미측정', at: '', by: '' },
-          { t: '모바일·데스크톱 레이아웃 검수', r: 'none', e: '미검증', at: '', by: '' }
-        ],
-        tasks: [{ t: '메인 시안 A/B', team: 'design', s: 'approve', block: '대장 선택 대기' }, { t: '하위 페이지 3종 확장', team: 'design', s: 'plan', block: '시안 확정 후 시작' }],
-        arts: [
-          { id: 'w2', kind: 'web', name: '포트폴리오 미리보기', team: '디자인팀', build: 'preview #9', url: 'preview.portfolio.local', pv: 'port', crit: [0, 2] },
-          { id: 'art2', kind: 'design', name: '포트폴리오 메인 시안', team: '디자인팀', crit: [0], versions: [
-            { id: 'v2', date: '09-27 11:05', by: '디자인팀 · Claude Code', note: 'A 편집형 / B 그리드형 두 가지 방향', head: '메인 시안 v2', lines: [] },
-            { id: 'v1', date: '09-24 15:30', by: '디자인팀 · Claude Code', note: '레이아웃 탐색 스케치', head: '메인 시안 v1', lines: [] }
-          ] }
-        ],
-        files: [{ p: 'design/main-v2-a.png', ch: '새 파일', at: '11:05', by: '디자인팀' }, { p: 'design/main-v2-b.png', ch: '새 파일', at: '11:05', by: '디자인팀' }],
-        chat: [{ by: '디자인팀 · Claude Code', at: '11:06', t: 'A는 편집형, B는 그리드형입니다. 선택해 주시면 하위 페이지를 확장하겠습니다.' }],
-        log: [L('11:02:00', 'cmd', '$ claude -p "포트폴리오 메인 시안 A/B"'), L('11:05:44', 'ok', 'DONE  시안 v2 A·B 내보내기'), L('11:05:45', 'warn', 'WAIT  대장 선택 필요 · 하위 페이지 작업 보류')],
-        runs: [{ n: 2, a: 0, start: '11:02', tool: 'claude-code', res: '완료 · 선택 대기', rc: 'prog' }, { n: 1, a: 0, start: '09-24 15:30', tool: 'claude-code', res: '완료 · 스케치', rc: 'pass' }],
-        cps: [{ at: '11:05', t: '시안 v2 A·B 저장', next: '대장 선택 후 하위 페이지' }],
-        handoffs: [], handoffNote: '교대 기록 없음.' },
-      { id: 'p5', slug: 'backup', name: '로컬 백업 자동화 스크립트', status: 'done', stage: 3, cycle: '완료', cadence: '없음 (목표 달성형)',
-        goal: '작업 폴더를 매일 밤 암호화해 외장 디스크에 백업하고, 복원까지 검증한다.',
-        block: '', next: '없음 · 모든 완료 조건 검증됨', teams: ['dev', 'sec'],
-        crit: [
-          { t: '복원 테스트 3회 성공', r: 'pass', e: '복원 3/3 · restore-test.md', at: '09-26 22:31', by: '검증팀' },
-          { t: '암호화 키가 저장소에 포함되지 않음', r: 'pass', e: '보안팀 SR-07', at: '09-26 21:40', by: '보안팀' },
-          { t: '실패 시 알림 동작', r: 'pass', e: '강제 실패 테스트 통과', at: '09-26 22:20', by: '검증팀' }
-        ],
-        tasks: [],
-        arts: [{ id: 'art5', kind: 'doc', name: '복원 테스트 보고서', team: '검증팀', crit: [0, 2], versions: [
-          { id: 'v1', date: '09-26 22:32', by: '검증팀 · Codex', note: '복원 3회 결과', head: '복원 테스트 보고서', lines: ['3회 모두 원본과 해시 일치.', '강제 실패 시 알림 수신 확인.'] }
-        ] }],
-        files: [{ p: 'scripts/backup.ps1', ch: '+120', at: '09-26 22:10', by: '개발팀' }, { p: 'docs/restore-test.md', ch: '새 파일', at: '09-26 22:32', by: '검증팀' }],
-        chat: [],
-        log: [L('09-26 22:10', 'cmd', '$ codex exec --task backup#12'), L('09-26 22:31', 'ok', 'PASS  복원 테스트 3/3'), L('09-26 22:32', 'ok', '검증 완료 · 근거 3건 첨부')],
-        runs: [{ n: 3, a: 0, start: '09-26 22:10', tool: 'codex', res: '검증 완료 · 3/3', rc: 'pass' }, { n: 2, a: 0, start: '09-25 21:00', tool: 'codex', res: '완료 · 조건 2/3', rc: 'pass' }],
-        cps: [{ at: '09-26 22:32', t: '검증 완료 · 근거 3건', next: '없음' }],
-        handoffs: [], handoffNote: '교대 기록 없음.' }
-    ];
-    const approvals = [
-      { id: 'a5', ty: '장애', tyCls: 'ty ty-inc', pid: 'p3', title: '정책팀 작업 정체 중단', brief: '외부 API 약관 제7조 해석이 3회 반복되어도 결론이 나지 않았습니다.',
-        body: '약관의 재배포 허용 범위를 두고 해석이 갈립니다. 원문 조항 또는 제공사 답변이 있어야 진행할 수 있습니다.',
-        ev: [E('시도 3/3 실패', 'wait'), E('관련 조항 7조 2항')], impact: '정책팀 · 주간 시장 동향 리포트', acts: [{ l: '원문 첨부하기', pri: true }, { l: '이 출처 제외' }] },
-      { id: 'a1', ty: '승인', tyCls: 'ty ty-ap', pid: 'p1', title: '리서치 허브 v2 스테이징 배포', brief: '완료 조건 3/5 통과, 모바일 1건 미통과. 오류율은 배포 후에만 측정할 수 있습니다.',
-        body: 'E2E·요약 적합률·보안 조건은 통과했습니다. 모바일 360px 조건은 미통과(수정 중)이고, 24시간 오류율은 스테이징 배포 후에만 측정할 수 있습니다.',
-        ev: [E('e2e 38/38', 'ok'), E('요약 적합 92%', 'ok'), E('SR-09 High 0', 'ok'), E('모바일 미통과', 'wait')], impact: '개발팀·검증팀 · 스테이징 환경만 (운영 배포 아님)', acts: [{ l: '배포 승인', pri: true }, { l: '모바일 수정 후 다시 요청' }] },
-      { id: 'a2', ty: '선택', tyCls: 'ty ty-ch', pid: 'p4', title: '포트폴리오 메인 시안 선택', brief: 'A 편집형 / B 그리드형. 선택 전까지 하위 페이지 작업이 멈춰 있습니다.',
-        body: '디자인팀이 두 가지 방향을 준비했습니다. A는 큰 제목과 긴 글 중심, B는 작업 썸네일 격자 중심입니다.',
-        ev: [E('시안 v2 A·B'), E('참고 사례 조사 6건')], impact: '디자인팀 · 이후 개발팀 구현 범위', acts: [{ l: 'A 선택', pri: true }, { l: 'B 선택', pri: true }] },
-      { id: 'a3', ty: '장애', tyCls: 'ty ty-inc', pid: 'p2', title: 'Codex 5시간 한도 중단 기준 도달', brief: '5시간 잔여 2% (기준 3% 미만). 보안팀 작업이 16:40 초기화까지 한도 대기입니다.',
-        body: 'Codex 5시간 잔여가 2%로 중단 기준에 걸렸고, 주간 잔여는 확인할 수 없습니다. Claude Code로 교대할 수는 있지만 동시 실행 슬롯이 2/2라 교대해도 실행 대기열에 들어갑니다.',
-        ev: [E('Codex 5h 잔여 2%', 'wait'), E('초기화 16:40'), E('Codex 주간 확인 불가', 'wait'), E('Claude Code 슬롯 2/2', 'wait')], impact: '보안팀 · AGENT HQ 플랫폼 개선', acts: [{ l: '초기화까지 대기', pri: true }, { l: 'Claude Code 대기열로 교대' }] },
-      { id: 'a4', ty: '승인', tyCls: 'ty ty-ap', pid: 'p2', title: 'MCP 서버 fs-watch 설치', brief: '홈 폴더 쓰기와 셸 실행 권한을 요청합니다. 출처 서명이 없습니다.',
-        body: '커뮤니티에서 받은 파일 감시용 MCP 서버입니다. 요청 권한이 작업에 비해 넓고, 배포자 서명이 확인되지 않았습니다.',
-        ev: [E('서명 없음', 'wait'), E('shell.exec 요청', 'wait'), E('정책 검토 대기')], impact: '설치 시 모든 팀이 접근 가능 · 보안팀 권고: 읽기 전용으로 축소', acts: [{ l: '반려', pri: true }, { l: '읽기 전용으로 축소 요청' }] }
-    ];
-    const C = (t, r) => ({ t: t, l: RV[r].l, cls: RV[r].c });
-    const tools = [
-      { id: 'tl1', name: 'docx', type: '스킬', src: '공식 제공', ver: '1.3.0', perm: '작업 폴더 파일 쓰기', sec: 'pass', pol: 'pass', used: '기획팀 · 디자인팀', note: '',
-        secChecks: [C('출처·서명 확인', 'pass'), C('권한 최소화', 'pass'), C('네트워크 접근 없음', 'pass')], polChecks: [C('라이선스', 'pass'), C('데이터 외부 전송 없음', 'pass')] },
-      { id: 'tl2', name: 'github', type: 'MCP', src: '공식 원격 서버', ver: '2.1.0', perm: '저장소 읽기 · PR 생성', sec: 'pass', pol: 'cond', used: '개발팀', note: 'main 직접 푸시 금지 조건',
-        secChecks: [C('출처·서명 확인', 'pass'), C('토큰 범위 저장소 한정', 'pass'), C('쓰기 작업 로그 기록', 'pass')], polChecks: [C('main 브랜치 직접 푸시 금지', 'cond'), C('비공개 저장소 외부 공유 금지', 'pass')] },
-      { id: 'tl3', name: 'fs-watch', type: 'MCP', src: '커뮤니티 · 서명 없음', ver: '0.3.1', perm: '홈 폴더 쓰기 · 셸 실행', sec: 'prog', pol: 'wait', used: '없음 (미설치)', note: '대장 승인 대기',
-        secChecks: [C('출처·서명 확인', 'rej'), C('권한 최소화', 'prog'), C('셸 실행 범위 제한', 'prog')], polChecks: [C('라이선스', 'wait'), C('데이터 처리 방침', 'wait')] },
-      { id: 'tl4', name: 'pdf-viewer', type: '플러그인', src: '플러그인 마켓', ver: '0.9.2', perm: '파일 읽기', sec: 'pass', pol: 'pass', used: '검증팀', note: '',
-        secChecks: [C('출처·서명 확인', 'pass'), C('읽기 전용 확인', 'pass')], polChecks: [C('라이선스', 'pass')] },
-      { id: 'tl5', name: 'web-scrape-lite', type: '스킬', src: '직접 작성', ver: '0.1.0', perm: '외부 네트워크 요청', sec: 'rej', pol: 'rej', used: '사용 중지', note: 'robots.txt 무시 옵션 포함',
-        secChecks: [C('요청 대상 제한', 'rej'), C('속도 제한', 'cond')], polChecks: [C('사이트 이용약관 준수', 'rej'), C('robots.txt 준수', 'rej')] },
-      { id: 'tl6', name: 'playwright', type: 'MCP', src: '공식 패키지', ver: '1.4.2', perm: '로컬 브라우저 제어', sec: 'pass', pol: 'pass', used: '개발팀 · 검증팀', note: '',
-        secChecks: [C('출처·서명 확인', 'pass'), C('로컬 주소만 접근', 'pass')], polChecks: [C('라이선스', 'pass')] }
-    ];
-    const recs = [
-      { id: 'r1', name: 'AI 에이전트 도구 동향 조사', status: 'done', cadence: '6시간마다 · 조사', team: '기획팀', at: '12:00 주기',
-        result: '신규 14건 수집 → 관련 3건 요약, 기획팀 백로그 1건 추가', next: '오늘 18:00', wait: '예약 대기 (정상)',
-        history: [{ at: '12:00', r: '관련 3건 요약', s: 'done' }, { at: '06:00', r: '관련 1건 요약', s: 'done' }, { at: '00:00', r: '신규 없음', s: 'done' }] },
-      { id: 'r2', name: '플랫폼 개선 점검', status: 'review', cadence: '하루 1회 · 개선 점검', team: '플랫폼 개선팀', at: '03:00 주기',
-        result: '개선안 2건: 인계 템플릿 1건 적용, 슬롯 배분 규칙 1건 검토 대기', next: '09-29 03:00', wait: '개선안 #2 대장 검토 대기 · 다음 점검은 예정대로 실행',
-        history: [{ at: '09-28 03:00', r: '개선안 2건', s: 'review' }, { at: '09-27 03:00', r: '개선안 1건 적용', s: 'done' }, { at: '09-26 03:00', r: '변경 없음', s: 'done' }] },
-      { id: 'r3', name: '주간 시장 동향 리포트', status: 'queue', cadence: '매주 월 09:00', team: '기획팀 · 정책팀', at: '09-28 09:00 주기',
-        result: '초안 7/10장에서 멈춤 · 출처 연결 완료, 수치 교차 확인 전', next: '슬롯이 비면 즉시', wait: '동시 실행 슬롯 2/2 · 슬롯 반납 시 이어서 실행 (한도 문제 아님)',
-        history: [{ at: '09-28', r: '7/10장 후 실행 대기', s: 'queue' }, { at: '09-21', r: '10장 완료 · 대장 확인', s: 'done' }, { at: '09-14', r: '10장 완료 · 대장 확인', s: 'done' }] }
-    ];
-    // 사용량 원본: Claude는 사용률(used)로, Codex는 잔여율(left)로 제공된다고 가정한 예시. 화면은 잔여율로 통일한다.
-    const accounts = [
-      { id: 'claude', name: 'Claude', tool: 'claude-code', src: 'used', note: 'Claude Code 동시 실행 2/2 사용 중 · 한도는 여유 (슬롯 부족은 ‘실행 대기’)',
-        meters: [{ k: '5시간', win: '5h', raw: 62, reset: '오늘 16:10', checked: '14:32' }, { k: '주간', win: 'week', raw: 76, reset: '09-30 (수) 09:00', checked: '14:32' }],
-        sub: { k: 'Fable 주간', win: 'week', raw: 82, reset: '09-30 (수) 09:00', checked: '14:32' } },
-      { id: 'codex', name: 'Codex', tool: 'codex', src: 'left', note: '5시간 잔여 2%로 중단 · 주간 값은 제공되지 않아 확인 불가',
-        meters: [{ k: '5시간', win: '5h', raw: 2, reset: '오늘 16:40', checked: '14:31' }, { k: '주간', win: 'week', raw: null, reset: '확인 불가', checked: '14:31' }], sub: null }
-    ];
-    this._d = { ST: ST, RVC: RVC, RV: RV, TOOL: TOOL, teams: teams, projects: projects, approvals: approvals, tools: tools, recs: recs, accounts: accounts };
-    return this._d;
+  projects() {
+    const eng = this.state.eng;
+    if (!eng) return [];
+    return eng.projects.map((pr) => {
+      const goals = pr.goals;
+      const g = goals[goals.length - 1];
+      const runs = [].concat.apply([], goals.map((x) => x.runs.map((r) => Object.assign({}, r, { goal: x }))));
+      const st = stateOf(g);
+      const proven = g.completionCriteria.filter((c) => (g.evidence || []).some((e) => e.criterion === c)).length;
+      const last = runs.map((r) => r.finishedAt || r.startedAt).concat([g.updatedAt]).sort().pop();
+      const name = (goals.find((x) => x.title) || {}).title || clip(g.objective, 40);
+      return { id: pr.id, name: name, goal: g, goals: goals, runs: runs, st: st, proven: proven, total: g.completionCriteria.length,
+        last: last, today: runs.filter((r) => sameDay(r.startedAt)).length, policy: pr.policy, isTeam: g.kind === 'team' };
+    }).sort((a, b) => (b.last || '').localeCompare(a.last || ''));
   }
 
   renderVals() {
-    const s = this.state, D = this.D(), ST = D.ST, RVC = D.RVC, RV = D.RV, TOOL = D.TOOL;
-    const narrow = !!this.props.forceNarrow || s.w < 900;
-    const mid = !narrow && s.w < 1200;
-    const P = D.projects.concat(s.extra);
-    const projById = {}; P.forEach((p) => { projById[p.id] = p; });
-    const teamById = {}; D.teams.forEach((t) => { teamById[t.id] = t; });
-    const pst = (p) => (s.paused[p.id] ? 'paused' : p.status);
-    const stOf = (k) => ST[k];
-    const toolModel = (tool) => TOOL[tool] + ' · 확인 필요';
-    const assignOf = (teamId, tool) => { const t = teamById[teamId]; return t.name + ' · ' + toolModel(tool || t.tool); };
-    const okOf = (p) => p.crit.filter((c) => c.r === 'pass').length;
-    const stages = ['조사', '실행', '검증', '개선'];
-    const mkStages = (p) => stages.map((l, i) => ({ l: l, cls: 'stp' + (p.status === 'done' || i < p.stage ? ' done' : (i === p.stage ? ' now' : '')) }));
+    const s = this.state, lim = this.limits(), real = this.isReal();
+    const P = this.projects();
+    const byId = {}; P.forEach((p) => { byId[p.id] = p; });
 
-    // 확인함
-    const resolve = (a, x) => () => {
-      const r = Object.assign({}, this.state.resolved); r[a.id] = x.l;
-      this.setState({ resolved: r });
-      this.say('‘' + x.l + '’ 처리됨 · 시안이므로 실제 작업은 실행되지 않습니다');
-    };
-    const approvals = D.approvals.map((a) => {
-      const res = s.resolved[a.id];
-      return Object.assign({}, a, { isOpen: !res, isDone: !!res, resText: res || '', open: () => this.open('appr', a.id),
-        acts: a.acts.map((x) => ({ l: x.l, cls: x.pri ? 'btn pri' : 'btn', go: resolve(a, x) })) });
-    });
-    const openCount = approvals.filter((a) => a.isOpen).length;
-    const openFirst = approvals.filter((a) => a.isOpen).concat(approvals.filter((a) => a.isDone));
-    const inboxShown = s.inboxAll ? openFirst : openFirst.slice(0, 3);
+    const flowOf = (p) => ['plan', 'dev', 'qa'].map((k, i) => ({ l: TEAM_NAME[k].replace('팀', ''), sep: i > 0,
+      cls: 's' + (p.isTeam && p.goal.team && p.goal.team.step === k && RUNNING_LIKE.includes(p.goal.status) && p.goal.autoRun ? ' on' : '') }));
+    const rowOf = (p) => ({ name: p.name, single: !p.isTeam, stL: p.st.l, pillCls: pillCls(p.st.tone), proven: p.proven, total: p.total,
+      sub: p.isTeam && p.goal.team && p.goal.team.task ? '지금 작업 · ' + clip(p.goal.team.task, 90) : clip(p.goal.objective, 90),
+      ago: ago(p.last), flow: flowOf(p), open: () => this.openProject(p.id) });
 
-    // 실행 슬롯
-    const running = D.teams.filter((t) => t.status === 'run');
-    const runClaude = running.filter((t) => t.tool === 'claude-code').length;
-    const runCodex = running.filter((t) => t.tool === 'codex').length;
-    const queued = D.teams.filter((t) => t.status === 'queue').length;
-    const limited = D.teams.filter((t) => t.status === 'limit').length;
-    let critOk = 0, critAll = 0;
-    P.forEach((p) => { critAll += p.crit.length; critOk += okOf(p); });
-
-    // 사용량 (잔여율 통일)
-    const meterOf = (m, src) => {
-      const known = typeof m.raw === 'number';
-      const rem = known ? (src === 'used' ? 100 - m.raw : m.raw) : null;
-      const th = m.win === '5h' ? 3 : 10;
-      const hit = known && (m.win === '5h' ? rem < 3 : rem <= 10);
-      return { k: m.k + ' 잔여', vTxt: known ? rem + '%' : '확인 불가', vCls: known ? 'm-v' : 'm-v na', pct: known ? rem : 0, th: th,
-        barCls: known ? 'bar' : 'bar unknown', hit: hit, safe: known && !hit, unknown: !known,
-        cls: 'meter' + (hit ? ' hit' : ''), innerCls: hit ? 'hit' : '',
-        rule: m.win === '5h' ? '잔여 3% 미만이면 중단' : '잔여 10% 이하이면 중단', reset: m.reset, checked: m.checked,
-        short: (known ? '' : '미확인 · ') + '초기화 ' + m.reset + ' · 조회 ' + m.checked,
-        raw: known ? (src === 'used' ? '사용률 ' + m.raw + '%' : '잔여 ' + m.raw + '%') : '값 없음',
-        stL: hit ? '중단' : (known ? '기준 이내' : '확인 불가'), stCls: hit ? 'rv rv-rej' : (known ? 'rv rv-pass' : 'rv rv-wait') };
-    };
-    const accounts = D.accounts.map((a) => {
-      const meters = a.meters.map((m) => meterOf(m, a.src));
-      const sub = a.sub ? Object.assign(meterOf(a.sub, a.src), { k: a.sub.k + ' 상한' }) : null;
-      const hit = meters.some((m) => m.hit), unknown = meters.some((m) => m.unknown);
-      const all = meters.map((m) => Object.assign({}, m, { miniCls: 'mini' + (m.hit ? ' hit' : '') }));
-      if (sub) all.push(Object.assign({}, sub, { k: 'Fable 잔여 (주간 포함)', miniCls: 'mini sub' + (sub.hit ? ' hit' : '') }));
-      return { name: a.name, note: a.note, meters: meters, sub: sub, hasSub: !!sub, all: all,
-        stL: hit ? '한도 대기' : (unknown ? '확인 불가 · 배정 보류' : '사용 가능'), stCls: hit ? 'st st-limit' : (unknown ? 'st st-queue' : 'st st-done') };
-    });
-    const rawRows = [];
-    D.accounts.forEach((a) => {
-      a.meters.concat(a.sub ? [a.sub] : []).forEach((m) => {
-        const x = meterOf(m, a.src);
-        rawRows.push({ acct: a.name, k: m.k, raw: x.raw, rem: x.vTxt, rule: x.rule, stL: x.stL, stCls: x.stCls });
-      });
-    });
-
-    // 팀
-    const teams = D.teams.map((t) => ({ name: t.name, task: t.task, next: t.next,
-      projName: projById[t.proj].name, blockTxt: t.block || '없음', blockCls: t.block ? 'warn-t' : 'none-t',
-      cls: 'tcard' + (t.status === 'stall' ? ' alert' : ''), stCls: stOf(t.status).c, stL: stOf(t.status).l, open: () => this.open('team', t.id) }));
-    const legend = ['run', 'queue', 'limit', 'review', 'approve', 'stall', 'paused', 'done'].map((k) => ({ l: ST[k].l, c: ST[k].c }));
-    const maxH = Math.max.apply(null, D.teams.map((t) => t.hours));
-    const teamUse = D.teams.map((t) => ({ name: t.name, tm: toolModel(t.tool), h: t.hours.toFixed(1), pct: Math.round(t.hours / maxH * 100) }));
-
-    // 프로젝트 목록
-    const rowOf = (p) => {
-      const k = pst(p);
-      return { name: p.name, goal: p.goal, stCls: ST[k].c, stL: ST[k].l, ok: okOf(p), all: p.crit.length, next: p.next,
-        teamNames: p.teams.length ? p.teams.map((id) => teamById[id].name).join(', ') : '미배정',
-        blockTxt: p.block || '없음', blockCls: p.block ? 'warn-t' : 'none-t', open: () => this.openProject(p.id) };
-    };
-    const fdefs = [['all', '전체'], ['run', '실행 중'], ['queue', '실행 대기'], ['limit', '한도 대기'], ['wait', '승인·검토 대기'], ['stall', '정체 중단'], ['paused', '일시정지'], ['plan', '준비 중'], ['done', '검증 완료']];
-    const matchF = (p, f) => f === 'all' || (f === 'wait' ? ['approve', 'review'].includes(pst(p)) : pst(p) === f);
-    const filters = fdefs.map((f) => ({ id: f[0], l: f[1], n: P.filter((p) => matchF(p, f[0])).length }))
-      .filter((f) => f.id === 'all' || f.n > 0 || s.pf === f.id)
-      .map((f) => ({ l: f.l, n: f.n, on: s.pf === f.id, cls: 'fchip' + (s.pf === f.id ? ' on' : ''), go: () => this.setState({ pf: f.id }) }));
-    const pq = s.pq.trim().toLowerCase();
-    const plist = P.filter((p) => matchF(p, s.pf))
-      .filter((p) => !pq || [p.name, p.goal].concat(p.teams.map((id) => teamById[id].name)).some((x) => x.toLowerCase().indexOf(pq) >= 0))
-      .map(rowOf);
-    const activeProjects = P.filter((p) => p.status !== 'done').map(rowOf);
-
-    // 사이드바
-    const views = [
-      { id: 'overview', l: '상황실', icon: 'M4 5h7v6H4zM13 5h7v4h-7zM13 11h7v8h-7zM4 13h7v6H4z', cnt: openCount, on: s.view === 'overview' },
-      { id: 'projects', l: '프로젝트', icon: 'M3 6h6l2 2h10v11H3z', cnt: 0, on: s.view === 'projects' || s.view === 'project' },
-      { id: 'artifacts', l: '결과물', icon: 'M7 3h7l5 5v13H7zM14 3v5h5', cnt: 0, on: s.view === 'artifacts' },
-      { id: 'recurring', l: '반복 목표', icon: 'M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4', cnt: 0, on: s.view === 'recurring' },
-      { id: 'registry', l: '스킬·플러그인·MCP', icon: 'M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z', cnt: D.tools.filter((t) => t.sec === 'prog' || t.pol === 'wait').length, on: s.view === 'registry' },
-      { id: 'usage', l: '사용량', icon: 'M5 20V11M11 20V5M17 20v-8M3 20h18', cnt: 0, on: s.view === 'usage' }
-    ];
-    const navItems = views.map((v) => ({ l: v.l, icon: v.icon, cnt: v.cnt, hasCnt: v.cnt > 0,
-      cls: 'nav-b' + (v.on ? ' on' : ''), chip: 'chip' + (v.on ? ' on' : ''), go: () => this.go(v.id) }));
-    const sideProjects = P.map((p) => ({ name: p.name, dot: 'sd sd-' + pst(p),
-      cls: 'sp' + (s.view === 'project' && s.pid === p.id ? ' on' : ''), go: () => this.openProject(p.id, s.view === 'project' ? s.wtab : 'over') }));
-    const slots = [runClaude + runCodex > 0 ? '' : 'off', runClaude + runCodex > 1 ? '' : 'off'];
-
-    // 전역 검색
-    const q = s.q.trim().toLowerCase();
-    let results = [];
-    if (q) {
-      const has = (...xs) => xs.some((x) => (x || '').toLowerCase().indexOf(q) >= 0);
-      P.forEach((p) => { if (has(p.name, p.goal)) results.push({ label: p.name, sub: ST[pst(p)].l + ' · ' + p.goal, kind: '프로젝트', open: () => this.openProject(p.id) }); });
-      D.teams.forEach((t) => { if (has(t.name, t.task, TOOL[t.tool])) results.push({ label: t.name, sub: assignOf(t.id) + ' · ' + t.task, kind: '팀', open: () => this.open('team', t.id) }); });
-      P.forEach((p) => p.arts.forEach((a) => { if (has(a.name)) results.push({ label: a.name, sub: p.name, kind: '결과물', open: () => this.showArt(p.id, a.id) }); }));
-      D.tools.forEach((t) => { if (has(t.name, t.type, t.src)) results.push({ label: t.name, sub: t.type + ' · ' + t.src, kind: '도구', open: () => this.open('tool', t.id) }); });
-      D.recs.forEach((r) => { if (has(r.name)) results.push({ label: r.name, sub: r.cadence, kind: '반복 목표', open: () => this.open('rec', r.id) }); });
-      D.approvals.forEach((a) => { if (has(a.title, a.brief)) results.push({ label: a.title, sub: a.ty + ' · ' + a.brief, kind: '확인 항목', open: () => this.open('appr', a.id) }); });
-      results = results.slice(0, 10);
-    }
-
-    // 결과물 카드
-    const kindL = { web: '웹·앱 미리보기', doc: '문서', slide: '슬라이드', design: '디자인' };
-    const curOf = (a) => (a.versions ? s.cur[a.id] : a.build);
-    const artCard = (p, a) => ({ name: a.name, team: a.team, kindL: kindL[a.kind], cur: curOf(a), projName: p.name,
-      isWeb: a.kind === 'web', isDoc: a.kind === 'doc', isSlide: a.kind === 'slide', isDesign: a.kind === 'design',
-      viewL: a.kind === 'web' ? '미리보기' : '보기', cls: 'acard' + (s.view === 'project' && s.art === a.id ? ' on' : ''),
-      view: () => this.showArt(p.id, a.id), edit: () => this.showArt(p.id, a.id, true) });
-    const allArts = [];
-    P.forEach((p) => p.arts.forEach((a) => allArts.push(artCard(p, a))));
-
-    // 프로젝트 작업실
-    const wp = projById[s.pid] || P[0];
-    const wk = pst(wp);
-    const cnt = (r) => wp.crit.filter((c) => c.r === r).length;
-    const togglePause = () => {
-      const pz = Object.assign({}, this.state.paused); pz[wp.id] = !pz[wp.id];
-      this.setState({ paused: pz });
-      this.say(pz[wp.id] ? '일시정지했습니다 · 시안이므로 실제 실행은 멈추지 않습니다' : '재개했습니다 · 시안');
-    };
-    const chat = (s.chats[wp.id] || []).map((m) => ({ by: m.by, at: m.at, t: m.t, cls: 'msg' + (m.by === '대장' ? ' me' : '') }));
-    const taskPols = wp.tasks.map((tk, i) => {
-      const key = wp.id + ':' + i, pin = s.taskPol[key] === 'pinned';
-      const setTp = (v) => () => { const all = Object.assign({}, this.state.taskPol); all[key] = v; this.setState({ taskPol: all }); this.say('시안: 작업별 예외 설정 화면만 바뀌었습니다'); };
-      return { t: tk.t, assign: assignOf(tk.team), isPin: pin, inhCls: pin ? '' : 'on', pinCls: pin ? 'on' : '', setInherit: setTp('inherit'), setPin: setTp('pinned') };
-    });
-    const w = {
-      id: wp.id, slug: wp.slug, name: wp.name, goal: wp.goal, cycle: wp.cycle, cadence: wp.cadence, next: wp.next,
-      stCls: ST[wk].c, stL: ST[wk].l, isPaused: wk === 'paused', canPause: wp.status !== 'done',
-      pauseL: s.paused[wp.id] ? '재개' : '일시정지', pauseCls: 'btn' + (s.paused[wp.id] ? ' pri' : ''), togglePause: togglePause,
-      block: wp.block, hasBlock: !!wp.block, stages: mkStages(wp),
-      pass: cnt('pass'), fail: cnt('fail'), none: cnt('none'), all: wp.crit.length,
-      teams: wp.teams.map((id) => ({ assign: assignOf(id), stCls: ST[teamById[id].status].c, stL: ST[teamById[id].status].l, open: () => this.open('team', id) })),
-      noTeams: !wp.teams.length,
-      tasks: wp.tasks.map((tk) => ({ t: tk.t, assign: assignOf(tk.team), stCls: ST[tk.s].c, stL: ST[tk.s].l, blockTxt: tk.block || '없음', blockCls: tk.block ? 'warn-t' : 'none-t' })),
-      noTasks: !wp.tasks.length, taskPols: taskPols,
-      chat: chat, noChat: !chat.length,
-      arts: wp.arts.map((a) => artCard(wp, a)), noArts: !wp.arts.length,
-      files: wp.files.map((f) => ({ p: f.p, ch: f.ch, at: f.at, by: f.by, open: () => this.say('시안: ' + f.p + ' 파일 열기는 아직 연결되지 않았습니다') })), noFiles: !wp.files.length,
-      log: wp.log, noLog: !wp.log.length,
-      runs: wp.runs.map((r) => ({ n: r.n, a: r.a, start: r.start, tm: toolModel(r.tool), res: r.res, cls: RV[r.rc].c })), noRuns: !wp.runs.length,
-      cps: wp.cps, noCps: !wp.cps.length,
-      handoffs: wp.handoffs.map((h) => ({ at: h.at, from: toolModel(h.from), to: toolModel(h.to), why: h.why, carried: h.carried })),
-      noHandoffs: !wp.handoffs.length, handoffNote: wp.handoffNote || '교대 기록 없음.',
-      crit: wp.crit.map((c, i) => ({ i: '#' + (i + 1), t: c.t, e: c.e, at: c.at || '—', by: c.by, anchor: 'crit-' + i,
-        eCls: 'ev' + (c.r === 'none' ? ' none-t' : ''), rL: RVC[c.r].l, rCls: RVC[c.r].c, rowCls: 'row vrow' + (s.hl === i ? ' hl' : '') }))
-    };
-    const tabDefs = [['over', '개요', ''], ['tasks', '작업·팀', wp.tasks.length], ['arts', '결과물', wp.arts.length], ['runs', '실행·로그', ''], ['verify', '검증', w.pass + '/' + w.all], ['settings', '설정', '']];
-    const wtabs = tabDefs.map((x) => ({ l: x[1], n: x[2], hasN: x[2] !== '', on: s.wtab === x[0], cls: 'wtab' + (s.wtab === x[0] ? ' on' : ''),
-      go: () => this.setState({ wtab: x[0], hl: null }) }));
-    const wt = { over: s.wtab === 'over', tasks: s.wtab === 'tasks', arts: s.wtab === 'arts', runs: s.wtab === 'runs', verify: s.wtab === 'verify', settings: s.wtab === 'settings' };
-    const switcher = P.map((p) => ({ name: p.name, dot: 'sd sd-' + pst(p), on: p.id === wp.id, cls: 'swc' + (p.id === wp.id ? ' on' : ''),
-      go: () => { this.setState({ pid: p.id, art: null, hl: null, chatDraft: '', draft: '', pv: 'web' }); this.toTop(); } }));
-    const sendChat = () => {
-      const t = this.state.chatDraft.trim();
-      if (!t) { this.say('메시지를 입력해 주세요'); return; }
-      const all = Object.assign({}, this.state.chats); all[wp.id] = (all[wp.id] || []).concat([{ by: '대장', at: '방금', t: t }]);
-      this.setState({ chats: all, chatDraft: '' });
-      this.say(wp.name + ' 대화에 기록했습니다 · 시안이므로 에이전트에는 전달되지 않습니다');
-    };
-
-    // 결과물 보기
-    const a = s.art ? wp.arts.find((x) => x.id === s.art) : null;
-    let av = {};
-    if (a) {
-      const cv = a.versions ? (a.versions.find((v) => v.id === s.cur[a.id]) || a.versions[0]) : null;
-      av = { name: a.name, team: a.team, kindL: kindL[a.kind], cur: curOf(a), url: a.url || '',
-        isWeb: a.kind === 'web', isFile: a.kind !== 'web', isDoc: a.kind === 'doc', isSlide: a.kind === 'slide', isDesign: a.kind === 'design',
-        pvHub: a.pv === 'hub', pvPort: a.pv === 'port', head: cv ? cv.head : '', vDate: cv ? cv.date : '', lines: cv ? cv.lines.map((t) => ({ t: t })) : [],
-        crit: a.crit.map((i) => ({ l: '#' + (i + 1) + ' ' + wp.crit[i].t + ' · ' + RVC[wp.crit[i].r].l, go: () => this.goCrit(i) })),
-        hasVersions: !!a.versions, reqs: (s.reqs[a.id] || []).slice().reverse(),
-        versions: (a.versions || []).map((v) => ({ id: v.id, date: v.date, by: v.by, note: v.note, isCur: v.id === s.cur[a.id], canRevert: v.id !== s.cur[a.id],
-          cls: 'vi' + (v.id === s.cur[a.id] ? ' cur' : ''),
-          revert: () => { const c = Object.assign({}, this.state.cur); c[a.id] = v.id; this.setState({ cur: c }); this.say(v.id + ' 내용으로 되돌렸습니다 · 이후 버전 기록은 보존 (시안)'); } })) };
-    }
-    const submitReq = () => {
-      if (!a) return;
-      const t = this.state.draft.trim();
-      if (!t) { this.say('수정 요청 내용을 입력해 주세요'); return; }
-      const r = Object.assign({}, this.state.reqs); r[a.id] = (r[a.id] || []).concat([{ t: t, st: '검토 대기 · 방금' }]);
-      this.setState({ reqs: r, draft: '' });
-      this.say('수정 요청을 ' + a.team + ' 대기열에 추가했습니다 (시안)');
-    };
-
-    // 모델 기본 정책 (시안)
-    const mp = Object.assign({ mode: 'auto', fb: false }, s.mpol[wp.id]);
-    const setMp = (patch) => () => {
-      const all = Object.assign({}, this.state.mpol);
-      all[wp.id] = Object.assign({ mode: 'auto', fb: false }, all[wp.id], patch);
-      this.setState({ mpol: all });
-      this.say('시안: 설정 화면만 바뀌었습니다. 실제 실행에는 반영되지 않습니다.');
-    };
-    const m = { isAuto: mp.mode === 'auto', isPin: mp.mode === 'pinned', fb: mp.fb, fbL: mp.fb ? '켜짐' : '꺼짐',
-      autoCls: mp.mode === 'auto' ? 'on' : '', pinCls: mp.mode === 'pinned' ? 'on' : '', fbCls: 'btn' + (mp.fb ? ' pri' : ''),
-      setAuto: setMp({ mode: 'auto' }), setPin: setMp({ mode: 'pinned' }), toggleFb: setMp({ fb: !mp.fb }),
-      next: mp.mode === 'auto' ? '실행 도구 기본 모델 · 확인 필요'
-        : (mp.fb ? '고정 모델 사용 불가 → 대체 허용으로 실행 도구 기본 모델 (확인 필요)' : '고정 모델 사용 불가 → 대기 (자동 교체 안 함)') };
-
-    // 상세 패널
-    const sel = s.sel;
-    let d = { kind: '', title: '', hasSt: false, hasAssign: false };
-    let isTeam = false, isAppr = false, isTool = false, isRec = false, isNew = false;
-    if (sel) {
-      if (sel.kind === 'team') {
-        const t = teamById[sel.id], p = projById[t.proj];
-        d = { kind: '팀', title: t.name, name: t.name, tool: TOOL[t.tool], hasSt: true, stCls: ST[t.status].c, stL: ST[t.status].l, hasAssign: true, assign: assignOf(t.id),
-          task: t.task, blockTxt: t.block || '없음', next: t.next, hours: t.hours.toFixed(1), projName: p.name,
-          blockCallout: !t.block ? 'callout info' : (t.status === 'stall' ? 'callout' : 'callout warn'),
-          openProj: () => this.openProject(p.id), openLog: () => this.openProject(p.id, 'runs') };
-        isTeam = true;
-      } else if (sel.kind === 'appr') {
-        const x = approvals.find((y) => y.id === sel.id), p = projById[x.pid];
-        d = Object.assign({ kind: '대장 확인 · ' + x.ty, title: x.title, hasSt: false, hasAssign: false, projName: p.name, openProj: () => this.openProject(p.id) }, x);
-        d.kind = '대장 확인 · ' + x.ty;
-        isAppr = true;
-      } else if (sel.kind === 'tool') {
-        const t = D.tools.find((y) => y.id === sel.id);
-        d = { kind: '도구 · ' + t.type, title: t.name, hasSt: false, hasAssign: false, type: t.type, src: t.src, ver: t.ver, perm: t.perm, used: t.used,
-          secL: RV[t.sec].l, secCls: RV[t.sec].c, polL: RV[t.pol].l, polCls: RV[t.pol].c, secChecks: t.secChecks, polChecks: t.polChecks };
-        isTool = true;
-      } else if (sel.kind === 'rec') {
-        const r = D.recs.find((y) => y.id === sel.id);
-        d = { kind: '반복 목표', title: r.name, hasSt: true, stCls: ST[r.status].c, stL: ST[r.status].l, hasAssign: false,
-          cadence: r.cadence, next: r.next, wait: r.wait, team: r.team, at: r.at, result: r.result,
-          history: r.history.map((h) => ({ at: h.at, r: h.r, stCls: ST[h.s].c, stL: ST[h.s].l })) };
-        isRec = true;
-      } else if (sel.kind === 'new') {
-        d = { kind: '새 프로젝트', title: '새 프로젝트 만들기', hasSt: false, hasAssign: false };
-        isNew = true;
+    // 확인 필요 (실제 엔진 상태에서만 만든다)
+    const inbox = [];
+    P.forEach((p) => {
+      const g = p.goal, open = () => this.openProject(p.id);
+      const restart = { l: '다시 시작', cls: 'btn pri sm', go: () => { if (this.confirmStart(p.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '다시 시작했습니다'); } };
+      const see = { l: '프로젝트 보기', cls: 'btn ghost sm', go: open };
+      if (g.status === 'review_required' && g.reason === 'needs_decision') {
+        const inputId = 'ans-' + g.id;
+        inbox.push({ icon: ICON.question, icoCls: 'ico', title: '기획팀 질문', project: p.name, body: '답을 주면 기획팀이 이어서 계획합니다.', question: g.question,
+          isQuestion: true, inputId: inputId, draft: s.drafts[g.id] || '', open: open,
+          onDraft: (e) => { const d = Object.assign({}, this.state.drafts); d[g.id] = e.target.value; this.setState({ drafts: d }); },
+          send: () => this.sendAnswer(g.id) });
+      } else if (g.proposal && g.proposal.status === 'pending') {
+        inbox.push({ icon: ICON.proposal, icoCls: 'ico done', title: '완료 · 개선안 승인', project: p.name, body: '완료 조건을 모두 채웠습니다. 검증팀이 다음 개선을 제안합니다.',
+          isProposal: true, items: g.proposal.items, open: open,
+          accept: () => { if (this.confirmStart(p.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/accept', {}), '개선을 시작했습니다'); },
+          dismiss: () => this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/dismiss', {}), '개선안을 보류했습니다') });
+      } else if (['review_required', 'blocked', 'recovery_required'].includes(g.status)) {
+        inbox.push({ icon: ICON.issue, icoCls: 'ico' + (g.status === 'review_required' ? '' : ' stop'), title: g.status === 'review_required' ? '확인 필요' : '멈춤', project: p.name,
+          body: reasonText(g.reason), isIssue: true, actions: [restart, { l: '활동 보기', cls: 'btn sm', go: () => this.openProject(p.id, 'activity') }] });
+      } else if (g.status === 'model_wait') {
+        inbox.push({ icon: ICON.model, icoCls: 'ico', title: '모델 대기', project: p.name, body: reasonText(g.reason), isIssue: true,
+          actions: [{ l: '모델 설정', cls: 'btn pri sm', go: () => this.openProject(p.id, 'settings') }, see] });
       }
+    });
+
+    // 팀 현황 (실행 기록에서 계산)
+    const allRuns = [].concat.apply([], P.map((p) => p.runs.map((r) => Object.assign({}, r, { project: p }))));
+    const teams = TEAMS.map((t) => {
+      const mine = allRuns.filter((r) => r.team === t.id).sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
+      const working = P.filter((p) => p.goal.status === 'running' && p.goal.team && p.goal.team.step === t.id);
+      const lastModel = (mine.find((r) => r.actualModel) || {}).actualModel;
+      return { name: t.name, role: t.role, access: t.access, tool: TOOL[t.tool], model: lastModel || '확인 필요',
+        today: mine.filter((r) => sameDay(r.startedAt)).length,
+        stL: working.length ? '작업 중' : '대기', pillCls: pillCls(working.length ? 'run' : 'idle'),
+        now: working.length ? working.map((p) => p.name).join(', ') + ' 작업 중' : (mine[0] ? '최근 · ' + mine[0].project.name + ' (' + ago(mine[0].finishedAt || mine[0].startedAt) + ')' : '아직 작업 기록 없음'),
+        hasRecent: mine.length > 0,
+        recent: mine.slice(0, 5).map((r) => ({ when: fmt(r.startedAt), project: r.project.name, res: r.simulated ? '모의 실행' : (r.outcome === 'completed' ? '완료' : (r.status === 'running' ? '실행 중' : '오류 · ' + (r.errorKind || ''))) })) };
+    });
+
+    // 프로젝트 상세
+    const wp = byId[s.pid];
+    let w = {}, m = {};
+    if (s.view === 'project' && wp) {
+      const g = wp.goal, st = wp.st, team = g.team || {};
+      const isTeam = wp.isTeam;
+      const startable = isTeam && g.status !== 'verified' && g.status !== 'running' && !(g.status === 'review_required' && g.reason === 'needs_decision') && !(g.autoRun && RUNNING_LIKE.includes(g.status));
+      const runsDesc = wp.runs.slice().sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
+      const latest = runsDesc.find((r) => r.answer);
+      const issue = ['review_required', 'blocked', 'recovery_required', 'model_wait'].includes(g.status) && g.reason !== 'needs_decision';
+      const lastRun = runsDesc.find((r) => r.status === 'finished' && r.goal.id === g.id);
+      w = {
+        id: wp.id, name: wp.name, objective: g.objective, stL: st.l, pillCls: pillCls(st.tone), isTeam: isTeam,
+        canStart: startable, startL: g.round ? '이어서 시작' : '시작',
+        start: () => { if (this.confirmStart(wp.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '시작했습니다 · 기획팀부터 진행합니다'); },
+        canStop: isTeam && g.autoRun && RUNNING_LIKE.includes(g.status),
+        stop: () => this.act(this.api('POST', '/api/goals/' + g.id + '/stop', {}), g.status === 'running' ? '지금 단계가 끝나면 멈춥니다' : '멈췄습니다'),
+        canRunOnce: !isTeam && ['scheduled', 'retry_wait', 'model_wait'].includes(g.status),
+        runOnce: () => {
+          if (real && !window.confirm('실제 AI를 1회 실행합니다. 구독 사용량이 쓰입니다. 진행할까요?')) return;
+          this.say('실행 중입니다');
+          this.api('POST', '/api/goals/' + g.id + '/run', {}).then((eng) => { this.setState({ eng: eng }); this.say('실행 1회가 끝났습니다'); }).catch((e) => this.say(korErr(e.message)));
+        },
+        flowLg: ['plan', 'dev', 'qa'].map((k) => {
+          const on = team.step === k && RUNNING_LIKE.concat(['paused', 'review_required']).includes(g.status);
+          const t = TEAMS.find((x) => x.id === k);
+          const n = wp.runs.filter((r) => r.team === k && r.goal.id === g.id).length;
+          return { name: t.name, tool: TOOL[t.tool], cls: 'fstep' + (on ? ' on' : ''),
+            d: on ? (g.status === 'running' ? '지금 작업 중' : '다음 차례') : (n ? n + '번 참여' : '아직 참여 전') };
+        }),
+        hasQuestion: g.status === 'review_required' && g.reason === 'needs_decision', question: g.question,
+        draft: s.drafts[g.id] || '', onDraft: (e) => { const d = Object.assign({}, this.state.drafts); d[g.id] = e.target.value; this.setState({ drafts: d }); },
+        sendAnswer: () => this.sendAnswer(g.id),
+        hasProposal: !!(g.proposal && g.proposal.status === 'pending'), proposal: g.proposal ? g.proposal.items : [],
+        accept: () => { if (this.confirmStart(wp.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/accept', {}), '개선을 시작했습니다'); },
+        dismiss: () => this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/dismiss', {}), '개선안을 보류했습니다'),
+        hasIssue: issue, issueCls: 'card ' + (g.status === 'review_required' || g.status === 'model_wait' ? 'attn' : 'stop'),
+        issueTitle: g.status === 'model_wait' ? '모델 대기' : (g.status === 'review_required' ? '확인 필요' : '멈춤'), issueText: reasonText(g.reason),
+        issueActions: g.status === 'model_wait' ? [{ l: '모델 설정', cls: 'btn pri sm', go: () => this.setState({ ptab: 'settings' }) }]
+          : [{ l: isTeam ? '다시 시작' : '다시 실행', cls: 'btn pri sm', go: () => {
+              if (!this.confirmStart(wp.name)) return;
+              this.act(this.api('POST', '/api/goals/' + g.id + (isTeam ? '/start' : '/resume'), {}), '다시 시작했습니다');
+            } }, { l: '검증에서 완료 확인', cls: 'btn sm', go: () => this.setState({ ptab: 'verify' }) }],
+        hasTask: isTeam && !!team.task, taskLbl: '지금 작업 · 기획팀이 정함', task: team.task,
+        hasFeedback: isTeam && !!team.feedback, feedback: team.feedback,
+        hasLatest: !!latest, latest: latest ? { who: (latest.team ? TEAM_NAME[latest.team] : '실행') + ' · ' + ago(latest.finishedAt), text: clip(cleanAnswer(latest.answer), 1200) } : {},
+        goActivity: () => this.setState({ ptab: 'activity' }), goVerify: () => this.setState({ ptab: 'verify' }),
+        noRuns: wp.runs.length === 0,
+        proven: wp.proven, total: wp.total, pct: wp.total ? Math.round(wp.proven / wp.total * 100) : 0,
+        crit: g.completionCriteria.map((c) => {
+          const ev = (g.evidence || []).find((e) => e.criterion === c);
+          const claim = lastRun && (lastRun.claims || []).find((x) => x.criterion === c);
+          let e = '아직 확인 전';
+          if (ev) e = ev.proof;
+          else if (claim && claim.check === 'fail') e = '확인 실패 · ' + claim.detail;
+          else if (claim && claim.check === 'invalid') e = '확인 방법이 잘못됨 · ' + claim.detail;
+          else if (claim) e = (claim.claimed ? 'AI 보고: 완료 · 엔진이 확인할 방법 없음' : 'AI 보고: 미완료') + (claim.note ? ' · ' + clip(claim.note, 200) : '');
+          return { t: c, ok: !!ev, ckCls: 'ck' + (ev ? ' ok' : (claim && claim.check === 'fail' ? ' no' : '')), e: e, eCls: 'e' + (ev ? ' ok' : ''),
+            canConfirm: !ev && g.status !== 'running', confirm: () => this.confirmCriterion(g.id, c) };
+        }),
+        kindL: isTeam ? '팀 순환 (기획 → 개발 → 검증)' : ({ task: '단일 실행', research: '조사 · 6시간마다', improvement: '개선 · 하루 1회' })[g.kind] || g.kind,
+        cycleL: isTeam ? (team.cycle || 1) + '번째 순환 · ' + wp.runs.filter((r) => r.goal.id === g.id).length + '단계' : g.round + '회',
+        today: wp.today, created: fmt(wp.goals[0].createdAt),
+        activity: runsDesc.map((r) => {
+          const ok = r.outcome === 'completed' && !r.simulated;
+          const resL = r.status === 'running' ? '실행 중' : r.simulated ? '모의' : r.status === 'interrupted' ? '끊김' : ok ? '완료' : '오류';
+          const tone = r.status === 'running' ? 'run' : r.simulated || r.status === 'interrupted' ? 'idle' : ok ? 'done' : 'stop';
+          let res = '';
+          if (r.status === 'running') res = '작업 중입니다.';
+          else if (r.simulated) res = '모의 실행이라 실제 작업은 하지 않았습니다.';
+          else if (!ok) res = reasonText(r.errorKind + '_error') || ('오류 · ' + r.errorKind);
+          else if (r.team === 'plan') res = '다음 작업을 정했습니다.';
+          else res = '엔진 확인 ' + (r.evidence || []).length + '/' + r.goal.completionCriteria.length + ' 조건';
+          return { when: fmt(r.startedAt), who: r.team ? TEAM_NAME[r.team] : '실행 ' + r.round + '회', tool: TOOL[r.executor || 'claude-code'] + ' · ' + (r.actualModel || '모델 확인 필요'),
+            resL: resL, pillCls: pillCls(tone), res: res, hasAnswer: !!r.answer, answer: r.answer ? cleanAnswer(r.answer) : '' };
+        }),
+        log: (s.eng.events || []).filter((e) => wp.goals.some((x) => x.id === e.goalId) || e.projectId === wp.id).map((e) => ({ ts: fmt(e.at), tx: e.type + (e.team ? ' · ' + TEAM_NAME[e.team] : '') + (e.reason ? ' · ' + reasonText(e.reason) : '') })),
+        hasHistory: wp.goals.length > 1,
+        history: wp.goals.slice(0, -1).reverse().map((x) => { const st2 = stateOf(x); return { when: fmt(x.createdAt), title: clip(x.objective, 80), stL: st2.l, pillCls: pillCls(st2.tone), sub: '조건 ' + x.completionCriteria.length + '개 · 단계 ' + x.runs.length + '회' }; }),
+        remove: () => this.removeProject(wp)
+      };
+      w.logCount = w.log.length;
+      const pol = wp.policy, pinOpen = pol.mode === 'pinned' || !!s.pinOpen[wp.id];
+      const put = (body, msg) => this.act(this.api('PUT', '/api/projects/' + wp.id + '/model-policy', body), msg);
+      m = { isAuto: !pinOpen, isPin: pinOpen, autoCls: pinOpen ? '' : 'on', pinCls: pinOpen ? 'on' : '',
+        setAuto: () => { const o = Object.assign({}, this.state.pinOpen); o[wp.id] = false; this.setState({ pinOpen: o }); if (pol.mode !== 'auto') put({ mode: 'auto' }, '자동 선택으로 바꿨습니다'); },
+        setPin: () => { const o = Object.assign({}, this.state.pinOpen); o[wp.id] = true; this.setState({ pinOpen: o, pinDraft: pol.model || '' }); },
+        applyPin: () => put({ mode: 'pinned', model: this.state.pinDraft }, '모델을 고정했습니다 · 다음 단계부터 적용'),
+        fb: pol.allowFallback, fbL: pol.allowFallback ? '켜짐' : '꺼짐', toggleFb: () => put({ allowFallback: !pol.allowFallback }, '대체 모델 허용을 ' + (pol.allowFallback ? '껐습니다' : '켰습니다')),
+        summary: pol.mode === 'pinned' ? '고정 · ' + pol.model + (pol.allowFallback ? ' (대체 허용)' : '') : '자동 선택', version: pol.version,
+        actual: (wp.runs.slice().reverse().find((r) => r.actualModel) || {}).actualModel || '확인 필요 (실행 도구가 알려 준 모델만 표시)' };
     }
-    const setNp = (k) => (e) => { const np = Object.assign({}, this.state.np); np[k] = e.target.value; this.setState({ np: np }); };
-    const createProject = () => {
-      const np = this.state.np;
+
+    const ptabDefs = [['over', '개요', ''], ['activity', '활동', wp ? wp.runs.length : ''], ['verify', '검증', wp ? wp.proven + '/' + wp.total : ''], ['settings', '설정', '']];
+    const inboxN = inbox.length;
+    const navDefs = [['home', '홈', inboxN], ['projects', '프로젝트', 0], ['teams', '팀', 0], ['usage', '사용량', 0]];
+    const cur = s.view === 'project' ? 'projects' : s.view;
+    const hour = new Date().getHours();
+    const activeN = P.filter((p) => p.isTeam && p.goal.autoRun && RUNNING_LIKE.includes(p.goal.status)).length;
+
+    const np = s.np;
+    const createNew = (start) => () => {
       const lines = np.crit.split('\n').map((x) => x.trim()).filter(Boolean);
-      if (!np.name.trim() || !np.goal.trim()) { this.say('이름과 목표를 입력해 주세요'); return; }
-      if (!lines.length) { this.say('완료 조건을 한 줄 이상 입력해 주세요'); return; }
-      const id = 'n' + (this.state.extra.length + 1);
-      const p = { id: id, slug: 'new-' + (this.state.extra.length + 1), name: np.name.trim(), goal: np.goal.trim(), status: 'plan', stage: 0, cycle: '시작 전', cadence: '미정',
-        block: '', next: '담당 팀 배정 후 1회차 조사 시작', teams: [], crit: lines.map((t) => ({ t: t, r: 'none', e: '미검증', at: '', by: '' })),
-        tasks: [], arts: [], files: [], chat: [], log: [], runs: [], cps: [], handoffs: [], handoffNote: '교대 기록 없음.' };
-      const chats = Object.assign({}, this.state.chats); chats[id] = [];
-      this.setState({ extra: this.state.extra.concat([p]), chats: chats, np: { name: '', goal: '', crit: '' } });
-      this.openProject(id);
-      this.say('시안에 프로젝트를 추가했습니다 · 실제 실행은 하지 않습니다');
+      if (!np.goal.trim()) { this.setState({ np: Object.assign({}, np, { error: '목표를 적어 주세요.' }) }); return; }
+      if (!lines.length) { this.setState({ np: Object.assign({}, np, { error: '완료 조건을 한 줄 이상 적어 주세요.' }) }); return; }
+      const name = np.title.trim() || clip(np.goal.trim(), 40);
+      if (start && !this.confirmStart(name)) return;
+      this.api('POST', '/api/projects', { title: np.title.trim(), objective: np.goal.trim(), completionCriteria: lines, start: start })
+        .then((g) => this.refresh().then(() => {
+          this.setState({ showNew: false, np: { title: '', goal: '', crit: '', error: '' } });
+          this.openProject(g.projectId);
+          this.say(start ? '프로젝트를 만들고 시작했습니다 · 기획팀부터 진행합니다' : '프로젝트를 만들었습니다');
+        }))
+        .catch((e) => this.setState({ np: Object.assign({}, this.state.np, { error: korErr(e.message) }) }));
     };
+    const setNp = (k) => (e) => { const n = Object.assign({}, this.state.np, { error: '' }); n[k] = e.target.value; this.setState({ np: n }); };
 
     return {
-      rootCls: 'hq' + (narrow ? ' is-narrow' : '') + (mid ? ' is-mid' : ''),
-      accent: this.props.accent || '#2F3FCF',
-      navItems: navItems, sideProjects: sideProjects, slots: slots,
-      running: runClaude + runCodex, runClaude: runClaude, runCodex: runCodex,
-      strip: [
-        { k: '실행 중', v: (runClaude + runCodex) + '/2 · Claude Code ' + runClaude + '/2 · Codex ' + runCodex + '/1' },
-        { k: '실행 대기 (슬롯 부족)', v: queued + '팀' },
-        { k: '한도 대기 (계정 한도)', v: limited + '팀' },
-        { k: '검증 통과 완료 조건', v: critOk + '/' + critAll }
-      ],
-      openCount: openCount, openCls: 'big' + (openCount === 0 ? ' zero' : ''),
-      inboxShown: inboxShown, inboxAll: s.inboxAll, hasMoreInbox: approvals.length > 3,
-      inboxMoreL: s.inboxAll ? '접기' : '전체 보기 (' + approvals.length + '건)', toggleInbox: () => this.setState({ inboxAll: !this.state.inboxAll }),
-      activeProjects: activeProjects, accounts: accounts, rawRows: rawRows, teams: teams, legend: legend, teamUse: teamUse,
-      goProjects: () => this.go('projects'), goUsage: () => this.go('usage'),
-      q: s.q, hasQ: q.length > 0, results: results, noResults: q.length > 0 && results.length === 0,
-      onQ: (e) => this.setState({ q: e.target.value }),
-      vOverview: s.view === 'overview', vProjects: s.view === 'projects', vProject: s.view === 'project', vArtifacts: s.view === 'artifacts',
-      vRecurring: s.view === 'recurring', vRegistry: s.view === 'registry', vUsage: s.view === 'usage',
-      pq: s.pq, onPq: (e) => this.setState({ pq: e.target.value }), filters: filters, plist: plist, plistEmpty: plist.length === 0,
-      openNew: () => this.open('new', null),
-      w: w, wt: wt, wtabs: wtabs, switcher: switcher, goVerify: () => this.setState({ wtab: 'verify', hl: null }),
-      chatDraft: s.chatDraft, onChat: (e) => this.setState({ chatDraft: e.target.value }), sendChat: sendChat,
-      hasArt: !!a, av: av, draft: s.draft, onDraft: (e) => this.setState({ draft: e.target.value }), submitReq: submitReq,
-      pvWebCls: s.pv === 'web' ? 'on' : '', pvAppCls: s.pv === 'app' ? 'on' : '',
-      pvWeb: () => this.setState({ pv: 'web' }), pvApp: () => this.setState({ pv: 'app' }), pvFrameCls: 'pv-frame' + (s.pv === 'app' ? ' app' : ''),
-      m: m, editCrit: () => this.say('시안: 완료 조건 수정은 아직 연결되지 않았습니다'), archive: () => this.say('시안: 보관 기능은 아직 연결되지 않았습니다'),
-      allArts: allArts,
-      recs: D.recs.map((r) => Object.assign({}, r, { stCls: ST[r.status].c, stL: ST[r.status].l, open: () => this.open('rec', r.id) })),
-      tools: D.tools.map((t) => ({ name: t.name, type: t.type, src: t.src, ver: t.ver, perm: t.perm, note: t.note,
-        secL: RV[t.sec].l, secCls: RV[t.sec].c, polL: RV[t.pol].l, polCls: RV[t.pol].c, open: () => this.open('tool', t.id) })),
-      hasSel: !!sel, d: d, close: () => this.setState({ sel: null }),
-      isTeam: isTeam, isAppr: isAppr, isTool: isTool, isRec: isRec, isNew: isNew,
-      np: s.np, onNpName: setNp('name'), onNpGoal: setNp('goal'), onNpCrit: setNp('crit'), createProject: createProject,
+      accent: '#2E5BFF',
+      nav: navDefs.map((x) => ({ l: x[1], n: x[2], hasN: x[2] > 0, cls: 'tt' + (cur === x[0] ? ' on' : ''), cur: cur === x[0] ? 'page' : 'false', go: () => this.go(x[0]) })),
+      goHome: () => this.go('home'), goProjects: () => this.go('projects'), goTeams: () => this.go('teams'),
+      modeCls: 'mode' + (s.offline ? ' off' : real ? ' real' : ''), modeL: s.offline ? '연결 끊김' : real ? '실제 실행' : '모의 실행',
+      modeTitle: real ? '시작한 프로젝트는 실제 AI가 실행하며 구독 사용량이 쓰입니다' : '실제 AI를 호출하지 않는 모의 실행 모드입니다',
+      offline: s.offline,
+      vHome: s.view === 'home', vProjects: s.view === 'projects', vProject: s.view === 'project' && !!wp, vTeams: s.view === 'teams', vUsage: s.view === 'usage',
+      greeting: (hour < 12 ? '좋은 아침입니다' : hour < 18 ? '안녕하세요' : '수고하셨습니다') + ', 대장',
+      homeLede: inboxN ? '팀이 결정을 기다리는 일이 ' + inboxN + '건 있습니다.' : (activeN ? '팀이 프로젝트 ' + activeN + '개를 진행하고 있습니다.' : '진행 중인 프로젝트가 없습니다.'),
+      hasProjects: P.length > 0, noProjects: P.length === 0 && !!s.eng,
+      st: { active: activeN, inbox: inboxN, today: P.reduce((n, p) => n + p.today, 0), done: P.filter((p) => p.goal.status === 'verified').length, attnCls: 'stat' + (inboxN ? ' attn' : '') },
+      inbox: inbox, inboxEmpty: inbox.length === 0,
+      homeProjects: P.slice(0, 6).map(rowOf), allProjects: P.map(rowOf), teams: teams,
+      w: w, m: m, limits: lim,
+      ptabs: ptabDefs.map((x) => ({ l: x[1], n: x[2], hasN: x[2] !== '' && x[2] !== 0, cls: 'pt' + (s.ptab === x[0] ? ' on' : ''), cur: s.ptab === x[0] ? 'page' : 'false', go: () => this.setState({ ptab: x[0] }) })),
+      pt: { over: s.ptab === 'over', activity: s.ptab === 'activity', verify: s.ptab === 'verify', settings: s.ptab === 'settings' },
+      pinDraft: s.pinDraft, onPin: (e) => this.setState({ pinDraft: e.target.value }),
+      usageRows: P.map((p) => ({ name: p.name, today: p.today + ' / ' + lim.day, pct: Math.min(100, Math.round(p.today / lim.day * 100)), stL: p.st.l, pillCls: pillCls(p.st.tone) })),
+      toolRows: [['claude-code', lim.claude], ['codex', lim.codex]].map((x) => ({ tool: TOOL[x[0]], cap: x[1], n: allRuns.filter((r) => (r.executor || 'claude-code') === x[0] && sameDay(r.startedAt)).length })),
+      showNew: s.showNew, openNew: () => this.setState({ showNew: true }), closeNew: () => this.setState({ showNew: false }),
+      np: { title: np.title, goal: np.goal, crit: np.crit, error: np.error, hasError: !!np.error, real: real,
+        onTitle: setNp('title'), onGoal: setNp('goal'), onCrit: setNp('crit'), createOnly: createNew(false), createStart: createNew(true) },
       hasToast: !!s.toast, toast: s.toast
     };
+  }
+
+  sendAnswer(goalId) {
+    const text = (this.state.drafts[goalId] || '').trim();
+    if (!text) { this.say('답변을 적어 주세요.'); return; }
+    this.act(this.api('POST', '/api/goals/' + goalId + '/answer', { text: text }).then((v) => {
+      const d = Object.assign({}, this.state.drafts); delete d[goalId]; this.setState({ drafts: d }); return v;
+    }), '답변을 보냈습니다 · 기획팀이 이어서 계획합니다');
+  }
+  confirmCriterion(goalId, criterion) {
+    const note = window.prompt('‘' + criterion + '’ 조건을 대장이 직접 확인한 것으로 기록합니다.\n확인한 내용을 짧게 적어 주세요 (비워도 됩니다).', '');
+    if (note === null) return;
+    this.act(this.api('POST', '/api/goals/' + goalId + '/confirm', { criterion: criterion, note: note }), '완료로 확인했습니다');
+  }
+  removeProject(p) {
+    if (p.goal.status === 'running') { this.say('실행 중인 단계가 끝난 뒤에 삭제할 수 있습니다.'); return; }
+    if (!window.confirm('‘' + p.name + '’ 프로젝트를 삭제합니다.\n\n목표 ' + p.goals.length + '개, 실행 기록 ' + p.runs.length + '건, 로그, 모델 정책이 지워지며 되돌릴 수 없습니다.\n계속할까요?')) return;
+    const deleteFiles = window.confirm('작업 폴더(projects/' + p.id + ')의 파일도 지울까요?\n\n확인: 파일도 삭제\n취소: 파일은 남김');
+    this.api('DELETE', '/api/projects/' + p.id, { deleteFiles: deleteFiles })
+      .then((r) => this.refresh().then(() => { this.go('projects'); this.say('‘' + p.name + '’을 삭제했습니다' + (r.filesDeleted ? ' · 작업 폴더도 삭제' : ' · 작업 폴더 파일은 남김')); }))
+      .catch((e) => this.say(korErr(e.message)));
   }
 }
 
 const root = document.getElementById('app');
 const tpl = document.getElementById('tpl').content;
-const comp = new Component({ accent: '#2F3FCF', forceNarrow: false });
+const comp = new Component({});
 let queued = false;
 function scheduleRender() { if (!queued) { queued = true; queueMicrotask(() => { queued = false; render(); }); } }
 function render() {
   const active = document.activeElement, id = active && active.id;
   const range = id && typeof active.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null;
-  const scrolls = [...root.querySelectorAll('.d-b, .results, .chat')].map(el => [el.className, el.scrollTop]);
+  const opened = [...root.querySelectorAll('details[open]')].map((d) => d.dataset.key || [...root.querySelectorAll('details')].indexOf(d));
   const frag = document.createDocumentFragment();
   build(tpl.childNodes, frag, comp.renderVals(), {});
   root.replaceChildren(frag);
-  for (const [cls, top] of scrolls) { const el = root.getElementsByClassName(cls)[0]; if (el) el.scrollTop = top; }
+  const all = [...root.querySelectorAll('details')];
+  opened.forEach((i) => { if (all[i]) all[i].open = true; });
   const again = id && document.getElementById(id);
   if (again) { again.focus({ preventScroll: true }); if (range) again.setSelectionRange(...range); }
 }
 render();
-comp.componentDidMount?.();
+comp.componentDidMount();
 </script>
 </body>
 </html>
