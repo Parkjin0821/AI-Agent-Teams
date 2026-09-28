@@ -1,0 +1,26 @@
+import { mkdirSync, lstatSync, realpathSync } from 'node:fs';
+import path from 'node:path';
+
+export function validateProjectId(id) {
+  if (typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(id)
+    || /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i.test(id)) {
+    throw new Error('projectId must be a safe identifier (letters, digits, underscore or hyphen)');
+  }
+  return id.toLowerCase();
+}
+
+export class ProjectWorkspaces {
+  constructor(root) {
+    mkdirSync(root, { recursive: true });
+    if (lstatSync(root).isSymbolicLink()) throw new Error('Workspace root cannot be a link');
+    this.root = realpathSync(root);
+  }
+  resolve(projectId) {
+    const target = path.join(this.root, validateProjectId(projectId));
+    mkdirSync(target, { recursive: true });
+    if (lstatSync(target).isSymbolicLink()) throw new Error('Project workspace cannot be a link');
+    const resolved = realpathSync(target);
+    if (path.dirname(resolved) !== this.root) throw new Error('Workspace escapes project root');
+    return resolved;
+  }
+}

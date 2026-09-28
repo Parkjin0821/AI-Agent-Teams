@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AGENT HQ</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1020;--panel:#141b2d;--line:#27324b;--text:#edf2ff;--muted:#98a6c4;--green:#5ce1a6;--amber:#ffc857}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 15% 0,#17233f,var(--bg) 42%);color:var(--text);font:15px/1.5 system-ui,sans-serif}.shell{max-width:1100px;margin:auto;padding:32px 20px}header{display:flex;justify-content:space-between;align-items:end;margin-bottom:24px}h1{letter-spacing:.12em;margin:0;font-size:28px}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:1fr 1.6fr;gap:18px}.card{background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 16px 50px #0004}.providers{display:flex;gap:10px}.provider{flex:1;padding:12px;border:1px solid var(--line);border-radius:12px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:7px}label{display:block;color:var(--muted);margin:12px 0 5px}input,textarea,select,button{width:100%;border-radius:9px;border:1px solid var(--line);background:#0d1424;color:var(--text);padding:10px}textarea{min-height:110px;resize:vertical}button{margin-top:14px;background:#365bd8;border:0;font-weight:700;cursor:pointer}.task{border-top:1px solid var(--line);padding:13px 0}.task:first-child{border-top:0}.row{display:flex;justify-content:space-between;gap:12px}.pill{font-size:12px;padding:3px 8px;border:1px solid var(--line);border-radius:999px;color:var(--amber)}.approve{width:auto;padding:6px 10px;margin:8px 0 0}.empty{padding:30px 0;text-align:center;color:var(--muted)}@media(max-width:760px){.grid{grid-template-columns:1fr}header{align-items:start;flex-direction:column;gap:8px}}
+  </style>
+</head>
+<body><main class="shell">
+  <header><div><div class="muted">LOCAL CONTROL PLANE</div><h1>AGENT HQ</h1></div><div id="mode" class="muted">연결 중…</div></header>
+  <div class="grid">
+    <section><div class="card"><h2>에이전트 상태</h2><div class="providers" id="providers"></div></div>
+      <form class="card" id="form"><h2>새 작업</h2><label>제목</label><input name="title" required><label>지시</label><textarea name="prompt" required></textarea><label>복잡도</label><select name="complexity"><option value="normal">일반 · Claude 우선</option><option value="high">고난도 · Codex 우선</option></select><label><input style="width:auto" type="checkbox" name="critical"> 중요 작업</label><label><input style="width:auto" type="checkbox" name="requiresApproval"> 실행 전 승인 필요</label><button>작업 등록</button></form></section>
+    <section class="card"><div class="row"><h2>작업 보드</h2><span class="muted">실시간</span></div><div id="tasks"></div></section>
+  </div>
+</main><script>
+const $=s=>document.querySelector(s);let state={tasks:[],availability:{},usage:{}};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function render(){ $('#providers').innerHTML=['claude','codex'].map(p=>`<div class="provider"><div><i class="dot"></i>${p}</div><small class="muted">${esc(state.availability[p])} · 한도 ${esc(state.usage[p]?.state)}</small></div>`).join(''); $('#tasks').innerHTML=state.tasks.length?state.tasks.map(t=>`<article class="task"><div class="row"><strong>${esc(t.title)}</strong><span class="pill">${esc(t.status)}</span></div><div class="muted">${esc(t.provider||'라우팅 대기')} · ${new Date(t.updatedAt).toLocaleString()}</div>${t.status==='awaiting_approval'?`<button class="approve" data-id="${t.id}">승인</button>`:''}</article>`).join(''):'<div class="empty">등록된 작업이 없습니다.</div>';}
+async function refresh(){state=await fetch('/api/state').then(r=>r.json());$('#mode').textContent='● 실시간 연결';render()}
+$('#form').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target);await fetch('/api/tasks',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({title:f.get('title'),prompt:f.get('prompt'),complexity:f.get('complexity'),critical:f.has('critical'),requiresApproval:f.has('requiresApproval')})});e.target.reset();await refresh()});
+$('#tasks').addEventListener('click',async e=>{if(e.target.dataset.id){await fetch(`/api/tasks/${e.target.dataset.id}/approve`,{method:'POST'});await refresh()}});
+new EventSource('/api/events').onmessage=()=>refresh();refresh();
+</script></body></html>
