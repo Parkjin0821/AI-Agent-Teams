@@ -1,4 +1,4 @@
-import { mkdirSync, lstatSync, realpathSync } from 'node:fs';
+import { existsSync, mkdirSync, lstatSync, realpathSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
 export function validateProjectId(id) {
@@ -22,5 +22,14 @@ export class ProjectWorkspaces {
     const resolved = realpathSync(target);
     if (path.dirname(resolved) !== this.root) throw new Error('Workspace escapes project root');
     return resolved;
+  }
+  // Deletes one project folder. A link is refused, so nothing outside the project root can be removed.
+  remove(projectId) {
+    const target = path.join(this.root, validateProjectId(projectId));
+    if (!existsSync(target)) return false;
+    if (lstatSync(target).isSymbolicLink()) throw new Error('Project workspace is a link; refusing to delete');
+    if (path.dirname(realpathSync(target)) !== this.root) throw new Error('Workspace escapes project root');
+    rmSync(target, { recursive: true, force: true });
+    return true;
   }
 }

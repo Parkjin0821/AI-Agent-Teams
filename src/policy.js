@@ -5,6 +5,7 @@ export const DEFAULT_POLICY = Object.freeze({
   retryDelaysMs: [60_000, 300_000, 900_000],
   maxNoProgress: 3,
   maxTestFixAttempts: 2,
+  maxRoundsPerDay: 10,
 });
 
 export function assessUsage(snapshot, now = Date.now()) {

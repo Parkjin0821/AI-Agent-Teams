@@ -30,6 +30,13 @@ export class PersistentStore {
   insertEval(record) { this.db.prepare('INSERT INTO model_evals VALUES (?,?)').run(record.id, JSON.stringify(record)); return record; }
   getCandidate(id) { const row = this.db.prepare('SELECT body FROM model_candidates WHERE id=?').get(id); return row ? JSON.parse(row.body) : undefined; }
   saveCandidate(candidate) { this.db.prepare('INSERT INTO model_candidates VALUES (?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(candidate.id, JSON.stringify(candidate)); return candidate; }
+  deleteGoalRecords(goalId) {
+    const runs = Number(this.db.prepare('DELETE FROM runs WHERE goal_id=?').run(goalId).changes);
+    const events = Number(this.db.prepare("DELETE FROM events WHERE json_extract(body, '$.goalId')=?").run(goalId).changes);
+    this.db.prepare('DELETE FROM goals WHERE id=?').run(goalId);
+    return { runs, events };
+  }
+  deletePolicy(scope) { return Number(this.db.prepare('DELETE FROM policy_versions WHERE scope=?').run(scope).changes); }
   transaction(fn) {
     this.db.exec('BEGIN IMMEDIATE');
     try { const result = fn(); this.db.exec('COMMIT'); return result; }
@@ -38,6 +45,7 @@ export class PersistentStore {
   listTasks() { return this.db.prepare('SELECT body FROM tasks').all().map(r => JSON.parse(r.body)).sort((a,b) => b.createdAt.localeCompare(a.createdAt)); }
   getTask(id) { const row = this.db.prepare('SELECT body FROM tasks WHERE id=?').get(id); return row ? JSON.parse(row.body) : undefined; }
   saveTask(task) { task.updatedAt = new Date().toISOString(); this.db.prepare('INSERT INTO tasks VALUES (?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(task.id, JSON.stringify(task)); return task; }
+  recentEvents(limit = 200) { return this.db.prepare('SELECT body, id FROM events ORDER BY id DESC LIMIT ?').all(limit).map(r => ({ ...JSON.parse(r.body), id: r.id })); }
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   async emit(event) {
     const record = { at: new Date().toISOString(), ...event };
