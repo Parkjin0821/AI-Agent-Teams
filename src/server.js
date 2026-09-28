@@ -9,6 +9,7 @@ const app = createApp({
   projectsDir: path.join(root, 'projects'),
   enableExec: process.env.AGENT_HQ_ENABLE_EXEC === '1',
   tickMs: 30_000,
+  detectEnvironments: true,
 });
 
 const port = Number(process.env.PORT || 4310);

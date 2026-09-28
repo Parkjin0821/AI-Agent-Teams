@@ -88,6 +88,23 @@ test('the verification team returns engine-checked evidence plus feedback and im
   assert.deepEqual(result.findings, { feedback: '회의 조건 미충족', improvements: ['목차 추가'] });
 });
 
+test('each team gets only its own tools: web for research, chosen connectors for design, nothing for others', async () => {
+  const seen = {};
+  const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(), 'hq-gr-')));
+  const adapter = { enabled: true, run: async (provider, prompt, onEvent, opts) => {
+    seen[/^You are (\S+)/.exec(prompt)[1]] = { web: opts.web, connectors: opts.connectors, known: opts.knownConnectors };
+    return { outcome: 'completed', answer: 'AGENT_HQ_REPORT {"criteria":[]}' };
+  } };
+  const toolsFor = (team) => (team === 'design' ? { connectors: ['Figma'], knownConnectors: ['Figma', 'Gmail'] } : {});
+  const runner = createGoalRunner({ adapter, workspaces, store, toolsFor });
+  for (const step of ['research', 'design', 'dev']) {
+    await runner.run({ ...teamGoal, team: { ...teamGoal.team, step, task: 't' } }, { executor: 'claude-code', team: step, access: 'write', model: null });
+  }
+  assert.deepEqual(seen['조사팀'], { web: true, connectors: [], known: [] });
+  assert.deepEqual(seen['디자인팀'], { web: false, connectors: ['Figma'], known: ['Figma', 'Gmail'] });
+  assert.deepEqual(seen['개발팀'], { web: false, connectors: [], known: [] });
+});
+
 test('simulation still produces no evidence', async () => {
   const { runner } = runnerWith(() => ({ outcome: 'simulated' }));
   const result = await runner.run(goal, { executor: 'codex', model: null });

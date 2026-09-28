@@ -1,7 +1,8 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { CliAgentAdapter } from './adapters.js';
+import { CliAgentAdapter, resolveBins } from './adapters.js';
+import { designConnectors, EnvironmentMonitor, environmentView, validateSetting } from './environments.js';
 import { createGoalRunner } from './goal-runner.js';
 import { ModelRegistry } from './model-policy.js';
 import { Orchestrator } from './orchestrator.js';
@@ -12,7 +13,8 @@ import { ProjectWorkspaces, validateProjectId } from './workspaces.js';
 const MAX_BODY = 1_000_000;
 const iso = ms => new Date(ms).toISOString();
 
-export function createApp({ root, dataDir, projectsDir, enableExec = false, clock = { now: () => Date.now() }, tickMs = null, adapter: injectedAdapter = null }) {
+export function createApp({ root, dataDir, projectsDir, enableExec = false, clock = { now: () => Date.now() }, tickMs = null,
+  adapter: injectedAdapter = null, monitor: injectedMonitor = null, detectEnvironments = false }) {
   const store = new PersistentStore({ dataDir });
   const workspaces = new ProjectWorkspaces(projectsDir);
   const adapter = injectedAdapter ?? new CliAgentAdapter({ enabled: enableExec, cwd: root });
@@ -23,7 +25,14 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   const autoScope = executing ? 'started' : 'all';
   const orchestrator = new Orchestrator({ store, workspaces, adapter });
   const registry = new ModelRegistry({ store, clock });
-  const scheduler = new GoalScheduler({ store, clock, registry, runner: createGoalRunner({ adapter, workspaces, store }) });
+  // Connection status comes from the tools' own commands (run only when asked, never in tests by default).
+  const monitor = injectedMonitor ?? (detectEnvironments ? new EnvironmentMonitor({ bins: resolveBins(), clock }) : null);
+  if (monitor && !monitor.snapshot) monitor.refresh().catch(() => {});
+  // Only the design team gets claude.ai connectors, and only the ones 대장 turned on; the rest are denied.
+  const toolsFor = (team) => (team === 'design'
+    ? { connectors: designConnectors(monitor?.snapshot, store.getSettings()), knownConnectors: (monitor?.snapshot?.connectors ?? []).map(c => c.name) }
+    : {});
+  const scheduler = new GoalScheduler({ store, clock, registry, runner: createGoalRunner({ adapter, workspaces, store, toolsFor }) });
 
   const engineView = () => {
     const byProject = new Map();
@@ -42,6 +51,14 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   const routes = [
     ['GET', /^\/api\/state$/, () => orchestrator.snapshot()],
     ['GET', /^\/api\/engine$/, () => engineView()],
+    ['GET', /^\/api\/environments$/, () => ({ checkedAt: monitor?.snapshot?.checkedAt ?? null,
+      items: environmentView(monitor?.snapshot ?? null, store.getSettings()), settings: store.getSettings() })],
+    ['POST', /^\/api\/environments\/refresh$/, async () => {
+      if (!monitor) throw new Error('environment detection is off');
+      await monitor.refresh();
+      return { checkedAt: monitor.snapshot.checkedAt, items: environmentView(monitor.snapshot, store.getSettings()), settings: store.getSettings() };
+    }],
+    ['PUT', /^\/api\/settings$/, (m, body) => store.setSetting(String(body.key), validateSetting(String(body.key), body.value))],
     ['POST', /^\/api\/tasks$/, (m, body) => [202, orchestrator.submit(body)]],
     ['POST', /^\/api\/tasks\/([^/]+)\/approve$/, m => orchestrator.approve(m[1])],
     ['POST', /^\/api\/goals$/, (m, body) => [201, scheduler.addGoal(body)]],

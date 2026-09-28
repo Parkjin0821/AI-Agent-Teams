@@ -87,7 +87,18 @@ Claude Code는 일반 구현, Codex는 중요·복잡한 변경과 검토를 담
 - 회차 기록에 계획 요약(`plan`)과 검토 결과(`review`) 저장 → 화면 활동에 “디자인팀에 맡김 · 검토: 보안팀” 등 표시. 팀 화면 6팀, 프로젝트 흐름은 이번 순환에 실제로 거치는 팀만 표시.
 - 테스트 112개 통과. 여섯 팀 흉내 가짜 실행기로 차단→재계획→통과→참고→완료 흐름 화면 확인.
 
+## 역할별 AI 환경 · 조사팀 · 연결 페이지 (2026-09-28)
+- 사용자 방향: 모든 팀이 Claude Code/Codex만 쓰지 말고, 역할마다 잘하는 환경을 쓰기. 결정: 구독·무료 우선, 종량제 API는 대장이 키와 월 상한을 정한 것만. 사용자 관심 서비스: 이미지 생성, Figma, 검색 AI.
+- 공식 문서 확인: Figma는 Claude Code 공식 플러그인/원격 MCP, Canva·Higgsfield는 MCP 커넥터(Higgsfield는 크레딧 과금), Perplexity는 종량제 API(`PERPLEXITY_API_KEY`), ChatGPT 구독 이미지는 프로그램 호출 경로 없음 → OpenAI 이미지 API(종량제), Midjourney는 공식 API 없음·자동화 금지(연결 안 함).
+- 발견·수정한 보안 문제: 에이전트용 Claude Code에 사용자의 claude.ai 커넥터(Supabase·Drive·메일 등 46개 도구)가, Codex에 사용자 config의 MCP 서버(node_repl·playwright)가 노출되어 있었음. 이제 Claude Code는 `ENABLE_CLAUDEAI_MCP_SERVERS=false` + `--strict-mcp-config`(빈 설정)로 모두 끔(`claude mcp list`로 끔 0개/켬 14개 비교 확인), Codex는 `--ignore-user-config`(로그인 유지). 참고: `--strict-mcp-config`만으로는 claude.ai 커넥터가 꺼지지 않음(공식 문서).
+- 조사팀(`research`, 작업팀): Claude Code 내장 WebSearch/WebFetch(구독 안), 결과는 `research/`에 출처·날짜와 함께 저장, 웹 페이지 지시 무시.
+- 디자인팀: 연결 페이지에서 켠 커넥터만 `--allowedTools=mcp__claude_ai_<이름>`으로 허용하고 나머지 커넥터는 `--disallowedTools`로 차단(현재 커넥터 목록을 모르면 거부). 지시문에 사용 가능한 도구와 `design/links.md` 기록 요청.
+- `src/environments.js`: 환경 목록(요금·사용 팀·공식 문서), `claude auth status`/`claude mcp list`/`codex login status`로 상태 확인(API 키는 존재 여부만), 설정(`design.figma|canva|higgsfield`, 기본 꺼짐). API: `GET /api/environments`, `POST /api/environments/refresh`, `PUT /api/settings`.
+- 대시보드 **연결** 페이지: 그룹별 상태·요금·공식 문서, 디자인 도구 스위치(확인 창). 렌더러에 불리언 속성 처리 추가.
+- 테스트 123개 통과.
+
 ## 남은 작업 (2026-09-28 기준)
+- 종량제 API 연결(Perplexity 조사, OpenAI 이미지 생성): 키 존재 확인·대장 승인·월 상한(응답의 비용/토큰으로 집계) 구현. 지금은 목록에 ‘키 없음/준비 중’으로만 표시.
 - 팀 순환을 실제 AI로 한 프로젝트 끝까지 돌려 보는 검증(지금까지 실제 실행은 단일 실행 목표만; 팀 순환은 가짜 실행기로만 확인).
 - 실제 모델 목록 등록: 공식 문서 URL과 계정 확인(격리 실행 성공)을 거쳐 카탈로그에 넣어야 함. 현재 카탈로그는 비어 있음. 모델 평가·변경 파이프라인은 API/화면 미연결.
 - 플랫폼 개선팀(모델 평가·교체 파이프라인 연결)과 팀별 실행 도구·모델 설정 화면. 여섯 팀 흐름의 실제 AI 검증.

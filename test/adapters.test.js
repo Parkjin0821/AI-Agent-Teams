@@ -16,24 +16,39 @@ test('child CLIs do not inherit a hosting Claude session (its tokens or endpoint
 
 const bins = { claude: { file: 'claude.exe', prefix: [] }, codex: { file: 'codex.exe', prefix: [] } };
 
-test('claude runs non-interactively, edits only inside the workspace, without shell tools', () => {
+test('claude runs non-interactively, edits only inside the workspace, without shell tools or any MCP', () => {
   const cmd = buildCommand('claude', { cwd: 'C:/w', model: null, bins });
   assert.equal(cmd.file, 'claude.exe');
   assert.deepEqual(cmd.args, ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits',
-    '--tools=Read,Write,Edit', '--no-session-persistence']);
+    '--tools=Read,Write,Edit', '--no-session-persistence', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}']);
+  assert.equal(cmd.env.ENABLE_CLAUDEAI_MCP_SERVERS, 'false', 'claude.ai connectors (mail, drive, …) are off by default');
   assert.equal(cmd.cwd, 'C:/w');
   assert.deepEqual(buildCommand('claude', { cwd: 'C:/w', model: 'sonnet', bins }).args.slice(-2), ['--model', 'sonnet']);
 });
 
+test('web access adds only the built-in web search and fetch tools', () => {
+  const args = buildCommand('claude', { cwd: 'C:/w', bins, web: true }).args;
+  assert.ok(args.includes('--tools=Read,Write,Edit,WebSearch,WebFetch'));
+});
+
+test('selected claude.ai connectors are allowed by name and every other connector is denied', () => {
+  const cmd = buildCommand('claude', { cwd: 'C:/w', bins, connectors: ['Figma', 'Canva'], knownConnectors: ['Figma', 'Canva', 'Gmail', 'Google Drive', 'AWS MCP'] });
+  assert.equal(cmd.env.ENABLE_CLAUDEAI_MCP_SERVERS, undefined, 'connectors stay loaded');
+  assert.ok(cmd.args.includes('--allowedTools=mcp__claude_ai_Figma,mcp__claude_ai_Canva'));
+  assert.ok(cmd.args.includes('--disallowedTools=mcp__claude_ai_Gmail,mcp__claude_ai_Google_Drive,mcp__claude_ai_AWS_MCP'));
+  assert.throws(() => buildCommand('claude', { cwd: 'C:/w', bins, connectors: ['Figma'], knownConnectors: [] }), /connector/,
+    'without the current connector list we cannot deny the rest, so connectors are refused');
+});
+
 test('read-only access gives Claude only the Read tool and Codex the read-only sandbox', () => {
   assert.ok(buildCommand('claude', { cwd: 'C:/w', bins, access: 'read' }).args.includes('--tools=Read'));
-  assert.deepEqual(buildCommand('codex', { cwd: 'C:/w', bins, access: 'read' }).args.slice(0, 4), ['exec', '--json', '--sandbox', 'read-only']);
+  assert.deepEqual(buildCommand('codex', { cwd: 'C:/w', bins, access: 'read' }).args.slice(0, 5), ['exec', '--json', '--ignore-user-config', '--sandbox', 'read-only']);
   assert.throws(() => buildCommand('claude', { cwd: 'C:/w', bins, access: 'admin' }), /access/);
 });
 
-test('codex runs in the workspace-write sandbox and reads the prompt from stdin', () => {
+test('codex ignores the user config (its MCP servers) and runs in the workspace-write sandbox, prompt from stdin', () => {
   const cmd = buildCommand('codex', { cwd: 'C:/w', model: null, bins });
-  assert.deepEqual(cmd.args, ['exec', '--json', '--sandbox', 'workspace-write', '--skip-git-repo-check', '--ephemeral', '--cd', 'C:/w', '-']);
+  assert.deepEqual(cmd.args, ['exec', '--json', '--ignore-user-config', '--sandbox', 'workspace-write', '--skip-git-repo-check', '--ephemeral', '--cd', 'C:/w', '-']);
   assert.deepEqual(buildCommand('codex', { cwd: 'C:/w', model: 'm1', bins }).args.slice(-3), ['-m', 'm1', '-']);
   assert.throws(() => buildCommand('other', { cwd: 'C:/w', bins }), /provider/);
 });

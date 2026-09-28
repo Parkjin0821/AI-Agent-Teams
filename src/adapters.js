@@ -4,21 +4,40 @@ import path from 'node:path';
 
 // Options checked against the installed CLIs' --help (Claude Code 2.1.265, codex-cli 0.158.0-alpha).
 // The prompt always goes through stdin, never the command line, so it cannot be parsed as options.
+// claude.ai connector "Google Drive" → tool prefix mcp__claude_ai_Google_Drive (Claude Code naming).
+export const connectorTool = (name) => `mcp__claude_ai_${name.replace(/[^A-Za-z0-9]+/g, '_')}`;
+
 // access: 'write' (default) lets the tool change files in the workspace; 'read' only lets it look.
-export function buildCommand(provider, { cwd, model = null, bins, access = 'write' }) {
+// web: adds Claude Code's built-in WebSearch/WebFetch. connectors: claude.ai connectors this team may use;
+// every other connector in knownConnectors is denied. Without connectors, all MCP is switched off.
+export function buildCommand(provider, { cwd, model = null, bins, access = 'write', web = false, connectors = [], knownConnectors = [] }) {
   if (!['read', 'write'].includes(access)) throw new Error(`unknown access: ${access}`);
+  const env = childEnv();
   if (provider === 'claude') {
-    // acceptEdits: file edits inside the workspace only; no shell or web tools are offered at all.
+    const tools = [...(access === 'read' ? ['Read'] : ['Read', 'Write', 'Edit']), ...(web ? ['WebSearch', 'WebFetch'] : [])];
+    // acceptEdits: file edits inside the workspace only; no shell tool is offered at all.
+    // --strict-mcp-config drops local/project MCP servers; claude.ai connectors need their own switch.
     const args = ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits',
-      access === 'read' ? '--tools=Read' : '--tools=Read,Write,Edit', '--no-session-persistence'];
+      `--tools=${tools.join(',')}`, '--no-session-persistence', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}'];
+    if (connectors.length) {
+      const unknown = connectors.filter(c => !knownConnectors.includes(c));
+      if (!knownConnectors.length || unknown.length) throw new Error(`connector not available: ${unknown.join(', ') || connectors.join(', ')}`);
+      args.push(`--allowedTools=${connectors.map(connectorTool).join(',')}`);
+      const others = knownConnectors.filter(c => !connectors.includes(c));
+      if (others.length) args.push(`--disallowedTools=${others.map(connectorTool).join(',')}`);
+    } else {
+      env.ENABLE_CLAUDEAI_MCP_SERVERS = 'false'; // official switch: mail, drive and other account connectors stay off
+    }
     if (model) args.push('--model', model);
-    return { file: bins.claude.file, args: [...bins.claude.prefix, ...args], cwd };
+    return { file: bins.claude.file, args: [...bins.claude.prefix, ...args], cwd, env };
   }
   if (provider === 'codex') {
-    const args = ['exec', '--json', '--sandbox', access === 'read' ? 'read-only' : 'workspace-write', '--skip-git-repo-check', '--ephemeral', '--cd', cwd];
+    // --ignore-user-config: skip ~/.codex/config.toml (and its MCP servers); login still works.
+    const args = ['exec', '--json', '--ignore-user-config', '--sandbox', access === 'read' ? 'read-only' : 'workspace-write',
+      '--skip-git-repo-check', '--ephemeral', '--cd', cwd];
     if (model) args.push('-m', model);
     args.push('-');
-    return { file: bins.codex.file, args: [...bins.codex.prefix, ...args], cwd };
+    return { file: bins.codex.file, args: [...bins.codex.prefix, ...args], cwd, env };
   }
   throw new Error(`unknown provider: ${provider}`);
 }
@@ -100,15 +119,15 @@ export class CliAgentAdapter {
     Object.assign(this, { enabled, cwd, bins, timeoutMs });
   }
 
-  async run(provider, prompt, onEvent, { cwd, model = null, access = 'write' } = {}) {
+  async run(provider, prompt, onEvent, { cwd, model = null, access = 'write', web = false, connectors = [], knownConnectors = [] } = {}) {
     if (!this.enabled) {
       onEvent({ type: 'provider.notice', provider, message: 'Safe mode: CLI execution is disabled' });
       return { outcome: 'simulated', summary: `${provider} dry-run only; no work executed`, model: null };
     }
     if (!cwd) throw new Error('Project workspace is required for CLI execution');
-    const command = buildCommand(provider, { cwd, model, access, bins: this.bins ?? resolveBins() });
+    const command = buildCommand(provider, { cwd, model, access, web, connectors, knownConnectors, bins: this.bins ?? resolveBins() });
     return new Promise((resolve) => {
-      const child = spawn(command.file, command.args, { cwd: command.cwd, shell: false, windowsHide: true, env: childEnv() });
+      const child = spawn(command.file, command.args, { cwd: command.cwd, shell: false, windowsHide: true, env: command.env });
       let head = '', partial = '', model = null, answer = null, stderr = '', timedOut = false, settled = false;
       const finish = (result) => { if (!settled) { settled = true; clearTimeout(timer); resolve({ ...result, answer }); } };
       const timer = setTimeout(() => { timedOut = true; killTree(child); }, this.timeoutMs);

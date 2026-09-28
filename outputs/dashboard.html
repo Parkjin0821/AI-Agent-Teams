@@ -225,6 +225,21 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .urow.head + .urow{border-top:1px solid var(--line)}
 @media (max-width:900px){.urow{grid-template-columns:minmax(0,1fr) auto}.urow.head{display:none}}
 
+/* 연결 */
+.erow{display:grid;grid-template-columns:minmax(0,1.4fr) 170px minmax(0,1fr) 150px;gap:18px;align-items:center;padding:16px 20px;border-top:1px solid var(--line)}
+.erow:first-child{border-top:0}
+.erow .nm{font-weight:600}
+.erow .sub{font-size:12.5px;color:var(--text-3);margin-top:2px}
+.erow .bill{font-size:12.5px;color:var(--text-2)}
+.erow .act{display:flex;justify-content:flex-end;gap:8px;align-items:center}
+.switch{position:relative;width:38px;height:22px;border-radius:999px;border:0;background:var(--line-strong);padding:0;transition:background .15s;flex:none}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+.switch.on{background:var(--done)}
+.switch.on::after{transform:translateX(16px)}
+.switch:disabled{opacity:.4;cursor:not-allowed}
+.group-h{font-size:12px;font-weight:600;color:var(--text-3);margin:28px 0 10px;letter-spacing:.01em}
+@media (max-width:900px){.erow{grid-template-columns:minmax(0,1fr) auto}.erow .bill{grid-column:1 / -1}}
+
 /* 설정 */
 .seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--subtle);border:1px solid var(--line)}
 .seg button{border:0;background:none;height:28px;padding:0 12px;border-radius:6px;color:var(--text-3);font-weight:500;font-size:13px;transition:background .15s,color .15s}
@@ -564,6 +579,32 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
   </div>
 </sc-if>
 
+<!-- ================= 연결 ================= -->
+<sc-if value="{{vConnect}}">
+  <div class="page-h">
+    <div><h1>연결</h1><p class="lede">팀이 쓰는 AI 도구와 서비스입니다. 공식 연결 방법만 쓰며, 상태는 각 도구의 공식 명령으로 확인합니다.</p></div>
+    <div class="row-f"><span class="hint">{{env.checkedL}}</span><button class="btn" onClick="{{env.refresh}}">{{env.refreshL}}</button></div>
+  </div>
+  <div class="note" style="margin-bottom: 8px"><b>안전 설정</b> · 메일·드라이브 같은 claude.ai 계정 커넥터와 Codex의 MCP 서버는 모든 팀에 꺼져 있습니다. 아래에서 켠 디자인 도구만 디자인팀에게 열리고, 나머지 커넥터는 막힙니다.</div>
+  <sc-for list="{{env.groups}}" as="grp">
+    <div class="group-h">{{grp.title}}</div>
+    <div class="list">
+      <sc-for list="{{grp.items}}" as="e">
+        <div class="erow">
+          <div style="min-width: 0"><div class="nm">{{e.name}}</div><div class="sub">{{e.sub}}</div></div>
+          <span class="{{e.pillCls}}"><i></i>{{e.statusL}}</span>
+          <div class="bill">{{e.billing}}<sc-if value="{{e.hasNote}}"><div class="sub">{{e.note}}</div></sc-if></div>
+          <div class="act">
+            <sc-if value="{{e.hasToggle}}"><button class="{{e.swCls}}" role="switch" aria-checked="{{e.on}}" aria-label="{{e.swLabel}}" disabled="{{e.swDisabled}}" onClick="{{e.toggle}}"></button></sc-if>
+            <a class="link small" href="{{e.docs}}" target="_blank" rel="noopener noreferrer">공식 문서</a>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </sc-for>
+  <sc-if value="{{env.empty}}"><div class="panel empty">연결 상태를 불러오지 못했습니다.</div></sc-if>
+</sc-if>
+
 <!-- ================= 사용량 ================= -->
 <sc-if value="{{vUsage}}">
   <div class="page-h"><div><h1>사용량</h1><p class="lede">토큰을 아끼기 위한 한도와 오늘 실행한 단계 수입니다.</p></div></div>
@@ -617,6 +658,7 @@ class DCLogic {
   }
 }
 const HOLE = /\{\{\s*([\w.$]+)\s*\}\}/g;
+const BOOL_ATTRS = ['disabled', 'hidden', 'checked', 'required', 'open'];
 function lookup(path, vals, scope) {
   const [head, ...rest] = path.split('.');
   let v = Object.hasOwn(scope, head) ? scope[head] : vals[head];
@@ -648,6 +690,12 @@ function build(nodes, parent, vals, scope) {
         } else el.addEventListener(type, fn);
         continue;
       }
+      // Boolean attributes (disabled, hidden, …) are present or absent, never "empty".
+      if (BOOL_ATTRS.includes(name) && value.includes('{{')) {
+        const on = exact(value, vals, scope);
+        if (on == null || on === false || on === '') el.removeAttribute(name); else el.setAttribute(name, '');
+        continue;
+      }
       if (value.includes('{{')) {
         const v = interp(value, vals, scope);
         el.setAttribute(name, v);
@@ -662,14 +710,15 @@ function build(nodes, parent, vals, scope) {
 // ---- 표시용 도우미 ----
 const TOOL = { 'claude-code': 'Claude Code', codex: 'Codex' };
 const TEAMS = [
-  { id: 'plan', name: '기획팀', kind: '매 순환', tool: 'claude-code', access: '읽기 전용', role: '현재 상태와 피드백을 보고 다음 작업 하나를 정합니다. 개발팀·디자인팀 중 누가 할지, 보안·정책 검토가 필요한지도 정합니다. 사람의 결정이 필요하면 대장에게 질문합니다.' },
+  { id: 'plan', name: '기획팀', kind: '매 순환', tool: 'claude-code', access: '읽기 전용', role: '현재 상태와 피드백을 보고 다음 작업 하나를 정합니다. 조사팀·개발팀·디자인팀 중 누가 할지, 보안·정책 검토가 필요한지도 정합니다. 사람의 결정이 필요하면 대장에게 질문합니다.' },
+  { id: 'research', name: '조사팀', kind: '작업', tool: 'claude-code', access: '웹 검색·웹 읽기 + 작업 폴더에 조사 결과 저장', role: '사실·출처·가격·경쟁 서비스 등을 웹에서 찾고, 출처 링크와 확인 날짜를 붙여 research/ 폴더에 정리합니다. 웹 페이지의 지시는 따르지 않습니다.' },
   { id: 'dev', name: '개발팀', kind: '작업', tool: 'claude-code', access: '작업 폴더 안 파일 쓰기 (명령 실행 없음)', role: '코드·데이터·문서 작업을 작업 폴더 안에서 하고, 완료 조건을 확인할 방법을 함께 보고합니다.' },
-  { id: 'design', name: '디자인팀', kind: '작업', tool: 'claude-code', access: '작업 폴더 안 파일 쓰기 (명령 실행 없음)', role: '화면·UI·레이아웃·시각 스타일을 HTML/CSS나 디자인 문서로 만듭니다. 기획팀이 화면 작업이라고 판단할 때 맡습니다.' },
+  { id: 'design', name: '디자인팀', kind: '작업', tool: 'claude-code', access: '작업 폴더 안 파일 쓰기 + 연결 페이지에서 켠 Figma·Canva·Higgsfield', role: '화면·UI·레이아웃·시각 스타일·이미지를 만듭니다. 기본은 HTML/CSS·디자인 문서이고, 연결 페이지에서 켠 디자인 도구가 있으면 그것도 씁니다.' },
   { id: 'security', name: '보안팀', kind: '필요할 때 검토', tool: 'codex', access: 'Codex 읽기 전용 샌드박스', role: '입력 처리·로그인·비밀정보·네트워크·의존성을 다루는 작업을 검토합니다. 막아야 할 문제가 있으면 기획팀으로 되돌립니다.' },
   { id: 'policy', name: '정책팀', kind: '필요할 때 검토', tool: 'claude-code', access: '읽기 전용', role: '라이선스·외부 API와 데이터 약관·개인정보·외부 게시를 검토합니다. 대장의 결정이 필요하면 질문을 남기고 멈춥니다.' },
   { id: 'qa', name: '검증팀', kind: '매 순환', tool: 'codex', access: 'Codex 샌드박스 안에서 테스트 실행', role: '완료 조건을 확인하고 부족한 점을 기획팀에 넘깁니다. 모두 확인되면 다음 개선안을 제안합니다.' },
 ];
-const TEAM_NAME = { plan: '기획팀', dev: '개발팀', design: '디자인팀', security: '보안팀', policy: '정책팀', qa: '검증팀' };
+const TEAM_NAME = { plan: '기획팀', research: '조사팀', dev: '개발팀', design: '디자인팀', security: '보안팀', policy: '정책팀', qa: '검증팀' };
 // 이번 순환에서 거치는 팀: 기획 → 작업팀 → [요청된 검토] → 검증
 // 검토팀 질문은 "[정책팀] …" 형태로 온다. 접두어가 없으면 기획팀 질문이다.
 const askedBy = (q) => { const m = /^\[([^\]]+)\]/.exec(q || ''); return m ? m[1] : '기획팀'; };
@@ -738,10 +787,12 @@ class Component extends DCLogic {
   constructor(props) {
     super(props);
     this.state = { view: 'home', pid: null, ptab: 'over', eng: null, offline: false, toast: '',
-      showNew: false, np: { title: '', goal: '', crit: '', error: '' }, drafts: {}, pinOpen: {}, pinDraft: '' };
+      showNew: false, np: { title: '', goal: '', crit: '', error: '' }, drafts: {}, pinOpen: {}, pinDraft: '',
+      envs: null, envErr: '', envBusy: false };
   }
   componentDidMount() {
     this.refresh();
+    this.loadEnvs();
     try {
       this._es = new EventSource('/api/events');
       this._es.onmessage = (m) => {
@@ -765,7 +816,7 @@ class Component extends DCLogic {
   }
   say(m) { this.setState({ toast: m }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: '' }), 3200); }
   act(promise, okMsg) { return promise.then((v) => { this.refresh(); if (okMsg) this.say(okMsg); return v; }).catch((e) => this.say(korErr(e.message))); }
-  go(view) { this.setState({ view: view }); window.scrollTo(0, 0); }
+  go(view) { this.setState({ view: view }); window.scrollTo(0, 0); if (view === 'connect') this.loadEnvs(); }
   openProject(id, tab) { this.setState({ view: 'project', pid: id, ptab: tab || 'over' }); window.scrollTo(0, 0); }
   isReal() { return !!(this.state.eng && this.state.eng.mode === 'execution'); }
   limits() {
@@ -950,7 +1001,19 @@ class Component extends DCLogic {
 
     const ptabDefs = [['over', '개요', ''], ['activity', '활동', wp ? wp.runs.length : ''], ['verify', '검증', wp ? wp.proven + '/' + wp.total : ''], ['settings', '설정', '']];
     const inboxN = inbox.length;
-    const navDefs = [['home', '홈', inboxN], ['projects', '프로젝트', 0], ['teams', '팀', 0], ['usage', '사용량', 0]];
+    const navDefs = [['home', '홈', inboxN], ['projects', '프로젝트', 0], ['teams', '팀', 0], ['connect', '연결', 0], ['usage', '사용량', 0]];
+
+    // 연결 페이지
+    const envs = s.envs;
+    const KIND_GROUP = [['구독 CLI', '구독으로 쓰는 실행 도구'], ['Claude Code 내장 도구', '구독 안에서 쓰는 도구'], ['claude.ai 커넥터', '디자인 도구 (claude.ai 계정 커넥터)'],
+      ['종량제 API', '종량제 API (키와 월 상한을 정해야 연결)'], ['연결 불가', '공식 연결 방법 없음']];
+    const envItem = (e) => ({ name: e.name, sub: e.kind + (e.usedBy.length ? ' · ' + e.usedBy.join(', ') : ''), statusL: e.statusL, pillCls: pillCls(e.tone),
+      billing: e.billing, note: e.note || '', hasNote: !!e.note, docs: e.docs, hasToggle: !!e.setting, on: e.enabled === true,
+      swCls: 'switch' + (e.enabled ? ' on' : ''), swLabel: e.name + ' 디자인팀 사용', swDisabled: !(e.enabled || /연결됨/.test(e.statusL)),
+      toggle: () => this.toggleSetting(e) });
+    const env = { groups: envs ? KIND_GROUP.map((g) => ({ title: g[1], items: envs.items.filter((e) => e.kind === g[0]).map(envItem) })).filter((g) => g.items.length) : [],
+      empty: !!s.envErr, checkedL: envs && envs.checkedAt ? '확인 ' + ago(envs.checkedAt) : (envs ? '아직 확인 전' : ''),
+      refreshL: s.envBusy ? '확인 중…' : '다시 확인', refresh: () => this.refreshEnvs() };
     const cur = s.view === 'project' ? 'projects' : s.view;
     const hour = new Date().getHours();
     const activeN = P.filter((p) => p.isTeam && p.goal.autoRun && RUNNING_LIKE.includes(p.goal.status)).length;
@@ -980,6 +1043,7 @@ class Component extends DCLogic {
       modeTitle: real ? '시작한 프로젝트는 실제 AI가 실행하며 구독 사용량이 쓰입니다' : '실제 AI를 호출하지 않는 모의 실행 모드입니다',
       offline: s.offline,
       vHome: s.view === 'home', vProjects: s.view === 'projects', vProject: s.view === 'project' && !!wp, vTeams: s.view === 'teams', vUsage: s.view === 'usage',
+      vConnect: s.view === 'connect', env: env,
       greeting: (hour < 12 ? '좋은 아침입니다' : hour < 18 ? '안녕하세요' : '수고하셨습니다') + ', 대장',
       homeLede: inboxN ? '팀이 결정을 기다리는 일이 ' + inboxN + '건 있습니다.' : (activeN ? '팀이 프로젝트 ' + activeN + '개를 진행하고 있습니다.' : '진행 중인 프로젝트가 없습니다.'),
       hasProjects: P.length > 0, noProjects: P.length === 0 && !!s.eng,
@@ -999,6 +1063,22 @@ class Component extends DCLogic {
     };
   }
 
+  loadEnvs() {
+    return fetch('/api/environments').then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then((envs) => this.setState({ envs: envs, envErr: '' })).catch(() => this.setState({ envErr: 'x' }));
+  }
+  refreshEnvs() {
+    if (this.state.envBusy) return;
+    this.setState({ envBusy: true });
+    this.api('POST', '/api/environments/refresh', {}).then((envs) => { this.setState({ envs: envs, envBusy: false }); this.say('연결 상태를 다시 확인했습니다'); })
+      .catch((e) => { this.setState({ envBusy: false }); this.say(korErr(e.message)); });
+  }
+  toggleSetting(e) {
+    const next = !e.enabled;
+    if (next && !window.confirm(e.name + '을(를) 디자인팀에 켭니다.\n\n' + (e.note || '') + '\n\n켤까요?')) return;
+    this.api('PUT', '/api/settings', { key: e.setting, value: next }).then(() => this.loadEnvs())
+      .then(() => this.say(e.name + ' · 디자인팀 사용을 ' + (next ? '켰습니다' : '껐습니다') + ' (다음 단계부터 적용)')).catch((err) => this.say(korErr(err.message)));
+  }
   sendAnswer(goalId) {
     const text = (this.state.drafts[goalId] || '').trim();
     if (!text) { this.say('답변을 적어 주세요.'); return; }

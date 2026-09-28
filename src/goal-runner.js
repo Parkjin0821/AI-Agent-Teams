@@ -1,5 +1,5 @@
 import { listWorkspaceFiles, parseReport, reportInstructions, verifyReport, workspaceFingerprint } from './evidence.js';
-import { parsePlan, parseReview, qaFindings, REVIEWS, teamPrompt } from './teams.js';
+import { parsePlan, parseReview, qaFindings, REVIEWS, TEAMS, teamPrompt } from './teams.js';
 
 // Bridges the goal scheduler to the CLI adapter. After a real run the engine reads the tool's final
 // answer, runs the checks it proposed inside the workspace, and only passing checks become evidence.
@@ -7,17 +7,20 @@ import { parsePlan, parseReview, qaFindings, REVIEWS, teamPrompt } from './teams
 // In simulation mode nothing is executed, so a round reports no evidence and no model.
 const PROVIDER = { 'claude-code': 'claude', codex: 'codex' };
 
-export function createGoalRunner({ adapter, workspaces, store }) {
+// toolsFor(team) → { connectors, knownConnectors }: which claude.ai connectors 대장 opened for that team.
+export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}) }) {
   return {
     async run(goal, run) {
       const cwd = workspaces.resolve(goal.projectId);
       const team = goal.kind === 'team' ? run.team : null;
+      const extra = team ? toolsFor(team) : {};
+      const tools = { web: Boolean(team && TEAMS[team]?.web), connectors: extra.connectors ?? [], knownConnectors: extra.knownConnectors ?? [] };
       const prompt = team
-        ? teamPrompt(team, { goal, team: goal.team, files: listWorkspaceFiles(cwd) })
+        ? teamPrompt(team, { goal, team: goal.team, files: listWorkspaceFiles(cwd), connectors: tools.connectors })
         : [`Goal: ${goal.objective}`, '', reportInstructions(goal.completionCriteria)].join('\n');
       // Raw provider output is not forwarded: it may contain secrets and is not evidence.
       const onEvent = event => { if (event.type === 'provider.notice') void store.emit({ ...event, goalId: goal.id }); };
-      const result = await adapter.run(PROVIDER[run.executor], prompt, onEvent, { cwd, model: run.model, access: run.access ?? 'write' });
+      const result = await adapter.run(PROVIDER[run.executor], prompt, onEvent, { cwd, model: run.model, access: run.access ?? 'write', ...tools });
       if (result.outcome === 'simulated') {
         // Simulation shows the rotation moving but never proves anything, so it stops on "no progress".
         return { outcome: 'completed', simulated: true, evidence: [], claims: [], diffHash: null,

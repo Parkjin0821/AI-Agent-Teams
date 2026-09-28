@@ -13,7 +13,8 @@ export class PersistentStore {
       + ' CREATE TABLE IF NOT EXISTS policy_versions (scope TEXT NOT NULL, version INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY(scope, version));'
       + ' CREATE TABLE IF NOT EXISTS model_catalog (executor TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(executor, id));'
       + ' CREATE TABLE IF NOT EXISTS model_evals (id TEXT PRIMARY KEY, body TEXT NOT NULL);'
-      + ' CREATE TABLE IF NOT EXISTS model_candidates (id TEXT PRIMARY KEY, body TEXT NOT NULL);');
+      + ' CREATE TABLE IF NOT EXISTS model_candidates (id TEXT PRIMARY KEY, body TEXT NOT NULL);'
+      + ' CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);');
     this.listeners = new Set();
   }
   listGoals() { return this.db.prepare('SELECT body FROM goals').all().map(r => JSON.parse(r.body)); }
@@ -30,6 +31,8 @@ export class PersistentStore {
   insertEval(record) { this.db.prepare('INSERT INTO model_evals VALUES (?,?)').run(record.id, JSON.stringify(record)); return record; }
   getCandidate(id) { const row = this.db.prepare('SELECT body FROM model_candidates WHERE id=?').get(id); return row ? JSON.parse(row.body) : undefined; }
   saveCandidate(candidate) { this.db.prepare('INSERT INTO model_candidates VALUES (?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(candidate.id, JSON.stringify(candidate)); return candidate; }
+  getSettings() { return Object.fromEntries(this.db.prepare('SELECT key, value FROM settings').all().map(r => [r.key, JSON.parse(r.value)])); }
+  setSetting(key, value) { this.db.prepare('INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key, JSON.stringify(value)); return this.getSettings(); }
   deleteGoalRecords(goalId) {
     const runs = Number(this.db.prepare('DELETE FROM runs WHERE goal_id=?').run(goalId).changes);
     const events = Number(this.db.prepare("DELETE FROM events WHERE json_extract(body, '$.goalId')=?").run(goalId).changes);

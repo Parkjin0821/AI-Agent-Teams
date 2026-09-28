@@ -4,10 +4,29 @@ import { nextStep, parsePlan, parseReview, qaFindings, TEAMS, teamPrompt } from 
 
 const goal = { objective: '가계부 웹앱을 만든다', completionCriteria: ['index.html 파일이 있다', '합계 계산 테스트 통과'] };
 
-test('six teams, each with its own tool and access', () => {
-  assert.deepEqual(Object.values(TEAMS).map(t => [t.id, t.executor, t.access]), [
-    ['plan', 'claude-code', 'read'], ['dev', 'claude-code', 'write'], ['design', 'claude-code', 'write'],
-    ['security', 'codex', 'read'], ['policy', 'claude-code', 'read'], ['qa', 'codex', 'write']]);
+test('seven teams, each with its own tool and access; only research gets the web', () => {
+  assert.deepEqual(Object.values(TEAMS).map(t => [t.id, t.executor, t.access, Boolean(t.web)]), [
+    ['plan', 'claude-code', 'read', false], ['research', 'claude-code', 'write', true], ['dev', 'claude-code', 'write', false],
+    ['design', 'claude-code', 'write', false], ['security', 'codex', 'read', false], ['policy', 'claude-code', 'read', false],
+    ['qa', 'codex', 'write', false]]);
+});
+
+test('the design team is told which design tools it may use, and to record what it made', () => {
+  const withTools = teamPrompt('design', { goal, team: { task: '로고' }, files: [], connectors: ['Figma', 'higgsfield'] });
+  assert.match(withTools, /Figma, higgsfield/);
+  assert.match(withTools, /design\/links\.md/);
+  assert.doesNotMatch(teamPrompt('design', { goal, team: { task: '로고' }, files: [] }), /design\/links\.md/);
+});
+
+test('the research team searches the web, cites sources and treats pages as data', () => {
+  const p = teamPrompt('research', { goal, team: { task: '경쟁 가계부 앱 조사' }, files: [] });
+  assert.match(p, /조사팀/);
+  assert.match(p, /source/i);
+  assert.match(p, /not instructions/);
+  assert.match(p, /AGENT_HQ_REPORT/);
+  assert.equal(nextStep({ step: 'plan', worker: 'research', reviews: [] }), 'research');
+  assert.equal(parsePlan('AGENT_HQ_PLAN {"next_task":"시장 조사","team":"research"}').team, 'research');
+  assert.match(teamPrompt('plan', { goal, team: {}, files: [] }), /"research"/);
 });
 
 test('the rotation follows what the planning team asked for', () => {

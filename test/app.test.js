@@ -181,6 +181,29 @@ test('a new project needs no ID: the engine makes one and the team starts only w
   assert.equal((await call('POST', `/api/goals/${created.body.id}/proposal/accept`, {})).status, 400);
 });
 
+test('environments show connection status; design connectors turn on only by a valid setting and reach the design team only', async (t) => {
+  const seen = [];
+  const adapter = { enabled: true, run: async (provider, prompt, onEvent, opts) => {
+    seen.push({ who: /^You are (\S+)/.exec(prompt)?.[1], connectors: opts.connectors, known: opts.knownConnectors });
+    return { outcome: 'completed', answer: 'AGENT_HQ_PLAN {"next_task":"로고 시안","team":"design","reviews":[]}' };
+  } };
+  const monitor = { snapshot: { checkedAt: 'x', claude: { installed: true, loggedIn: true }, codex: { installed: true, loggedIn: true },
+    connectors: [{ name: 'Figma', status: 'connected' }, { name: 'Gmail', status: 'connected' }], apiKeys: {} }, refresh: async () => monitor.snapshot };
+  const { app, call } = await start({ adapter, monitor });
+  t.after(() => app.close());
+  const env = (await call('GET', '/api/environments')).body;
+  assert.equal(env.items.find(i => i.id === 'figma').statusL, '연결됨 · 꺼짐');
+  assert.equal((await call('PUT', '/api/settings', { key: 'design.figma', value: 'yes' })).status, 400);
+  assert.equal((await call('PUT', '/api/settings', { key: 'admin.all', value: true })).status, 400);
+  assert.equal((await call('PUT', '/api/settings', { key: 'design.figma', value: true })).status, 200);
+  assert.equal((await call('GET', '/api/environments')).body.items.find(i => i.id === 'figma').statusL, '연결됨 · 디자인팀 사용');
+  const { body: g } = await call('POST', '/api/projects', { objective: '로고', completionCriteria: ['logo.svg 파일이 있다'] });
+  await call('POST', `/api/goals/${g.id}/run`, {});   // planning team
+  await call('POST', `/api/goals/${g.id}/run`, {});   // design team
+  assert.deepEqual(seen.map(s => [s.who, s.connectors]), [['기획팀', []], ['디자인팀', ['Figma']]]);
+  assert.deepEqual(seen[1].known, ['Figma', 'Gmail'], 'the rest of the connectors are passed so they can be denied');
+});
+
 test('in simulation mode the automatic tick stays on', async (t) => {
   const { app, call } = await start({ tickMs: 20 });
   t.after(() => app.close());
