@@ -62,7 +62,9 @@ test('every environment gets an honest status, billing and who uses it', () => {
 
 test('only known settings with the right type are accepted', () => {
   assert.deepEqual(Object.keys(SETTINGS), ['design.figma', 'design.canva', 'design.higgsfield', 'tools.npmAudit', 'limits.maxRoundsPerDay', 'sentinel.web', 'trust.required',
-    'digest.time', 'digest.daily', 'digest.weekly']);
+    'digest.time', 'digest.daily', 'digest.weekly', 'attach.maxMB']);
+  assert.equal(validateSetting('attach.maxMB', 100), 100);
+  for (const bad of [0, 101, 2.5]) assert.throws(() => validateSetting('attach.maxMB', bad), /1 to 100/, String(bad));
   assert.equal(validateSetting('digest.time', '18:30'), '18:30');
   for (const bad of ['9:00', '24:00', '18:60', 'noon']) assert.throws(() => validateSetting('digest.time', bad), /wrong format/, bad);
   assert.throws(() => validateSetting('digest.weekly', 'monday'), /one of off, mon/);

@@ -12,7 +12,7 @@ import { GoalScheduler } from './scheduler.js';
 import { SandboxRunner } from './sandbox.js';
 import { TEAMS } from './teams.js';
 import { Digests } from './digest.js';
-import { checkAttachments, MAX_ATTACHMENT, saveAttachment } from './attachments.js';
+import { checkAttachments, DEFAULT_MAX_MB, saveAttachment } from './attachments.js';
 import { toolkitView } from './toolkit.js';
 import { ProjectWorkspaces, validateProjectId } from './workspaces.js';
 import { readUsage, recordRateLimits } from './usage.js';
@@ -113,7 +113,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     }
     return {
       mode: executing ? 'execution' : 'simulation', autoTick, autoScope, now: iso(clock.now()),
-      limits: { maxRoundsPerDay: scheduler.dailyLimit(), maxRoundsPerDayDefault: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
+      limits: { attachMaxMB: setting('attach.maxMB', DEFAULT_MAX_MB), maxRoundsPerDay: scheduler.dailyLimit(), maxRoundsPerDayDefault: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
       projects: [...byProject].map(([id, goals]) => ({ id, policy: registry.getPolicy(`project:${id}`), goals, autoSave: autoSave.view(id) })),
       catalog: registry.catalog(), events: store.recentEvents(200),
       limitStorageFailed: store.getSettings()['safety.limitStorageFailed'] === true,
@@ -346,8 +346,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       const uploadMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/attachments$/);
       if (request.method === 'POST' && uploadMatch) {
         const cwd = existingWorkspace(uploadMatch[1]);
-        const bytes = await readRaw(request, MAX_ATTACHMENT);
-        return sendJson(response, 201, saveAttachment(cwd, url.searchParams.get('name'), bytes, clock.now()));
+        const maxMB = setting('attach.maxMB', DEFAULT_MAX_MB);
+        const bytes = await readRaw(request, maxMB);
+        return sendJson(response, 201, saveAttachment(cwd, url.searchParams.get('name'), bytes, clock.now(), { maxMB }));
       }
       const artifactMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/preview$/);
       if (request.method === 'GET' && artifactMatch) {
@@ -408,12 +409,12 @@ async function readJson(request) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
 }
 
-async function readRaw(request, limit) {
+async function readRaw(request, maxMB) {
   const chunks = [];
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > limit) throw new Error('attachment is larger than 10MB');
+    if (size > maxMB * 1024 * 1024) throw new Error(`attachment is larger than ${maxMB}MB`);
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);

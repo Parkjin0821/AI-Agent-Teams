@@ -50,6 +50,8 @@ export const SETTINGS = Object.freeze({
   'digest.time': { type: 'string', default: '09:00', pattern: /^([01]\d|2[0-3]):[0-5]\d$/ },
   'digest.daily': { type: 'boolean', default: true },
   'digest.weekly': { type: 'string', default: 'mon', values: ['off', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] },
+  // Largest file 대장 can attach in the project conversation (MB).
+  'attach.maxMB': { type: 'number', default: 30, min: 1, max: 100 },
 });
 
 export function validateSetting(key, value) {

@@ -581,7 +581,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
         </div>
         <div class="composer" onDragover="{{w.onDragOver}}" onDrop="{{w.onDrop}}">
           <label class="sr" for="ws-compose">{{w.composerLabel}}</label>
-          <sc-if value="{{w.hasAttach}}"><div class="att-list" aria-label="보낼 첨부"><sc-for list="{{w.attach}}" as="a"><span class="att"><sc-if value="{{a.isImage}}"><img src="{{a.src}}" alt="{{a.name}}"></sc-if><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span><button class="link small" onClick="{{a.remove}}" aria-label="{{a.name}} 첨부 빼기">빼기</button></span></sc-for></div></sc-if>
+          <sc-if value="{{w.hasAttach}}"><div class="att-list" aria-label="보낼 첨부"><sc-for list="{{w.attach}}" as="a"><span class="att" title="{{a.warn}}"><sc-if value="{{a.isImage}}"><img src="{{a.src}}" alt="{{a.name}}"></sc-if><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span><button class="link small" onClick="{{a.remove}}" aria-label="{{a.name}} 첨부 빼기">빼기</button></span></sc-for></div></sc-if>
           <textarea class="ta" id="ws-compose" placeholder="{{w.composerPh}}" value="{{w.draft}}" onChange="{{w.onDraft}}" onPaste="{{w.onPaste}}"></textarea>
           <input id="ws-file" class="sr" type="file" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.md,.csv,.json,.log,image/*" onChange="{{w.onFiles}}" tabindex="-1" aria-hidden="true">
           <div class="row-f composer-row"><button class="btn ghost sm" onClick="{{w.pickFiles}}" disabled="{{w.attachDisabled}}">{{w.attachL}}</button><span class="hint">{{w.composerHint}}</span><button class="btn pri sm" onClick="{{w.send}}" disabled="{{w.sendDisabled}}">{{w.sendL}}</button></div>
@@ -934,6 +934,11 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     <div class="card">
       <div class="lbl">오늘 실행 도구별</div>
       <dl class="facts"><sc-for list="{{toolRows}}" as="r"><dt>{{r.tool}}</dt><dd class="num">{{r.n}}회 · 동시 최대 {{r.cap}}</dd></sc-for></dl>
+    </div>
+    <div class="card">
+      <div class="lbl">첨부 파일 최대 크기</div>
+      <div class="row-f"><label class="sr" for="att-max">첨부 파일 최대 크기 (MB)</label><input class="input" id="att-max" type="number" min="1" max="100" step="1" style="max-width: 100px" value="{{attMax.draft}}" onChange="{{attMax.onDraft}}"><span class="small">MB</span><button class="btn sm" onClick="{{attMax.save}}">저장</button></div>
+      <p class="hint" style="margin: 8px 0 0">프로젝트 대화에 올릴 수 있는 파일 한 개의 크기입니다 (1~100MB, 기본 30MB). AI가 한 번에 읽는 한도는 이미지 약 7.5MB, PDF 32MB라서 그보다 큰 파일은 올릴 때 알려 드립니다.</p>
     </div>
     <details class="card" open="{{storageFailed}}"><summary class="small">문제가 있을 때</summary>
       <p class="hint">사용량 기록 파일을 저장하지 못하면 안전을 위해 모든 실행을 멈춥니다. 원인을 고친 뒤 아래 버튼으로 다시 검사하면 멈춤이 풀립니다. 프로젝트는 자동으로 다시 시작하지 않습니다.</p>
@@ -1481,7 +1486,7 @@ class Component extends DCLogic {
       const attView = (pid, a) => {
         const src = '/api/projects/' + encodeURIComponent(pid) + '/preview?path=' + encodeURIComponent(a.path);
         const kb = a.size ? (a.size >= 1048576 ? (a.size / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(a.size / 1024)) + 'KB') : '';
-        return { name: a.name, sizeL: kb, isImage: a.kind === 'image', isText: a.kind === 'text', isPdf: a.kind === 'pdf', src: src,
+        return { name: a.name, sizeL: kb + (a.warning ? ' · 매우 큼' : ''), warn: a.warning || '', isImage: a.kind === 'image', isText: a.kind === 'text', isPdf: a.kind === 'pdf', src: src,
           open: () => { if (a.kind !== 'pdf') window.open(src, '_blank', 'noopener'); } };
       };
       // ── 대화 스레드: 대장 메시지 · 팀 보고 · 감시 에이전트 차단을 시간순 한 흐름으로 ──
@@ -1534,7 +1539,7 @@ class Component extends DCLogic {
       };
       w.onDragOver = (e) => { if (canAttach && e.dataTransfer && [].slice.call(e.dataTransfer.types || []).includes('Files')) e.preventDefault(); };
       w.onDrop = (e) => { if (!canAttach || !e.dataTransfer || !e.dataTransfer.files.length) return; e.preventDefault(); this.addAttachments(g.id, wp.id, e.dataTransfer.files); };
-      w.attachHint = canAttach ? '캡처는 입력창에 붙여넣기(Ctrl+V), 파일은 끌어 놓기도 됩니다 · 이미지·PDF·글 파일, 10MB까지' : '';
+      w.attachHint = canAttach ? '캡처는 입력창에 붙여넣기(Ctrl+V), 파일은 끌어 놓기도 됩니다 · 이미지·PDF·글 파일, ' + ((s.eng.limits && s.eng.limits.attachMaxMB) || 30) + 'MB까지 · AI는 이미지 약 7.5MB, PDF 32MB까지 한 번에 읽습니다' : '';
       // ── 할 일: 지금 단계부터 이번 순환이 끝날 때까지 ──
       const STEP_WHAT = { plan: '다음 작업 결정', research: '조사', dev: '구현', design: '디자인', security: '보안 검토', policy: '정책 검토', qa: '완료 조건 확인' };
       const stepNow = team.step || 'plan';
@@ -1843,6 +1848,14 @@ class Component extends DCLogic {
         finally { if (this.state.pid === wp.id) this.setState({testBusy:false}); }
       },
       storageFailed: !!(s.eng && s.eng.limitStorageFailed),
+      attMax: { draft: s.attMaxDraft == null ? String((s.eng && s.eng.limits && s.eng.limits.attachMaxMB) || 30) : s.attMaxDraft,
+        onDraft: (e) => this.setState({ attMaxDraft: e.target.value }),
+        save: () => {
+          const n = Number(s.attMaxDraft == null ? ((s.eng && s.eng.limits && s.eng.limits.attachMaxMB) || 30) : s.attMaxDraft);
+          if (!Number.isInteger(n) || n < 1 || n > 100) { this.say('1부터 100 사이의 정수로 적어 주세요'); return; }
+          this.setState({ attMaxDraft: null });
+          this.act(this.api('PUT', '/api/settings', { key: 'attach.maxMB', value: n }), '첨부 파일 최대 크기를 ' + n + 'MB로 바꿨습니다');
+        } },
       recoverLimitStorage: () => {
         if (window.confirm('저장 상태를 재검사하고 장애 차단을 해제합니까? 프로젝트는 자동 재개하지 않습니다.'))
           this.act(this.api('POST', '/api/safety/limit-storage/recover', { confirm: true }), '저장 장애 복구 완료 · 프로젝트 재개는 별도');
@@ -1949,12 +1962,13 @@ class Component extends DCLogic {
     if (!list.length) return;
     const have = ((this.state.attach || {})[goalId] || []).length;
     if (have + list.length > 10) { this.say('한 메시지에 10개까지 첨부할 수 있습니다'); return; }
+    const maxMB = (this.state.eng && this.state.eng.limits && this.state.eng.limits.attachMaxMB) || 30;
     this.setState({ attachBusy: true });
     const added = [];
     for (const f of list) {
       // 붙여넣은 캡처는 이름이 "image.png"라서 알아보기 쉽게 바꾼다 (서버가 시각을 앞에 붙임)
       const name = !f.name || /^image\.(png|jpe?g|gif|webp)$/i.test(f.name) ? '캡처.' + ((f.type || 'image/png').split('/')[1] || 'png').replace('jpeg', 'jpg') : f.name;
-      if (f.size > 10 * 1024 * 1024) { this.say(name + ' · 10MB보다 커서 첨부하지 못했습니다'); continue; }
+      if (f.size > maxMB * 1024 * 1024) { this.say(name + ' · ' + maxMB + 'MB보다 커서 첨부하지 못했습니다 (사용량 화면에서 한도 변경)'); continue; }
       try {
         const res = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/attachments?name=' + encodeURIComponent(name),
           { method: 'POST', headers: { 'content-type': f.type || 'application/octet-stream' }, body: f });
@@ -1965,7 +1979,9 @@ class Component extends DCLogic {
     }
     const cur = Object.assign({}, this.state.attach); cur[goalId] = (cur[goalId] || []).concat(added);
     this.setState({ attach: cur, attachBusy: false });
-    if (added.length) this.say('첨부했습니다 (' + added.length + '개) · 보내기를 누르면 팀에게 전달됩니다');
+    const big = added.find((a) => a.warning);
+    if (big) this.say(big.name + ' · ' + big.warning);
+    else if (added.length) this.say('첨부했습니다 (' + added.length + '개) · 보내기를 누르면 팀에게 전달됩니다');
   }
   confirmCriterion(goalId, criterion) {
     const note = window.prompt('‘' + criterion + '’ 조건을 대장이 직접 확인한 것으로 기록합니다.\n확인한 내용을 짧게 적어 주세요 (비워도 됩니다).', '');

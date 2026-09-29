@@ -6,7 +6,12 @@ import { hasSecret } from './sentinel.js';
 // project folder under attachments/, so the teams can open them like any other project file; the message
 // that carries them lists their paths. Nothing here runs a file.
 export const ATTACH_DIR = 'attachments';
-export const MAX_ATTACHMENT = 10 * 1024 * 1024;
+export const DEFAULT_MAX_MB = 30;
+// What Claude can read in one go (official docs): an image up to 10MB base64 (~7.5MB file), a request with PDFs up to 32MB.
+export const AI_READ_LIMIT = { image: Math.floor(10 * 1024 * 1024 * 3 / 4), pdf: 32 * 1024 * 1024 };
+export const AI_READ_NOTE = { image: 'AI가 한 번에 읽는 이미지 한도(약 7.5MB)보다 커서 그대로는 못 읽을 수 있습니다 · 줄이거나 잘라서 올려 주세요',
+  pdf: 'AI가 한 번에 읽는 PDF 한도(32MB)보다 커서 나눠 읽거나 일부만 읽을 수 있습니다' };
+const tooBigForAI = (kind, size) => (AI_READ_LIMIT[kind] && size > AI_READ_LIMIT[kind] ? AI_READ_NOTE[kind] : null);
 export const MAX_PER_MESSAGE = 10;
 const KINDS = { '.png': 'image', '.jpg': 'image', '.jpeg': 'image', '.webp': 'image', '.gif': 'image', '.pdf': 'pdf',
   '.txt': 'text', '.md': 'text', '.csv': 'text', '.json': 'text', '.log': 'text' };
@@ -32,13 +37,13 @@ export function safeName(name) {
 const stamp = ms => { const d = new Date(ms), p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; };
 
-export function saveAttachment(cwd, name, bytes, now = Date.now()) {
+export function saveAttachment(cwd, name, bytes, now = Date.now(), { maxMB = DEFAULT_MAX_MB } = {}) {
   const file = safeName(name);
   const ext = path.extname(file).toLowerCase();
   const kind = KINDS[ext];
   if (!kind) throw new Error('unsupported attachment type (images, PDF and text files only)');
   if (!bytes?.length) throw new Error('attachment is empty');
-  if (bytes.length > MAX_ATTACHMENT) throw new Error('attachment is larger than 10MB');
+  if (bytes.length > maxMB * 1024 * 1024) throw new Error(`attachment is larger than ${maxMB}MB`);
   if (MAGIC[ext] && !MAGIC[ext](bytes)) throw new Error('file content does not match its type');
   if (kind === 'text') {
     const text = bytes.toString('utf8');
@@ -51,7 +56,8 @@ export function saveAttachment(cwd, name, bytes, now = Date.now()) {
   let target = `${stamp(now)}-${file}`;
   for (let n = 2; existsSync(path.join(dir, target)); n++) target = `${stamp(now)}-${n}-${file}`;
   writeFileSync(path.join(dir, target), bytes, { flag: 'wx' });
-  return { path: `${ATTACH_DIR}/${target}`, name: file, kind, size: bytes.length };
+  const warning = tooBigForAI(kind, bytes.length);
+  return { path: `${ATTACH_DIR}/${target}`, name: file, kind, size: bytes.length, ...(warning ? { warning } : {}) };
 }
 
 // Paths sent with a message must be attachments already saved in this project.
@@ -66,12 +72,13 @@ export function checkAttachments(cwd, list) {
     if (!existsSync(full) || !lstatSync(full).isFile()) throw new Error('attachment not found');
     const kind = KINDS[path.extname(m[1]).toLowerCase()];
     if (!kind) throw new Error('unsupported attachment type');
-    return { path: rel, name: String(item?.name ?? m[1]).slice(0, 80), kind, size: lstatSync(full).size };
+    const size = lstatSync(full).size, warning = tooBigForAI(kind, size);
+    return { path: rel, name: String(item?.name ?? m[1]).slice(0, 80), kind, size, ...(warning ? { warning } : {}) };
   });
 }
 
 // What the teams read: where each attachment is, and that they should open it themselves.
 export function attachmentNote(list) {
   if (!list?.length) return '';
-  return `\n[대장 첨부 · 작업 폴더 안 파일 · 직접 열어서 확인] ${list.map(a => `${a.path} (${KIND_L[a.kind] ?? a.kind})`).join(', ')}`;
+  return `\n[대장 첨부 · 작업 폴더 안 파일 · 직접 열어서 확인] ${list.map(a => `${a.path} (${KIND_L[a.kind] ?? a.kind}${a.warning ? ' · 매우 큼, 다 못 읽으면 대장에게 알릴 것' : ''})`).join(', ')}`;
 }
