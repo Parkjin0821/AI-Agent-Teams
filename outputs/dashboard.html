@@ -43,6 +43,10 @@ button{cursor:pointer}
 .tt.on{color:var(--text);background:var(--subtle)}
 .tt .n{margin-left:6px;font-family:var(--mono);font-size:11.5px;color:var(--attn);font-weight:600}
 .top-r{justify-self:end;display:flex;align-items:center;gap:10px;flex:none}
+.att-list{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.att{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--surface);max-width:100%}
+.att img{width:36px;height:36px;object-fit:cover;border-radius:4px}
+.att-img{border:0;padding:0;background:none;display:block}.att-img img{max-width:240px;max-height:180px;border-radius:8px;border:1px solid var(--line);display:block}
 .meter{display:flex;gap:8px;border:1px solid var(--line);background:none;border-radius:999px;padding:4px 10px;font-size:12px;color:var(--text-3);white-space:nowrap}
 .meter:hover{background:var(--subtle)}.meter b{color:var(--text);font-weight:600}.meter .mi.old b{color:var(--text-3)}.meter .mi.warn b{color:#b54708}.meter .mi.stop b{color:#b42318}
 @media(max-width:480px){.meter{display:none}}
@@ -539,6 +543,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
             <div class="{{x.cls}}">
               <div class="meta"><b>{{x.who}}</b><span class="small muted">{{x.sub}}</span><span class="small muted when">{{x.when}}</span></div>
               <div class="body">{{x.text}}</div>
+              <sc-if value="{{x.hasAtt}}"><div class="att-list"><sc-for list="{{x.atts}}" as="a"><sc-if value="{{a.isImage}}"><button class="att-img" onClick="{{a.open}}" title="{{a.name}} · 새 창에서 크게 보기"><img src="{{a.src}}" alt="{{a.name}}" loading="lazy"></button></sc-if><sc-if value="{{a.isText}}"><button class="att" onClick="{{a.open}}" title="새 창에서 보기"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></button></sc-if><sc-if value="{{a.isPdf}}"><span class="att"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></span></sc-if></sc-for></div></sc-if>
               <sc-if value="{{x.hasTools}}"><div class="tchecks"><sc-for list="{{x.tools}}" as="k"><div class="tcheck"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><span class="small"><b>{{k.name}}</b> · {{k.summary}}</span><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
               <sc-if value="{{x.hasAnswer}}"><details><summary>팀 답변 전체</summary><div class="answer">{{x.answer}}</div></details></sc-if>
             </div>
@@ -574,10 +579,13 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
             </div>
           </sc-if>
         </div>
-        <div class="composer">
+        <div class="composer" onDragover="{{w.onDragOver}}" onDrop="{{w.onDrop}}">
           <label class="sr" for="ws-compose">{{w.composerLabel}}</label>
-          <textarea class="ta" id="ws-compose" placeholder="{{w.composerPh}}" value="{{w.draft}}" onChange="{{w.onDraft}}"></textarea>
-          <div class="row-f composer-row"><span class="hint">{{w.composerHint}}</span><button class="btn pri sm" onClick="{{w.send}}" disabled="{{w.sendDisabled}}">{{w.sendL}}</button></div>
+          <sc-if value="{{w.hasAttach}}"><div class="att-list" aria-label="보낼 첨부"><sc-for list="{{w.attach}}" as="a"><span class="att"><sc-if value="{{a.isImage}}"><img src="{{a.src}}" alt="{{a.name}}"></sc-if><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span><button class="link small" onClick="{{a.remove}}" aria-label="{{a.name}} 첨부 빼기">빼기</button></span></sc-for></div></sc-if>
+          <textarea class="ta" id="ws-compose" placeholder="{{w.composerPh}}" value="{{w.draft}}" onChange="{{w.onDraft}}" onPaste="{{w.onPaste}}"></textarea>
+          <input id="ws-file" class="sr" type="file" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.md,.csv,.json,.log,image/*" onChange="{{w.onFiles}}" tabindex="-1" aria-hidden="true">
+          <div class="row-f composer-row"><button class="btn ghost sm" onClick="{{w.pickFiles}}" disabled="{{w.attachDisabled}}">{{w.attachL}}</button><span class="hint">{{w.composerHint}}</span><button class="btn pri sm" onClick="{{w.send}}" disabled="{{w.sendDisabled}}">{{w.sendL}}</button></div>
+          <p class="hint" style="margin: 6px 0 0">{{w.attachHint}}</p>
         </div>
       </section>
       <aside class="stack side" aria-label="계획과 진행">
@@ -1373,7 +1381,7 @@ class Component extends DCLogic {
       const lastRun = runsDesc.find((r) => r.status === 'finished' && r.goal.id === g.id);
       const qaChecked = wp.runs.some((r) => r.goal.id === g.id && r.team === 'qa' && r.status === 'finished' && r.outcome === 'completed' && !r.simulated);
       w = {
-        id: wp.id, name: wp.name, objective: g.objective, stL: st.l, pillCls: pillCls(st.tone), isTeam: isTeam,
+        id: wp.id, name: wp.name, objective: g.objective.replace(/\[대장 첨부 · 작업 폴더 안 파일 · 직접 열어서 확인\] [^\n]*/g, '(첨부 파일)'), stL: st.l, pillCls: pillCls(st.tone), isTeam: isTeam,
         canStart: startable, startL: g.round ? '이어서 시작' : '시작',
         start: () => { if (this.confirmStart(wp.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '시작했습니다 · 기획팀부터 진행합니다'); },
         canStop: isTeam && g.autoRun && RUNNING_LIKE.includes(g.status),
@@ -1406,8 +1414,8 @@ class Component extends DCLogic {
           if (enabled && !window.confirm('이 프로젝트 안에서 저위험 후속 제안을 최대 2건 자동 실행하도록 허용할까요? 설치·외부 게시·결제·자격증명·삭제는 허용하지 않습니다.')) return;
           this.act(this.api('PUT', '/api/goals/' + g.id + '/autonomy', { enabled: enabled, remaining: enabled ? 2 : 0 }), '자율 후속 작업 정책을 변경했습니다');
         },
-        sendMessage: () => this.api('POST', '/api/goals/' + g.id + '/messages', { text: this.state.drafts[g.id] || '' })
-          .then(() => { const d = Object.assign({}, this.state.drafts); d[g.id] = ''; this.setState({ drafts: d }); return this.refresh(); })
+        sendMessage: () => this.api('POST', '/api/goals/' + g.id + '/messages', { text: this.state.drafts[g.id] || '', attachments: this.pendingAttach(g.id) })
+          .then(() => { const d = Object.assign({}, this.state.drafts); d[g.id] = ''; this.setState({ drafts: d }); this.clearAttach(g.id); return this.refresh(); })
           .catch(e => this.say(korErr(e.message))),
         hasProposal: !!(g.proposal && g.proposal.status === 'pending'), proposal: g.proposal ? g.proposal.items : [],
         accept: () => { if (this.confirmStart(wp.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/accept', {}), '개선을 시작했습니다'); },
@@ -1469,6 +1477,13 @@ class Component extends DCLogic {
       };
       w.logCount = w.log.length;
 
+      // 첨부 한 개를 보여 줄 모양: 이미지는 작은 그림, 나머지는 이름표 (PDF는 미리보기 없음)
+      const attView = (pid, a) => {
+        const src = '/api/projects/' + encodeURIComponent(pid) + '/preview?path=' + encodeURIComponent(a.path);
+        const kb = a.size ? (a.size >= 1048576 ? (a.size / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(a.size / 1024)) + 'KB') : '';
+        return { name: a.name, sizeL: kb, isImage: a.kind === 'image', isText: a.kind === 'text', isPdf: a.kind === 'pdf', src: src,
+          open: () => { if (a.kind !== 'pdf') window.open(src, '_blank', 'noopener'); } };
+      };
       // ── 대화 스레드: 대장 메시지 · 팀 보고 · 감시 에이전트 차단을 시간순 한 흐름으로 ──
       const byRunId = {}; w.activity.forEach((a, i) => { byRunId[runsDesc[i].id] = a; });
       const items = [];
@@ -1476,7 +1491,8 @@ class Component extends DCLogic {
         const msgs = goal.messages && goal.messages.length ? goal.messages : [{ role: 'user', text: goal.objective, at: goal.createdAt }];
         msgs.forEach((mm) => items.push({ at: mm.at, cls: mm.role === 'user' ? 'msg me' : 'msg team',
           who: mm.role === 'user' ? '대장' : askedBy(mm.text), sub: ({ answer: '답변', approval: '승인', question: '질문' })[mm.kind] || '',
-          text: mm.role === 'user' ? mm.text : stripAsker(mm.text) }));
+          text: mm.role === 'user' ? (mm.text || (mm.attachments && mm.attachments.length ? '첨부 ' + mm.attachments.length + '개' : '')) : stripAsker(mm.text),
+          hasAtt: !!(mm.attachments && mm.attachments.length), atts: (mm.attachments || []).map((a) => attView(wp.id, a)) }));
       });
       runsDesc.filter((r) => r.status !== 'running').forEach((r) => {
         const a = byRunId[r.id];
@@ -1487,7 +1503,7 @@ class Component extends DCLogic {
       ((sen && sen.entries) || []).filter((e) => e.decision === 'deny').forEach((e) => items.push({ at: e.at, cls: 'msg sys stop', who: '감시 에이전트',
         sub: TEAM_NAME[e.team] || '', text: '막음 · ' + e.reason + (e.target ? ' · ' + e.target : '') }));
       items.sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
-      w.thread = items.map((x) => Object.assign({ hasTools: false, tools: [], hasAnswer: false, answer: '' }, x, { when: fmt(x.at) }));
+      w.thread = items.map((x) => Object.assign({ hasTools: false, tools: [], hasAnswer: false, answer: '', hasAtt: false, atts: [] }, x, { when: fmt(x.at) }));
       w.working = g.status === 'running';
       w.workingL = (TEAM_NAME[team.step] || '팀') + ' 작업 중…';
       w.pendingCriteria = g.criteriaApprovalPending ? g.completionCriteria : [];
@@ -1502,6 +1518,23 @@ class Component extends DCLogic {
       w.sendL = w.hasQuestion ? '답변 보내기' : '보내기';
       w.sendDisabled = busy || (!isTeam && !w.hasQuestion);
       w.send = w.hasQuestion ? w.sendAnswer : w.sendMessage;
+      const pend = (s.attach || {})[g.id] || [];
+      const canAttach = !w.sendDisabled;
+      w.hasAttach = pend.length > 0;
+      w.attach = pend.map((a) => Object.assign(attView(wp.id, a), { remove: () => {
+        const cur = Object.assign({}, this.state.attach); cur[g.id] = (cur[g.id] || []).filter((x) => x.path !== a.path); this.setState({ attach: cur }); } }));
+      w.attachBusy = !!s.attachBusy; w.attachL = s.attachBusy ? '올리는 중…' : '파일 첨부';
+      w.attachDisabled = !canAttach || !!s.attachBusy;
+      w.pickFiles = () => { const el = document.getElementById('ws-file'); if (el) el.click(); };
+      w.onFiles = (e) => { const files = e.target.files; this.addAttachments(g.id, wp.id, files).then(() => { e.target.value = ''; }); };
+      w.onPaste = (e) => {
+        const files = [].slice.call((e.clipboardData && e.clipboardData.files) || []);
+        if (!files.length || !canAttach) return;
+        e.preventDefault(); this.addAttachments(g.id, wp.id, files);
+      };
+      w.onDragOver = (e) => { if (canAttach && e.dataTransfer && [].slice.call(e.dataTransfer.types || []).includes('Files')) e.preventDefault(); };
+      w.onDrop = (e) => { if (!canAttach || !e.dataTransfer || !e.dataTransfer.files.length) return; e.preventDefault(); this.addAttachments(g.id, wp.id, e.dataTransfer.files); };
+      w.attachHint = canAttach ? '캡처는 입력창에 붙여넣기(Ctrl+V), 파일은 끌어 놓기도 됩니다 · 이미지·PDF·글 파일, 10MB까지' : '';
       // ── 할 일: 지금 단계부터 이번 순환이 끝날 때까지 ──
       const STEP_WHAT = { plan: '다음 작업 결정', research: '조사', dev: '구현', design: '디자인', security: '보안 검토', policy: '정책 검토', qa: '완료 조건 확인' };
       const stepNow = team.step || 'plan';
@@ -1902,10 +1935,37 @@ class Component extends DCLogic {
   }
   sendAnswer(goalId) {
     const text = (this.state.drafts[goalId] || '').trim();
-    if (!text) { this.say('답변을 적어 주세요.'); return; }
-    this.act(this.api('POST', '/api/goals/' + goalId + '/answer', { text: text }).then((v) => {
-      const d = Object.assign({}, this.state.drafts); delete d[goalId]; this.setState({ drafts: d }); return v;
+    const attachments = this.pendingAttach(goalId);
+    if (!text && !attachments.length) { this.say('답변을 적어 주세요.'); return; }
+    this.act(this.api('POST', '/api/goals/' + goalId + '/answer', { text: text, attachments: attachments }).then((v) => {
+      const d = Object.assign({}, this.state.drafts); delete d[goalId]; this.setState({ drafts: d }); this.clearAttach(goalId); return v;
     }), '답변을 보냈습니다 · 기획팀이 이어서 계획합니다');
+  }
+  // 첨부: 파일 선택·캡처 붙여넣기·끌어 놓기 → 프로젝트 폴더 attachments/ 에 저장해 두고, 보낼 때 메시지와 함께 팀에게 전달
+  pendingAttach(goalId) { return ((this.state.attach || {})[goalId] || []).map((a) => ({ path: a.path, name: a.name })); }
+  clearAttach(goalId) { const cur = Object.assign({}, this.state.attach); delete cur[goalId]; this.setState({ attach: cur }); }
+  async addAttachments(goalId, projectId, files) {
+    const list = [].slice.call(files || []).filter((f) => f && f.size !== undefined);
+    if (!list.length) return;
+    const have = ((this.state.attach || {})[goalId] || []).length;
+    if (have + list.length > 10) { this.say('한 메시지에 10개까지 첨부할 수 있습니다'); return; }
+    this.setState({ attachBusy: true });
+    const added = [];
+    for (const f of list) {
+      // 붙여넣은 캡처는 이름이 "image.png"라서 알아보기 쉽게 바꾼다 (서버가 시각을 앞에 붙임)
+      const name = !f.name || /^image\.(png|jpe?g|gif|webp)$/i.test(f.name) ? '캡처.' + ((f.type || 'image/png').split('/')[1] || 'png').replace('jpeg', 'jpg') : f.name;
+      if (f.size > 10 * 1024 * 1024) { this.say(name + ' · 10MB보다 커서 첨부하지 못했습니다'); continue; }
+      try {
+        const res = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/attachments?name=' + encodeURIComponent(name),
+          { method: 'POST', headers: { 'content-type': f.type || 'application/octet-stream' }, body: f });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || String(res.status));
+        added.push(Object.assign({ projectId: projectId }, data));
+      } catch (e) { this.say(name + ' · 첨부 실패 · ' + korErr(e.message)); }
+    }
+    const cur = Object.assign({}, this.state.attach); cur[goalId] = (cur[goalId] || []).concat(added);
+    this.setState({ attach: cur, attachBusy: false });
+    if (added.length) this.say('첨부했습니다 (' + added.length + '개) · 보내기를 누르면 팀에게 전달됩니다');
   }
   confirmCriterion(goalId, criterion) {
     const note = window.prompt('‘' + criterion + '’ 조건을 대장이 직접 확인한 것으로 기록합니다.\n확인한 내용을 짧게 적어 주세요 (비워도 됩니다).', '');

@@ -12,6 +12,7 @@ import { GoalScheduler } from './scheduler.js';
 import { SandboxRunner } from './sandbox.js';
 import { TEAMS } from './teams.js';
 import { Digests } from './digest.js';
+import { checkAttachments, MAX_ATTACHMENT, saveAttachment } from './attachments.js';
 import { toolkitView } from './toolkit.js';
 import { ProjectWorkspaces, validateProjectId } from './workspaces.js';
 import { readUsage, recordRateLimits } from './usage.js';
@@ -125,6 +126,13 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   };
   const testConsoleBusy = new Set();
 
+  // Attachments named in a message must already be saved in that goal's project folder.
+  const attachmentsFor = (goalId, list) => {
+    if (list === undefined || list === null || (Array.isArray(list) && !list.length)) return [];
+    const goal = store.getGoal(goalId);
+    if (!goal) throw new Error('goal not found');
+    return checkAttachments(existingWorkspace(goal.projectId), list);
+  };
   const routes = [
     ['GET', /^\/api\/skills$/, () => ({items:skills.list(),discovery:store.getSettings()['skill.discovery'] || null})],
     ['POST', /^\/api\/skills$/, (m,body) => skills.register(body)],
@@ -218,11 +226,11 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       // New projects start on each app's default model; 대장 picks a model per team in the project settings.
       return [201, goal];
     }],
-    ['POST', /^\/api\/goals\/([^/]+)\/messages$/, (m, body) => scheduler.message(m[1], body.text)],
+    ['POST', /^\/api\/goals\/([^/]+)\/messages$/, (m, body) => scheduler.message(m[1], body.text, attachmentsFor(m[1], body.attachments))],
     ['PUT', /^\/api\/goals\/([^/]+)\/autonomy$/, (m, body) => scheduler.setAutonomy(m[1], body)],
     ['POST', /^\/api\/goals\/([^/]+)\/start$/, m => scheduler.start(m[1])],
     ['POST', /^\/api\/goals\/([^/]+)\/stop$/, m => scheduler.stop(m[1])],
-    ['POST', /^\/api\/goals\/([^/]+)\/answer$/, (m, body) => scheduler.answer(m[1], body.text)],
+    ['POST', /^\/api\/goals\/([^/]+)\/answer$/, (m, body) => scheduler.answer(m[1], body.text, attachmentsFor(m[1], body.attachments))],
     ['POST', /^\/api\/goals\/([^/]+)\/proposal\/accept$/, m => [201, scheduler.acceptProposal(m[1])]],
     ['POST', /^\/api\/goals\/([^/]+)\/proposal\/dismiss$/, m => scheduler.dismissProposal(m[1])],
     ['POST', /^\/api\/goals\/([^/]+)\/confirm$/, (m, body) => scheduler.confirmCriterion(m[1], String(body.criterion ?? ''), body.note)],
@@ -334,6 +342,13 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       if (!['GET','HEAD','OPTIONS'].includes(request.method) && request.headers['sec-fetch-site'] && !origin)
         return sendJson(response, 403, { error: 'browser write requires Origin' });
       const url = new URL(request.url, 'http://localhost');
+      // 대장's attachment upload: the raw file (a screenshot can exceed the 1MB JSON limit), saved under attachments/.
+      const uploadMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/attachments$/);
+      if (request.method === 'POST' && uploadMatch) {
+        const cwd = existingWorkspace(uploadMatch[1]);
+        const bytes = await readRaw(request, MAX_ATTACHMENT);
+        return sendJson(response, 201, saveAttachment(cwd, url.searchParams.get('name'), bytes, clock.now()));
+      }
       const artifactMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/preview$/);
       if (request.method === 'GET' && artifactMatch) {
         const artifact = readArtifact(existingWorkspace(artifactMatch[1]), url.searchParams.get('path'));
@@ -391,6 +406,17 @@ async function readJson(request) {
     chunks.push(chunk);
   }
   return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+}
+
+async function readRaw(request, limit) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > limit) throw new Error('attachment is larger than 10MB');
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 }
 
 function streamEvents(request, response, store) {

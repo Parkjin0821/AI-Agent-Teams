@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { attachmentNote } from './attachments.js';
 import { validateCriteria } from './domain.js';
 import { resolveModel, validateExecutor } from './models.js';
 import { DEFAULT_POLICY } from './policy.js';
@@ -125,29 +126,32 @@ export class GoalScheduler {
   }
 
   // 대장's answer to the planning team's question; planning continues with it.
-  answer(goalId, text) {
+  answer(goalId, text, attachments = []) {
     const goal = this.store.getGoal(goalId);
     if (goal?.criteriaApprovalPending) throw new Error('completion criteria approval required');
     if (!goal || goal.reason !== 'needs_decision') throw new Error('goal is not waiting for an answer');
-    const reply = String(text || '').trim().slice(0, 1000);
-    if (!reply) throw new Error('answer is empty');
+    const typed = String(text || '').trim().slice(0, 1000);
+    if (!typed && !attachments.length) throw new Error('answer is empty');
+    const reply = (typed || '(첨부 파일 참고)') + attachmentNote(attachments);
     const at = iso(this.clock.now());
     // The question and 대장's answer stay in the project conversation, not only in the planning feedback.
     const messages = [...(goal.messages ?? []), { role: 'team', kind: 'question', text: String(goal.question ?? ''), at },
-      { role: 'user', kind: 'answer', text: reply, at }].slice(-100);
+      { role: 'user', kind: 'answer', text: typed, ...(attachments.length ? { attachments } : {}), at }].slice(-100);
     this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, question: null, autoRun: true, nextRunAt: at, messages,
       team: { ...goal.team, step: 'plan', feedback: `질문 · ${goal.question}\n대장 답변 · ${reply}` } });
     void this.store.emit({ type: 'goal.answered', goalId });
     return goal;
   }
 
-  message(goalId, text) {
+  // attachments: already saved in the project's attachments/ folder (checked by the caller); the teams get their paths.
+  message(goalId, text, attachments = []) {
     const goal = this.store.getGoal(goalId);
     if (!goal || goal.kind !== 'team') throw new Error('team project not found');
     if (goal.status === GoalStatus.RUNNING) throw new Error('wait for the current checkpoint');
-    const reply = String(text ?? '').trim();
-    if (!reply || reply.length > 4000) throw new Error('message must be 1 to 4000 characters');
-    const messages = [...(goal.messages ?? []), { role: 'user', text: reply, at: iso(this.clock.now()) }].slice(-100);
+    const typed = String(text ?? '').trim();
+    if ((!typed && !attachments.length) || typed.length > 4000) throw new Error('message must be 1 to 4000 characters');
+    const reply = (typed || '(첨부 파일 참고)') + attachmentNote(attachments);
+    const messages = [...(goal.messages ?? []), { role: 'user', text: typed, ...(attachments.length ? { attachments } : {}), at: iso(this.clock.now()) }].slice(-100);
     const held = [GoalStatus.PAUSED, GoalStatus.RECOVERY_REQUIRED, GoalStatus.BLOCKED].includes(goal.status);
     return this.update(goal, { conversation: true, messages, completionCriteria: [], criteriaApprovalPending: false, evidence: [], confirmed: [],
       objective: `${goal.objective}\n대장 추가 요청: ${reply}`.slice(-16000), status: held ? goal.status : GoalStatus.SCHEDULED, reason: held ? goal.reason : null,

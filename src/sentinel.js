@@ -14,7 +14,7 @@ const SECRET = [
   /\bgithub_pat_[A-Za-z0-9_]{50,}/, /\bsk-ant-[A-Za-z0-9_-]{20,}/, /\bsk-(proj-)?[A-Za-z0-9_-]{32,}/, /\bxox[baprs]-[A-Za-z0-9-]{10,}/,
   /\bAIza[0-9A-Za-z_-]{35}\b/,
 ];
-const hasSecret = text => typeof text === 'string' && SECRET.some(re => re.test(text));
+export const hasSecret = text => typeof text === 'string' && SECRET.some(re => re.test(text));
 const FORBIDDEN_NAMES = /^(\.claude|\.codex|\.mcp\.json|CLAUDE(\.local)?\.md|AGENTS(\.override)?\.md|\.env(\..+)?|\.git)$/i;
 const RISKY_CONNECTOR = /(delete|remove|trash|share|publish|send|invite|transfer|purchase|payment|pay_|checkout|upload_to|post_)/i;
 const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
