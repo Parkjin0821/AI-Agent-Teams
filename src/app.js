@@ -11,6 +11,7 @@ import { PersistentStore } from './persistent-store.js';
 import { GoalScheduler } from './scheduler.js';
 import { SandboxRunner } from './sandbox.js';
 import { TEAMS } from './teams.js';
+import { Digests } from './digest.js';
 import { toolkitView } from './toolkit.js';
 import { ProjectWorkspaces, validateProjectId } from './workspaces.js';
 import { readUsage, recordRateLimits } from './usage.js';
@@ -41,6 +42,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     add: team => store.setSetting(`trust.count.${team}`, setting(`trust.count.${team}`, 0) + 1),
     // 대장 decides this kind of work has earned trust: later results continue without a review.
     complete: team => store.setSetting(`trust.count.${team}`, Math.max(setting(`trust.count.${team}`, 0) + 1, setting('trust.required', 3))) };
+  const digests = new Digests({ store, approvals, clock, setting });
   const sentinelLog = path.join(dataDir, 'sentinel.jsonl');
   const workspaces = new ProjectWorkspaces(projectsDir);
   const autoSave = new AutoSave({ store, workspaces, transport: saveTransport, clock });
@@ -247,6 +249,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       return { projectId, ...removed, filesDeleted };
     }],
     ['GET', /^\/api\/model-choices$/, () => modelChoices.get()],
+    // ── 정기 요약 (엔진이 기록으로 작성, 모델 호출 없음) ──
+    ['GET', /^\/api\/digests$/, () => ({ items: digests.list(), schedule: digests.schedule() })],
+    ['POST', /^\/api\/digests$/, (m, body) => [201, digests.make(String(body.kind ?? 'daily'))]],
     // ── 승인함: 감시 에이전트 승인 요청 · 결과 확인(신뢰 쌓기) · 기억 제안을 한곳에 ──
     ['GET', /^\/api\/inbox$/, () => {
       const goals = store.listGoals();
@@ -360,12 +365,12 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   });
 
   const timer = autoTick ? setInterval(async () => {
-    try { if (guarded) await refreshUsage(); await scheduler.tick({ autoOnly: executing }); await autoSave.tick(); }
+    try { if (guarded) await refreshUsage(); await scheduler.tick({ autoOnly: executing }); await autoSave.tick(); digests.tick(); }
     catch (error) { console.error('tick failed:', error.message); }
   }, tickMs) : null;
   timer?.unref();
   return {
-    server, store, scheduler, registry, orchestrator, workspaces, autoSave,
+    server, store, scheduler, registry, orchestrator, workspaces, autoSave, digests,
     close: () => new Promise(resolve => { if (timer) clearInterval(timer); server.close(() => { store.close(); resolve(); }); }),
   };
 }

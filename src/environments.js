@@ -46,6 +46,10 @@ export const SETTINGS = Object.freeze({
   'sentinel.web': { type: 'string', default: 'ask', values: ['ask', 'open'] },
   // 신뢰 쌓기: how many results of each kind of work 대장 reviews before it runs on its own (0 = off).
   'trust.required': { type: 'number', default: 3, min: 0, max: 10 },
+  // 정기 요약: written by the engine from its own records (no model call). Time is local "HH:MM".
+  'digest.time': { type: 'string', default: '09:00', pattern: /^([01]\d|2[0-3]):[0-5]\d$/ },
+  'digest.daily': { type: 'boolean', default: true },
+  'digest.weekly': { type: 'string', default: 'mon', values: ['off', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] },
 });
 
 export function validateSetting(key, value) {
@@ -54,6 +58,7 @@ export function validateSetting(key, value) {
   if (typeof value !== spec.type) throw new Error(`${key} must be a ${spec.type}`);
   if (spec.type === 'number' && (!Number.isInteger(value) || value < spec.min || value > spec.max)) throw new Error(`${key} must be a whole number from ${spec.min} to ${spec.max}`);
   if (spec.values && !spec.values.includes(value)) throw new Error(`${key} must be one of ${spec.values.join(', ')}`);
+  if (spec.pattern && !spec.pattern.test(value)) throw new Error(`${key} has the wrong format`);
   if (key === 'design.higgsfield' && value === true) throw new Error('subscription-only: paid image credits are blocked');
   return value;
 }

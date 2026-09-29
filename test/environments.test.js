@@ -61,7 +61,11 @@ test('every environment gets an honest status, billing and who uses it', () => {
 });
 
 test('only known settings with the right type are accepted', () => {
-  assert.deepEqual(Object.keys(SETTINGS), ['design.figma', 'design.canva', 'design.higgsfield', 'tools.npmAudit', 'limits.maxRoundsPerDay', 'sentinel.web', 'trust.required']);
+  assert.deepEqual(Object.keys(SETTINGS), ['design.figma', 'design.canva', 'design.higgsfield', 'tools.npmAudit', 'limits.maxRoundsPerDay', 'sentinel.web', 'trust.required',
+    'digest.time', 'digest.daily', 'digest.weekly']);
+  assert.equal(validateSetting('digest.time', '18:30'), '18:30');
+  for (const bad of ['9:00', '24:00', '18:60', 'noon']) assert.throws(() => validateSetting('digest.time', bad), /wrong format/, bad);
+  assert.throws(() => validateSetting('digest.weekly', 'monday'), /one of off, mon/);
   assert.equal(validateSetting('sentinel.web', 'open'), 'open');
   assert.throws(() => validateSetting('sentinel.web', 'anything'), /one of ask, open/);
   assert.equal(validateSetting('trust.required', 0), 0, 'trust reviews can be switched off');
