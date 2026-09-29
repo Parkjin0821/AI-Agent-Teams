@@ -175,6 +175,9 @@ Claude Code는 일반 구현, Codex는 중요·복잡한 변경과 검토를 담
 - 설치: `npm install kordoc@4.16.1 --prefix tools/kordoc --omit=optional --ignore-scripts` (tools/는 .gitignore). 검토: MIT, npm audit 0건, 설치 스크립트 원하는 패키지 없음, 의존성 라이선스 MIT·Apache-2.0·BSD·ISC 계열, 46MB. 선택 부품(sharp·PDF·OCR·AI 모델)은 제외 → OCR·PDF 변환은 안 됨(PDF는 Claude가 직접 읽음).
 - 격리 시험: 샘플 HWPX(제목·목록·표·코드)를 Codex 샌드박스에서 Markdown으로 변환, 표 보존 확인. 샌드박스 안 네트워크 차단(EACCES) 확인.
 - 연결(`src/doc-convert.js`): 대화에 HWP·HWPX·DOCX·XLSX를 첨부하면(내용이 ZIP/HWP 형식인지 확인) 엔진이 샌드박스에서 `kordoc <파일> -o <파일>.md --no-images --silent` 실행(모델 호출 없음, 모의 실행 모드에서도 동작). 변환본은 `attachments/<파일>.md`, 대화에 "변환본 보기", 팀 지시에 "변환본 …md를 읽을 것". 변환 실패는 화면에 알리고 팀에게 "못 읽으면 대장에게 알릴 것".
+- **실제 AI 확인 (2026-09-29 18:49~18:51, 4314 실제 실행, 프로젝트 `p-mumhuxuaasp`)**: 대화 메시지에 캡처 PNG(버튼 글자·색·코드)와 HWPX(표의 관리 번호·합계)를 첨부, 답은 파일 안에만 둠.
+  기획팀이 대화에서 완료 조건 6개 도출(변환본 경로 사용, 답 노출 없음) → 대장 승인 → 개발팀이 result.md 작성. 5개 항목 모두 정확(변경 내용 저장 · 초록색 · IMG-5390 · DOC-2718 · 850,000원).
+  실행 3회 모두 Claude Opus 5.5, 약 50초. 감시 에이전트 기록: result.md 쓰기 1건 허용, 차단·승인 요청 없음. 첨부 파일은 수정되지 않음. 신뢰 쌓기(개발팀 1/3)에서 대기 중.
 - 다시 설치하려면 위 명령 그대로. kordoc의 스킬(`gongmunseo` 등)·MCP 서버·서식 채우기(fill)·HWPX 생성(generate)은 연결하지 않음(필요하면 별도 승인). kordoc 실제 스킬(`gongmunseo`)은 외부 프로그램(npx kordoc)이 필요한 도구형이라 스킬로 켜지 않고 엔진 변환 도구로 연결 예정(설치 승인 필요).
 
 ## 남은 작업 (2026-09-28 기준)
