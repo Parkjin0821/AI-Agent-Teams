@@ -40,12 +40,15 @@ export const SETTINGS = Object.freeze({
   'design.canva': { type: 'boolean', default: false },
   'design.higgsfield': { type: 'boolean', default: false },
   'tools.npmAudit': { type: 'boolean', default: false },
+  // Steps per project per day (all projects). Usage stops (5h 20% / weekly 10%) still apply on top.
+  'limits.maxRoundsPerDay': { type: 'number', default: 10, min: 1, max: 100 },
 });
 
 export function validateSetting(key, value) {
   const spec = SETTINGS[key];
   if (!spec) throw new Error(`unknown setting: ${key}`);
   if (typeof value !== spec.type) throw new Error(`${key} must be a ${spec.type}`);
+  if (spec.type === 'number' && (!Number.isInteger(value) || value < spec.min || value > spec.max)) throw new Error(`${key} must be a whole number from ${spec.min} to ${spec.max}`);
   if (key === 'design.higgsfield' && value === true) throw new Error('subscription-only: paid image credits are blocked');
   return value;
 }

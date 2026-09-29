@@ -6,12 +6,19 @@ import { parsePlan } from '../src/teams.js';
 import { enqueueRequests, normalizeRequests } from '../src/team-governance.js';
 test('human criterion evidence cannot bypass team verification', () => {
   const goals = new Map();
-  const store = { listGoals: () => [...goals.values()], getGoal: id => goals.get(id), saveGoal: g => (goals.set(g.id,g),g), emit: async () => {} };
+  const runs = [];
+  const store = { listGoals: () => [...goals.values()], getGoal: id => goals.get(id), saveGoal: g => (goals.set(g.id,g),g), emit: async () => {},
+    listRuns: () => runs };
   const scheduler = new GoalScheduler({ store, runner: {} });
   const g = scheduler.addGoal({ kind: 'team', projectId: 'regression', objective: 'test', completionCriteria: ['checked'] });
-  scheduler.confirmCriterion(g.id, 'checked');
-  assert.notEqual(g.status, 'verified');
-  assert.equal(g.confirmed.length, 1);
+  // Before the verification team has looked, 대장 cannot mark a team criterion done.
+  assert.throws(() => scheduler.confirmCriterion(g.id, 'checked'), /verification team has not checked/);
+  runs.push({ team: 'qa', status: 'finished', outcome: 'completed', simulated: true });
+  assert.throws(() => scheduler.confirmCriterion(g.id, 'checked'), /verification team has not checked/, 'a simulated check does not count');
+  runs.push({ team: 'qa', status: 'finished', outcome: 'completed', simulated: false });
+  const confirmed = scheduler.confirmCriterion(g.id, 'checked');
+  assert.notEqual(confirmed.status, 'verified');
+  assert.equal(store.getGoal(g.id).confirmed.length, 1);
 });
 test('coding tasks require code capability even without model-declared requirements', () => {
   const catalog = [{ id: 'text', executor: 'codex', tier: 1, efforts: ['medium'], capabilities: ['text'],

@@ -15,19 +15,23 @@ import { toolkitView } from './toolkit.js';
 import { ProjectWorkspaces, validateProjectId } from './workspaces.js';
 import { readUsage, recordRateLimits } from './usage.js';
 import { projectRecord } from './records.js';
-import { subscriptionCapacity } from './subscription-safety.js';
+import { capacityBasis, subscriptionCapacity } from './subscription-safety.js';
 import { artifactList, readArtifact } from './artifacts.js';
 import { detectTests } from './checks.js';
 import { npmCommand } from './sandbox.js';
 import { AutoSave } from './auto-save.js';
+import { ModelChoices } from './model-choices.js';
+import { SkillLibrary } from './skills.js';
 
 const MAX_BODY = 1_000_000;
 const iso = ms => new Date(ms).toISOString();
 
 export function createApp({ root, dataDir, projectsDir, enableExec = false, clock = { now: () => Date.now() }, tickMs = null,
   adapter: injectedAdapter = null, monitor: injectedMonitor = null, sandbox: injectedSandbox = null, detectEnvironments = false,
-  enforceSafety = false, usageReader = readUsage, saveTransport = undefined }) {
+  enforceSafety = false, usageReader = readUsage, saveTransport = undefined, modelChoices = new ModelChoices({ clock }) }) {
   const store = new PersistentStore({ dataDir });
+  const skills = new SkillLibrary({ store });
+  const sentinelLog = path.join(dataDir, 'sentinel.jsonl');
   const workspaces = new ProjectWorkspaces(projectsDir);
   const autoSave = new AutoSave({ store, workspaces, transport: saveTransport, clock });
   const adapter = injectedAdapter ?? new CliAgentAdapter({ enabled: enableExec, cwd: root });
@@ -50,7 +54,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   let quota = [], quotaCheckedAt = 0;
   const refreshUsage = async () => {
     await monitor?.refreshAuthentication?.();
-    quota = await usageReader(dataDir); quotaCheckedAt = Date.now(); return quota;
+    quota = await usageReader(dataDir); quotaCheckedAt = Date.now();
+    for (const item of quota.items ?? []) item.basis = capacityBasis(item);
+    return quota;
   };
   const guarded = executing && (!injectedAdapter || enforceSafety);
   const capacity = executor => {
@@ -63,6 +69,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   };
   const scheduler = new GoalScheduler({ store, clock, registry,
     capacity: guarded ? capacity : null,
+    dailyCap: () => store.getSettings()['limits.maxRoundsPerDay'],
     capabilities: team => ({ 'claude-code': ['text','code', ...(TEAMS[team]?.web ? ['web'] : []),
       ...(toolsFor(team).connectors?.length ? ['connectors'] : [])], codex: ['text','code'] }),
     runner: createGoalRunner({ adapter, workspaces, store, toolsFor, sandbox, settings: () => store.getSettings(),
@@ -73,7 +80,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
           await store.emit({ type: 'usage.storage_failed', message: '한도 상태 저장 실패 · 실제 실행 차단' });
           throw error;
         }
-      }, catalog: () => registry.catalog() }) });
+      }, catalog: () => registry.catalog(),
+      // 감시 에이전트: checks every Claude tool call before it runs (see src/sentinel.js).
+      sentinel: { script: path.join(root, 'scripts', 'sentinel-hook.mjs'), log: sentinelLog } }) });
   const teamsView = () => {
     const settings = store.getSettings();
     const tools = toolkitView(monitor?.snapshot ?? null, settings, environmentView(monitor?.snapshot ?? null, settings));
@@ -89,7 +98,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     }
     return {
       mode: executing ? 'execution' : 'simulation', autoTick, autoScope, now: iso(clock.now()),
-      limits: { maxRoundsPerDay: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
+      limits: { maxRoundsPerDay: scheduler.dailyLimit(), maxRoundsPerDayDefault: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
       projects: [...byProject].map(([id, goals]) => ({ id, policy: registry.getPolicy(`project:${id}`), goals, autoSave: autoSave.view(id) })),
       catalog: registry.catalog(), events: store.recentEvents(200),
       limitStorageFailed: store.getSettings()['safety.limitStorageFailed'] === true,
@@ -103,6 +112,14 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   const testConsoleBusy = new Set();
 
   const routes = [
+    ['GET', /^\/api\/skills$/, () => ({items:skills.list(),discovery:store.getSettings()['skill.discovery'] || null})],
+    ['POST', /^\/api\/skills$/, (m,body) => skills.register(body)],
+    ['POST', /^\/api\/skills\/draft$/, (m,body) => skills.draft(body)],
+    ['POST', /^\/api\/skills\/discover$/, (m,body) => skills.discover(body)],
+    ['POST', /^\/api\/skills\/import$/, (m,body) => skills.importGitHub(body)],
+    ['POST', /^\/api\/skills\/([a-f0-9]{64})\/review$/, (m,body) => skills.review(m[1],body)],
+    ['POST', /^\/api\/skills\/([a-f0-9]{64})\/activate$/, (m,body) => skills.activate(m[1],body)],
+    ['POST', /^\/api\/skills\/([a-f0-9]{64})\/disable$/, m => skills.disable(m[1])],
     ['GET', /^\/api\/projects\/([^/]+)\/auto-save$/, m => { existingWorkspace(m[1]); return autoSave.view(m[1]); }],
     ['PUT', /^\/api\/projects\/([^/]+)\/auto-save$/, (m, body) => autoSave.configure(validateProjectId(m[1]), body)],
     ['POST', /^\/api\/projects\/([^/]+)\/auto-save\/check$/, async m => {
@@ -143,7 +160,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       const g = store.getGoal(m[1]);
       if (body.confirm !== true || !g?.criteriaApprovalPending || g.status !== 'review_required') throw new Error('criteria approval unavailable');
       if (JSON.stringify(body.criteria) !== JSON.stringify(g.completionCriteria)) throw new Error('completion criteria changed; review again');
-      scheduler.update(g, { criteriaApprovalPending: false });
+      const at = new Date(clock.now()).toISOString();
+      scheduler.update(g, { criteriaApprovalPending: false, messages: [...(g.messages ?? []),
+        { role: 'user', kind: 'approval', text: `완료 조건 ${g.completionCriteria.length}개를 승인했습니다.`, at }].slice(-100) });
       void store.emit({ type: 'goal.criteria_approved', goalId: g.id, by: '대장' });
       return scheduler.resume(g.id);
     }],
@@ -162,7 +181,16 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     ['POST', /^\/api\/models$/, (m, body) => [201, registry.registerModel(body)]],
     ['POST', /^\/api\/models\/attest$/, (m, body) => registry.attestModel(body.executor, body.id, body)],
     ['GET', /^\/api\/projects\/([^/]+)\/records$/, m => projectRecord(store, validateProjectId(m[1]))],
-    ['PUT', /^\/api\/settings$/, (m, body) => store.setSetting(String(body.key), validateSetting(String(body.key), body.value))],
+    ['PUT', /^\/api\/settings$/, (m, body) => {
+      const key = String(body.key);
+      const settings = store.setSetting(key, validateSetting(key, body.value));
+      // A changed daily limit is re-checked now: projects held until midnight try again at the next tick
+      // (and go back to waiting if they are still over the new limit).
+      if (key === 'limits.maxRoundsPerDay') {
+        for (const g of store.listGoals().filter(g => g.reason === 'daily_cap')) scheduler.update(g, { reason: null, nextRunAt: new Date(clock.now()).toISOString() });
+      }
+      return settings;
+    }],
     ['POST', /^\/api\/tasks$/, (m, body) => [202, orchestrator.submit(body)]],
     ['POST', /^\/api\/tasks\/([^/]+)\/approve$/, m => orchestrator.approve(m[1])],
     ['POST', /^\/api\/goals$/, (m, body) => [201, scheduler.addGoal(body)]],
@@ -173,7 +201,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       const goal = scheduler.addGoal({
       projectId: `p-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, kind: 'team',
       title: body.title, objective: body.objective, conversation: body.conversation === true, completionCriteria: body.completionCriteria, autoRun: body.start === true });
-      if (goal.conversation) registry.setPolicy(`project:${goal.projectId}`, { mode: 'auto', strategy: 'adaptive', allowProviderSwitch: true }, { by: '대장', reason: 'conversation project automatic routing' });
+      // New projects start on each app's default model; 대장 picks a model per team in the project settings.
       return [201, goal];
     }],
     ['POST', /^\/api\/goals\/([^/]+)\/messages$/, (m, body) => scheduler.message(m[1], body.text)],
@@ -206,14 +234,31 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       await store.emit({ type: 'project.deleted', projectId, goals: removed.goals, filesDeleted });
       return { projectId, ...removed, filesDeleted };
     }],
-    ['PUT', /^\/api\/projects\/([^/]+)\/model-policy$/, (m, body) => {
+    ['GET', /^\/api\/model-choices$/, () => modelChoices.get()],
+    ['GET', /^\/api\/projects\/([^/]+)\/sentinel$/, async m => {
+      const projectId = validateProjectId(m[1]);
+      let lines = [];
+      try { lines = (await readFile(sentinelLog, 'utf8')).split('\n').filter(Boolean).slice(-5000); } catch { /* nothing checked yet */ }
+      const entries = lines.flatMap(l => { try { const e = JSON.parse(l); return e.project === projectId ? [e] : []; } catch { return []; } });
+      return { projectId, total: entries.length, blocked: entries.filter(e => e.decision === 'deny').length, entries: entries.slice(-100).reverse() };
+    }],
+    ['PUT', /^\/api\/projects\/([^/]+)\/model-policy$/, async (m, body) => {
       const changes = {};
+      const scope = `project:${validateProjectId(m[1])}`;
+      if (body.teamModel !== undefined) {
+        // One team's model · reasoning level, from the tool's official list ("" = the app's default).
+        const { team, model = '', effort = '' } = body.teamModel ?? {};
+        if (!Object.hasOwn(TEAMS, team)) throw new Error('unknown team');
+        const pick = await modelChoices.validate(TEAMS[team].executor, String(model ?? ''), String(effort ?? ''));
+        const { teamModels = {} } = registry.getPolicy(scope);
+        changes.teamModels = { ...teamModels, [team]: pick };
+      }
       if (body.mode !== undefined) changes.mode = body.mode;
       if (body.strategy !== undefined) changes.strategy = body.strategy;
       if (body.model !== undefined) changes.model = typeof body.model === 'string' ? body.model.trim() : body.model;
       if (body.allowFallback !== undefined) changes.allowFallback = body.allowFallback === true;
       if (body.allowProviderSwitch !== undefined) changes.allowProviderSwitch = body.allowProviderSwitch === true;
-      return registry.setPolicy(`project:${validateProjectId(m[1])}`, changes, { by: '대장', reason: String(body.reason || 'dashboard') });
+      return registry.setPolicy(scope, changes, { by: '대장', reason: String(body.reason || 'dashboard') });
     }],
   ];
 

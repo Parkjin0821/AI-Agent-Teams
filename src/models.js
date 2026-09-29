@@ -36,6 +36,11 @@ export function resolveModel({ executor, project = {}, task, catalog = [], conte
       && e.tier >= tier && Array.isArray(e.efforts) && e.efforts.length);
     candidates.sort((a,b) => a.tier - b.tier || (b.verifiedPassRate ?? 0) - (a.verifiedPassRate ?? 0) || a.id.localeCompare(b.id));
     const entry = candidates[0];
+    // Nothing registered for this tool at all: use the tool's own default model rather than stop.
+    // No model is assumed — the CLI picks it and reports which one ran.
+    if (!entry && !catalog.some(e => e.executor === executor && isUsable(e))) {
+      return { state: 'ready', model: null, source: 'executor_default', reason: 'app_default_no_profiles' };
+    }
     if (!entry) return { state: 'waiting', model: null, reason: 'verified_model_profile_required' };
     const desired = deep ? 'high' : context.simple ? 'low' : 'medium';
     const effort = entry.efforts.includes(desired) ? desired : entry.efforts[0];

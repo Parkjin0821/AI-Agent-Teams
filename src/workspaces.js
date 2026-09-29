@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, lstatSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, lstatSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 export function validateProjectId(id) {
@@ -9,11 +9,17 @@ export function validateProjectId(id) {
   return id.toLowerCase();
 }
 
+// Node resolves a project's module type from the nearest package.json. Without this boundary, projects
+// under the AGENT HQ repo would inherit its "type": "module" and plain CommonJS code would fail.
+const BOUNDARY = { private: true, type: 'commonjs', description: 'AGENT HQ projects root: keeps projects from inheriting the AGENT HQ package settings' };
+
 export class ProjectWorkspaces {
   constructor(root) {
     mkdirSync(root, { recursive: true });
     if (lstatSync(root).isSymbolicLink()) throw new Error('Workspace root cannot be a link');
     this.root = realpathSync(root);
+    const boundary = path.join(this.root, 'package.json');
+    if (!existsSync(boundary)) writeFileSync(boundary, `${JSON.stringify(BOUNDARY, null, 2)}\n`, { flag: 'wx' });
   }
   resolve(projectId) {
     const target = path.join(this.root, validateProjectId(projectId));

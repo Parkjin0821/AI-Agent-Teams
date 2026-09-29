@@ -91,6 +91,8 @@ export const TEAM_BRIEFS = Object.freeze({
       '누가 할지(조사·개발·디자인)와 필요한 검토(보안·정책)를 정한다. 파일은 바꾸지 않는다.'],
     method: ['작업은 한 세션에 끝날 만큼 작고 구체적으로, 작업 폴더 안에서 완결되게 정한다.',
       '"research" (조사팀): 사실·출처·가격·경쟁 서비스를 웹에서 찾을 때. "dev" (개발팀): 코드·데이터·문서. "design" (디자인팀): 화면·UI·레이아웃·시각 자료.',
+      '어느 작업팀도 명령을 실행할 수 없다. 테스트 실행은 검증 단계에서 엔진이 샌드박스로 하고, 실패하면 실패 이유(오류·expected/actual)가 피드백으로 온다. 명령 실행이나 테스트 재실행을 작업으로 맡기지 않는다.',
+      '파일 수정 없이 테스트 결과만 다시 확인하면 되는 상황이면 all_done 을 true 로 해 검토·검증 단계로 보낸다.',
       '"reviews" 에 "security" (보안팀): 입력 처리·로그인·비밀정보·네트워크·의존성을 건드릴 때. "policy" (정책팀): 외부 데이터·API·타사 코드·개인정보·게시물이 관련될 때. 둘 다 아니면 비운다.',
       'complexity (simple|normal|complex), risk (low|normal|high), task_type (planning|coding|research|ui|image|connector), required_capabilities (text,code,web,image,connectors)를 적는다.',
       'proposed_model 과 proposal_reason 으로 모델을 제안할 수 있다. 브랜드 선호가 아니라 작업 요구로 근거를 댄다. 선택은 엔진이 검증된 후보 안에서 하며, 제안은 안전 조건을 넘지 못한다.',

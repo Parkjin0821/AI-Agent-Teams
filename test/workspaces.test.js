@@ -33,3 +33,15 @@ test('removing a workspace deletes only that project folder and never follows a 
   assert.equal(existsSync(path.join(external, 'keep.txt')), true);
   assert.throws(() => workspaces.remove('../x'), /projectId/);
 });
+
+test('the projects root gets a package.json boundary so projects never inherit the AGENT HQ module type', async () => {
+  const { readFileSync, writeFileSync, mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const path = await import('node:path');
+  const dir = mkdtempSync(path.join(tmpdir(), 'hq-bnd-'));
+  new ProjectWorkspaces(dir);
+  assert.equal(JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8')).type, 'commonjs');
+  writeFileSync(path.join(dir, 'package.json'), '{"type":"commonjs","mine":true}');
+  new ProjectWorkspaces(dir);
+  assert.equal(JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8')).mine, true, 'an existing file is never overwritten');
+});

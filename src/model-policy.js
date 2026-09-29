@@ -86,6 +86,15 @@ function validatePolicy(policy) {
   if (!['auto', 'pinned'].includes(policy.mode)) throw new Error('policy mode must be auto or pinned');
   if (policy.mode === 'pinned' && !policy.model) throw new Error('pinned policy requires a model');
   for (const executor of Object.keys(policy.autoDefaults || {})) validateExecutor(executor);
-  return { mode: policy.mode, model: policy.mode === 'pinned' ? policy.model : null,
+  // Per-team picks: { [team]: { executor, model|null, effort|null } }. Checked against the official
+  // choices by the API before they get here; here only the shape is enforced.
+  const teamModels = {};
+  for (const [team, pick] of Object.entries(policy.teamModels ?? {})) {
+    if (!/^[a-z]{2,20}$/.test(team) || !pick || typeof pick !== 'object') throw new Error('invalid team model choice');
+    validateExecutor(pick.executor);
+    if ((pick.model !== null && typeof pick.model !== 'string') || (pick.effort !== null && typeof pick.effort !== 'string')) throw new Error('invalid team model choice');
+    if (pick.model || pick.effort) teamModels[team] = { executor: pick.executor, model: pick.model || null, effort: pick.effort || null };
+  }
+  return { mode: policy.mode, model: policy.mode === 'pinned' ? policy.model : null, teamModels,
     allowFallback: Boolean(policy.allowFallback), ...(policy.allowProviderSwitch !== undefined ? { allowProviderSwitch: policy.allowProviderSwitch === true } : {}), autoDefaults: { ...policy.autoDefaults }, ...(policy.strategy ? { strategy: policy.strategy } : {}) };
 }

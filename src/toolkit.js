@@ -141,12 +141,16 @@ export function testCommand(tests) {
 }
 
 function testResult(tests, run) {
-  const tail = run.output.split(/\r?\n/).filter(Boolean).slice(-12);
+  const lines = run.output.split(/\r?\n/).filter(Boolean);
+  // The summary at the end says only how many failed; the reason is above it. Keep both.
+  const reasons = lines.filter(l => /not ok|✖|Error|assert|expected|actual|Cannot find|is not defined|SyntaxError/i.test(l)
+    && !/^ℹ|failing tests:/.test(l.trim())).slice(0, 12);
+  const tail = run.status === 'pass' ? lines.slice(-12) : [...new Set([...reasons, ...lines.slice(-6)])].slice(-18);
   if (run.status === 'pass') return { id: 'tests', name: '테스트 실행', status: 'pass', summary: `${tests.label} 통과 (샌드박스)`, details: tail.slice(-6), test: { label: tests.label, passed: true } };
   if (run.status === 'unavailable') return { id: 'tests', name: '테스트 실행', status: 'unavailable', summary: `${tests.label} · 실행 못 함 (${run.output || '샌드박스 오류'})` };
   const why = run.status === 'timeout' ? '시간 초과' : `실패 (종료 코드 ${run.code})`;
   return { id: 'tests', name: '테스트 실행', status: run.status === 'timeout' ? 'timeout' : 'fail', summary: `${tests.label} ${why}`, details: tail,
-    blocking: [`테스트 ${why}: ${tests.label}\n${tail.slice(-6).join('\n')}`], test: { label: tests.label, passed: false } };
+    blocking: [`테스트 ${why}: ${tests.label}\n${(reasons.length ? reasons.slice(0, 6) : tail.slice(-6)).join('\n')}`], test: { label: tests.label, passed: false } };
 }
 
 function auditResult(run) {

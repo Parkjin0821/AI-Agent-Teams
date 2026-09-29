@@ -92,6 +92,8 @@ test('conversation derives criteria, invalidates old confirmations and preserves
     const g = add({ conversation: true, completionCriteria: [], autoRun: false });
     await scheduler.runGoal(g.id);
     assert.deepEqual(store.getGoal(g.id).completionCriteria, C);
+    // 대장 may confirm a criterion only after a real verification round looked at it.
+    store.insertRun({ id: 'qa-check', goalId: g.id, round: 99, attempt: 0, team: 'qa', status: 'finished', outcome: 'completed', simulated: false });
     scheduler.confirmCriterion(g.id, C[0], 'checked');
     scheduler.message(g.id, '디자인도 변경해줘');
     const changed = store.getGoal(g.id);

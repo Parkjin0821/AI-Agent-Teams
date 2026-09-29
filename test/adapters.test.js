@@ -126,3 +126,16 @@ test('non-zero exit is classified and a hung tool is killed at the timeout', asy
   const r = await hung.run('codex', 'x', () => {}, { cwd });
   assert.deepEqual([r.outcome, r.errorKind], ['failed', 'timeout']);
 });
+
+test('Codex keeps only the Windows sandbox mode from the user config it otherwise skips', async () => {
+  const { codexWindowsSandbox } = await import('../src/adapters.js');
+  const read = text => () => text;
+  assert.equal(codexWindowsSandbox({ USERPROFILE: 'C:/u' }, read('model = "x"\n[windows]\nsandbox = "elevated"\n[mcp_servers.x]\nsandbox = "unelevated"\n')), 'elevated');
+  assert.equal(codexWindowsSandbox({ USERPROFILE: 'C:/u' }, read('[other]\nsandbox = "elevated"\n')), 'unelevated', 'only the [windows] section counts');
+  assert.equal(codexWindowsSandbox({ USERPROFILE: 'C:/u' }, read('[windows]\nsandbox = "anything"\n')), 'unelevated', 'unknown values are not passed on');
+  assert.equal(codexWindowsSandbox({ USERPROFILE: 'C:/u' }, () => { throw new Error('ENOENT'); }), 'unelevated');
+  const withMode = buildCommand('codex', { cwd: 'C:/p', access: 'read', bins: { codex: { file: 'codex', prefix: [], windowsSandbox: 'elevated' } } });
+  assert.deepEqual(withMode.args.slice(withMode.args.indexOf('-c'), withMode.args.indexOf('-c') + 2), ['-c', 'windows.sandbox="elevated"']);
+  assert.ok(withMode.args.includes('--ignore-user-config'));
+  assert.ok(!buildCommand('codex', { cwd: 'C:/p', bins: { codex: { file: 'codex', prefix: [] } } }).args.includes('-c'));
+});

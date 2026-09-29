@@ -111,7 +111,7 @@ export async function readClaudeUsage(dataDir, now = Date.now()) {
       const minutes = Math.floor(age / 60_000);
       const stale = age > 300_000;
       Object.assign(claude, normalizeUsage('claude', saved, now), { observedAt: saved.observedAt, stale,
-        note: stale ? `${minutes < 60 ? `${minutes}분` : `${Math.floor(minutes / 60)}시간`} 전 값 · 그 뒤 사용량은 반영 안 됨 (터미널 Claude Code 응답 때마다 갱신)` : '' });
+        note: stale ? `${minutes < 60 ? `${minutes}분` : `${Math.floor(minutes / 60)}시간`} 전 값 · 참고용 (터미널 Claude Code 응답 때마다 갱신)` : '' });
       if (!claude.windows.length) claude.note = '마지막 수집값의 한도 기간이 초기화됨 · 새 응답 필요';
     }
   } catch { /* no official statusLine snapshot yet */ }

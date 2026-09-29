@@ -6,6 +6,7 @@ import { nextStep, REVIEWS, TEAMS, WORKERS } from './teams.js';
 import { validateProjectId } from './workspaces.js';
 import { enqueueRequests, taskProfile } from './team-governance.js';
 import { selectAssignment } from './assignment.js';
+import { DEFAULT_CLAUDE_MODEL } from './model-choices.js';
 
 export const GoalStatus = Object.freeze({
   SCHEDULED: 'scheduled', RUNNING: 'running', RETRY_WAIT: 'retry_wait', VERIFIED: 'verified', MODEL_WAIT: 'model_wait',
@@ -17,6 +18,10 @@ const NON_RETRYABLE = ['auth', 'limit', 'permission'];
 const iso = ms => new Date(ms).toISOString();
 const nextMidnight = ms => { const d = new Date(ms); d.setHours(24, 0, 0, 0); return d.getTime(); };
 const sameLocalDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+// A Claude round never runs on an unnamed default: an older Claude Code maps its default to an older
+// model (2.1.265 ran Opus 5), so the listed default is passed by its full ID.
+const namedModel = (executor, result) => (executor === 'claude-code' && result.state === 'ready' && !result.model
+  ? { ...result, model: DEFAULT_CLAUDE_MODEL, source: result.source === 'team_choice' ? 'team_choice' : 'listed_default' } : result);
 const mergeEvidence = (list, confirmed = []) => [
   ...(list ?? []).filter(e => !(confirmed ?? []).some(c => c.criterion === e.criterion)),
   ...(confirmed ?? []).map(({ criterion, proof }) => ({ criterion, proof })),
@@ -27,8 +32,8 @@ const mergeEvidence = (list, confirmed = []) => [
 // The model is resolved only when a round is claimed, i.e. after the previous round's run record (the
 // checkpoint) is saved; a policy change during a round therefore takes effect from the next round.
 export class GoalScheduler {
-  constructor({ store, runner, clock = { now: () => Date.now() }, policy = DEFAULT_POLICY, registry = null, capacity = null, capabilities = null }) {
-    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities });
+  constructor({ store, runner, clock = { now: () => Date.now() }, policy = DEFAULT_POLICY, registry = null, capacity = null, capabilities = null, dailyCap = null }) {
+    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities, dailyCap });
     for (const goal of store.listGoals().filter(g => g.status === GoalStatus.RUNNING)) {
       for (const run of store.listRuns(goal.id).filter(r => r.status === 'running')) store.saveRun({ ...run, status: 'interrupted' });
       this.update(goal, { status: GoalStatus.RECOVERY_REQUIRED, reason: 'interrupted_by_restart', nextRunAt: null });
@@ -75,6 +80,9 @@ export class GoalScheduler {
     const goal = this.store.getGoal(goalId);
     if (!goal || goal.status === GoalStatus.RUNNING) throw new Error('goal cannot be confirmed now');
     if (!goal.completionCriteria.includes(criterion)) throw new Error('unknown criterion');
+    // In a team project 대장 confirms only what the verification team looked at and the engine could not prove.
+    if (goal.kind === 'team' && !(this.store.listRuns?.(goalId) ?? []).some(r => r.team === 'qa' && r.status === 'finished'
+      && r.outcome === 'completed' && !r.simulated)) throw new Error('verification team has not checked this project yet');
     const text = String(note || '').trim().slice(0, 300);
     const confirmed = [...(goal.confirmed ?? []).filter(c => c.criterion !== criterion),
       { criterion, proof: `대장 확인${text ? ` · ${text}` : ''}`, by: 'human', at: iso(this.clock.now()) }];
@@ -120,7 +128,11 @@ export class GoalScheduler {
     if (!goal || goal.reason !== 'needs_decision') throw new Error('goal is not waiting for an answer');
     const reply = String(text || '').trim().slice(0, 1000);
     if (!reply) throw new Error('answer is empty');
-    this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, question: null, autoRun: true, nextRunAt: iso(this.clock.now()),
+    const at = iso(this.clock.now());
+    // The question and 대장's answer stay in the project conversation, not only in the planning feedback.
+    const messages = [...(goal.messages ?? []), { role: 'team', kind: 'question', text: String(goal.question ?? ''), at },
+      { role: 'user', kind: 'answer', text: reply, at }].slice(-100);
+    this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, question: null, autoRun: true, nextRunAt: at, messages,
       team: { ...goal.team, step: 'plan', feedback: `질문 · ${goal.question}\n대장 답변 · ${reply}` } });
     void this.store.emit({ type: 'goal.answered', goalId });
     return goal;
@@ -261,6 +273,12 @@ export class GoalScheduler {
     return goal.kind === 'team' ? TEAMS[goal.team?.step ?? 'plan'].executor : (goal.executor ?? 'claude-code');
   }
 
+  // Steps per project per day: 대장's setting when present, else the policy default (10).
+  dailyLimit() {
+    const set = this.dailyCap?.();
+    return Number.isInteger(set) && set >= 1 ? set : (this.policy.maxRoundsPerDay ?? 10);
+  }
+
   roundsToday(projectId, now) {
     return this.store.listGoals().filter(g => g.projectId === projectId)
       .reduce((n, g) => n + this.store.listRuns(g.id).filter(r => sameLocalDay(Date.parse(r.startedAt), now)).length, 0);
@@ -288,7 +306,7 @@ export class GoalScheduler {
         if (running.length >= (this.policy.maxConcurrent ?? 2) || running.some(g => g.projectId === goal.projectId)
           || running.filter(g => this.store.listRuns(g.id).at(-1)?.executor === executor).length >= providerCap) return null;
         // Team projects that used up today's rounds continue tomorrow (the daily token guard).
-        if (goal.kind === 'team' && this.roundsToday(goal.projectId, now) >= (this.policy.maxRoundsPerDay ?? 10)) {
+        if (goal.kind === 'team' && this.roundsToday(goal.projectId, now) >= this.dailyLimit()) {
           if (goal.reason !== 'daily_cap') {
             this.update(goal, { reason: 'daily_cap', nextRunAt: iso(nextMidnight(now)) });
             void this.store.emit({ type: 'goal.daily_cap', goalId, projectId: goal.projectId });
@@ -497,14 +515,21 @@ export class GoalScheduler {
 
   resolveFor(goal) {
     const collaborative = this.collaborativeAssignment(goal);
-    if (collaborative) return collaborative;
+    // Waiting for an independent reviewer or a capable tool is never skipped by a team's model pick.
+    if (collaborative && collaborative.state !== 'ready') return collaborative;
     const executor = this.stepExecutor(goal);
     if (!this.registry) return { state: 'ready', model: null, source: 'executor_default', policyVersion: null };
     const project = this.registry.getPolicy(`project:${goal.projectId}`);
-    return { ...resolveModel({ executor, project, task: goal.modelOverride, catalog: this.registry.catalog(),
+    // 대장's pick for this team (model · reasoning level), when this round runs on the tool it was picked for.
+    const pick = goal.kind === 'team' ? project.teamModels?.[goal.team?.step] : null;
+    if (pick && pick.executor === executor) {
+      return namedModel(executor, { state: 'ready', model: pick.model, effort: pick.effort, source: 'team_choice', reason: 'team_choice', policyVersion: project.version });
+    }
+    if (collaborative) return collaborative;
+    return namedModel(executor, { ...resolveModel({ executor, project, task: goal.modelOverride, catalog: this.registry.catalog(),
       context: { team: goal.team?.step, critical: goal.team?.profile?.risk === 'high' || goal.team?.profile?.complexity === 'complex',
         simple: goal.team?.profile?.complexity === 'simple', failures: Math.max(goal.noProgressRounds ?? 0, goal.testFixAttempts ?? 0) } }),
-      policyVersion: project.version };
+      policyVersion: project.version });
   }
 
   // requested = what the current/last round asked for, actual = what the tool reported, next = what the

@@ -61,7 +61,9 @@ test('every environment gets an honest status, billing and who uses it', () => {
 });
 
 test('only known settings with the right type are accepted', () => {
-  assert.deepEqual(Object.keys(SETTINGS), ['design.figma', 'design.canva', 'design.higgsfield', 'tools.npmAudit']);
+  assert.deepEqual(Object.keys(SETTINGS), ['design.figma', 'design.canva', 'design.higgsfield', 'tools.npmAudit', 'limits.maxRoundsPerDay']);
+  assert.equal(validateSetting('limits.maxRoundsPerDay', 25), 25);
+  for (const bad of [0, 101, 2.5, '10']) assert.throws(() => validateSetting('limits.maxRoundsPerDay', bad), /limits\.maxRoundsPerDay/, String(bad));
   assert.equal(validateSetting('design.figma', true), true);
   assert.throws(() => validateSetting('design.higgsfield', true), /subscription-only/);
   assert.throws(() => validateSetting('design.figma', 'yes'), /boolean/);

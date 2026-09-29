@@ -133,3 +133,12 @@ test('every team lists its programs with an honest status', () => {
   assert.equal(toolkitView(null, {}, [])['qa'].find(t => t.id === 'tests').statusL, '확인 전');
   for (const tool of Object.values(TOOLKIT).flat().filter(t => t.how === 'missing')) assert.ok(tool.license && tool.docs.startsWith('https://'), `${tool.id} has licence and docs`);
 });
+
+test('a failing test run passes the failure reason on, not only the counts', async () => {
+  const dir = folder({ 'package.json': '{"scripts":{"test":"node --test"}}' });
+  const output = ['✖ adds (1ms)', "  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:", '  actual: 2', '  expected: 3',
+    'ℹ tests 1', 'ℹ pass 0', 'ℹ fail 1', 'ℹ duration_ms 60', '✖ failing tests:', 'test at sum.test.js:1:1'].join('\n');
+  const [tests] = await runTeamTools('qa', dir, { sandbox: sandboxReturning({ status: 'fail', code: 1, output }) });
+  assert.match(tests.blocking[0], /AssertionError[\s\S]*actual: 2[\s\S]*expected: 3/);
+  assert.ok(tests.details.some(l => /AssertionError/.test(l)) && tests.details.some(l => /ℹ fail 1/.test(l)));
+});

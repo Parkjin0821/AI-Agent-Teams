@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
-import { existsSync, readdirSync, statSync, lstatSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, lstatSync } from 'node:fs';
 import path from 'node:path';
+import { sentinelSettings } from './sentinel.js';
 
 // Options checked against the installed CLIs' --help (Claude Code 2.1.265, codex-cli 0.158.0-alpha).
 // The prompt always goes through stdin, never the command line, so it cannot be parsed as options.
@@ -10,7 +11,7 @@ export const connectorTool = (name) => `mcp__claude_ai_${name.replace(/[^A-Za-z0
 // access: 'write' (default) lets the tool change files in the workspace; 'read' only lets it look.
 // web: adds Claude Code's built-in WebSearch/WebFetch. connectors: claude.ai connectors this team may use;
 // every other connector in knownConnectors is denied. Without connectors, all MCP is switched off.
-export function buildCommand(provider, { cwd, model = null, effort = null, bins, access = 'write', web = false, connectors = [], knownConnectors = [] }) {
+export function buildCommand(provider, { cwd, model = null, effort = null, bins, access = 'write', web = false, connectors = [], knownConnectors = [], sentinel = null }) {
   if (connectors.some(c => /higgsfield/i.test(c))) throw new Error('subscription-only: paid image credits are blocked');
   if (effort && !['low','medium','high','xhigh','max','ultra'].includes(effort)) throw new Error('invalid reasoning effort');
   if (provider === 'claude' && effort === 'ultra') throw new Error('unsupported Claude reasoning effort');
@@ -33,12 +34,21 @@ export function buildCommand(provider, { cwd, model = null, effort = null, bins,
     }
     if (model) args.push('--model', model);
     if (effort) args.push('--effort', effort);
+    // 감시 에이전트: hooks given with --settings always load, even with --setting-sources user.
+    if (sentinel) {
+      args.push('--settings', JSON.stringify(sentinelSettings(sentinel.script)));
+      Object.assign(env, { AGENT_HQ_WORKSPACE: cwd, AGENT_HQ_SENTINEL_LOG: sentinel.log,
+        AGENT_HQ_PROJECT: sentinel.project ?? '', AGENT_HQ_TEAM: sentinel.team ?? '' });
+    }
     return { file: bins.claude.file, args: [...bins.claude.prefix, ...args], cwd, env };
   }
   if (provider === 'codex') {
     // --ignore-user-config: skip ~/.codex/config.toml (and its MCP servers); login still works.
     const args = ['exec', '--json', '--ignore-user-config', '--sandbox', access === 'read' ? 'read-only' : 'workspace-write',
       '--skip-git-repo-check', '--ephemeral', '--cd', cwd];
+    // Skipping the user config also drops its Windows sandbox mode, and without one Codex refuses every
+    // command (even reading a file). Only that one value is carried over.
+    if (bins.codex.windowsSandbox) args.push('-c', `windows.sandbox="${bins.codex.windowsSandbox}"`);
     if (model) args.push('-m', model);
     if (effort) args.push('-c', `model_reasoning_effort="${effort}"`);
     args.push('-');
@@ -117,7 +127,24 @@ export function resolveBins(env = process.env) {
   const claudeExe = env.APPDATA && path.join(env.APPDATA, 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe');
   const claude = env.AGENT_HQ_CLAUDE_BIN || (claudeExe && existsSync(claudeExe) ? claudeExe : 'claude');
   const codex = env.AGENT_HQ_CODEX_BIN || newestCodexApp(env.LOCALAPPDATA) || 'codex';
-  return { claude: { file: claude, prefix: [] }, codex: { file: codex, prefix: [] } };
+  return { claude: { file: claude, prefix: [] },
+    codex: { file: codex, prefix: [], ...(process.platform === 'win32' ? { windowsSandbox: codexWindowsSandbox(env) } : {}) } };
+}
+
+// The [windows] sandbox mode from the user's Codex config ("elevated" needs a one-time admin setup);
+// "unelevated" when none is set. Nothing else in that file is read.
+export function codexWindowsSandbox(env = process.env, read = readFileSync) {
+  const home = env.CODEX_HOME || (env.USERPROFILE && path.join(env.USERPROFILE, '.codex'));
+  let text = '';
+  try { text = home ? read(path.join(home, 'config.toml'), 'utf8') : ''; } catch { /* no config */ }
+  let section = '';
+  for (const line of text.split(/\r?\n/)) {
+    const header = /^\s*\[([^\]]+)\]\s*$/.exec(line);
+    if (header) { section = header[1].trim(); continue; }
+    const value = section === 'windows' && /^\s*sandbox\s*=\s*"(elevated|unelevated)"\s*(#.*)?$/.exec(line);
+    if (value) return value[1];
+  }
+  return 'unelevated';
 }
 
 // The Codex desktop app ships the official CLI under a versioned folder; pick the newest one.
@@ -135,14 +162,14 @@ export class CliAgentAdapter {
     Object.assign(this, { enabled, cwd, bins, timeoutMs });
   }
 
-  async run(provider, prompt, onEvent, { cwd, model = null, effort = null, access = 'write', web = false, connectors = [], knownConnectors = [] } = {}) {
+  async run(provider, prompt, onEvent, { cwd, model = null, effort = null, access = 'write', web = false, connectors = [], knownConnectors = [], sentinel = null } = {}) {
     if (!this.enabled) {
       onEvent({ type: 'provider.notice', provider, message: 'Safe mode: CLI execution is disabled' });
       return { outcome: 'simulated', summary: `${provider} dry-run only; no work executed`, model: null };
     }
     if (!cwd) throw new Error('Project workspace is required for CLI execution');
     assertWorkspaceConfigurationSafe(cwd);
-    const command = buildCommand(provider, { cwd, model, effort, access, web, connectors, knownConnectors, bins: this.bins ?? resolveBins() });
+    const command = buildCommand(provider, { cwd, model, effort, access, web, connectors, knownConnectors, sentinel, bins: this.bins ?? resolveBins() });
     return new Promise((resolve) => {
       const child = spawn(command.file, command.args, { cwd: command.cwd, shell: false, windowsHide: true, env: command.env });
       let head = '', partial = '', model = null, answer = null, stderr = '', timedOut = false, settled = false;

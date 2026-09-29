@@ -51,3 +51,29 @@ test('legacy non-development handoff uses verified capabilities and independent 
   assert.equal(scheduler.resolveFor(goal('security')).state, 'waiting', 'legacy default Codex cannot review its own work');
   assert.equal(scheduler.resolveFor(goal('qa')).state, 'waiting', 'legacy verification cannot use the worker executor');
 });
+
+test('Claude runs without a terminal reading, but every stop signal still stops it; Codex still needs fresh percentages', async () => {
+  const { capacityBasis } = await import('../src/subscription-safety.js');
+  const now = Date.now();
+  const account = { subscription: true, checkedAt: new Date(now).toISOString() };
+  const later = new Date(now + 3600000).toISOString();
+  const win = (period, blocked) => ({ period, blocked, resetAt: later });
+  const claude = extra => ({ provider: 'claude', windows: [], ...extra });
+  // No terminal reading at all, and an old one within its window: Claude may run on the limit-state basis.
+  assert.equal(subscriptionCapacity(account, claude({}), now, now), true);
+  assert.equal(subscriptionCapacity(account, claude({ stale: true, windows: [win('five_hour', false), win('weekly', false)] }), now, now), true);
+  assert.equal(capacityBasis(claude({ stale: true }), now), 'limit_status');
+  // An old reading already at the stop line still stops: usage only grows inside a window.
+  assert.equal(subscriptionCapacity(account, claude({ stale: true, windows: [win('five_hour', true)] }), now, now), false);
+  // Near limit, over limit or paid overage reported by a team run stops.
+  for (const l of [{ status: 'allowed_warning' }, { status: 'rejected' }, { status: 'allowed', usingOverage: true }]) {
+    assert.equal(subscriptionCapacity(account, claude({ limitStatus: [l] }), now, now), false, JSON.stringify(l));
+  }
+  // Login must still be a fresh subscription login.
+  assert.equal(subscriptionCapacity({ ...account, subscription: false }, claude({}), now, now), false);
+  assert.equal(subscriptionCapacity({ subscription: true, checkedAt: new Date(now - 61000).toISOString() }, claude({}), now, now), false);
+  // Codex has an official live query, so it keeps requiring fresh percentages.
+  assert.equal(subscriptionCapacity(account, { provider: 'codex', windows: [] }, now, now), false);
+  assert.equal(subscriptionCapacity(account, { provider: 'codex', stale: true, windows: [win('five_hour', false), win('weekly', false)] }, now, now), false);
+  assert.equal(capacityBasis({ provider: 'codex', windows: [win('five_hour', false), win('weekly', false)] }, now), 'percent');
+});

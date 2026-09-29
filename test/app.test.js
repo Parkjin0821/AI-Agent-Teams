@@ -317,3 +317,56 @@ test('pause and resume through the API', async () => {
   assert.equal((await call('POST', '/api/goals/nope/pause', {})).status, 400);
   await app.close();
 });
+
+test('each team picks a named model and reasoning level from the official list; unpicked teams run the named default', async () => {
+  const { ModelChoices } = await import('../src/model-choices.js');
+  const codexList = [{ id: 'gpt-6-astra', label: 'GPT-6-Astra', isDefault: true, efforts: ['low', 'medium', 'high', 'ultra'], defaultEffort: 'low' },
+    { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol', isDefault: false, efforts: ['low', 'medium'], defaultEffort: 'low' },
+    { id: 'gpt-5.5', label: 'GPT-5.5', isDefault: false, efforts: ['low', 'medium', 'high'], defaultEffort: 'medium' }];
+  const modelChoices = new ModelChoices({ readCodex: async () => codexList });
+  const { app, call } = await start({ modelChoices });
+  try {
+    const choices = (await call('GET', '/api/model-choices')).body;
+    assert.deepEqual(choices['claude-code'].models.map(m => m.label), ['Fable 5.1', 'Opus 5.5', 'Sonnet 5.5']);
+    assert.deepEqual(choices['claude-code'].models.map(m => m.id), ['claude-fable-5-1', 'claude-opus-5-5', 'claude-sonnet-5-5']);
+    assert.equal(choices['claude-code'].defaultModel, 'claude-opus-5-5');
+    assert.deepEqual(choices.codex.models.map(m => m.id), ['gpt-6-astra', 'gpt-5.5'], 'the GPT-5.6 family is not offered');
+    assert.equal(choices.codex.defaultModel, 'gpt-6-astra');
+    const g = (await call('POST', '/api/projects', { objective: '가계부', completionCriteria: ['a.md 있음'] })).body;
+    const put = teamModel => call('PUT', `/api/projects/${g.projectId}/model-policy`, { teamModel });
+    assert.equal((await put({ team: 'plan', model: 'claude-fable-5-1', effort: 'max' })).status, 200);
+    assert.equal((await put({ team: 'qa', model: 'gpt-5.5', effort: 'medium' })).status, 200);
+    assert.match((await put({ team: 'qa', model: 'gpt-5.5', effort: 'ultra' })).body.error, /not offered/, 'ultra is not offered for GPT-5.5');
+    assert.match((await put({ team: 'qa', model: 'gpt-5.6-sol' })).body.error, /not offered/, 'hidden models cannot be picked');
+    assert.match((await put({ team: 'plan', model: 'gpt-5.5' })).body.error, /not offered by claude-code/, 'a Codex model cannot go to a Claude team');
+    assert.match((await put({ team: 'dev', model: 'opus' })).body.error, /not offered/, 'aliases are not accepted, only exact models');
+    assert.match((await put({ team: 'marketing', model: 'claude-opus-5-5' })).body.error, /unknown team/);
+    const status = () => app.scheduler.modelStatus(g.id);
+    assert.deepEqual([status().next, status().nextEffort, status().reason], ['claude-fable-5-1', 'max', 'team_choice'], 'planning uses its pick');
+    app.scheduler.update(app.store.getGoal(g.id), { team: { ...app.store.getGoal(g.id).team, step: 'dev' } });
+    assert.deepEqual([status().nextState, status().next, status().nextEffort], ['ready', 'claude-opus-5-5', null],
+      'an unpicked Claude team runs Opus 5.5 by its full ID, never an unnamed CLI default');
+    assert.equal((await put({ team: 'dev', model: '', effort: 'high' })).status, 200, 'a reasoning level alone applies to the default model');
+    assert.deepEqual([status().next, status().nextEffort], ['claude-opus-5-5', 'high']);
+    assert.equal((await put({ team: 'plan', model: '', effort: '' })).status, 200);
+    assert.equal(app.registry.getPolicy(`project:${g.projectId}`).teamModels.plan, undefined, 'clearing returns the team to the named default');
+    const conv = (await call('POST', '/api/projects', { objective: '대화로 시작', conversation: true })).body;
+    assert.equal(app.registry.getPolicy(`project:${conv.projectId}`).strategy, undefined, 'new projects are not put in a wait-for-profile mode');
+  } finally { await app.close(); }
+});
+
+test('the daily step limit is a setting (default 10); raising it lets waiting projects continue today', async () => {
+  const { app, call } = await start();
+  try {
+    assert.equal((await call('GET', '/api/engine')).body.limits.maxRoundsPerDay, 10, 'default stays 10');
+    const g = (await call('POST', '/api/goals', { ...goalInput, kind: 'team' })).body;
+    app.scheduler.update(app.store.getGoal(g.id), { reason: 'daily_cap', nextRunAt: new Date(Date.now() + 8 * 3600000).toISOString() });
+    assert.equal((await call('PUT', '/api/settings', { key: 'limits.maxRoundsPerDay', value: 0 })).status, 400);
+    assert.equal((await call('PUT', '/api/settings', { key: 'limits.maxRoundsPerDay', value: 20 })).status, 200);
+    assert.equal((await call('GET', '/api/engine')).body.limits.maxRoundsPerDay, 20);
+    assert.equal(app.scheduler.dailyLimit(), 20);
+    const after = app.store.getGoal(g.id);
+    assert.equal(after.reason, null);
+    assert.ok(Date.parse(after.nextRunAt) <= Date.now(), 'held projects are re-checked right away');
+  } finally { await app.close(); }
+});
