@@ -82,6 +82,20 @@ export class Digests {
     return digest;
   }
 
+  // 대장 can delete a summary (or all of them). The schedule remembers its last run separately,
+  // so deleting today's scheduled summary does not make the engine write it again.
+  remove(id) {
+    const items = this.list();
+    if (!items.some(d => d.id === id)) throw new Error('digest not found');
+    this.store.setSetting(KEY, items.filter(d => d.id !== id));
+    return { removed: id };
+  }
+  clear() {
+    const n = this.list().length;
+    this.store.setSetting(KEY, []);
+    return { removed: n };
+  }
+
   // Called by the engine timer: writes each kind at most once per scheduled time. A time that passed while
   // the server was off is written once on the next start (not repeated for every missed day).
   tick(now = this.clock.now()) {
@@ -92,10 +106,11 @@ export class Digests {
       if (kind === 'weekly' && !WEEKDAYS.includes(weekly)) continue;
       const due = lastDue(kind, { time, weekday: weekly }, now);
       if (due === null) continue;
-      const last = this.list().find(d => d.kind === kind && d.scheduled);
-      if (last && Date.parse(last.at) >= due) continue;
+      const lastAt = this.setting(`digest.last.${kind}`, null) ?? this.list().find(d => d.kind === kind && d.scheduled)?.at;
+      if (lastAt && Date.parse(lastAt) >= due) continue;
       const digest = { ...this.build(kind, now), scheduled: true };
       this.store.setSetting(KEY, [digest, ...this.list()].slice(0, KEEP));
+      this.store.setSetting(`digest.last.${kind}`, digest.at);
       void this.store.emit?.({ type: 'digest.created', kind, digestId: digest.id });
       made.push(digest);
     }

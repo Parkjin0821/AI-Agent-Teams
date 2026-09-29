@@ -252,6 +252,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     // ── 정기 요약 (엔진이 기록으로 작성, 모델 호출 없음) ──
     ['GET', /^\/api\/digests$/, () => ({ items: digests.list(), schedule: digests.schedule() })],
     ['POST', /^\/api\/digests$/, (m, body) => [201, digests.make(String(body.kind ?? 'daily'))]],
+    ['POST', /^\/api\/digests\/clear$/, (m, body) => { if (body.confirm !== true) throw new Error('confirm clearing all summaries'); return digests.clear(); }],
+    ['DELETE', /^\/api\/digests\/([0-9a-f-]{36})$/, m => digests.remove(m[1])],
     // ── 승인함: 감시 에이전트 승인 요청 · 결과 확인(신뢰 쌓기) · 기억 제안을 한곳에 ──
     ['GET', /^\/api\/inbox$/, () => {
       const goals = store.listGoals();

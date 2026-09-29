@@ -50,6 +50,13 @@ test('the engine writes summaries from its own records, once per scheduled time,
     assert.deepEqual(daily.projects.map(p => [p.title, p.statusL, p.steps]), [['가계부', '결과 확인 필요 (신뢰 쌓기)', 2]]);
     assert.equal(calls.length, before, 'writing a summary never calls a model');
 
+    // 대장 deletes it: it is gone, and the engine does not write the same scheduled summary again
+    assert.equal((await call('DELETE', `/api/digests/${daily.id}`)).status, 200);
+    assert.ok(!app.digests.list().some(d => d.id === daily.id));
+    now = local(2026, 9, 29, 9, 5);
+    assert.deepEqual(app.digests.tick(), [], 'a deleted scheduled summary is not recreated');
+    assert.match((await call('DELETE', `/api/digests/${daily.id}`)).body.error, /digest not found/);
+
     app.store.setSetting('digest.daily', false);
     now = local(2026, 9, 30, 9, 30);
     assert.deepEqual(app.digests.tick(), [], 'daily summaries can be switched off');
@@ -61,5 +68,8 @@ test('the engine writes summaries from its own records, once per scheduled time,
     const list = (await call('GET', '/api/digests')).body;
     assert.equal(list.items[0].id, made.body.id);
     assert.deepEqual(list.schedule, { time: '09:00', daily: false, weekly: 'mon' });
+    assert.match((await call('POST', '/api/digests/clear', {})).body.error, /confirm/);
+    assert.equal((await call('POST', '/api/digests/clear', { confirm: true })).body.removed, list.items.length);
+    assert.deepEqual((await call('GET', '/api/digests')).body.items, []);
   } finally { await app.close(); }
 });

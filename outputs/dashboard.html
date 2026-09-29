@@ -433,22 +433,23 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
       <div class="sec-h"><h2 id="digest-h">요약 · 예정</h2><span class="meta">{{dg.scheduleL}} · 엔진이 기록으로 작성 (사용량 안 씀)</span></div>
       <div class="card">
         <sc-if value="{{dg.has}}">
-          <div class="row-f" style="justify-content: space-between"><b>{{dg.title}}</b><span class="small muted">{{dg.when}}</span></div>
+          <div class="row-f" style="justify-content: space-between"><b>{{dg.title}}</b><span class="row-f"><span class="small muted">{{dg.when}}</span><button class="btn ghost sm" onClick="{{dg.removeLatest}}" aria-label="이 요약 삭제">삭제</button></span></div>
           <ul class="ul" style="margin-top: 8px"><sc-for list="{{dg.lines}}" as="l"><li>{{l}}</li></sc-for></ul>
           <sc-if value="{{dg.hasProjects}}"><div class="crit" style="margin-top: 8px"><sc-for list="{{dg.projects}}" as="p"><button class="cr link" style="grid-template-columns: minmax(0,1fr) auto; text-align: left; width: 100%" onClick="{{p.open}}"><span class="small"><b>{{p.title}}</b> · {{p.detail}}</span><span class="small muted">{{p.statusL}}</span></button></sc-for></div></sc-if>
         </sc-if>
         <sc-if value="{{dg.none}}"><p class="hint" style="margin: 0">아직 요약이 없습니다. 정해 둔 시각에 엔진이 만들고, 지금 바로 만들 수도 있습니다.</p></sc-if>
-        <div class="row-f" style="margin-top: 12px"><button class="btn sm" onClick="{{dg.makeDaily}}">지금 오늘 요약 만들기</button><button class="btn ghost sm" onClick="{{dg.makeWeekly}}">주간 보고 만들기</button></div>
+        <div class="row-f" style="margin-top: 12px"><button class="btn sm" onClick="{{dg.makeDaily}}">오늘 요약 만들기</button><button class="btn ghost sm" onClick="{{dg.makeWeekly}}">주간 보고 만들기</button></div>
         <div class="lbl" style="margin-top: 16px">예정</div>
         <div class="crit"><sc-for list="{{dg.upcoming}}" as="u"><div class="cr" style="grid-template-columns: 110px minmax(0,1fr) auto"><span class="small muted num">{{u.when}}</span><span class="small">{{u.what}}</span><span></span></div></sc-for></div>
         <sc-if value="{{dg.noUpcoming}}"><p class="hint" style="margin: 0">예정된 일이 없습니다.</p></sc-if>
         <sc-if value="{{dg.hasOlder}}"><details style="margin-top: 12px"><summary class="small">지난 요약 {{dg.olderN}}개</summary>
-          <sc-for list="{{dg.older}}" as="o"><div style="margin-top: 10px"><div class="small"><b>{{o.title}}</b> · <span class="muted">{{o.when}}</span></div><ul class="ul"><sc-for list="{{o.lines}}" as="l"><li class="small">{{l}}</li></sc-for></ul></div></sc-for></details></sc-if>
+          <sc-for list="{{dg.older}}" as="o"><div style="margin-top: 10px"><div class="row-f small"><b>{{o.title}}</b><span class="muted">{{o.when}}</span><button class="link small" onClick="{{o.remove}}" aria-label="{{o.when}} 요약 삭제">삭제</button></div><ul class="ul"><sc-for list="{{o.lines}}" as="l"><li class="small">{{l}}</li></sc-for></ul></div></sc-for></details></sc-if>
         <details style="margin-top: 12px"><summary class="small">요약 설정</summary>
           <div class="field" style="margin-top: 10px"><label for="dg-time">요약 시각</label>
             <div class="row-f"><input class="input" id="dg-time" type="time" style="max-width: 130px" value="{{dg.timeDraft}}" onChange="{{dg.onTime}}"><button class="btn sm" onClick="{{dg.saveTime}}">저장</button></div></div>
           <div class="field"><label>매일 요약</label><div class="seg" role="group" aria-label="매일 요약"><sc-for list="{{dg.dailyChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div>
           <div class="field"><label>주간 보고</label><div class="seg wrap" role="group" aria-label="주간 보고 요일"><sc-for list="{{dg.weekChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div>
+          <sc-if value="{{dg.has}}"><button class="btn danger sm" onClick="{{dg.clear}}">요약 모두 지우기</button></sc-if>
         </details>
       </div>
     </section>
@@ -1649,11 +1650,18 @@ class Component extends DCLogic {
       detail: (x.steps ? '단계 ' + x.steps + '번' + (x.teams.length ? ' (' + x.teams.join('·') + ')' : '') : '실행 없음') + ' · 조건 ' + x.proven + '/' + x.total });
     const makeDigest = (kind) => () => this.act(this.api('POST', '/api/digests', { kind: kind }).then(() => this.loadDigests()), kind === 'weekly' ? '주간 보고를 만들었습니다' : '오늘 요약을 만들었습니다');
     const putSetting = (key, value, msg) => this.act(this.api('PUT', '/api/settings', { key: key, value: value }).then(() => this.loadDigests()), msg);
+    const removeDigest = (x) => () => {
+      if (!window.confirm(x.title + ' (' + fmt(x.at) + ')을(를) 삭제할까요?')) return;
+      this.act(this.api('DELETE', '/api/digests/' + x.id).then(() => this.loadDigests()), '요약을 삭제했습니다');
+    };
     const dg = {
       has: !!dgLatest, none: !dgLatest, title: dgLatest ? dgLatest.title : '', when: dgLatest ? ago(dgLatest.at) + ' · ' + fmt(dgLatest.at) : '',
       lines: dgLatest ? dgLatest.lines : [], hasProjects: !!(dgLatest && dgLatest.projects.length), projects: dgLatest ? dgLatest.projects.map(dgProject) : [],
       hasOlder: dgd.items.length > 1, olderN: Math.min(dgd.items.length - 1, 10),
-      older: dgd.items.slice(1, 11).map((x) => ({ title: x.title, when: fmt(x.at), lines: x.lines })),
+      older: dgd.items.slice(1, 11).map((x) => ({ title: x.title, when: fmt(x.at), lines: x.lines, remove: removeDigest(x) })),
+      removeLatest: dgLatest ? removeDigest(dgLatest) : () => {},
+      clear: () => { if (window.confirm('요약 ' + dgd.items.length + '개를 모두 지울까요? 되돌릴 수 없습니다. 정기 요약 일정은 그대로입니다.'))
+        this.act(this.api('POST', '/api/digests/clear', { confirm: true }).then(() => this.loadDigests()), '요약을 모두 지웠습니다'); },
       upcoming: upcoming.slice(0, 8).map((u) => ({ when: whenL(u.at), what: u.what })), noUpcoming: !upcoming.length,
       scheduleL: (sch.daily ? '매일 ' + sch.time : '매일 요약 꺼짐') + ' · ' + (sch.weekly && sch.weekly !== 'off' ? '주간 ' + (WD.find((w) => w[0] === sch.weekly) || [0, sch.weekly])[1] + '요일' : '주간 꺼짐'),
       makeDaily: makeDigest('daily'), makeWeekly: makeDigest('weekly'),
