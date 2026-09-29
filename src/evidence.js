@@ -22,6 +22,7 @@ export function reportInstructions(criteria) {
     '   npm test if package.json has a test script, otherwise node --test, otherwise python -m unittest)',
     'Do not claim done without doing the work. Put anything a person must judge in "note".',
     'You may add "requests":[{"team":"dev|design|research","task":"specific follow-up within this project","criteria":["verifiable criterion"],"risk":"low|normal|high","complexity":"simple|normal|complex","effects":[]}] to propose collaboration. Requests are proposals, not permissions. Never expand the user scope.',
+    'You may add "remember":[{"scope":"all"|"<team id>","text":"..."}] (at most 3) for lasting preferences or rules 대장 stated; they apply only after 대장 approves them.',
     'A check must prove the criterion itself (the requested file or content). A status note you wrote that says',
     'the work is done is not proof: if nothing in the workspace can prove a criterion, use "check": null.',
   ].join('\n');

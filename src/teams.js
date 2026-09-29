@@ -59,6 +59,15 @@ const COMMON_BOUNDARIES = [
   '- 답은 한국어로 쓰고, 마지막 줄에 엔진이 읽는 JSON 을 붙인다.',
 ].join('\n');
 
+// 대장's approved memory: lasting preferences and rules across projects (src/memory.js).
+function memoryBlock(memory) {
+  const common = memory?.common ?? [], team = memory?.team ?? [];
+  if (!common.length && !team.length) return '';
+  const cap = list => list.slice(-20).map(t => `- ${clip(t, 300)}`);
+  return ['[대장 기억 · 대장이 승인한 것 · 모든 프로젝트에 적용]', ...cap(common),
+    ...(team.length ? ['[이 팀에 대한 대장 기억]', ...cap(team)] : []), ''].join('\n');
+}
+
 function projectBlock({ goal, files = [], toolText = '' }) {
   const criteria = goal.completionCriteria ?? [];
   const status = !criteria.length ? '아직 없음 — 기획팀이 대화에서 도출하고 대장이 승인한다'
@@ -190,6 +199,8 @@ const planBlock = [
   '{"next_task":"...","team":"dev","reviews":[],"completion_criteria":["..."],"complexity":"normal","risk":"normal","effects":[],',
   '"task_type":"coding","required_capabilities":["text","code"],"proposed_model":null,"proposal_reason":"","needs_decision":null,"all_done":false}',
   'completion_criteria: only when the criteria above are empty — concrete and verifiable, derived from 대장\'s conversation.',
+  'Optional "remember": up to 3 lasting preferences or rules 대장 stated that should apply to future projects, as',
+  '[{"scope":"all"|"plan"|"research"|"dev"|"design"|"security"|"policy"|"qa","text":"..."}]. They take effect only after 대장 approves them.',
   'Write your reply in Korean.',
 ].join('\n');
 
@@ -211,6 +222,7 @@ export function teamPrompt(step, input) {
     `You are ${name} of the AGENT HQ AI team. 너는 AGENT HQ AI 팀의 ${name}이다.`, '',
     COMMON_PURPOSE, '',
     projectBlock(input), '',
+    ...(memoryBlock(input.memory) ? [memoryBlock(input.memory)] : []),
     COMMON_BOUNDARIES, '',
     section(`내 역할 · ${name}`, brief.role), '',
     currentWork(input, step === 'plan' ? '다음 작업을 정한다.' : '기획팀이 넘긴 작업 없음 — 완료 조건 기준으로 판단한다.'), '',
@@ -249,6 +261,7 @@ export function parsePlan(answer) {
       requiredCapabilities: raw.required_capabilities, proposedModel: raw.proposed_model, proposalReason: raw.proposal_reason,
       evalTaskId: raw.evalTaskId, conditionsKey: raw.conditionsKey } } : {}),
     ...(Array.isArray(raw.completion_criteria) ? { completionCriteria: raw.completion_criteria.filter(c => typeof c === 'string' && c.trim()).slice(0,20) } : {}),
+    ...(Array.isArray(raw.remember) ? { remember: raw.remember.slice(0, 3) } : {}),
   };
   return plan.nextTask || plan.needsDecision || plan.allDone ? plan : null;
 }

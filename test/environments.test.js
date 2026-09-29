@@ -61,7 +61,11 @@ test('every environment gets an honest status, billing and who uses it', () => {
 });
 
 test('only known settings with the right type are accepted', () => {
-  assert.deepEqual(Object.keys(SETTINGS), ['design.figma', 'design.canva', 'design.higgsfield', 'tools.npmAudit', 'limits.maxRoundsPerDay']);
+  assert.deepEqual(Object.keys(SETTINGS), ['design.figma', 'design.canva', 'design.higgsfield', 'tools.npmAudit', 'limits.maxRoundsPerDay', 'sentinel.web', 'trust.required']);
+  assert.equal(validateSetting('sentinel.web', 'open'), 'open');
+  assert.throws(() => validateSetting('sentinel.web', 'anything'), /one of ask, open/);
+  assert.equal(validateSetting('trust.required', 0), 0, 'trust reviews can be switched off');
+  assert.throws(() => validateSetting('trust.required', 11), /0 to 10/);
   assert.equal(validateSetting('limits.maxRoundsPerDay', 25), 25);
   for (const bad of [0, 101, 2.5, '10']) assert.throws(() => validateSetting('limits.maxRoundsPerDay', bad), /limits\.maxRoundsPerDay/, String(bad));
   assert.equal(validateSetting('design.figma', true), true);

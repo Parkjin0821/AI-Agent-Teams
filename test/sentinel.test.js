@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,25 +34,52 @@ test('file changes: inside the project only, no config/instruction/secret files,
   assert.equal(decide({ tool_name: 'Write', tool_input: { file_path: 'a.js' } }, {}).decision, 'deny', 'no workspace means no writes');
 });
 
-test('connectors: create/read allowed, delete/share/publish/send/pay blocked; other tools untouched', () => {
+test('connectors: create/read allowed; delete/share/publish/send/pay wait for 대장 unless granted', () => {
   assert.equal(call('mcp__claude_ai_Figma__create_new_file', {}).decision, 'allow');
-  for (const t of ['mcp__claude_ai_Canva__publish-brand-template', 'mcp__claude_ai_Figma__share_file', 'mcp__claude_ai_Gmail__send_message', 'mcp__x__delete_page'])
-    assert.equal(call(t, {}).decision, 'deny', t);
+  for (const t of ['mcp__claude_ai_Canva__publish-brand-template', 'mcp__claude_ai_Figma__share_file', 'mcp__claude_ai_Gmail__send_message', 'mcp__x__delete_page']) {
+    const v = call(t, {});
+    assert.deepEqual([v.decision, v.ask], ['ask', { kind: 'connector', target: t }], t);
+  }
+  const grants = [{ kind: 'connector', target: 'mcp__claude_ai_Figma__share_file', scope: 'project', project: 'p-1' }];
+  assert.equal(decide({ tool_name: 'mcp__claude_ai_Figma__share_file', tool_input: {} }, { workspace: ws, grants, project: 'p-1' }).decision, 'allow');
+  assert.equal(decide({ tool_name: 'mcp__claude_ai_Figma__share_file', tool_input: {} }, { workspace: ws, grants, project: 'p-2' }).decision, 'ask', 'a project grant stays in its project');
   assert.equal(call('Read', { file_path: 'a.js' }).decision, 'ignore');
+});
+
+test('web in "ask" mode: a new public site waits for 대장; grants by scope, subdomain and expiry; hard blocks stay blocked', () => {
+  const now = Date.parse('2026-09-29T12:00:00Z');
+  const ask = (url, grants = [], project = 'p-1') => decide({ tool_name: 'WebFetch', tool_input: { url } }, { workspace: ws, grants, project, webMode: 'ask', now });
+  assert.deepEqual([ask('https://nodejs.org/api').decision, ask('https://nodejs.org/api').ask], ['ask', { kind: 'web', target: 'nodejs.org' }]);
+  const g = (target, extra = {}) => [{ kind: 'web', target, scope: 'project', project: 'p-1', ...extra }];
+  assert.equal(ask('https://nodejs.org/api', g('nodejs.org')).decision, 'allow');
+  assert.equal(ask('https://docs.nodejs.org/x', g('nodejs.org')).decision, 'allow', 'subdomains follow their site');
+  assert.equal(ask('https://evilnodejs.org/', g('nodejs.org')).decision, 'ask', 'a lookalike domain is not a subdomain');
+  assert.equal(ask('https://example.com/', g('*')).decision, 'allow', '"every public site" grant');
+  assert.equal(ask('https://example.com/', g('example.com', { scope: 'day', expiresAt: '2026-09-29T11:00:00Z' })).decision, 'ask', 'expired');
+  assert.equal(ask('https://example.com/', [{ kind: 'web', target: 'example.com', scope: 'always', project: null }], 'p-9').decision, 'allow', 'always = every project');
+  assert.equal(ask('https://127.0.0.1/', g('*')).decision, 'deny', 'a grant never opens local addresses');
 });
 
 test('the hook program blocks with exit code 2, logs without secrets, and fails closed on bad input', () => {
   const script = fileURLToPath(new URL('../scripts/sentinel-hook.mjs', import.meta.url));
   const log = path.join(mkdtempSync(path.join(tmpdir(), 'hq-sen-')), 'sentinel.jsonl');
   const env = { ...process.env, AGENT_HQ_WORKSPACE: ws, AGENT_HQ_SENTINEL_LOG: log, AGENT_HQ_PROJECT: 'p-1', AGENT_HQ_TEAM: 'research' };
-  const run = input => spawnSync(process.execPath, [script], { input, env, encoding: 'utf8' });
-  assert.equal(run(JSON.stringify({ tool_name: 'WebFetch', tool_input: { url: 'https://nodejs.org/' } })).status, 0);
-  const blocked = run(JSON.stringify({ tool_name: 'WebFetch', tool_input: { url: 'https://127.0.0.1:4311/api/engine' } }));
+  const run = (input, extra = {}) => spawnSync(process.execPath, [script], { input, env: { ...env, ...extra }, encoding: 'utf8' });
+  const fetchCall = url => JSON.stringify({ tool_name: 'WebFetch', tool_input: { url } });
+  assert.equal(run(fetchCall('https://nodejs.org/'), { AGENT_HQ_SENTINEL_WEB: 'open' }).status, 0);
+  const held = run(fetchCall('https://nodejs.org/'));
+  assert.equal(held.status, 2, 'default web mode asks first');
+  assert.match(held.stderr, /승인 요청을 올렸습니다/);
+  const grantsFile = path.join(path.dirname(log), 'grants.json');
+  writeFileSync(grantsFile, JSON.stringify({ grants: [{ kind: 'web', target: 'nodejs.org', scope: 'project', project: 'p-1' }] }));
+  assert.equal(run(fetchCall('https://nodejs.org/'), { AGENT_HQ_SENTINEL_GRANTS: grantsFile }).status, 0, 'a granted site passes');
+  const blocked = run(fetchCall('https://127.0.0.1:4311/api/engine'));
   assert.equal(blocked.status, 2);
   assert.match(blocked.stderr, /감시 에이전트가 막았습니다/);
   assert.equal(run('not json').status, 2, 'fails closed');
   const entries = readFileSync(log, 'utf8').trim().split('\n').map(l => JSON.parse(l));
-  assert.deepEqual(entries.map(e => [e.project, e.team, e.decision]), [['p-1', 'research', 'allow'], ['p-1', 'research', 'deny']]);
+  assert.deepEqual(entries.map(e => [e.project, e.team, e.decision]), [['p-1', 'research', 'allow'], ['p-1', 'research', 'ask'], ['p-1', 'research', 'allow'], ['p-1', 'research', 'deny']]);
+  assert.deepEqual(entries[1].ask, { kind: 'web', target: 'nodejs.org' });
 });
 
 test('every Claude run carries the Sentinel hook; Codex runs are sandboxed without network instead', () => {

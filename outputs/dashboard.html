@@ -263,6 +263,12 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .seg button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .row-f{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .seg.wrap{display:flex;flex-wrap:wrap;gap:2px}
+/* 승인함·기억 */
+.ib-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.ib-row:last-of-type{border-bottom:0}
+.ib-row.col{grid-template-columns:minmax(0,1fr);gap:8px}
+.ib-acts{justify-content:flex-end}
+@media (max-width:760px){.ib-row{grid-template-columns:minmax(0,1fr)}.ib-acts{justify-content:flex-start}}
 /* 프로젝트 대화 스레드 */
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .ws-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start;margin-top:4px}
@@ -680,6 +686,87 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
   </sc-if>
 </sc-if>
 
+<!-- ================= 승인함 (감시 에이전트 요청 · 결과 확인 · 기억 제안) ================= -->
+<sc-if value="{{vInbox}}">
+  <div class="page-h"><div><h1>승인함</h1><p class="lede">팀이 대장의 결정을 기다리는 일입니다. 감시 에이전트가 멈춰 둔 동작, 처음 몇 번 확인하는 작업 결과, 팀이 제안한 기억이 여기에 모입니다.</p></div>
+    <button class="btn sm" onClick="{{ib.reload}}">새로고침</button></div>
+  <div class="stack">
+    <section class="card">
+      <div class="lbl">감시 에이전트 승인 요청 · {{ib.approvalsN}}건</div>
+      <sc-for list="{{ib.approvals}}" as="a">
+        <div class="ib-row">
+          <div style="min-width: 0"><div class="row-f"><b>{{a.kindL}}</b><span class="mono small">{{a.target}}</span></div>
+            <div class="small muted">{{a.project}} · {{a.team}} · {{a.when}} · {{a.reason}}</div></div>
+          <div class="row-f ib-acts"><sc-for list="{{a.actions}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for></div>
+        </div>
+      </sc-for>
+      <sc-if value="{{ib.noApprovals}}"><p class="hint">기다리는 요청이 없습니다.</p></sc-if>
+    </section>
+    <section class="card">
+      <div class="lbl">결과 확인 · 신뢰 쌓기 · {{ib.reviewsN}}건</div>
+      <p class="hint" style="margin: 0 0 8px">새로운 종류의 작업은 처음 {{ib.trustRequired}}번 결과를 대장이 보고 나서야 자동으로 이어집니다. 지금: {{ib.trustLevels}}</p>
+      <sc-for list="{{ib.reviews}}" as="r">
+        <div class="ib-row col">
+          <div class="row-f"><b>{{r.team}}</b><span class="kind">{{r.step}}</span><span class="small muted">{{r.project}}</span></div>
+          <div class="small">{{r.files}}</div>
+          <sc-if value="{{r.hasTools}}"><div class="tchecks"><sc-for list="{{r.tools}}" as="k"><div class="tcheck"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><span class="small"><b>{{k.name}}</b> · {{k.summary}}</span></div></sc-for></div></sc-if>
+          <sc-if value="{{r.hasAnswer}}"><details><summary>팀 답변 전체</summary><div class="answer">{{r.answer}}</div></details></sc-if>
+          <div class="row-f"><button class="btn pri sm" onClick="{{r.accept}}">확인하고 계속</button><button class="btn sm" onClick="{{r.sendBack}}">되돌려 보내기</button><button class="link small" onClick="{{r.open}}">프로젝트 열기</button></div>
+        </div>
+      </sc-for>
+      <sc-if value="{{ib.noReviews}}"><p class="hint">확인할 결과가 없습니다.</p></sc-if>
+    </section>
+    <section class="card">
+      <div class="lbl">기억 제안 · {{ib.proposalsN}}건</div>
+      <sc-for list="{{ib.proposals}}" as="p">
+        <div class="ib-row"><div style="min-width: 0"><div>{{p.text}}</div><div class="small muted">{{p.scope}} · {{p.by}} 제안 · {{p.when}}</div></div>
+          <div class="row-f ib-acts"><button class="btn pri sm" onClick="{{p.approve}}">기억하기</button><button class="btn sm" onClick="{{p.reject}}">버리기</button></div></div>
+      </sc-for>
+      <sc-if value="{{ib.noProposals}}"><p class="hint">팀이 제안한 기억이 없습니다.</p></sc-if>
+    </section>
+    <section class="card">
+      <div class="lbl">허용해 둔 것</div>
+      <sc-for list="{{ib.grants}}" as="g">
+        <div class="ib-row"><div style="min-width: 0"><div class="row-f"><b>{{g.kindL}}</b><span class="mono small">{{g.target}}</span></div><div class="small muted">{{g.scope}} · {{g.project}} · {{g.when}}</div></div>
+          <div class="ib-acts"><button class="btn sm" onClick="{{g.revoke}}">취소</button></div></div>
+      </sc-for>
+      <sc-if value="{{ib.noGrants}}"><p class="hint">허용해 둔 것이 없습니다.</p></sc-if>
+    </section>
+    <section class="card">
+      <div class="lbl">설정</div>
+      <div class="field"><label>웹 접근</label>
+        <div class="seg" role="group" aria-label="웹 접근"><button class="{{ib.webAskCls}}" aria-pressed="{{ib.webAsk}}" onClick="{{ib.setWebAsk}}">처음 여는 사이트는 승인 받기</button><button class="{{ib.webOpenCls}}" aria-pressed="{{ib.webOpen}}" onClick="{{ib.setWebOpen}}">공개 사이트는 모두 허용</button></div>
+        <p class="hint">어느 쪽이든 내부·로컬 주소, 비밀정보가 담긴 주소, 유출 의심 주소는 막습니다.</p></div>
+      <div class="field"><label for="trust-in">신뢰 쌓기 · 작업 종류마다 대장이 먼저 확인할 결과 수 (0이면 끔)</label>
+        <div class="row-f"><input class="input" id="trust-in" type="number" min="0" max="10" step="1" style="max-width: 90px" value="{{ib.trustDraft}}" onChange="{{ib.onTrust}}"><button class="btn sm" onClick="{{ib.saveTrust}}">저장</button></div></div>
+    </section>
+  </div>
+</sc-if>
+
+<!-- ================= 기억 ================= -->
+<sc-if value="{{vMemory}}">
+  <div class="page-h"><div><h1>기억</h1><p class="lede">대장의 선호와 규칙입니다. 승인한 기억만 팀 지시에 들어가며, 프로젝트가 바뀌어도 유지됩니다. 언제든 고치거나 잊게 할 수 있습니다.</p></div></div>
+  <div class="stack">
+    <section class="card">
+      <div class="lbl">새 기억</div>
+      <div class="seg wrap" role="group" aria-label="적용 범위"><sc-for list="{{mem.scopes}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div>
+      <div class="row-f" style="margin-top: 10px"><label class="sr" for="mem-in">기억할 내용</label><input class="input" id="mem-in" style="flex: 1; min-width: 220px" placeholder="예: 답은 한국어로 짧게 · 결제 기능은 만들지 않는다" value="{{mem.draft}}" onChange="{{mem.onDraft}}"><button class="btn pri sm" onClick="{{mem.add}}">기억하기</button></div>
+    </section>
+    <sc-for list="{{mem.groups}}" as="grp">
+      <section class="card">
+        <div class="lbl">{{grp.title}} · {{grp.n}}개</div>
+        <sc-for list="{{grp.items}}" as="i">
+          <div class="ib-row"><div style="min-width: 0"><div>{{i.text}}</div><div class="small muted">{{i.by}} · {{i.when}}</div></div>
+            <div class="row-f ib-acts"><button class="btn sm" onClick="{{i.edit}}">고치기</button><button class="btn sm" onClick="{{i.forget}}">잊기</button></div></div>
+        </sc-for>
+      </section>
+    </sc-for>
+    <sc-if value="{{mem.empty}}"><div class="empty">아직 기억이 없습니다. 위에서 추가하거나, 팀이 제안한 기억을 승인함에서 승인하세요.</div></sc-if>
+    <sc-if value="{{mem.hasPending}}"><p class="hint">팀이 제안한 기억 {{mem.pendingN}}건이 승인함에서 기다립니다.</p></sc-if>
+    <div class="card danger-zone"><div class="lbl">전체 초기화</div><p class="hint" style="margin: 0 0 12px">기억과 기억 제안을 모두 지웁니다. 되돌릴 수 없습니다.</p><button class="btn danger" onClick="{{mem.reset}}">기억 모두 지우기</button></div>
+  </div>
+</sc-if>
+
 <!-- ================= 팀 ================= -->
 <sc-if value="{{vSkills}}">
   <div class="page-h"><div><h1>스킬 라이브러리</h1><p class="lede">용도와 적용 팀을 확인하세요. 검토 대기 스킬은 작업에 적용되지 않습니다.</p></div><button class="btn sm" onClick="{{refreshSkills}}">새로고침</button></div>
@@ -883,6 +970,8 @@ const askedBy = (q) => { const m = /^\[([^\]]+)\]/.exec(q || ''); return m ? m[1
 const stripAsker = (q) => (q || '').replace(/^\[[^\]]+\]\s*/, '');
 const pathOf = (team) => ['plan', (team && team.worker) || 'dev'].concat((team && team.plannedReviews) || (team && team.reviews) || [], ['qa']);
 const REASON = {
+  approval_required: '감시 에이전트가 대장 승인이 필요한 동작을 멈춰 두었습니다 · 승인함에서 범위를 골라 주세요',
+  trust_review: '처음 몇 번은 대장이 결과를 확인합니다 (신뢰 쌓기) · 승인함에서 확인해 주세요',
   criteria_approval_required: '완료 조건 승인 대기 · 기획팀이 도출한 조건을 확인하고 승인해 주세요.',
   criteria_not_derived: '완료 조건 도출 실패 · 기획팀이 검증 가능한 조건을 제시하지 못했습니다. 요구사항을 보완해 주세요.',
   no_verified_capable_assignment: '모델 등록·계정 확인 또는 작업에 필요한 기능이 부족합니다. 연결 화면에서 확인하세요. 독립 검토용 다른 실행 도구도 필요할 수 있습니다.',
@@ -979,6 +1068,7 @@ class Component extends DCLogic {
   }
   refresh() {
     if (this.state.view === 'project' && this.state.pid) this.loadSentinel(this.state.pid);
+    this.loadInbox();
     return fetch('/api/engine').then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then((eng) => { this.notifyChanges(eng); this.setState({ eng: eng, offline: false }); })
       .catch(() => this.setState({ offline: true }));
@@ -998,6 +1088,8 @@ class Component extends DCLogic {
       if (before[g.id] === now[g.id]) return;
       let body = null;
       if (g.criteriaApprovalPending) body = '완료 조건 승인이 필요합니다';
+      else if (g.reason === 'approval_required') body = '감시 에이전트 승인 요청이 있습니다 · 승인함에서 범위를 골라 주세요';
+      else if (g.reason === 'trust_review') body = '결과 확인 요청 (신뢰 쌓기) · 승인함에서 확인해 주세요';
       else if (g.status === 'review_required' && g.reason === 'needs_decision') body = askedBy(g.question) + ' 질문: ' + clip(stripAsker(g.question), 120);
       else if (g.status === 'verified') body = '완료됐습니다' + (g.proposal && g.proposal.status === 'pending' ? ' · 다음 개선안이 있습니다' : '');
       else if (['review_required', 'blocked', 'recovery_required'].includes(g.status)) body = '멈춤 · ' + reasonText(g.reason);
@@ -1020,7 +1112,19 @@ class Component extends DCLogic {
   }
   say(m) { this.setState({ toast: m }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: '' }), 3200); }
   act(promise, okMsg) { return promise.then((v) => { this.refresh(); if (okMsg) this.say(okMsg); return v; }).catch((e) => this.say(korErr(e.message))); }
-  go(view) { this.setState({ view: view }); window.scrollTo(0, 0); if (view === 'connect') this.loadEnvs(); if(view === 'skills') this.loadSkills(); }
+  go(view) { this.setState({ view: view }); window.scrollTo(0, 0); if (view === 'connect') this.loadEnvs(); if(view === 'skills') this.loadSkills();
+    if (view === 'inbox') this.loadInbox(); if (view === 'memory') this.loadMemory(); }
+  loadInbox() {
+    return fetch('/api/inbox').then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) this.setState({ inbox: d }); }).catch(() => {});
+  }
+  loadMemory() {
+    return fetch('/api/memory').then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) this.setState({ memoryItems: d.items }); }).catch(() => {});
+  }
+  // 승인함·기억 화면의 버튼들: 처리 후 목록과 엔진 상태를 다시 읽는다.
+  inboxAct(promise, msg) {
+    return promise.then(() => { this.say(msg); return Promise.all([this.loadInbox(), this.loadMemory(), this.refresh()]); })
+      .catch((e) => this.say(korErr(e.message)));
+  }
   async loadSkills() {
     this.setState({skillsMessage:'스킬 목록을 불러오는 중…'});
     try { const data=await this.api('GET','/api/skills'); this.setState({skillEntries:data.items || [],skillsMessage:'승인된 지침형 스킬만 자동 적용됩니다. 검토 기록은 수동 검토 결과입니다.'}); }
@@ -1174,7 +1278,8 @@ class Component extends DCLogic {
         dismiss: () => this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/dismiss', {}), '개선안을 보류했습니다'),
         hasIssue: issue, issueCls: 'card ' + (g.status === 'review_required' || g.status === 'model_wait' ? 'attn' : 'stop'),
         issueTitle: g.status === 'model_wait' ? '모델 대기' : (g.status === 'review_required' ? '확인 필요' : '멈춤'), issueText: reasonText(g.reason),
-        issueActions: g.status === 'model_wait' ? [{ l: '모델 설정', cls: 'btn pri sm', go: () => this.setState({ ptab: 'settings' }) }]
+        issueActions: ['approval_required', 'trust_review'].includes(g.reason) ? [{ l: '승인함 열기', cls: 'btn pri sm', go: () => this.go('inbox') }]
+          : g.status === 'model_wait' ? [{ l: '모델 설정', cls: 'btn pri sm', go: () => this.setState({ ptab: 'settings' }) }]
           : [{ l: isTeam ? '다시 시작' : '다시 실행', cls: 'btn pri sm', go: () => {
               if (!this.confirmStart(wp.name)) return;
               this.act(this.api('POST', '/api/goals/' + g.id + (isTeam ? '/start' : '/resume'), {}), '다시 시작했습니다');
@@ -1306,7 +1411,92 @@ class Component extends DCLogic {
 
     const ptabDefs = [['over', '개요', ''], ['artifacts', '결과물', ''], ['activity', '활동', wp ? wp.runs.length : ''], ['verify', '검증', wp ? wp.proven + '/' + wp.total : ''], ['settings', '설정', '']];
     const inboxN = inbox.length;
-    const navDefs = [['home', '홈', inboxN], ['projects', '프로젝트', 0], ['teams', '팀', 0], ['skills','스킬',0], ['connect', '연결', 0], ['usage', '사용량', 0]];
+    const ibd = s.inbox || { approvals: [], reviews: [], memoryProposals: [], grants: [], decided: [], trust: { required: 3, teams: [] }, scopes: {}, webMode: 'ask' };
+    const approvalsN = ibd.approvals.length + ibd.reviews.length + ibd.memoryProposals.length;
+    const navDefs = [['home', '홈', inboxN], ['inbox', '승인함', approvalsN], ['projects', '프로젝트', 0], ['teams', '팀', 0], ['memory', '기억', 0], ['skills','스킬',0], ['connect', '연결', 0], ['usage', '사용량', 0]];
+    // ── 승인함 ──
+    const KIND_L = { web: '웹사이트 열기', connector: '커넥터 동작' };
+    const ib = {
+      reload: () => this.loadInbox(),
+      approvalsN: ibd.approvals.length, noApprovals: !ibd.approvals.length,
+      approvals: ibd.approvals.map((a) => {
+        const grant = (scope, anySite) => () => {
+          if (scope === 'always' && !window.confirm(a.target + '을(를) 모든 프로젝트에서 계속 허용할까요?')) return;
+          if (anySite && !window.confirm('이 프로젝트에서 모든 공개 사이트를 허용할까요? 내부 주소·유출 의심 주소는 계속 막습니다.')) return;
+          this.inboxAct(this.api('POST', '/api/approvals/' + a.id + '/grant', { scope: scope, anySite: !!anySite }), '허용했습니다 · ' + (ibd.scopes[scope] || scope));
+        };
+        const actions = [{ l: '이번 한 번', cls: 'btn pri sm', go: grant('once') }, { l: '이 프로젝트에서 계속', cls: 'btn sm', go: grant('project') },
+          { l: '24시간', cls: 'btn sm', go: grant('day') }, { l: '모든 프로젝트', cls: 'btn sm', go: grant('always') }];
+        if (a.kind === 'web') actions.push({ l: '이 프로젝트의 모든 공개 사이트', cls: 'btn ghost sm', go: grant('project', true) });
+        actions.push({ l: '거절', cls: 'btn danger sm', go: () => {
+          const note = window.prompt('거절 이유를 적어 주세요 (팀에게 전달됩니다, 비워도 됩니다)', '');
+          if (note === null) return;
+          this.inboxAct(this.api('POST', '/api/approvals/' + a.id + '/deny', { note: note }), '거절했습니다 · 팀이 이것 없이 진행합니다');
+        } });
+        return { kindL: KIND_L[a.kind] || a.kind, target: a.target, project: a.projectTitle, team: TEAM_NAME[a.team] || a.team, when: ago(a.at), reason: a.reason, actions: actions };
+      }),
+      reviewsN: ibd.reviews.length, noReviews: !ibd.reviews.length, trustRequired: ibd.trust.required,
+      trustLevels: ibd.trust.teams.map((t) => t.name + ' ' + Math.min(t.count, ibd.trust.required) + '/' + ibd.trust.required).join(' · ') || '—',
+      reviews: ibd.reviews.map((r) => {
+        const cp = r.checkpoint;
+        const files = cp ? ['추가 ' + cp.added.length, '수정 ' + cp.modified.length, '삭제 ' + cp.removed.length].join(' · ') + ' 파일'
+          + (cp.added.concat(cp.modified).length ? ' (' + clip(cp.added.concat(cp.modified).join(', '), 160) + ')' : '') : '파일 변경 기록 없음';
+        return { team: TEAM_NAME[r.team] || r.team, step: '신뢰 쌓기 ' + r.number + '/' + r.required, project: r.projectTitle, files: files,
+          hasTools: (r.tools || []).length > 0, tools: (r.tools || []).map((k) => ({ name: k.name, summary: k.summary,
+            stL: TOOL_ST[k.status] ? TOOL_ST[k.status][0] : k.status, pillCls: pillCls(TOOL_ST[k.status] ? TOOL_ST[k.status][1] : 'idle') })),
+          hasAnswer: !!r.answer, answer: r.answer ? cleanAnswer(r.answer) : '',
+          accept: () => this.inboxAct(this.api('POST', '/api/goals/' + r.goalId + '/trust-review', { accept: true }), '확인했습니다 · 다음 단계로 이어갑니다'),
+          sendBack: () => {
+            const note = window.prompt('무엇을 고쳐야 하는지 적어 주세요. 기획팀이 이걸 보고 다시 계획합니다.', '');
+            if (!note) return;
+            this.inboxAct(this.api('POST', '/api/goals/' + r.goalId + '/trust-review', { accept: false, note: note }), '되돌려 보냈습니다 · 기획팀이 다시 계획합니다');
+          },
+          open: () => this.openProject(r.projectId) };
+      }),
+      proposalsN: ibd.memoryProposals.length, noProposals: !ibd.memoryProposals.length,
+      proposals: ibd.memoryProposals.map((p) => ({ text: p.text, scope: p.scope === 'all' ? '모든 팀' : (TEAM_NAME[p.scope] || p.scope), by: p.by, when: ago(p.at),
+        approve: () => this.inboxAct(this.api('POST', '/api/memory/' + p.id + '/approve', {}), '기억했습니다 · 다음 단계부터 팀 지시에 들어갑니다'),
+        reject: () => this.inboxAct(this.api('DELETE', '/api/memory/' + p.id, {}), '제안을 버렸습니다') })),
+      noGrants: !ibd.grants.length,
+      grants: ibd.grants.map((g) => ({ kindL: KIND_L[g.kind] || g.kind, target: g.target === '*' ? '모든 공개 사이트' : g.target, scope: ibd.scopes[g.scope] || g.scope,
+        project: g.projectTitle, when: ago(g.grantedAt) + (g.expiresAt ? ' · ' + fmt(g.expiresAt) + '까지' : ''),
+        revoke: () => { if (window.confirm('이 허용을 취소할까요? 다음에 필요하면 다시 승인 요청이 옵니다.')) this.inboxAct(this.api('DELETE', '/api/grants/' + g.id, {}), '허용을 취소했습니다'); } })),
+      webAsk: ibd.webMode !== 'open' ? 'true' : 'false', webOpen: ibd.webMode === 'open' ? 'true' : 'false',
+      webAskCls: ibd.webMode !== 'open' ? 'on' : '', webOpenCls: ibd.webMode === 'open' ? 'on' : '',
+      setWebAsk: () => this.inboxAct(this.api('PUT', '/api/settings', { key: 'sentinel.web', value: 'ask' }), '처음 여는 사이트는 승인을 받습니다'),
+      setWebOpen: () => { if (window.confirm('공개 https 사이트는 승인 없이 열게 할까요? 내부 주소·유출 의심 주소는 계속 막습니다.'))
+        this.inboxAct(this.api('PUT', '/api/settings', { key: 'sentinel.web', value: 'open' }), '공개 사이트는 모두 허용합니다'); },
+      trustDraft: s.trustDraft == null ? String(ibd.trust.required) : s.trustDraft, onTrust: (e) => this.setState({ trustDraft: e.target.value }),
+      saveTrust: () => {
+        const n = Number(s.trustDraft == null ? ibd.trust.required : s.trustDraft);
+        if (!Number.isInteger(n) || n < 0 || n > 10) { this.say('0부터 10 사이의 정수로 적어 주세요'); return; }
+        this.setState({ trustDraft: null });
+        this.inboxAct(this.api('PUT', '/api/settings', { key: 'trust.required', value: n }), n ? '작업 종류마다 처음 ' + n + '번 결과를 확인합니다' : '신뢰 쌓기를 껐습니다');
+      },
+    };
+    // ── 기억 ──
+    const memItems = s.memoryItems || [];
+    const memScope = s.memScope || 'all';
+    const scopeL = (sc) => (sc === 'all' ? '모든 팀' : TEAM_NAME[sc] || sc);
+    const mem = {
+      scopes: [['all', '모든 팀']].concat(TEAMS.map((t) => [t.id, t.name])).map((c) => ({ l: c[1], on: memScope === c[0] ? 'true' : 'false', cls: memScope === c[0] ? 'on' : '', pick: () => this.setState({ memScope: c[0] }) })),
+      draft: s.memDraft || '', onDraft: (e) => this.setState({ memDraft: e.target.value }),
+      add: () => {
+        const text = (this.state.memDraft || '').trim();
+        if (!text) { this.say('기억할 내용을 적어 주세요'); return; }
+        this.setState({ memDraft: '' });
+        this.inboxAct(this.api('POST', '/api/memory', { scope: memScope, text: text }), scopeL(memScope) + ' 기억에 추가했습니다');
+      },
+      groups: ['all'].concat(TEAMS.map((t) => t.id)).map((sc) => {
+        const items = memItems.filter((i) => i.status === 'active' && i.scope === sc);
+        return { title: scopeL(sc), n: items.length, items: items.map((i) => ({ text: i.text, by: i.by + (i.approvedAt ? ' 제안 · 대장 승인' : ''), when: fmt(i.editedAt || i.approvedAt || i.at),
+          edit: () => { const t = window.prompt('기억을 고쳐 주세요', i.text); if (t && t.trim() && t.trim() !== i.text) this.inboxAct(this.api('PUT', '/api/memory/' + i.id, { text: t.trim() }), '고쳤습니다'); },
+          forget: () => { if (window.confirm('이 기억을 잊게 할까요?\n\n' + i.text)) this.inboxAct(this.api('DELETE', '/api/memory/' + i.id, {}), '잊었습니다'); } })) };
+      }).filter((grp) => grp.n > 0),
+      empty: !memItems.some((i) => i.status === 'active'),
+      pendingN: memItems.filter((i) => i.status === 'pending').length, hasPending: memItems.some((i) => i.status === 'pending'),
+      reset: () => { if (window.confirm('기억과 기억 제안을 모두 지울까요? 되돌릴 수 없습니다.')) this.inboxAct(this.api('POST', '/api/memory/reset', { confirm: true }), '기억을 모두 지웠습니다'); },
+    };
 
     // 연결 페이지
     const envs = s.envs;
@@ -1349,6 +1539,7 @@ class Component extends DCLogic {
       modeCls: 'mode' + (s.offline ? ' off' : real ? ' real' : ''), modeL: s.offline ? '연결 끊김' : real ? '실제 실행' : '모의 실행',
       modeTitle: real ? '시작한 프로젝트는 실제 AI가 실행하며 구독 사용량이 쓰입니다' : '실제 AI를 호출하지 않는 모의 실행 모드입니다',
       offline: s.offline,
+      vInbox: s.view === 'inbox', vMemory: s.view === 'memory', ib: ib, mem: mem,
       vSkills:s.view === 'skills', refreshSkills:()=>this.loadSkills(), skillsMessage:s.skillsMessage || '', skillsEmpty:Array.isArray(s.skillEntries) && !s.skillEntries.length,
       skillRows:(s.skillEntries || []).map(k=>{
         const review=kind=>{const r=k.reviews?.[kind];return r?(r.pass?'통과':'보류')+' · '+r.note:'검토 전';};

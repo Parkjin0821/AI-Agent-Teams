@@ -42,6 +42,10 @@ export const SETTINGS = Object.freeze({
   'tools.npmAudit': { type: 'boolean', default: false },
   // Steps per project per day (all projects). Usage stops (5h 20% / weekly 10%) still apply on top.
   'limits.maxRoundsPerDay': { type: 'number', default: 10, min: 1, max: 100 },
+  // 감시 에이전트: 'ask' — a public site needs 대장's approval before a team opens it; 'open' — any public https site.
+  'sentinel.web': { type: 'string', default: 'ask', values: ['ask', 'open'] },
+  // 신뢰 쌓기: how many results of each kind of work 대장 reviews before it runs on its own (0 = off).
+  'trust.required': { type: 'number', default: 3, min: 0, max: 10 },
 });
 
 export function validateSetting(key, value) {
@@ -49,6 +53,7 @@ export function validateSetting(key, value) {
   if (!spec) throw new Error(`unknown setting: ${key}`);
   if (typeof value !== spec.type) throw new Error(`${key} must be a ${spec.type}`);
   if (spec.type === 'number' && (!Number.isInteger(value) || value < spec.min || value > spec.max)) throw new Error(`${key} must be a whole number from ${spec.min} to ${spec.max}`);
+  if (spec.values && !spec.values.includes(value)) throw new Error(`${key} must be one of ${spec.values.join(', ')}`);
   if (key === 'design.higgsfield' && value === true) throw new Error('subscription-only: paid image credits are blocked');
   return value;
 }

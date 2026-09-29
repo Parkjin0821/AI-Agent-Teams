@@ -1,6 +1,7 @@
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { isIP } from 'node:net';
 import path from 'node:path';
+import { granted } from './approvals.js';
 
 // 감시 에이전트 (Sentinel): a separate program Claude Code calls before every tool use (official
 // PreToolUse hook). It decides from fixed rules, not from a model, so text on a web page or in a file
@@ -25,8 +26,10 @@ function privateHost(host) {
   return false;
 }
 
-// Returns { decision: 'allow' | 'deny' | 'ignore', reason, target } for one tool call.
-export function decide(input, { workspace } = {}) {
+// Returns { decision: 'allow' | 'ask' | 'deny' | 'ignore', reason, target, ask? } for one tool call.
+// 'ask' = not allowed yet, becomes an approval request for 대장 (see src/approvals.js).
+// webMode 'ask': a public site needs a grant first; 'open': any public https site passes the fixed rules.
+export function decide(input, { workspace, grants = [], project = null, webMode = 'open', now = Date.now() } = {}) {
   const tool = String(input?.tool_name ?? '');
   const args = input?.tool_input ?? {};
   if (tool === 'WebFetch') {
@@ -38,7 +41,9 @@ export function decide(input, { workspace } = {}) {
     if (privateHost(url.hostname)) return { decision: 'deny', reason: '내부·로컬 주소는 열 수 없음 (이 컴퓨터와 내부망 보호)', target };
     if (hasSecret(url.href)) return { decision: 'deny', reason: '주소에 비밀정보 형식이 들어 있음 (유출 차단)', target };
     if (url.search.length > 300) return { decision: 'deny', reason: '주소 뒤에 붙은 데이터가 너무 김 (유출 의심)', target };
-    return { decision: 'allow', reason: '공개 https 주소', target };
+    const host = url.hostname.toLowerCase();
+    if (webMode === 'open' || granted(grants, { kind: 'web', target: host, project }, now)) return { decision: 'allow', reason: '공개 https 주소', target };
+    return { decision: 'ask', reason: '처음 여는 사이트 · 대장 승인 필요', target, ask: { kind: 'web', target: host } };
   }
   if (tool === 'WebSearch') {
     const query = String(args.query ?? '');
@@ -60,10 +65,19 @@ export function decide(input, { workspace } = {}) {
     return { decision: 'allow', reason: '작업 폴더 안 파일', target: rel };
   }
   if (tool.startsWith('mcp__')) {
-    if (RISKY_CONNECTOR.test(tool)) return { decision: 'deny', reason: '삭제·공유·게시·전송·결제 성격의 커넥터 동작은 대장 승인 없이 막음', target: tool };
+    if (RISKY_CONNECTOR.test(tool) && !granted(grants, { kind: 'connector', target: tool, project }, now)) {
+      return { decision: 'ask', reason: '삭제·공유·게시·전송·결제 성격의 커넥터 동작 · 대장 승인 필요', target: tool, ask: { kind: 'connector', target: tool } };
+    }
     return { decision: 'allow', reason: '연결된 도구', target: tool };
   }
   return { decision: 'ignore', reason: '', target: '' };
+}
+
+// The approval asks the Sentinel logged for one project since a moment (one round).
+export function readAsks(file, { project, since }) {
+  let lines = [];
+  try { lines = readFileSync(file, 'utf8').split('\n').filter(Boolean).slice(-5000); } catch { return []; }
+  return lines.flatMap((l) => { try { const e = JSON.parse(l); return e.decision === 'ask' && e.project === project && e.at >= since && e.ask ? [{ ...e.ask, reason: e.reason, team: e.team }] : []; } catch { return []; } });
 }
 
 export function logDecision(file, entry) {

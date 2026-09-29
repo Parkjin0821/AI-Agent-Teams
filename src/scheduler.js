@@ -15,6 +15,8 @@ export const GoalStatus = Object.freeze({
 const DUE = [GoalStatus.SCHEDULED, GoalStatus.RETRY_WAIT, GoalStatus.MODEL_WAIT];
 const RESUMABLE = [GoalStatus.REVIEW_REQUIRED, GoalStatus.BLOCKED, GoalStatus.RECOVERY_REQUIRED];
 const NON_RETRYABLE = ['auth', 'limit', 'permission'];
+// Waits only 대장's own answer may end: "start"/"resume" never skip them.
+const HELD_FOR_DAEJANG = ['needs_decision', 'trust_review', 'approval_required', 'criteria_approval_required'];
 const iso = ms => new Date(ms).toISOString();
 const nextMidnight = ms => { const d = new Date(ms); d.setHours(24, 0, 0, 0); return d.getTime(); };
 const sameLocalDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
@@ -32,8 +34,9 @@ const mergeEvidence = (list, confirmed = []) => [
 // The model is resolved only when a round is claimed, i.e. after the previous round's run record (the
 // checkpoint) is saved; a policy change during a round therefore takes effect from the next round.
 export class GoalScheduler {
-  constructor({ store, runner, clock = { now: () => Date.now() }, policy = DEFAULT_POLICY, registry = null, capacity = null, capabilities = null, dailyCap = null }) {
-    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities, dailyCap });
+  constructor({ store, runner, clock = { now: () => Date.now() }, policy = DEFAULT_POLICY, registry = null, capacity = null, capabilities = null, dailyCap = null,
+    trust = null }) {
+    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities, dailyCap, trust });
     for (const goal of store.listGoals().filter(g => g.status === GoalStatus.RUNNING)) {
       for (const run of store.listRuns(goal.id).filter(r => r.status === 'running')) store.saveRun({ ...run, status: 'interrupted' });
       this.update(goal, { status: GoalStatus.RECOVERY_REQUIRED, reason: 'interrupted_by_restart', nextRunAt: null });
@@ -101,7 +104,7 @@ export class GoalScheduler {
     if (goal.status === GoalStatus.VERIFIED) throw new Error('goal is already verified');
     const changes = { autoRun: true, pauseRequested: false };
     if (goal.status === GoalStatus.PAUSED) Object.assign(changes, { status: goal.pausedFrom ?? GoalStatus.SCHEDULED, pausedFrom: null });
-    else if (RESUMABLE.includes(goal.status) && goal.reason !== 'needs_decision') {
+    else if (RESUMABLE.includes(goal.status) && !HELD_FOR_DAEJANG.includes(goal.reason)) {
       Object.assign(changes, { status: GoalStatus.SCHEDULED, reason: null, attempt: 0, testFixAttempts: 0, noProgressRounds: 0, nextRunAt: iso(this.clock.now()) });
     }
     this.update(goal, changes);
@@ -150,6 +153,39 @@ export class GoalScheduler {
       objective: `${goal.objective}\n대장 추가 요청: ${reply}`.slice(-16000), status: held ? goal.status : GoalStatus.SCHEDULED, reason: held ? goal.reason : null,
       question: held ? goal.question : null, proposal: null, nextRunAt: held ? goal.nextRunAt : iso(this.clock.now()),
       team: { ...goal.team, step: 'plan', feedback: reply } });
+  }
+
+  // 승인 대기 is over for this goal (every request answered): the held step runs again, with any refusals noted.
+  releaseApprovals(goalId, refusals = []) {
+    const goal = this.store.getGoal(goalId);
+    if (!goal || goal.reason !== 'approval_required') return goal;
+    const note = refusals.length ? `[대장] 감시 에이전트 요청 거절: ${refusals.join(', ')} · 이것 없이 진행할 방법을 쓰세요.` : '';
+    this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, question: null, nextRunAt: iso(this.clock.now()),
+      ...(note ? { team: { ...goal.team, feedback: [goal.team?.feedback, note].filter(Boolean).join('\n') } } : {}) });
+    void this.store.emit({ type: 'goal.approvals_answered', goalId });
+    return goal;
+  }
+
+  // 신뢰 쌓기: 대장 looked at a work team's result. Accept counts toward that kind of work running on its own;
+  // send back returns the note to planning.
+  trustReview(goalId, { accept, note = '' }) {
+    const goal = this.store.getGoal(goalId);
+    if (!goal || goal.status !== GoalStatus.REVIEW_REQUIRED || goal.reason !== 'trust_review' || !goal.trustReview) throw new Error('goal is not waiting for a result review');
+    const { team } = goal.trustReview;
+    const at = iso(this.clock.now());
+    const text = String(note ?? '').trim().slice(0, 1000);
+    const messages = [...(goal.messages ?? []), { role: 'user', kind: 'review', at,
+      text: accept ? `${TEAMS[team].name} 결과 확인 · 계속${text ? ` · ${text}` : ''}` : `${TEAMS[team].name} 결과 되돌림${text ? ` · ${text}` : ''}` }].slice(-100);
+    if (accept) {
+      this.trust?.add(team);
+      this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, question: null, trustReview: null, nextRunAt: at, messages });
+    } else {
+      if (!text) throw new Error('say what to fix when sending a result back');
+      this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, question: null, trustReview: null, nextRunAt: at, messages,
+        team: { ...goal.team, step: 'plan', feedback: `[대장] ${TEAMS[team].name} 결과를 되돌림: ${text}`, cycle: (goal.team?.cycle ?? 1) + 1 } });
+    }
+    void this.store.emit({ type: 'goal.trust_reviewed', goalId, team, accept: accept === true });
+    return goal;
   }
 
   // Improvements proposed after completion become a new goal only when 대장 accepts them.
@@ -229,6 +265,9 @@ export class GoalScheduler {
       return goal;
     }
     if (!goal || !RESUMABLE.includes(goal.status)) throw new Error('goal is not paused, awaiting review or recovery');
+    if (['trust_review', 'approval_required'].includes(goal.reason) || (goal.reason === 'criteria_approval_required' && goal.criteriaApprovalPending)) {
+      throw new Error('this goal waits for 대장: answer it in the approval inbox');
+    }
     this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, attempt: 0, testFixAttempts: 0,
       noProgressRounds: 0, nextRunAt: iso(this.clock.now()) });
     void this.store.emit({ type: 'goal.resumed', goalId });
@@ -402,6 +441,10 @@ export class GoalScheduler {
     const goTo = (next, extra = {}) => ({ evidence, ...extra, reason: null, question: null, status: GoalStatus.SCHEDULED,
       nextRunAt: iso(now), team: { ...team, step: next } });
     const advance = (extra = {}) => goTo(nextStep(team), extra);
+    // 승인 대기: the Sentinel held something back for 대장. The same step runs again once 대장 has answered.
+    if (result.approvalRequests?.length) {
+      return review('approval_required', { question: `감시 에이전트가 대장 승인이 필요한 동작 ${result.approvalRequests.length}건을 멈춰 두었습니다. 승인함에서 범위를 골라 주세요.` });
+    }
     const finish = (improvements) => ({ evidence, team, status: GoalStatus.VERIFIED, reason: null, nextRunAt: null, autoRun: false,
       proposal: improvements.length ? { items: improvements, status: 'pending', at: iso(now) } : null });
 
@@ -451,6 +494,13 @@ export class GoalScheduler {
         recentDiffs: diffIsNew ? [...goal.recentDiffs, result.diffHash].slice(-20) : goal.recentDiffs,
         noProgressRounds: progressed ? 0 : goal.noProgressRounds + 1 };
       if (extra.noProgressRounds >= this.policy.maxNoProgress) return review('no_progress', extra);
+      // 신뢰 쌓기: the first results of each kind of work wait for 대장 before the rotation moves on.
+      const required = this.trust?.required() ?? 0, seen = this.trust?.count(step) ?? 0;
+      if (!result.simulated && seen < required) {
+        return { ...advance(extra), status: GoalStatus.REVIEW_REQUIRED, reason: 'trust_review', nextRunAt: null,
+          trustReview: { team: step, number: seen + 1, required },
+          question: `${TEAMS[step].name} 결과 확인 (신뢰 쌓기 ${seen + 1}/${required}) · 결과를 보고 계속하거나 되돌려 보내 주세요.` };
+      }
       return advance(extra);
     }
     const findings = result.findings ?? { feedback: '', improvements: [] };

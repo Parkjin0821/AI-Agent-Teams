@@ -22,6 +22,8 @@ import { npmCommand } from './sandbox.js';
 import { AutoSave } from './auto-save.js';
 import { ModelChoices } from './model-choices.js';
 import { SkillLibrary } from './skills.js';
+import { Approvals, SCOPES } from './approvals.js';
+import { Memory } from './memory.js';
 
 const MAX_BODY = 1_000_000;
 const iso = ms => new Date(ms).toISOString();
@@ -31,6 +33,12 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   enforceSafety = false, usageReader = readUsage, saveTransport = undefined, modelChoices = new ModelChoices({ clock }) }) {
   const store = new PersistentStore({ dataDir });
   const skills = new SkillLibrary({ store });
+  const approvals = new Approvals({ store, grantsFile: path.join(dataDir, 'sentinel-grants.json'), clock });
+  const memory = new Memory({ store, clock });
+  const setting = (key, fallback) => store.getSettings()[key] ?? fallback;
+  // 신뢰 쌓기 counters: how many results of each work team 대장 has accepted (all projects).
+  const trust = { required: () => setting('trust.required', 3), count: team => setting(`trust.count.${team}`, 0),
+    add: team => store.setSetting(`trust.count.${team}`, setting(`trust.count.${team}`, 0) + 1) };
   const sentinelLog = path.join(dataDir, 'sentinel.jsonl');
   const workspaces = new ProjectWorkspaces(projectsDir);
   const autoSave = new AutoSave({ store, workspaces, transport: saveTransport, clock });
@@ -70,6 +78,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   const scheduler = new GoalScheduler({ store, clock, registry,
     capacity: guarded ? capacity : null,
     dailyCap: () => store.getSettings()['limits.maxRoundsPerDay'],
+    trust,
     capabilities: team => ({ 'claude-code': ['text','code', ...(TEAMS[team]?.web ? ['web'] : []),
       ...(toolsFor(team).connectors?.length ? ['connectors'] : [])], codex: ['text','code'] }),
     runner: createGoalRunner({ adapter, workspaces, store, toolsFor, sandbox, settings: () => store.getSettings(),
@@ -82,7 +91,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
         }
       }, catalog: () => registry.catalog(),
       // 감시 에이전트: checks every Claude tool call before it runs (see src/sentinel.js).
-      sentinel: { script: path.join(root, 'scripts', 'sentinel-hook.mjs'), log: sentinelLog } }) });
+      sentinel: { script: path.join(root, 'scripts', 'sentinel-hook.mjs'), log: sentinelLog, grants: approvals.grantsFile },
+      approvals, memory }) });
   const teamsView = () => {
     const settings = store.getSettings();
     const tools = toolkitView(monitor?.snapshot ?? null, settings, environmentView(monitor?.snapshot ?? null, settings));
@@ -235,6 +245,46 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       return { projectId, ...removed, filesDeleted };
     }],
     ['GET', /^\/api\/model-choices$/, () => modelChoices.get()],
+    // ── 승인함: 감시 에이전트 승인 요청 · 결과 확인(신뢰 쌓기) · 기억 제안을 한곳에 ──
+    ['GET', /^\/api\/inbox$/, () => {
+      const goals = store.listGoals();
+      const title = id => { const g = goals.find(x => x.projectId === id); return g ? (g.title || g.objective.slice(0, 40)) : id; };
+      return {
+        scopes: SCOPES, webMode: setting('sentinel.web', 'ask'),
+        approvals: approvals.pending().map(r => ({ ...r, projectTitle: title(r.project) })),
+        decided: approvals.list().filter(r => r.status !== 'pending').slice(0, 20).map(r => ({ ...r, projectTitle: title(r.project) })),
+        grants: approvals.grants().map(g => ({ ...g, projectTitle: g.project ? title(g.project) : '모든 프로젝트' })),
+        reviews: goals.filter(g => g.reason === 'trust_review' && g.trustReview).map(g => {
+          const run = store.listRuns(g.id).filter(r => r.team === g.trustReview.team && r.status === 'finished').at(-1);
+          return { goalId: g.id, projectId: g.projectId, projectTitle: title(g.projectId), ...g.trustReview,
+            answer: run?.answer ?? null, tools: run?.tools ?? [], evidence: run?.evidence ?? [], checkpoint: run?.checkpoint
+              ? { added: run.checkpoint.added ?? [], modified: run.checkpoint.modified ?? [], removed: run.checkpoint.removed ?? [] } : null };
+        }),
+        memoryProposals: memory.list().filter(i => i.status === 'pending'),
+        trust: { required: trust.required(), teams: ['research', 'dev', 'design'].map(t => ({ team: t, name: TEAMS[t].name, count: trust.count(t) })) },
+      };
+    }],
+    ['POST', /^\/api\/approvals\/([a-f0-9]{24})\/(grant|deny)$/, (m, body) => {
+      const done = m[2] === 'grant' ? approvals.grant(m[1], String(body.scope), { anySite: body.anySite === true }) : approvals.deny(m[1], body.note);
+      // When a project has no open requests left, its held step runs again (refusals go to planning).
+      if (!approvals.pending(done.project).length) {
+        for (const g of store.listGoals().filter(g => g.projectId === done.project && g.reason === 'approval_required')) {
+          const refused = approvals.list().filter(r => r.goalId === g.id && r.status === 'denied' && !r.noted);
+          for (const r of refused) store.setSetting(`approval.request.${r.id}`, { ...r, noted: true });
+          scheduler.releaseApprovals(g.id, refused.map(r => r.target));
+        }
+      }
+      void store.emit({ type: `approval.${done.status}`, projectId: done.project, target: done.target, scope: done.scope ?? null });
+      return done;
+    }],
+    ['DELETE', /^\/api\/grants\/([0-9a-f-]{36})$/, m => approvals.revoke(m[1])],
+    ['POST', /^\/api\/goals\/([^/]+)\/trust-review$/, (m, body) => scheduler.trustReview(m[1], { accept: body.accept === true, note: body.note })],
+    ['GET', /^\/api\/memory$/, () => ({ items: memory.list() })],
+    ['POST', /^\/api\/memory$/, (m, body) => [201, memory.add({ scope: body.scope ?? 'all', text: body.text })]],
+    ['POST', /^\/api\/memory\/reset$/, (m, body) => { if (body.confirm !== true) throw new Error('confirm reset'); return memory.reset(); }],
+    ['POST', /^\/api\/memory\/([0-9a-f-]{36})\/approve$/, m => memory.approve(m[1])],
+    ['PUT', /^\/api\/memory\/([0-9a-f-]{36})$/, (m, body) => memory.edit(m[1], { scope: body.scope, text: body.text })],
+    ['DELETE', /^\/api\/memory\/([0-9a-f-]{36})$/, m => memory.forget(m[1])],
     ['GET', /^\/api\/projects\/([^/]+)\/sentinel$/, async m => {
       const projectId = validateProjectId(m[1]);
       let lines = [];

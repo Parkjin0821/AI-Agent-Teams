@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { SkillLibrary } from './skills.js';
+import { readAsks } from './sentinel.js';
 
 // Bridges the goal scheduler to the CLI adapter. After a real run the engine reads the tool's final
 // answer, runs the checks it proposed inside the workspace, and only passing checks become evidence.
@@ -17,7 +18,7 @@ const PROVIDER = { 'claude-code': 'claude', codex: 'codex' };
 
 // toolsFor(team) → { connectors, knownConnectors }: which claude.ai connectors 대장 opened for that team.
 export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, settings = () => ({}),
-  onRateLimits = () => {}, catalog = () => [], sentinel = null }) {
+  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null }) {
   const simulated = adapter.enabled === false;
   return {
     async run(goal, run) {
@@ -41,6 +42,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const engineTools = team && !simulated ? await runTeamTools(team, cwd, { sandbox, settings: settings() }) : [];
       let prompt = team
         ? teamPrompt(team, { goal, team: goal.team, files: listWorkspaceFiles(cwd), connectors: tools.connectors, toolText: toolReport(engineTools),
+          memory: memory?.forTeam(team) ?? null,
           candidates: catalog().filter(e => e.usable).map(e => ({ id: e.id, executor: e.executor, capabilities: e.capabilities ?? [] })) })
         : [`Goal: ${goal.objective}`, '', reportInstructions(goal.completionCriteria)].join('\n');
       if (team && store.getSettings) {
@@ -66,8 +68,17 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       }
       // Raw provider output is not forwarded: it may contain secrets and is not evidence.
       const onEvent = event => { if (event.type === 'provider.notice') void store.emit({ ...event, goalId: goal.id }); };
+      const roundStart = new Date().toISOString();
       const result = await adapter.run(PROVIDER[run.executor], prompt, onEvent, { cwd, model: run.model, effort: run.effort, access: run.access ?? 'write', ...tools,
-        ...(sentinel ? { sentinel: { ...sentinel, project: goal.projectId, team: team ?? 'task' } } : {}) });
+        ...(sentinel ? { sentinel: { ...sentinel, project: goal.projectId, team: team ?? 'task',
+          webMode: settings()['sentinel.web'] === 'open' ? 'open' : 'ask' } } : {}) });
+      // 승인 대기: what the Sentinel held back this round becomes approval requests; "once" grants are spent.
+      let approvalRequests = [];
+      if (sentinel && approvals && !simulated) {
+        approvalRequests = approvals.request(readAsks(sentinel.log, { project: goal.projectId, since: roundStart }),
+          { goalId: goal.id, project: goal.projectId, team: team ?? 'task' });
+        approvals.consumeOnce(goal.projectId);
+      }
       if (runRecord) {
         const after = snapshot();
         store.saveRun({ ...store.listRuns(goal.id).find(r => r.id === runRecord.id), checkpoint: { before, after,
@@ -88,10 +99,14 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           findings: team === 'qa' ? { feedback: '모의 실행이라 확인한 것이 없습니다', improvements: [], blocking: [] } : undefined };
       }
       const toolsSaved = engineTools.map(({ id, name, status, summary, details }) => ({ id, name, status, summary, details: details.slice(0, 10) }));
-      const base = { model: result.model ?? null, answer: result.answer ?? null, tools: toolsSaved };
+      const base = { model: result.model ?? null, answer: result.answer ?? null, tools: toolsSaved, approvalRequests: approvalRequests.map(r => r.id) };
       if (result.outcome === 'limited') return { ...base, outcome: 'error', errorKind: 'limit' };
       if (result.outcome !== 'completed') return { ...base, outcome: 'error', errorKind: result.errorKind ?? 'unclassified' };
-      if (team === 'plan') return { ...base, outcome: 'completed', evidence: [], claims: [], diffHash: null, plan: parsePlan(result.answer) };
+      if (team === 'plan') {
+        const plan = parsePlan(result.answer);
+        memory?.propose(plan?.remember, { team, project: goal.projectId });
+        return { ...base, outcome: 'completed', evidence: [], claims: [], diffHash: null, plan };
+      }
       const blocking = engineTools.flatMap(t => t.blocking);
       // Reviewers only look: their verdict steers the rotation but is never evidence of completion.
       if (REVIEWS.includes(team)) {
@@ -99,6 +114,8 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           review: withToolFindings(parseReview(result.answer), blocking, engineTools.find(t => t.decision)?.decision ?? null) };
       }
       const report = parseReport(result.answer);
+      // A team may suggest something to remember; it waits for 대장 in the approval inbox.
+      memory?.propose(report?.remember, { team, project: goal.projectId });
       const test = engineTools.find(t => t.test)?.test ?? null;
       const { evidence, claims } = verifyReport(report, goal.completionCriteria, cwd, { verifying: team === 'qa', test });
       return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd),
