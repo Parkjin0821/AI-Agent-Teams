@@ -23,7 +23,7 @@ import { detectTests } from './checks.js';
 import { npmCommand } from './sandbox.js';
 import { AutoSave } from './auto-save.js';
 import { ModelChoices } from './model-choices.js';
-import { SkillLibrary } from './skills.js';
+import { kindOf, quickApprovable, SkillLibrary } from './skills.js';
 import { Approvals, SCOPES } from './approvals.js';
 import { Memory } from './memory.js';
 
@@ -134,7 +134,10 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   };
 
   const routes = [
-    ['GET', /^\/api\/skills$/, () => ({items:skills.list(),needs:skills.needs(),discovery:store.getSettings()['skill.discovery'] || null})],
+    ['GET', /^\/api\/skills$/, () => ({items:skills.list().map(k => ({ ...k, kind: kindOf(k), quick: quickApprovable(k) })),needs:skills.needs(),
+      discovery:store.getSettings()['skill.discovery'] || null, trustedSources: skills.trustedSources()})],
+    ['PUT', /^\/api\/skills\/sources$/, (m, body) => ({ trustedSources: skills.setTrustedSources(body.sources) })],
+    ['POST', /^\/api\/skills\/([a-f0-9]{64})\/approve$/, (m, body) => skills.approveFromInbox(m[1], body)],
     ['POST', /^\/api\/skills$/, (m,body) => skills.register(body)],
     ['POST', /^\/api\/skills\/draft$/, (m,body) => skills.draft(body)],
     ['POST', /^\/api\/skills\/discover$/, (m,body) => skills.discover(body)],
@@ -280,6 +283,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
               ? { added: run.checkpoint.added ?? [], modified: run.checkpoint.modified ?? [], removed: run.checkpoint.removed ?? [] } : null };
         }),
         memoryProposals: memory.list().filter(i => i.status === 'pending'),
+        // Skill candidates whose engine checks are clean wait here for one decision; the rest stay on the skills page.
+        skillCandidates: skills.list().filter(k => k.status === 'pending' && quickApprovable(k)),
+        skillsHeld: skills.list().filter(k => k.status === 'pending' && !quickApprovable(k)).length,
         trust: { required: trust.required(), teams: ['research', 'dev', 'design'].map(t => ({ team: t, name: TEAMS[t].name, count: trust.count(t) })) },
       };
     }],

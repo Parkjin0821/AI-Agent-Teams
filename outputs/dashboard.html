@@ -793,6 +793,17 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
       <sc-if value="{{ib.noReviews}}"><p class="hint">확인할 결과가 없습니다.</p></sc-if>
     </section>
     <section class="card">
+      <div class="lbl">스킬 후보 · {{ib.skillsN}}건</div>
+      <p class="hint" style="margin: 0 0 8px">팀이 필요하다고 한 스킬을 엔진이 찾아 검사했습니다 (신뢰 출처 우선). 켜기 전에는 어떤 작업에도 쓰이지 않습니다.</p>
+      <sc-for list="{{ib.skills}}" as="k">
+        <div class="ib-row"><div style="min-width: 0"><div class="row-f"><b>{{k.name}}</b><sc-if value="{{k.trusted}}"><span class="kind">신뢰 출처</span></sc-if><span class="small muted mono">{{k.source}}</span></div>
+          <div class="small">{{k.description}}</div><div class="small muted">{{k.checksL}}</div></div>
+          <div class="row-f ib-acts"><button class="btn pri sm" onClick="{{k.approve}}">켜기</button><button class="btn sm" onClick="{{k.drop}}">버리기</button><button class="link small" onClick="{{k.open}}">자세히</button></div></div>
+      </sc-for>
+      <sc-if value="{{ib.noSkills}}"><p class="hint">기다리는 스킬 후보가 없습니다.</p></sc-if>
+      <sc-if value="{{ib.hasSkillsHeld}}"><p class="hint">자세한 검토가 필요한 후보 {{ib.skillsHeld}}건(라이선스 확인·위험 문구·외부 프로그램 필요)은 스킬 화면에 있습니다.</p></sc-if>
+    </section>
+    <section class="card">
       <div class="lbl">기억 제안 · {{ib.proposalsN}}건</div>
       <sc-for list="{{ib.proposals}}" as="p">
         <div class="ib-row"><div style="min-width: 0"><div>{{p.text}}</div><div class="small muted">{{p.scope}} · {{p.by}} 제안 · {{p.when}}</div></div>
@@ -848,6 +859,11 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
   <div class="page-h"><div><h1>스킬 라이브러리</h1><p class="lede">용도와 적용 팀을 확인하세요. 검토 대기 스킬은 작업에 적용되지 않습니다.</p></div><button class="btn sm" onClick="{{refreshSkills}}">새로고침</button></div>
   <div class="card" style="margin-bottom:20px"><h2>등록된 스킬</h2><p>{{skillCounts}}</p><p class="hint">아래 목록은 실제 저장된 스킬입니다. ‘검토 대기’는 가져온 후보이며 아직 AI 작업에 사용되지 않습니다.</p></div>
   <p class="hint" role="status">{{skillsMessage}}</p>
+  <details class="card" style="margin-bottom:20px"><summary>신뢰 출처 · 먼저 찾아볼 저장소 {{skillSources.n}}곳</summary>
+    <p class="hint">팀이 스킬을 요청하면 엔진이 이 저장소들에서 먼저 찾고, 없을 때만 GitHub 전체를 검색합니다. 신뢰 출처라도 켜기 전에는 쓰이지 않습니다.</p>
+    <sc-for list="{{skillSources.items}}" as="r"><div class="row-f small" style="margin-bottom:6px"><span class="mono" style="flex:1">{{r.name}}</span><button class="btn ghost sm" onClick="{{r.remove}}">빼기</button></div></sc-for>
+    <div class="row-f" style="margin-top:8px"><label class="sr" for="src-in">추가할 저장소 (owner/저장소)</label><input class="input" id="src-in" style="max-width:280px" placeholder="owner/저장소" value="{{skillSources.draft}}" onChange="{{skillSources.onDraft}}"><button class="btn sm" onClick="{{skillSources.add}}">추가</button></div>
+  </details>
   <details class="card" style="margin-bottom:20px"><summary>스킬 등록하기 · 만들기</summary>
     <p class="hint">GitHub 링크나 필요한 기능을 입력하고 ‘등록하기’를 누르세요. 새 스킬 초안이 필요하면 ‘만들기’를 누르세요. 등록 후 안전성 검토를 거쳐야 사용할 수 있습니다.</p>
     <div class="field"><label>필요한 용도 또는 GitHub 링크<input class="input" value="{{skillRequest}}" placeholder="예: 대시보드 디자인 / owner/저장소 / gh repo clone owner/저장소 / https://github.com/…" onChange="{{changeSkillRequest}}"></label></div>
@@ -1236,7 +1252,7 @@ class Component extends DCLogic {
   }
   async loadSkills() {
     this.setState({skillsMessage:'스킬 목록을 불러오는 중…'});
-    try { const data=await this.api('GET','/api/skills'); this.setState({skillEntries:data.items || [],skillNeeds:data.needs || [],skillsMessage:'승인된 지침형 스킬만 자동 적용됩니다. 검토 기록은 수동 검토 결과입니다.'}); }
+    try { const data=await this.api('GET','/api/skills'); this.setState({skillEntries:data.items || [],skillNeeds:data.needs || [],skillSources:data.trustedSources || [],skillsMessage:'승인된 지침형 스킬만 자동 적용됩니다. 검토 기록은 수동 검토 결과입니다.'}); }
     catch(e){this.setState({skillsMessage:'목록을 불러오지 못했습니다: '+e.message});}
   }
   async saveSkill(kind) {
@@ -1293,7 +1309,7 @@ class Component extends DCLogic {
       ago: ago(p.last), flow: flowOf(p), open: () => this.openProject(p.id) });
 
     // ── 대장 결정: 승인 요청·결과 확인은 홈·프로젝트·승인함 어디서나 같은 버튼으로 바로 처리한다 ──
-    const ibd = s.inbox || { approvals: [], reviews: [], memoryProposals: [], grants: [], decided: [], trust: { required: 3, teams: [] }, scopes: {}, webMode: 'ask' };
+    const ibd = Object.assign({ approvals: [], reviews: [], memoryProposals: [], skillCandidates: [], skillsHeld: 0, grants: [], decided: [], trust: { required: 3, teams: [] }, scopes: {}, webMode: 'ask' }, s.inbox || {});
     const grantAct = (a, scope, anySite) => () => {
       if (scope === 'always' && !window.confirm(a.target + '을(를) 모든 프로젝트에서 계속 허용할까요?')) return;
       if (anySite && !window.confirm('이 프로젝트에서 모든 공개 사이트를 허용할까요? 내부 주소·유출 의심 주소는 계속 막습니다.')) return;
@@ -1367,6 +1383,9 @@ class Component extends DCLogic {
       }
     });
 
+    if (ibd.skillCandidates.length) inbox.push({ icon: ICON.proposal, icoCls: 'ico', title: '스킬 후보 ' + ibd.skillCandidates.length + '건', project: '모든 프로젝트',
+      body: '엔진 검사를 통과한 스킬 후보입니다 · 예: ' + ibd.skillCandidates[0].name + ' · 켜야 팀 지시에 들어갑니다', isIssue: true, held: true,
+      actions: [{ l: '승인함에서 보기', cls: 'btn pri sm', go: () => this.go('inbox') }] });
     if (ibd.memoryProposals.length) inbox.push({ icon: ICON.proposal, icoCls: 'ico', title: '기억 제안 ' + ibd.memoryProposals.length + '건', project: '모든 프로젝트',
       body: '팀이 기억해 두자고 제안했습니다 · 예: ' + clip(ibd.memoryProposals[0].text, 80), isIssue: true, held: true,
       actions: [{ l: '승인함에서 보기', cls: 'btn pri sm', go: () => this.go('inbox') }] });
@@ -1532,6 +1551,11 @@ class Component extends DCLogic {
         items.push({ at: r.finishedAt || r.startedAt, cls: 'msg team' + (a.pillCls.indexOf('stop') >= 0 ? ' err' : ''), who: a.who, sub: a.tool,
           text: a.res, hasTools: a.hasTools, tools: a.tools, hasAnswer: a.hasAnswer, answer: a.answer });
       });
+      ((s.eng && s.eng.events) || []).filter((e) => e.type === 'skill.applied' && wp.goals.some((x) => x.id === e.goalId)).forEach((e) => {
+        const shown = (e.skills || []).filter((k) => k.notice);
+        if (shown.length) items.push({ at: e.at, cls: 'msg sys', who: '스킬', sub: TEAM_NAME[e.team] || '',
+          text: shown.map((k) => k.name + ' 스킬 적용 (' + k.n + '/3번째 · 처음 3번은 여기 표시)').join(' · ') });
+      });
       const sen = (s.sentinel || {})[wp.id];
       ((sen && sen.entries) || []).filter((e) => e.decision === 'deny').forEach((e) => items.push({ at: e.at, cls: 'msg sys stop', who: '감시 에이전트',
         sub: TEAM_NAME[e.team] || '', text: '막음 · ' + e.reason + (e.target ? ' · ' + e.target : '') }));
@@ -1615,7 +1639,7 @@ class Component extends DCLogic {
     const ptabDefs = [['over', '개요', ''], ['artifacts', '결과물', ''], ['activity', '활동', wp ? wp.runs.length : ''], ['verify', '검증', wp ? wp.proven + '/' + wp.total : ''], ['settings', '설정', '']];
     // 결정 대기는 승인함 한곳에서 센다 (홈 목록과 겹치지 않게: 승인 요청·결과 확인·기억 제안 + 그 밖의 질문·개선안·멈춤).
     const othersN = inbox.filter((it) => !it.held).length;
-    const pendingTotal = ibd.approvals.length + ibd.reviews.length + ibd.memoryProposals.length + othersN;
+    const pendingTotal = ibd.approvals.length + ibd.reviews.length + ibd.memoryProposals.length + ibd.skillCandidates.length + othersN;
     const docTitle = (pendingTotal ? '(' + pendingTotal + ') ' : '') + 'AGENT HQ';
     if (document.title !== docTitle) document.title = docTitle;
     const navDefs = [['home', '홈', 0], ['inbox', '승인함', pendingTotal],['projects', '프로젝트', 0], ['teams', '팀', 0], ['memory', '기억', 0], ['skills','스킬',0], ['connect', '연결', 0], ['usage', '사용량', 0]];
@@ -1662,6 +1686,14 @@ class Component extends DCLogic {
             this.inboxAct(this.api('POST', '/api/goals/' + r.goalId + '/trust-review', { accept: true, trustFully: true }), '확인했습니다 · ' + (TEAM_NAME[r.team] || r.team) + ' 결과는 이제 바로 이어집니다');
           } };
       }),
+      skillsN: ibd.skillCandidates.length, noSkills: !ibd.skillCandidates.length, skillsHeld: ibd.skillsHeld, hasSkillsHeld: ibd.skillsHeld > 0,
+      skills: ibd.skillCandidates.map((k) => ({ name: k.name, description: clip(k.description || '', 220), trusted: !!k.trusted,
+        source: (k.source || '').replace(/^https:\/\/github\.com\//, '').replace(/\/blob\/[a-f0-9]{40}\//, ' · '),
+        checksL: '라이선스 ' + (k.checks ? k.checks.license.name : '?') + ' · 글로 된 지침형 · 위험 문구 없음 · 팀: ' + (k.teams || []).map((t) => TEAM_NAME[t] || t).join('·'),
+        approve: () => { if (window.confirm(k.name + ' 스킬을 켤까요? 적용 팀의 작업 지시에 이 스킬 원문이 들어갑니다. 처음 3번은 적용될 때 표시됩니다.'))
+          this.inboxAct(this.api('POST', '/api/skills/' + k.id + '/approve', { confirm: true }), k.name + ' 스킬을 켰습니다'); },
+        drop: () => { if (window.confirm(k.name + ' 후보를 버릴까요?')) this.inboxAct(this.api('DELETE', '/api/skills/' + k.id), k.name + ' 후보를 버렸습니다'); },
+        open: () => this.go('skills') })),
       proposalsN: ibd.memoryProposals.length, noProposals: !ibd.memoryProposals.length,
       proposals: ibd.memoryProposals.map((p) => ({ text: p.text, scope: p.scope === 'all' ? '모든 팀' : (TEAM_NAME[p.scope] || p.scope), by: p.by, when: ago(p.at),
         approve: () => this.inboxAct(this.api('POST', '/api/memory/' + p.id + '/approve', {}), '기억했습니다 · 다음 단계부터 팀 지시에 들어갑니다'),
@@ -1826,6 +1858,10 @@ class Component extends DCLogic {
       skillCounts:Array.isArray(s.skillEntries) ? `전체 ${s.skillEntries.length}개 · 사용 가능 ${s.skillEntries.filter(k=>k.status==='active').length}개 · 검토 대기 ${s.skillEntries.filter(k=>k.status==='pending').length}개 · 비활성 ${s.skillEntries.filter(k=>k.status==='disabled').length}개` : '등록 목록을 불러오는 중…',
       skillNeedsText:(s.skillNeeds || []).map(n=>`${n.project} · ${n.team} · ${n.topic}\n${({queued:'검색 대기',searching:'검색 중 · 중단됐다면 재확인 필요',review_pending:'후보 검토 대기',creation_pending:'제한된 검색에서 후보 없음 · 전문 스킬 제작 필요',search_failed:'검색 실패',search_incomplete:'검색 불완전'})[n.status] || n.status} · ${n.reason}`).join('\n\n') || '아직 팀이 요청한 스킬이 없습니다.',
       skillRequest:s.skillRequest || '',changeSkillRequest:e=>this.setState({skillRequest:e.target.value}),
+      skillSources:(()=>{ const list=s.skillSources || []; const save=(next,msg)=>this.act(this.api('PUT','/api/skills/sources',{sources:next}).then(()=>this.loadSkills()),msg);
+        return { n: list.length, draft: s.srcDraft || '', onDraft: e=>this.setState({srcDraft:e.target.value}),
+          items: list.map(r=>({ name: r, remove: ()=>save(list.filter(x=>x!==r), r+' 을(를) 신뢰 출처에서 뺐습니다') })),
+          add: ()=>{ const r=(this.state.srcDraft || '').trim().replace(/^https:\/\/github\.com\//,'').replace(/\/$/,''); if(!r){this.say('owner/저장소 형식으로 적어 주세요');return;} this.setState({srcDraft:''}); save(list.concat([r]), r+' 을(를) 신뢰 출처에 추가했습니다'); } }; })(),
       skillRows:(s.skillEntries || []).map(k=>{
         // 엔진 자동 검사 + 대장 검토 3가지 + 켜기·끄기·삭제
         const skillActions = (k) => {
@@ -1849,8 +1885,8 @@ class Component extends DCLogic {
           });
           const allPass = KINDS.every(([kind]) => k.reviews && k.reviews[kind] && k.reviews[kind].pass === true);
           const done = KINDS.filter(([kind]) => k.reviews && k.reviews[kind]).length;
-          return { checkRows: checkRows, reviewRows: reviewRows, canActivate: allPass && k.status !== 'active', isActive: k.status === 'active',
-            gateL: k.status === 'active' ? '사용 중' : allPass ? '3가지 모두 통과 · 승인하면 켜집니다' : '켜려면 3가지 모두 통과가 필요합니다 (' + done + '/3 검토됨)',
+          return { checkRows: checkRows, reviewRows: reviewRows, canActivate: allPass && k.status !== 'active' && k.kind !== 'tool', isActive: k.status === 'active',
+            gateL: k.kind === 'tool' ? '도구형 · 외부 프로그램이 필요해 스킬로 켤 수 없습니다 (설치 승인·격리 시험 뒤 엔진 도구로 연결)' : k.status === 'active' ? '사용 중' : allPass ? '3가지 모두 통과 · 승인하면 켜집니다' : '켜려면 3가지 모두 통과가 필요합니다 (' + done + '/3 검토됨)',
             activate: () => { if (window.confirm(k.name + ' 스킬을 켤까요? 적용 팀의 작업 지시에 이 스킬 원문이 들어갑니다.')) act(this.api('POST', '/api/skills/' + k.id + '/activate', { confirm: true }), k.name + ' 스킬을 켰습니다'); },
             disableIt: () => act(this.api('POST', '/api/skills/' + k.id + '/disable', {}), k.name + ' 스킬을 껐습니다'),
             removeIt: () => { if (window.confirm(k.name + ' 항목을 삭제할까요? 되돌릴 수 없습니다. 필요하면 다시 가져올 수 있습니다.')) act(this.api('DELETE', '/api/skills/' + k.id), k.name + ' 항목을 삭제했습니다'); } };

@@ -46,14 +46,17 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           candidates: catalog().filter(e => e.usable).map(e => ({ id: e.id, executor: e.executor, capabilities: e.capabilities ?? [] })) })
         : [`Goal: ${goal.objective}`, '', reportInstructions(goal.completionCriteria)].join('\n');
       if (team && store.getSettings) {
-        const selected = new SkillLibrary({store}).select(team, goal.team?.task || goal.objective);
+        const library = new SkillLibrary({store});
+        const selected = library.select(team, goal.team?.task || goal.objective);
         if (selected.length) {
           const block = '\n[승인된 지침형 스킬 · 기존 안전 경계와 출력 계약이 우선]\n'
             + selected.map(s => `${s.name} (${s.id})\n${s.body}`).join('\n\n') + '\n';
           // Skills go before the output format, so the engine's JSON contract stays the last instruction.
           const at = prompt.lastIndexOf('\n[출력 형식]');
           prompt = at >= 0 ? prompt.slice(0, at) + block + prompt.slice(at) : prompt + block;
-          await store.emit({type:'skill.applied',goalId:goal.id,team,skills:selected.map(s=>({id:s.id,name:s.name}))});
+          // Real runs count toward "처음 3번 적용" so 대장 sees a newly enabled skill at work.
+          const applied = simulated ? selected.map(s => ({ id: s.id, name: s.name, n: 0, notice: false })) : library.markApplied(selected);
+          await store.emit({type:'skill.applied',goalId:goal.id,team,skills:applied});
         }
       }
       if (previous && (previous.status === 'interrupted' || previous.outcome !== 'completed')) {

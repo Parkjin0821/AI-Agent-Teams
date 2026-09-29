@@ -40,6 +40,17 @@ export function skillChecks(body, license) {
     risks: RISKY.filter(([re]) => re.test(doc)).map(([, why]) => why), size: { ok: doc.length <= 12000 } };
 }
 
+// A skill whose document needs a separate program (npx, MCP …) is a tool, not an instruction: it is kept as a
+// "도구 연결 후보" and can never be turned on as a skill (the program must be installed and connected as an engine tool).
+export const kindOf = entry => (entry?.checks?.tool?.needed ? 'tool' : 'instruction');
+// Candidates 대장 can approve in one step from the inbox: instruction-only, allowed license, no risky wording.
+export const quickApprovable = entry => kindOf(entry) === 'instruction' && entry?.checks?.license?.ok === true && !(entry?.checks?.risks?.length);
+export const DEFAULT_TRUSTED = ['anthropics/skills'];
+// Search words per requested topic, matched against SKILL.md paths in trusted repositories.
+const TOPIC_WORDS = { design: ['design', 'frontend', 'canvas', 'theme', 'brand', 'art'], coding: ['code', 'develop', 'builder', 'webapp', 'mcp'],
+  testing: ['test'], accessibility: ['accessib', 'a11y'], documentation: ['doc', 'pdf', 'pptx', 'xlsx', 'writ'] };
+const APPLIED_NOTICE = 3; // the first uses of a newly enabled skill are shown on the run
+
 // Instruction-only candidates. No checkout, package installation, scripts or credentials.
 export class SkillLibrary {
   constructor({ store, fetcher = fetch }) { this.store = store; this.fetcher = fetcher; }
@@ -108,9 +119,40 @@ export class SkillLibrary {
   }
   activate(id, input) {
     const entry = this.list().find(s => s.id === id);
+    if (entry && kindOf(entry) === 'tool') throw new Error('this skill needs a separate program; connect it as an engine tool instead');
     if (!entry || input.confirm !== true || ['security','policy','compatibility'].some(k => entry.reviews[k]?.pass !== true)) throw new Error('skill review and approval required');
     const updated = {...entry,status:'active',approvedAt:new Date().toISOString()};
     this.store.setSetting('skill.entry.' + id, updated); return updated;
+  }
+  // One-step approval from the inbox: only for candidates whose engine checks are all clean. 대장's decision is
+  // recorded as the three reviews (with the engine findings as notes), then the skill is turned on.
+  approveFromInbox(id, input) {
+    const entry = this.list().find(s => s.id === id);
+    if (!entry || input.confirm !== true) throw new Error('skill review and approval required');
+    if (!quickApprovable(entry)) throw new Error('this candidate needs a detailed review on the skills page');
+    const at = new Date().toISOString(), c = entry.checks;
+    const reviews = { security: { pass: true, note: '승인함에서 승인 · 엔진 검사: 위험 문구 없음', by: '대장', at },
+      policy: { pass: true, note: `승인함에서 승인 · 라이선스 ${c.license.name}`, by: '대장', at },
+      compatibility: { pass: true, note: '승인함에서 승인 · 글로 된 지침형', by: '대장', at } };
+    const updated = { ...entry, reviews, status: 'active', approvedAt: at, approvedVia: 'inbox' };
+    this.store.setSetting('skill.entry.' + id, updated); return updated;
+  }
+  // Counts uses of enabled skills; the first APPLIED_NOTICE uses are flagged so 대장 sees the skill at work.
+  markApplied(skills) {
+    return skills.map(s => {
+      const entry = this.list().find(x => x.id === s.id);
+      if (!entry) return { id: s.id, name: s.name, n: 0, notice: false };
+      const n = (entry.applied ?? 0) + 1;
+      this.store.setSetting('skill.entry.' + s.id, { ...entry, applied: n, lastAppliedAt: new Date().toISOString() });
+      return { id: s.id, name: s.name, n, notice: n <= APPLIED_NOTICE };
+    });
+  }
+  trustedSources() { return this.store.getSettings()['skills.trustedSources'] ?? DEFAULT_TRUSTED; }
+  setTrustedSources(list) {
+    if (!Array.isArray(list) || list.length > 20) throw new Error('trusted sources must be a list of at most 20 repositories');
+    const clean = [...new Set(list.map(r => String(r ?? '').trim()))].filter(Boolean);
+    if (clean.some(r => !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(r))) throw new Error('trusted sources must look like owner/repo');
+    this.store.setSetting('skills.trustedSources', clean); return clean;
   }
   disable(id) {
     const entry = this.list().find(s => s.id === id);
@@ -126,7 +168,7 @@ export class SkillLibrary {
   }
   select(team, task) {
     const query = String(task || '').toLowerCase();
-    return this.list().filter(s => s.status === 'active' && s.teams.includes(team) && s.triggers.some(t => query.includes(t))).slice(0,2);
+    return this.list().filter(s => s.status === 'active' && kindOf(s) === 'instruction' && s.teams.includes(team) && s.triggers.some(t => query.includes(t))).slice(0,2);
   }
   async github(endpoint) {
     const response = await this.fetcher('https://api.github.com' + endpoint,{redirect:'error',signal:AbortSignal.timeout(15000),headers:{Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2026-03-10'}});
@@ -152,6 +194,55 @@ export class SkillLibrary {
     const body = Buffer.from(result.content,'base64').toString('utf8');
     return this.register({...input,body,source:`https://github.com/${input.repository}/blob/${input.commit}/${file}`});
   }
+  // Reads SKILL.md candidates from one repository (pinned to a commit) and registers them as pending.
+  async collect(target,items,notes){
+    try {
+      const repoInfo=await this.github('/repos/'+target.repository);
+      const ref=target.ref || repoInfo.default_branch;
+      const commit=/^[a-f0-9]{40}$/.test(ref)?ref:(await this.github('/repos/'+target.repository+'/git/ref/heads/'+encodeURIComponent(ref))).object.sha;
+      let paths=[];
+      if(target.path)paths=[target.path.endsWith('SKILL.md')?target.path:target.path+'/SKILL.md'];
+      else {
+        // Every SKILL.md in the repository (root, skills/, plugins/*/skills/, .claude/skills/ …) from one tree listing.
+        try {
+          const tree=await this.github('/repos/'+target.repository+'/git/trees/'+commit+'?recursive=1');
+          paths=(tree.tree||[]).filter(f=>f.type==='blob'&&/(^|\/)SKILL\.md$/.test(f.path)&&!/(^|\/)(node_modules|\.git)\//.test(f.path)).map(f=>f.path);
+        } catch { /* fall back to the root and the skills/ folder */ }
+        if(!paths.length && !target.match) {
+          const root=await this.github('/repos/'+target.repository+'/contents?ref='+commit);
+          if(root.some(f=>f.name==='SKILL.md'&&f.type==='file'))paths.push('SKILL.md');
+          const directory=root.find(f=>f.name==='skills'&&f.type==='dir');
+          if(directory){const children=await this.github('/repos/'+target.repository+'/contents/skills?ref='+commit);paths.push(...children.filter(f=>f.type==='dir').slice(0,6).map(f=>f.path+'/SKILL.md'));}
+        }
+        if(target.match) paths=paths.filter(p=>target.match.some(w=>p.toLowerCase().includes(w)));
+        paths=paths.slice(0,6);
+      }
+      if(!paths.length) { if(!target.match) notes.push(target.repository+' · SKILL.md가 없음 (스킬이 아니라 프로그램일 수 있음)'); return; }
+      for(const path of paths) {
+        if(items.length>=3)break;
+        try {
+          const doc=await this.github('/repos/'+target.repository+'/contents/'+path+'?ref='+commit);
+          if(doc.type!=='file'||doc.encoding!=='base64'||doc.size>12000)continue;
+          const body=Buffer.from(doc.content,'base64').toString('utf8');
+          const name=body.match(/^name:\s*([a-z0-9-]+)\s*$/m)?.[1];
+          if(!name)continue;
+          const description=(body.match(/^description:\s*(.+)$/m)?.[1] || 'GitHub에서 가져온 스킬 · 용도 검토 필요').slice(0,500);
+          const design=/design|theme|typograph|canvas|디자인/i.test(name+' '+description);
+          const teams=design?['design']:['dev'];
+          const source='https://github.com/'+target.repository+'/blob/'+commit+'/'+path;
+          let license=null;
+          for(const lp of [path.replace(/SKILL\.md$/,'LICENSE.txt'),'LICENSE','LICENSE.txt','LICENSE.md']){
+            try{const l=await this.github('/repos/'+target.repository+'/contents/'+lp+'?ref='+commit);if(l.type==='file'&&l.encoding==='base64'&&l.size<20000){license={name:'원문 수집 · 판정 전',content:Buffer.from(l.content,'base64').toString('utf8'),source:'https://github.com/'+target.repository+'/blob/'+commit+'/'+lp};break;}}catch{/* missing license is not approval */}
+          }
+          const entry=this.register({name,description,body,source,teams,triggers:[name,...(design?['디자인','화면']:['코드','개발'])]});
+          // Preserve prior approval and evidence on duplicate intake.
+          if(!entry.importedAt)this.store.setSetting('skill.entry.'+entry.id,{...entry,license,checks:skillChecks(body,license),trusted:!!target.trusted,
+            intakeNote:'SKILL.md만 수집. 추가 자료·도구 의존성·라이선스 적합성·실제 동작 검토 전.',importedAt:new Date().toISOString()});
+          items.push({id:entry.id,name:entry.name,status:entry.status});
+        }catch{notes.push(path+' · 원문 수집 실패 또는 지원 형식 아님');}
+      }
+    }catch{notes.push(target.repository+' · 접근 실패 또는 지원 경로 없음');}
+  }
   async intake(input) {
     if(this.busy) throw new Error('skill intake already running');
     const request=text(input.request,500);
@@ -163,60 +254,17 @@ export class SkillLibrary {
         const name='custom-'+hash(request).slice(0,12);
         return {items:[this.draft({name,purpose:request,teams:['design','dev'],triggers:[request.slice(0,80)]})],notes:['목적 기반 템플릿 초안입니다. 전문 절차·실제 검증은 아직 없습니다.']};
       }
-      let targets=[];
-      if(repo) targets=[repo];
-      else {
-        const query=/디자인|화면|레이아웃|테마|폰트/i.test(request)?'design':/개발|테스트|코드/i.test(request)?'coding':request.slice(0,120);
-        const found=await this.discover({query});
-        targets=found.candidates.slice(0,3).map(c=>({repository:c.repository}));
-      }
       const items=[],notes=[];
-      for(const target of targets) {
-        if(items.length>=3)break;
-        try {
-          const repoInfo=await this.github('/repos/'+target.repository);
-          const ref=target.ref || repoInfo.default_branch;
-          const commit=/^[a-f0-9]{40}$/.test(ref)?ref:(await this.github('/repos/'+target.repository+'/git/ref/heads/'+encodeURIComponent(ref))).object.sha;
-          let paths=[];
-          if(target.path)paths=[target.path.endsWith('SKILL.md')?target.path:target.path+'/SKILL.md'];
-          else {
-            // Every SKILL.md in the repository (root, skills/, plugins/*/skills/, .claude/skills/ …) from one tree listing.
-            try {
-              const tree=await this.github('/repos/'+target.repository+'/git/trees/'+commit+'?recursive=1');
-              paths=(tree.tree||[]).filter(f=>f.type==='blob'&&/(^|\/)SKILL\.md$/.test(f.path)&&!/(^|\/)(node_modules|\.git)\//.test(f.path)).map(f=>f.path).slice(0,6);
-            } catch { /* fall back to the root and the skills/ folder */ }
-            if(!paths.length) {
-              const root=await this.github('/repos/'+target.repository+'/contents?ref='+commit);
-              if(root.some(f=>f.name==='SKILL.md'&&f.type==='file'))paths.push('SKILL.md');
-              const directory=root.find(f=>f.name==='skills'&&f.type==='dir');
-              if(directory){const children=await this.github('/repos/'+target.repository+'/contents/skills?ref='+commit);paths.push(...children.filter(f=>f.type==='dir').slice(0,6).map(f=>f.path+'/SKILL.md'));}
-            }
-          }
-          if(!paths.length) notes.push(target.repository+' · SKILL.md가 없음 (스킬이 아니라 프로그램일 수 있음)');
-          for(const path of paths.slice(0,6)) {
-            if(items.length>=3)break;
-            try {
-              const doc=await this.github('/repos/'+target.repository+'/contents/'+path+'?ref='+commit);
-              if(doc.type!=='file'||doc.encoding!=='base64'||doc.size>12000)continue;
-              const body=Buffer.from(doc.content,'base64').toString('utf8');
-              const name=body.match(/^name:\s*([a-z0-9-]+)\s*$/m)?.[1];
-              if(!name)continue;
-              const description=(body.match(/^description:\s*(.+)$/m)?.[1] || 'GitHub에서 가져온 스킬 · 용도 검토 필요').slice(0,500);
-              const design=/design|theme|typograph|canvas|디자인/i.test(name+' '+description);
-              const teams=design?['design']:['dev'];
-              const source=`https://github.com/${target.repository}/blob/${commit}/${path}`;
-              let license=null;
-              for(const lp of [path.replace(/SKILL\.md$/,'LICENSE.txt'),'LICENSE','LICENSE.txt','LICENSE.md']){
-                try{const l=await this.github('/repos/'+target.repository+'/contents/'+lp+'?ref='+commit);if(l.type==='file'&&l.encoding==='base64'&&l.size<20000){license={name:'원문 수집 · 판정 전',content:Buffer.from(l.content,'base64').toString('utf8'),source:`https://github.com/${target.repository}/blob/${commit}/${lp}`};break;}}catch{/* missing license is not approval */}
-              }
-              const entry=this.register({name,description,body,source,teams,triggers:[name,...(design?['디자인','화면']:['코드','개발'])]});
-              // Preserve prior approval and evidence on duplicate intake.
-              if(!entry.importedAt)this.store.setSetting('skill.entry.'+entry.id,{...entry,license,checks:skillChecks(body,license),
-                intakeNote:'SKILL.md만 수집. 추가 자료·도구 의존성·라이선스 적합성·실제 동작 검토 전.',importedAt:new Date().toISOString()});
-              items.push({id:entry.id,name:entry.name,status:entry.status});
-            }catch{notes.push(path+' · 원문 수집 실패 또는 지원 형식 아님');}
-          }
-        }catch{notes.push(target.repository+' · 접근 실패 또는 지원 경로 없음');}
+      if(repo) await this.collect(repo,items,notes);
+      else {
+        const topic=TOPIC_WORDS[request]?request:/디자인|화면|레이아웃|테마|폰트/i.test(request)?'design':/개발|코드/i.test(request)?'coding':/테스트/i.test(request)?'testing':null;
+        const words=topic?TOPIC_WORDS[topic]:request.toLowerCase().split(/\s+/).filter(w=>w.length>1).slice(0,5);
+        // Trusted sources first (대장's list, default anthropics/skills): only SKILL.md paths that match the topic.
+        for(const trusted of this.trustedSources()){ if(items.length>=3)break; await this.collect({repository:trusted,match:words,trusted:true},items,notes); }
+        if(!items.length){
+          const found=await this.discover({query:topic||request.slice(0,120)});
+          for(const c of found.candidates.slice(0,3)){ if(items.length>=3)break; await this.collect({repository:c.repository},items,notes); }
+        }
       }
       return {items,notes,empty:!items.length};
     }finally{this.busy=false;}
