@@ -423,7 +423,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     <div style="min-width: 0">
       <div class="row-f"><h1>{{w.name}}</h1><span class="{{w.pillCls}}"><i></i>{{w.stL}}</span></div>
       <p class="goal">{{w.objective}}</p>
-      <button class="btn" onClick="{{approveCriteria}}">완료 조건 확인·승인</button>
+      <sc-if value="{{criteriaPending}}"><button class="btn pri" onClick="{{approveCriteria}}">완료 조건 확인·승인</button></sc-if>
     </div>
     <div class="acts">
       <sc-if value="{{w.canStart}}"><button class="btn pri" onClick="{{w.start}}">{{w.startL}}</button></sc-if>
@@ -1181,6 +1181,7 @@ class Component extends DCLogic {
         if (window.confirm('저장 상태를 재검사하고 장애 차단을 해제합니까? 프로젝트는 자동 재개하지 않습니다.'))
           this.act(this.api('POST', '/api/safety/limit-storage/recover', { confirm: true }), '저장 장애 복구 완료 · 프로젝트 재개는 별도');
       },
+      criteriaPending: !!(wp && s.eng && (s.eng.projects || []).some(p => (p.goals || []).some(g => g.projectId === wp.id && g.criteriaApprovalPending))),
       approveCriteria: () => {
         const g = wp && (s.eng.projects || []).flatMap(p => p.goals || []).find(g => g.projectId === wp.id && g.criteriaApprovalPending);
         if (!g) return window.alert('승인 대기 중인 완료 조건이 없습니다.');
