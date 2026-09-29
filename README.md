@@ -77,7 +77,9 @@
 ## 대화 · 첨부 · 요약
 
 - **프로젝트 대화**: 대장 메시지, 팀 보고, 감시 에이전트 기록, 질문과 승인 카드가 한 흐름으로 보이고, 오른쪽에 계획·할 일이 있습니다.
-- **첨부**: 입력창에 캡처를 붙여넣거나(Ctrl+V) 파일을 끌어 놓거나 "파일 첨부"를 누릅니다. 이미지·PDF·글 파일, 파일당 30MB(사용량 화면에서 1~100MB).
+- **첨부**: 입력창에 캡처를 붙여넣거나(Ctrl+V) 파일을 끌어 놓거나 "파일 첨부"를 누릅니다. 이미지·PDF·글·문서 파일, 파일당 30MB(사용량 화면에서 1~100MB).
+  **한글(HWP·HWPX)·워드(DOCX)·엑셀(XLSX)** 은 엔진이 [kordoc](https://github.com/chrisryugj/kordoc)(MIT)으로 격리 실행(네트워크 차단, 모델 호출 없음)에서 Markdown으로 바꿔 팀에게 줍니다.
+  kordoc은 대장 승인으로 설치합니다: `npm install kordoc@4.16.1 --prefix tools/kordoc --omit=optional --ignore-scripts` (설치 폴더는 저장소에 올리지 않음).
   파일은 그 프로젝트 폴더의 `attachments/`에 저장되고, 팀 지시에 경로가 들어가 팀이 직접 열어 봅니다.
   내용이 형식과 다른 파일(이름만 바꾼 실행 파일), 비밀정보가 든 글 파일은 거부하고, 첨부 파일은 실행하지 않습니다.
   AI가 한 번에 읽는 한도(공식 문서: 이미지 약 7.5MB, PDF 포함 요청 32MB)를 넘는 파일은 받되 경고합니다.
@@ -144,7 +146,7 @@ $env:AGENT_HQ_ENABLE_EXEC='1'; npm start   # 실제 실행: 시작한 프로젝�
 | `src/sentinel.js`, `scripts/sentinel-hook.mjs`, `src/approvals.js` | 감시 에이전트(허용·차단·승인 요청), 승인 범위와 허용 목록 |
 | `src/memory.js` | 대장 기억(보기·고치기·잊기, 팀 제안은 승인 후 적용) |
 | `src/digest.js` | 정기 요약(오늘 요약·주간 보고, 엔진 작성) |
-| `src/attachments.js` | 대화 첨부 저장·검사 |
+| `src/attachments.js`, `src/doc-convert.js` | 대화 첨부 저장·검사, 한글·오피스 문서 Markdown 변환(kordoc, 격리 실행) |
 | `src/usage.js`, `src/subscription-safety.js` | 구독 사용량 조회와 중단 규칙 |
 | `src/skills.js` | 스킬 라이브러리(검토·승인된 지침형 스킬만 팀 지시에 추가) |
 | `outputs/dashboard.html` | 대시보드 |

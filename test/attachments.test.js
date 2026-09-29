@@ -70,3 +70,37 @@ test('대장 attaches a screenshot to a message: it is saved in the project, sho
     assert.ok(prompts.at(-1).includes(shot.body.path), 'the planning team is told where the screenshot is');
   } finally { await app.close(); }
 });
+
+test('한글·오피스 문서: the engine converts it to Markdown (kordoc in the sandbox) and the teams are told to read the converted copy', async () => {
+  const { writeFileSync: write } = await import('node:fs');
+  const { DocConverter } = await import('../src/doc-convert.js');
+  const ZIP = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(30, 0)]);
+  const calls = [];
+  // the real converter with a stand-in sandbox: checks the exact command the engine runs
+  const fakeSandbox = { available: true, run: async (cwd, command) => { calls.push(command.slice(1)); write(path.join(cwd, command[command.indexOf('-o') + 1]), '# 가계부 계획\n\n| 항목 | 금액 |\n'); return { status: 'pass', code: 0, output: '' }; } };
+  const projectsDir = mkdtempSync(path.join(tmpdir(), 'hq-doc-p-'));
+  const root = mkdtempSync(path.join(tmpdir(), 'hq-doc-root-'));
+  const { mkdirSync: mk } = await import('node:fs');
+  mk(path.join(root, 'tools', 'kordoc', 'node_modules', 'kordoc', 'dist'), { recursive: true });
+  write(path.join(root, 'tools', 'kordoc', 'node_modules', 'kordoc', 'dist', 'cli.js'), '');
+  const converter = new DocConverter({ root, sandbox: fakeSandbox });
+  assert.equal(converter.available, true);
+  const app = createApp({ root: path.resolve('.'), dataDir: mkdtempSync(path.join(tmpdir(), 'hq-doc-d-')), projectsDir, docConverter: converter,
+    adapter: { enabled: true, run: async () => ({ outcome: 'completed', answer: 'AGENT_HQ_PLAN {"next_task":"x","team":"dev","reviews":[]}' }) } });
+  await new Promise(r => app.server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  const post = async (url, body, type = 'application/json') => { const res = await fetch(base + url, { method: 'POST', headers: { 'content-type': type, origin: base }, body }); return { status: res.status, body: await res.json() }; };
+  try {
+    const g = (await post('/api/projects', JSON.stringify({ objective: '가계부', completionCriteria: ['c'] }))).body;
+    const up = await post(`/api/projects/${g.projectId}/attachments?name=${encodeURIComponent('계획서.hwpx')}`, ZIP, 'application/octet-stream');
+    assert.equal(up.status, 201);
+    assert.equal(up.body.kind, 'document');
+    assert.equal(up.body.converted, up.body.path + '.md');
+    assert.deepEqual(calls[0].slice(1), [up.body.path, '-o', up.body.path + '.md', '--no-images', '--silent'], 'fixed engine command, no network flags');
+    assert.match((await post(`/api/projects/${g.projectId}/attachments?name=fake.hwpx`, Buffer.from('MZ not a zip'), 'application/octet-stream')).body.error, /does not match/);
+    assert.equal((await post(`/api/goals/${g.id}/messages`, JSON.stringify({ text: '이 계획서대로', attachments: [{ path: up.body.path, name: '계획서.hwpx' }] }))).status, 200);
+    const goal = app.store.getGoal(g.id);
+    assert.equal(goal.messages.at(-1).attachments[0].converted, up.body.path + '.md');
+    assert.ok(goal.team.feedback.includes(`변환본 ${up.body.path}.md를 읽을 것`));
+  } finally { await app.close(); }
+});

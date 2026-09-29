@@ -169,7 +169,13 @@ Claude Code는 일반 구현, Codex는 중요·복잡한 변경과 검토를 담
   3) 엔진 자동 검사 → 도구형(외부 프로그램 필요)은 `kindOf`='tool'로 분리, 스킬로 켤 수 없음(`activate`가 거부, `select`에서 제외).
   4) 지침형·허용 라이선스·위험 문구 없음(`quickApprovable`)만 승인함 "스킬 후보"에 올라 한 번에 "켜기"(`POST /api/skills/:id/approve`, 대장 결정을 3가지 검토로 기록). 나머지는 스킬 화면에서 자세한 검토.
   5) 켠 뒤 처음 3번 적용은 프로젝트 대화에 "스킬 적용 (n/3번째)" 표시(`markApplied`, 실제 실행만 셈). 원본이 바뀌어도 자동 업데이트 없음(새 내용 = 새 후보).
-- 잘못 만들어진 빈 초안 `custom-a538b16ca280`(4314)은 삭제함. kordoc 실제 스킬(`gongmunseo`)은 외부 프로그램(npx kordoc)이 필요한 도구형이라 스킬로 켜지 않고 엔진 변환 도구로 연결 예정(설치 승인 필요).
+- 잘못 만들어진 빈 초안 `custom-a538b16ca280`(4314)은 삭제함.
+
+## kordoc · 한글·오피스 첨부 변환 (2026-09-29, 대장 설치 승인)
+- 설치: `npm install kordoc@4.16.1 --prefix tools/kordoc --omit=optional --ignore-scripts` (tools/는 .gitignore). 검토: MIT, npm audit 0건, 설치 스크립트 원하는 패키지 없음, 의존성 라이선스 MIT·Apache-2.0·BSD·ISC 계열, 46MB. 선택 부품(sharp·PDF·OCR·AI 모델)은 제외 → OCR·PDF 변환은 안 됨(PDF는 Claude가 직접 읽음).
+- 격리 시험: 샘플 HWPX(제목·목록·표·코드)를 Codex 샌드박스에서 Markdown으로 변환, 표 보존 확인. 샌드박스 안 네트워크 차단(EACCES) 확인.
+- 연결(`src/doc-convert.js`): 대화에 HWP·HWPX·DOCX·XLSX를 첨부하면(내용이 ZIP/HWP 형식인지 확인) 엔진이 샌드박스에서 `kordoc <파일> -o <파일>.md --no-images --silent` 실행(모델 호출 없음, 모의 실행 모드에서도 동작). 변환본은 `attachments/<파일>.md`, 대화에 "변환본 보기", 팀 지시에 "변환본 …md를 읽을 것". 변환 실패는 화면에 알리고 팀에게 "못 읽으면 대장에게 알릴 것".
+- 다시 설치하려면 위 명령 그대로. kordoc의 스킬(`gongmunseo` 등)·MCP 서버·서식 채우기(fill)·HWPX 생성(generate)은 연결하지 않음(필요하면 별도 승인). kordoc 실제 스킬(`gongmunseo`)은 외부 프로그램(npx kordoc)이 필요한 도구형이라 스킬로 켜지 않고 엔진 변환 도구로 연결 예정(설치 승인 필요).
 
 ## 남은 작업 (2026-09-28 기준)
 - 종량제 API 연결(Perplexity 조사, OpenAI 이미지 생성): 키 존재 확인·대장 승인·월 상한(응답의 비용/토큰으로 집계) 구현. 지금은 목록에 ‘키 없음/준비 중’으로만 표시.

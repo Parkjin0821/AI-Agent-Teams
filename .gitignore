@@ -3,3 +3,4 @@ projects/
 .env
 node_modules/
 *.log
+tools/

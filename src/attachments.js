@@ -14,8 +14,10 @@ export const AI_READ_NOTE = { image: 'AI가 한 번에 읽는 이미지 한도(�
 const tooBigForAI = (kind, size) => (AI_READ_LIMIT[kind] && size > AI_READ_LIMIT[kind] ? AI_READ_NOTE[kind] : null);
 export const MAX_PER_MESSAGE = 10;
 const KINDS = { '.png': 'image', '.jpg': 'image', '.jpeg': 'image', '.webp': 'image', '.gif': 'image', '.pdf': 'pdf',
-  '.txt': 'text', '.md': 'text', '.csv': 'text', '.json': 'text', '.log': 'text' };
-export const KIND_L = { image: '이미지', pdf: 'PDF', text: '글' };
+  '.txt': 'text', '.md': 'text', '.csv': 'text', '.json': 'text', '.log': 'text',
+  // 한글·오피스 문서: the engine converts them to Markdown with kordoc (src/doc-convert.js) so the teams can read them
+  '.hwp': 'document', '.hwpx': 'document', '.docx': 'document', '.xlsx': 'document' };
+export const KIND_L = { image: '이미지', pdf: 'PDF', text: '글', document: '문서' };
 const starts = (bytes, sig, at = 0) => bytes.length >= at + sig.length && sig.every((v, i) => bytes[at + i] === v);
 const ascii = s => [...s].map(c => c.charCodeAt(0));
 // The content must match the extension (a renamed program is refused).
@@ -25,6 +27,9 @@ const MAGIC = {
   '.gif': b => starts(b, ascii('GIF8')),
   '.webp': b => starts(b, ascii('RIFF')) && starts(b, ascii('WEBP'), 8),
   '.pdf': b => starts(b, ascii('%PDF-')),
+  // HWPX·DOCX·XLSX are ZIP packages; HWP 5 is a compound file, HWP 3 starts with its own signature.
+  '.hwpx': b => starts(b, [0x50, 0x4b, 0x03, 0x04]), '.docx': b => starts(b, [0x50, 0x4b, 0x03, 0x04]), '.xlsx': b => starts(b, [0x50, 0x4b, 0x03, 0x04]),
+  '.hwp': b => starts(b, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]) || starts(b, ascii('HWP Document File')),
 };
 
 export function safeName(name) {
@@ -41,7 +46,7 @@ export function saveAttachment(cwd, name, bytes, now = Date.now(), { maxMB = DEF
   const file = safeName(name);
   const ext = path.extname(file).toLowerCase();
   const kind = KINDS[ext];
-  if (!kind) throw new Error('unsupported attachment type (images, PDF and text files only)');
+  if (!kind) throw new Error('unsupported attachment type (images, PDF, text and HWP·HWPX·DOCX·XLSX documents only)');
   if (!bytes?.length) throw new Error('attachment is empty');
   if (bytes.length > maxMB * 1024 * 1024) throw new Error(`attachment is larger than ${maxMB}MB`);
   if (MAGIC[ext] && !MAGIC[ext](bytes)) throw new Error('file content does not match its type');
@@ -73,12 +78,14 @@ export function checkAttachments(cwd, list) {
     const kind = KINDS[path.extname(m[1]).toLowerCase()];
     if (!kind) throw new Error('unsupported attachment type');
     const size = lstatSync(full).size, warning = tooBigForAI(kind, size);
-    return { path: rel, name: String(item?.name ?? m[1]).slice(0, 80), kind, size, ...(warning ? { warning } : {}) };
+    // a converted document keeps its Markdown next to it
+    const converted = kind === 'document' && existsSync(`${full}.md`) ? `${rel}.md` : null;
+    return { path: rel, name: String(item?.name ?? m[1]).slice(0, 80), kind, size, ...(warning ? { warning } : {}), ...(converted ? { converted } : {}) };
   });
 }
 
 // What the teams read: where each attachment is, and that they should open it themselves.
 export function attachmentNote(list) {
   if (!list?.length) return '';
-  return `\n[대장 첨부 · 작업 폴더 안 파일 · 직접 열어서 확인] ${list.map(a => `${a.path} (${KIND_L[a.kind] ?? a.kind}${a.warning ? ' · 매우 큼, 다 못 읽으면 대장에게 알릴 것' : ''})`).join(', ')}`;
+  return `\n[대장 첨부 · 작업 폴더 안 파일 · 직접 열어서 확인] ${list.map(a => `${a.path} (${KIND_L[a.kind] ?? a.kind}${a.warning ? ' · 매우 큼, 다 못 읽으면 대장에게 알릴 것' : ''}${a.kind === 'document' ? (a.converted ? ` · 변환본 ${a.converted}를 읽을 것` : ' · 변환본 없음, 못 읽으면 대장에게 알릴 것') : ''})`).join(', ')}`;
 }

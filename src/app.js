@@ -13,6 +13,7 @@ import { SandboxRunner } from './sandbox.js';
 import { TEAMS } from './teams.js';
 import { Digests } from './digest.js';
 import { checkAttachments, DEFAULT_MAX_MB, saveAttachment } from './attachments.js';
+import { DocConverter } from './doc-convert.js';
 import { toolkitView } from './toolkit.js';
 import { ProjectWorkspaces, validateProjectId } from './workspaces.js';
 import { readUsage, recordRateLimits } from './usage.js';
@@ -32,7 +33,7 @@ const iso = ms => new Date(ms).toISOString();
 
 export function createApp({ root, dataDir, projectsDir, enableExec = false, clock = { now: () => Date.now() }, tickMs = null,
   adapter: injectedAdapter = null, monitor: injectedMonitor = null, sandbox: injectedSandbox = null, detectEnvironments = false,
-  enforceSafety = false, usageReader = readUsage, saveTransport = undefined, modelChoices = new ModelChoices({ clock }) }) {
+  enforceSafety = false, usageReader = readUsage, saveTransport = undefined, modelChoices = new ModelChoices({ clock }), docConverter = null }) {
   const store = new PersistentStore({ dataDir });
   const skills = new SkillLibrary({ store });
   const approvals = new Approvals({ store, grantsFile: path.join(dataDir, 'sentinel-grants.json'), clock });
@@ -64,6 +65,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     : {});
   // Project tests run in the Codex sandbox (no model call, no network); only used in real execution.
   const sandbox = injectedSandbox ?? (executing ? new SandboxRunner({ codex: resolveBins().codex }) : null);
+  // 문서 변환 (kordoc in the sandbox, no model call): also in simulation mode, since it spends no usage.
+  let converter = docConverter;
+  const docs = () => converter ??= new DocConverter({ root, sandbox: sandbox ?? new SandboxRunner({ codex: resolveBins().codex }) });
   let quota = [], quotaCheckedAt = 0;
   const refreshUsage = async () => {
     await monitor?.refreshAuthentication?.();
@@ -356,7 +360,13 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
         const cwd = existingWorkspace(uploadMatch[1]);
         const maxMB = setting('attach.maxMB', DEFAULT_MAX_MB);
         const bytes = await readRaw(request, maxMB);
-        return sendJson(response, 201, saveAttachment(cwd, url.searchParams.get('name'), bytes, clock.now(), { maxMB }));
+        const saved = saveAttachment(cwd, url.searchParams.get('name'), bytes, clock.now(), { maxMB });
+        if (saved.kind === 'document') {
+          const done = await docs().convert(cwd, saved.path);
+          if (done.ok) Object.assign(saved, { converted: done.path, convertedSize: done.size, ...(done.warning ? { warning: done.warning } : {}) });
+          else saved.convertError = done.error;
+        }
+        return sendJson(response, 201, saved);
       }
       const artifactMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/preview$/);
       if (request.method === 'GET' && artifactMatch) {

@@ -576,7 +576,7 @@ details[open]>.program-toggle::after{content:'⌃'}
             <div class="{{x.cls}}">
               <div class="meta"><b>{{x.who}}</b><span class="small muted">{{x.sub}}</span><span class="small muted when">{{x.when}}</span></div>
               <div class="body">{{x.text}}</div>
-              <sc-if value="{{x.hasAtt}}"><div class="att-list"><sc-for list="{{x.atts}}" as="a"><sc-if value="{{a.isImage}}"><button class="att-img" onClick="{{a.open}}" title="{{a.name}} · 새 창에서 크게 보기"><img src="{{a.src}}" alt="{{a.name}}" loading="lazy"></button></sc-if><sc-if value="{{a.isText}}"><button class="att" onClick="{{a.open}}" title="새 창에서 보기"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></button></sc-if><sc-if value="{{a.isPdf}}"><span class="att"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></span></sc-if></sc-for></div></sc-if>
+              <sc-if value="{{x.hasAtt}}"><div class="att-list"><sc-for list="{{x.atts}}" as="a"><sc-if value="{{a.isImage}}"><button class="att-img" onClick="{{a.open}}" title="{{a.name}} · 새 창에서 크게 보기"><img src="{{a.src}}" alt="{{a.name}}" loading="lazy"></button></sc-if><sc-if value="{{a.isText}}"><button class="att" onClick="{{a.open}}" title="새 창에서 보기"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></button></sc-if><sc-if value="{{a.isPdf}}"><span class="att"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></span></sc-if><sc-if value="{{a.hasConv}}"><button class="att" onClick="{{a.openConv}}" title="엔진이 바꾼 Markdown · 팀은 이것을 읽습니다"><span class="small">변환본 보기</span></button></sc-if></sc-for></div></sc-if>
               <sc-if value="{{x.hasTools}}"><div class="tchecks"><sc-for list="{{x.tools}}" as="k"><div class="tcheck"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><span class="small"><b>{{k.name}}</b> · {{k.summary}}</span><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
               <sc-if value="{{x.hasAnswer}}"><details><summary>팀 답변 전체</summary><div class="answer">{{x.answer}}</div></details></sc-if>
             </div>
@@ -616,7 +616,7 @@ details[open]>.program-toggle::after{content:'⌃'}
           <label class="sr" for="ws-compose">{{w.composerLabel}}</label>
           <sc-if value="{{w.hasAttach}}"><div class="att-list" aria-label="보낼 첨부"><sc-for list="{{w.attach}}" as="a"><span class="att" title="{{a.warn}}"><sc-if value="{{a.isImage}}"><img src="{{a.src}}" alt="{{a.name}}"></sc-if><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span><button class="link small" onClick="{{a.remove}}" aria-label="{{a.name}} 첨부 빼기">빼기</button></span></sc-for></div></sc-if>
           <textarea class="ta" id="ws-compose" placeholder="{{w.composerPh}}" value="{{w.draft}}" onChange="{{w.onDraft}}" onPaste="{{w.onPaste}}"></textarea>
-          <input id="ws-file" class="sr" type="file" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.md,.csv,.json,.log,image/*" onChange="{{w.onFiles}}" tabindex="-1" aria-hidden="true">
+          <input id="ws-file" class="sr" type="file" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.md,.csv,.json,.log,.hwp,.hwpx,.docx,.xlsx,image/*" onChange="{{w.onFiles}}" tabindex="-1" aria-hidden="true">
           <div class="row-f composer-row"><button class="btn ghost sm" onClick="{{w.pickFiles}}" disabled="{{w.attachDisabled}}">{{w.attachL}}</button><span class="hint">{{w.composerHint}}</span><button class="btn pri sm" onClick="{{w.send}}" disabled="{{w.sendDisabled}}">{{w.sendL}}</button></div>
           <p class="hint" style="margin: 6px 0 0">{{w.attachHint}}</p>
         </div>
@@ -1574,7 +1574,9 @@ class Component extends DCLogic {
       const attView = (pid, a) => {
         const src = '/api/projects/' + encodeURIComponent(pid) + '/preview?path=' + encodeURIComponent(a.path);
         const kb = a.size ? (a.size >= 1048576 ? (a.size / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(a.size / 1024)) + 'KB') : '';
-        return { name: a.name, sizeL: kb + (a.warning ? ' · 매우 큼' : ''), warn: a.warning || '', isImage: a.kind === 'image', isText: a.kind === 'text', isPdf: a.kind === 'pdf', src: src,
+        const conv = a.converted ? '/api/projects/' + encodeURIComponent(pid) + '/preview?path=' + encodeURIComponent(a.converted) : '';
+        return { name: a.name, sizeL: kb + (a.warning ? ' · 매우 큼' : '') + (a.kind === 'document' ? (a.converted ? ' · 변환됨' : ' · 변환 안 됨') : ''), warn: a.warning || a.convertError || '', isImage: a.kind === 'image', isText: a.kind === 'text', isPdf: a.kind === 'pdf' || a.kind === 'document', src: src,
+          hasConv: !!a.converted, openConv: () => { if (conv) window.open(conv, '_blank', 'noopener'); },
           open: () => { if (a.kind !== 'pdf') window.open(src, '_blank', 'noopener'); } };
       };
       // ── 대화 스레드: 대장 메시지 · 팀 보고 · 감시 에이전트 차단을 시간순 한 흐름으로 ──
@@ -1632,7 +1634,7 @@ class Component extends DCLogic {
       };
       w.onDragOver = (e) => { if (canAttach && e.dataTransfer && [].slice.call(e.dataTransfer.types || []).includes('Files')) e.preventDefault(); };
       w.onDrop = (e) => { if (!canAttach || !e.dataTransfer || !e.dataTransfer.files.length) return; e.preventDefault(); this.addAttachments(g.id, wp.id, e.dataTransfer.files); };
-      w.attachHint = canAttach ? '캡처는 입력창에 붙여넣기(Ctrl+V), 파일은 끌어 놓기도 됩니다 · 이미지·PDF·글 파일, ' + ((s.eng.limits && s.eng.limits.attachMaxMB) || 30) + 'MB까지 · AI는 이미지 약 7.5MB, PDF 32MB까지 한 번에 읽습니다' : '';
+      w.attachHint = canAttach ? '캡처는 입력창에 붙여넣기(Ctrl+V), 파일은 끌어 놓기도 됩니다 · 이미지·PDF·글·문서 파일, ' + ((s.eng.limits && s.eng.limits.attachMaxMB) || 30) + 'MB까지 · 한글(HWP·HWPX)·워드·엑셀은 엔진이 Markdown으로 바꿔 팀에게 줍니다 · AI는 이미지 약 7.5MB, PDF 32MB까지 한 번에 읽습니다' : '';
       // ── 할 일: 지금 단계부터 이번 순환이 끝날 때까지 ──
       const STEP_WHAT = { plan: '다음 작업 결정', research: '조사', dev: '구현', design: '디자인', security: '보안 검토', policy: '정책 검토', qa: '완료 조건 확인' };
       const stepNow = team.step || 'plan';
@@ -2113,7 +2115,9 @@ class Component extends DCLogic {
     const cur = Object.assign({}, this.state.attach); cur[goalId] = (cur[goalId] || []).concat(added);
     this.setState({ attach: cur, attachBusy: false });
     const big = added.find((a) => a.warning);
-    if (big) this.say(big.name + ' · ' + big.warning);
+    const failed = added.find((a) => a.convertError);
+    if (failed) this.say(failed.name + ' · Markdown 변환 실패 (' + failed.convertError + ') · 팀이 이 문서를 못 읽을 수 있습니다');
+    else if (big) this.say(big.name + ' · ' + big.warning);
     else if (added.length) this.say('첨부했습니다 (' + added.length + '개) · 보내기를 누르면 팀에게 전달됩니다');
   }
   confirmCriterion(goalId, criterion) {
