@@ -33,6 +33,7 @@ export class PersistentStore {
   saveCandidate(candidate) { this.db.prepare('INSERT INTO model_candidates VALUES (?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(candidate.id, JSON.stringify(candidate)); return candidate; }
   getSettings() { return Object.fromEntries(this.db.prepare('SELECT key, value FROM settings').all().map(r => [r.key, JSON.parse(r.value)])); }
   setSetting(key, value) { this.db.prepare('INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key, JSON.stringify(value)); return this.getSettings(); }
+  deleteSetting(key) { return this.db.prepare('DELETE FROM settings WHERE key=?').run(key).changes > 0; }
   deleteGoalRecords(goalId) {
     const runs = Number(this.db.prepare('DELETE FROM runs WHERE goal_id=?').run(goalId).changes);
     const events = Number(this.db.prepare("DELETE FROM events WHERE json_extract(body, '$.goalId')=?").run(goalId).changes);

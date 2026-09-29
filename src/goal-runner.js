@@ -104,6 +104,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       if (result.outcome !== 'completed') return { ...base, outcome: 'error', errorKind: result.errorKind ?? 'unclassified' };
       if (team === 'plan') {
         const plan = parsePlan(result.answer);
+        if (plan && store.getSettings) new SkillLibrary({store}).requestNeeds(plan.skill_needs, {team, project: goal.projectId});
         memory?.propose(plan?.remember, { team, project: goal.projectId });
         return { ...base, outcome: 'completed', evidence: [], claims: [], diffHash: null, plan };
       }
@@ -114,6 +115,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           review: withToolFindings(parseReview(result.answer), blocking, engineTools.find(t => t.decision)?.decision ?? null) };
       }
       const report = parseReport(result.answer);
+      if (team && report && store.getSettings) new SkillLibrary({store}).requestNeeds(report.skill_needs, {team, project: goal.projectId});
       // A team may suggest something to remember; it waits for 대장 in the approval inbox.
       memory?.propose(report?.remember, { team, project: goal.projectId });
       const test = engineTools.find(t => t.test)?.test ?? null;

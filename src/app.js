@@ -125,7 +125,6 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     return workspaces.resolve(id);
   };
   const testConsoleBusy = new Set();
-
   // Attachments named in a message must already be saved in that goal's project folder.
   const attachmentsFor = (goalId, list) => {
     if (list === undefined || list === null || (Array.isArray(list) && !list.length)) return [];
@@ -133,15 +132,18 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     if (!goal) throw new Error('goal not found');
     return checkAttachments(existingWorkspace(goal.projectId), list);
   };
+
   const routes = [
-    ['GET', /^\/api\/skills$/, () => ({items:skills.list(),discovery:store.getSettings()['skill.discovery'] || null})],
+    ['GET', /^\/api\/skills$/, () => ({items:skills.list(),needs:skills.needs(),discovery:store.getSettings()['skill.discovery'] || null})],
     ['POST', /^\/api\/skills$/, (m,body) => skills.register(body)],
     ['POST', /^\/api\/skills\/draft$/, (m,body) => skills.draft(body)],
     ['POST', /^\/api\/skills\/discover$/, (m,body) => skills.discover(body)],
     ['POST', /^\/api\/skills\/import$/, (m,body) => skills.importGitHub(body)],
+    ['POST', /^\/api\/skills\/intake$/, (m,body) => skills.intake(body)],
     ['POST', /^\/api\/skills\/([a-f0-9]{64})\/review$/, (m,body) => skills.review(m[1],body)],
     ['POST', /^\/api\/skills\/([a-f0-9]{64})\/activate$/, (m,body) => skills.activate(m[1],body)],
     ['POST', /^\/api\/skills\/([a-f0-9]{64})\/disable$/, m => skills.disable(m[1])],
+    ['DELETE', /^\/api\/skills\/([a-f0-9]{64})$/, m => skills.remove(m[1])],
     ['GET', /^\/api\/projects\/([^/]+)\/auto-save$/, m => { existingWorkspace(m[1]); return autoSave.view(m[1]); }],
     ['PUT', /^\/api\/projects\/([^/]+)\/auto-save$/, (m, body) => autoSave.configure(validateProjectId(m[1]), body)],
     ['POST', /^\/api\/projects\/([^/]+)\/auto-save\/check$/, async m => {
@@ -383,7 +385,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   });
 
   const timer = autoTick ? setInterval(async () => {
-    try { if (guarded) await refreshUsage(); await scheduler.tick({ autoOnly: executing }); await autoSave.tick(); digests.tick(); }
+    try { if (guarded) await refreshUsage(); await scheduler.tick({ autoOnly: executing }); await autoSave.tick(); digests.tick(); if (executing) await skills.processNeed(); }
     catch (error) { console.error('tick failed:', error.message); }
   }, tickMs) : null;
   timer?.unref();

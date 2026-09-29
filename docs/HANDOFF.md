@@ -158,6 +158,14 @@ Claude Code는 일반 구현, Codex는 중요·복잡한 변경과 검토를 담
 - 크기: 설정 `attach.maxMB`(1~100, 기본 30, 사용량 화면). 공식 문서 기준 AI가 한 번에 읽는 한도(이미지 base64 10MB ≈ 파일 7.5MB, PDF 포함 요청 32MB)를 넘는 파일은 받되 `warning`을 붙여 화면에 알리고 팀 지시에 "매우 큼" 표시.
 - 미확인: 실제 Claude 팀이 첨부 이미지를 열어 보는지(모의·테스트로만 확인). 입력창에서 "빼기"한 파일은 attachments/ 폴더에 남음. PDF는 대화에서 미리보기 없음.
 
+## 스킬 화면 · 검토와 승인 (2026-09-29, Codex 작업을 Claude가 이어받음)
+- 가져오기 입력: `owner/repo`, `gh repo clone owner/repo`, `git clone …github.com/owner/repo(.git)`, `github.com/…`, https 링크를 모두 저장소로 인식(`parseRepoRequest`). 저장소를 "만들기"(초안)로 넣으면 거부.
+- 저장소 안 SKILL.md를 트리 한 번으로 모두 찾음(루트·skills/·plugins/*/skills/·.claude/skills/, node_modules 제외, 최대 6개). 없으면 "스킬이 아니라 프로그램일 수 있음".
+- 엔진 자동 검사 `skillChecks`(참고용, 승인 아님): 라이선스 판정(MIT·Apache-2.0·BSD·ISC 허용 목록), 외부 프로그램 필요 여부(npx·npm install·pip·MCP 등 → 지침만으로는 동작 안 함), 위험 문구(내려받은 스크립트 실행, 삭제 명령, 지시 무시, 키 요구, 안전장치 끄기).
+- 화면: 스킬마다 보안·정책·호환성 "통과/보류"(메모에 검사 결과를 기본값으로), 3가지 통과 시 "승인하고 켜기", 끄기, 삭제(`DELETE /api/skills/:id`, 저장소 `deleteSetting`).
+- Codex가 만든 팀 스킬 요청(`skill_needs`, 정해진 주제어만) → 실제 실행 모드에서 엔진이 GitHub 검색·후보 수집(켜지 않음)도 함께 커밋.
+- 잘못 만들어진 빈 초안 `custom-a538b16ca280`(4314)은 삭제함. kordoc 실제 스킬(`gongmunseo`)은 외부 프로그램(npx kordoc)이 필요한 도구형이라 스킬로 켜지 않고 엔진 변환 도구로 연결 예정(설치 승인 필요).
+
 ## 남은 작업 (2026-09-28 기준)
 - 종량제 API 연결(Perplexity 조사, OpenAI 이미지 생성): 키 존재 확인·대장 승인·월 상한(응답의 비용/토큰으로 집계) 구현. 지금은 목록에 ‘키 없음/준비 중’으로만 표시.
 - 팀 순환을 실제 AI로 한 프로젝트 끝까지 돌려 보는 검증(지금까지 실제 실행은 단일 실행 목표만; 팀 순환은 가짜 실행기로만 확인).

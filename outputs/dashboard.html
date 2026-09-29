@@ -846,19 +846,34 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 <!-- ================= 팀 ================= -->
 <sc-if value="{{vSkills}}">
   <div class="page-h"><div><h1>스킬 라이브러리</h1><p class="lede">용도와 적용 팀을 확인하세요. 검토 대기 스킬은 작업에 적용되지 않습니다.</p></div><button class="btn sm" onClick="{{refreshSkills}}">새로고침</button></div>
+  <div class="card" style="margin-bottom:20px"><h2>등록된 스킬</h2><p>{{skillCounts}}</p><p class="hint">아래 목록은 실제 저장된 스킬입니다. ‘검토 대기’는 가져온 후보이며 아직 AI 작업에 사용되지 않습니다.</p></div>
   <p class="hint" role="status">{{skillsMessage}}</p>
+  <details class="card" style="margin-bottom:20px"><summary>스킬 등록하기 · 만들기</summary>
+    <p class="hint">GitHub 링크나 필요한 기능을 입력하고 ‘등록하기’를 누르세요. 새 스킬 초안이 필요하면 ‘만들기’를 누르세요. 등록 후 안전성 검토를 거쳐야 사용할 수 있습니다.</p>
+    <div class="field"><label>필요한 용도 또는 GitHub 링크<input class="input" value="{{skillRequest}}" placeholder="예: 대시보드 디자인 / owner/저장소 / gh repo clone owner/저장소 / https://github.com/…" onChange="{{changeSkillRequest}}"></label></div>
+    <div class="row-f" style="margin-top:8px"><button class="btn sm" onClick="{{importSkill}}" disabled="{{skillBusy}}">등록하기</button><button class="btn sm" onClick="{{draftSkill}}" disabled="{{skillBusy}}">만들기</button></div>
+    <p class="hint" style="margin-top:4px;margin-bottom:0" role="status">{{skillFormMessage}}</p>
+  </details>
   <div class="stack">
     <sc-for list="{{skillRows}}" as="k"><article class="card">
       <div class="sec-h"><h2>{{k.name}}</h2><span class="{{k.pillCls}}"><i></i>{{k.statusL}}</span></div>
       <p>{{k.description}}</p>
       <div class="row-f small muted"><span>적용 분야·팀: {{k.teamL}}</span><span>출처: {{k.sourceL}}</span></div>
+      <p class="hint">라이선스: {{k.licenseL}} · {{k.intakeL}}</p>
+      <div class="skill-checks"><div class="lbl" style="margin:0 0 6px">엔진 자동 검사 (참고용 · 승인 아님)</div>
+        <sc-for list="{{k.checkRows}}" as="c"><div class="tcheck"><span class="{{c.pillCls}}"><i></i>{{c.stL}}</span><span class="small"><b>{{c.name}}</b> · {{c.text}}</span></div></sc-for></div>
+      <div class="skill-review"><div class="lbl" style="margin:12px 0 6px">대장 검토 · {{k.gateL}}</div>
+        <sc-for list="{{k.reviewRows}}" as="r"><div class="row-f small" style="margin-bottom:6px"><b style="min-width:84px">{{r.label}}</b><span class="muted" style="flex:1;min-width:160px">{{r.stateL}}</span><button class="btn sm" onClick="{{r.pass}}">통과</button><button class="btn ghost sm" onClick="{{r.hold}}">보류</button></div></sc-for>
+        <div class="row-f" style="margin-top:10px"><sc-if value="{{k.canActivate}}"><button class="btn pri sm" onClick="{{k.activate}}">승인하고 켜기</button></sc-if><sc-if value="{{k.isActive}}"><button class="btn sm" onClick="{{k.disableIt}}">끄기</button></sc-if><button class="btn danger sm" onClick="{{k.removeIt}}">삭제</button></div></div>
       <details style="margin-top:14px"><summary>적용 조건 · 검토 기록 · 원문</summary>
         <dl class="facts" style="margin-top:12px"><dt>자동 선택 조건</dt><dd>{{k.triggerL}}</dd><dt>버전 지문</dt><dd class="mono small">{{k.id}}</dd><dt>출처 원문</dt><dd class="small">{{k.source}}</dd><dt>보안</dt><dd>{{k.security}}</dd><dt>정책·라이선스</dt><dd>{{k.policy}}</dd><dt>호환성</dt><dd>{{k.compatibility}}</dd></dl>
         <pre class="answer" style="max-height:480px;margin-top:16px">{{k.content}}</pre>
+        <details><summary>라이선스 원문</summary><pre class="answer">{{k.licenseText}}</pre></details>
       </details>
     </article></sc-for>
     <sc-if value="{{skillsEmpty}}"><div class="empty">등록된 스킬이 없습니다. GitHub 후보와 자체 제작 초안을 등록하면 여기에 표시됩니다.</div></sc-if>
   </div>
+  <details class="card" style="margin-top:20px"><summary>팀의 스킬 요청 · 검색 진행 상황</summary><p class="muted">요청은 등록된 스킬과 별개입니다. 후보를 수집하면 위 목록에 표시됩니다.</p><pre style="white-space:pre-wrap">{{skillNeedsText}}</pre></details>
 </sc-if>
 <sc-if value="{{vTeams}}">
   <div class="page-h"><div><h1>팀</h1><p class="lede">팀마다 맡은 일과 쓰는 AI, 할 수 있는 일입니다. 조사·개발·디자인팀이 만든 결과는 보안·정책팀이 검토하고 검증팀이 확인합니다. 모델은 각 프로젝트의 설정 탭에서 바꿉니다.</p></div></div>
@@ -1083,7 +1098,12 @@ const cleanAnswer = (text) => {
 const ERRORS = [[/completion criteria|completionCriteria/, '완료 조건을 한 줄 이상 적어 주세요.'], [/objective/, '목표를 적어 주세요.'], [/title/, '이름은 100자 이내로 적어 주세요.'],
   [/pinned policy requires a model/, '고정할 모델 ID를 적어 주세요.'], [/running round/, '실행 중인 단계가 끝난 뒤에 삭제할 수 있습니다.'],
   [/already verified/, '이미 완료된 목표입니다.'], [/not waiting for an answer/, '지금은 답변을 기다리는 상태가 아닙니다.'], [/answer is empty/, '답변을 적어 주세요.'],
-  [/no pending proposal/, '처리할 개선안이 없습니다.'], [/Failed to fetch|NetworkError/, '서버에 연결할 수 없습니다.']];
+  [/no pending proposal/, '처리할 개선안이 없습니다.'], [/Failed to fetch|NetworkError/, '서버에 연결할 수 없습니다.'],
+  [/import it instead of making a draft/, 'GitHub 저장소입니다. "만들기"가 아니라 "등록하기"를 눌러 가져오세요.'], [/public GitHub link required|invalid GitHub repository|unsupported GitHub link/, 'github.com의 공개 저장소 주소나 owner/저장소 형식으로 적어 주세요.'],
+  [/skill intake already running/, '다른 스킬을 가져오는 중입니다. 끝난 뒤 다시 눌러 주세요.'], [/GitHub request failed: 403/, 'GitHub 조회 한도에 걸렸습니다. 잠시 뒤 다시 시도해 주세요.'],
+  [/skill review and approval required/, '보안·정책·호환성 검토를 모두 통과해야 켤 수 있습니다.'], [/invalid skill text/, '내용을 적어 주세요.'],
+  [/unsupported attachment type/, '이미지·PDF·글 파일만 첨부할 수 있습니다.'], [/does not match its type/, '파일 내용이 확장자와 맞지 않아 받지 않았습니다.'],
+  [/contains a secret/, '키나 토큰으로 보이는 내용이 있어 받지 않았습니다. 지우고 다시 올려 주세요.'], [/attachment is larger than (\d+)MB/, '첨부 파일이 너무 큽니다 (사용량 화면에서 한도 변경).']];
 const korErr = (m) => { const hit = ERRORS.find((x) => x[0].test(m)); return hit ? hit[1] : m; };
 const ICON = {
   question: 'M6 6.2a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9v.6M8 11.2v.1M8 14.5A6.5 6.5 0 1 0 8 1.5a6.5 6.5 0 0 0 0 13z',
@@ -1216,8 +1236,16 @@ class Component extends DCLogic {
   }
   async loadSkills() {
     this.setState({skillsMessage:'스킬 목록을 불러오는 중…'});
-    try { const data=await this.api('GET','/api/skills'); this.setState({skillEntries:data.items || [],skillsMessage:'승인된 지침형 스킬만 자동 적용됩니다. 검토 기록은 수동 검토 결과입니다.'}); }
+    try { const data=await this.api('GET','/api/skills'); this.setState({skillEntries:data.items || [],skillNeeds:data.needs || [],skillsMessage:'승인된 지침형 스킬만 자동 적용됩니다. 검토 기록은 수동 검토 결과입니다.'}); }
     catch(e){this.setState({skillsMessage:'목록을 불러오지 못했습니다: '+e.message});}
+  }
+  async saveSkill(kind) {
+    if(this.state.skillBusy) return;
+    const body={request:this.state.skillRequest || '',mode:kind==='draft'?'draft':'import'};
+    this.setState({skillBusy:true,skillFormMessage:kind==='draft'?'초안 만드는 중…':'스킬 등록 중…'});
+    try{const result=await this.api('POST','/api/skills/intake',body);const count=result.items.length;this.setState({...(count && this.state.skillRequest===body.request?{skillRequest:''}:{}),skillFormMessage:count ? count+'개 '+(kind==='draft'?'초안을 만들었습니다. 전문 절차와 검증은 아직 필요합니다.':'스킬을 등록했습니다.')+' 검토 후 사용할 수 있습니다.' : '등록할 스킬을 찾지 못했습니다. GitHub 링크나 다른 용도를 입력해 주세요.'});await this.loadSkills();}
+    catch(e){this.setState({skillFormMessage:'등록 실패: '+korErr(e.message)});}
+    finally{this.setState({skillBusy:false});}
   }
   openProject(id, tab) { this.setState({ view: 'project', pid: id, ptab: tab || 'over', artifactItems: [], previewUrl: '', artifactMessage: '', testMessage: '', testBusy: false }); window.scrollTo(0, 0); this.loadSentinel(id); }
   isReal() { return !!(this.state.eng && this.state.eng.mode === 'execution'); }
@@ -1794,10 +1822,43 @@ class Component extends DCLogic {
       offline: s.offline,
       vInbox: s.view === 'inbox', vMemory: s.view === 'memory', ib: ib, mem: mem, dg: dg,
       vSkills:s.view === 'skills', refreshSkills:()=>this.loadSkills(), skillsMessage:s.skillsMessage || '', skillsEmpty:Array.isArray(s.skillEntries) && !s.skillEntries.length,
+      skillBusy:!!s.skillBusy,skillFormMessage:s.skillFormMessage || '',importSkill:()=>this.saveSkill('import'),draftSkill:()=>this.saveSkill('draft'),
+      skillCounts:Array.isArray(s.skillEntries) ? `전체 ${s.skillEntries.length}개 · 사용 가능 ${s.skillEntries.filter(k=>k.status==='active').length}개 · 검토 대기 ${s.skillEntries.filter(k=>k.status==='pending').length}개 · 비활성 ${s.skillEntries.filter(k=>k.status==='disabled').length}개` : '등록 목록을 불러오는 중…',
+      skillNeedsText:(s.skillNeeds || []).map(n=>`${n.project} · ${n.team} · ${n.topic}\n${({queued:'검색 대기',searching:'검색 중 · 중단됐다면 재확인 필요',review_pending:'후보 검토 대기',creation_pending:'제한된 검색에서 후보 없음 · 전문 스킬 제작 필요',search_failed:'검색 실패',search_incomplete:'검색 불완전'})[n.status] || n.status} · ${n.reason}`).join('\n\n') || '아직 팀이 요청한 스킬이 없습니다.',
+      skillRequest:s.skillRequest || '',changeSkillRequest:e=>this.setState({skillRequest:e.target.value}),
       skillRows:(s.skillEntries || []).map(k=>{
+        // 엔진 자동 검사 + 대장 검토 3가지 + 켜기·끄기·삭제
+        const skillActions = (k) => {
+          const ch = k.checks || null;
+          const checkRows = !ch ? [{ name: '자동 검사', text: '이 항목은 검사 기능 전에 등록되어 결과가 없습니다 · 다시 가져오면 검사합니다', stL: '없음', pillCls: pillCls('idle') }] : [
+            { name: '라이선스', text: ch.license.name + (ch.license.ok ? ' · 허용 목록(MIT·Apache-2.0·BSD·ISC)' : ' · 대장 확인 필요'), stL: ch.license.ok ? '통과' : '확인', pillCls: pillCls(ch.license.ok ? 'done' : 'attn') },
+            { name: '외부 프로그램', text: ch.tool.needed ? '필요함 (' + ch.tool.hint + ') · 글로 된 지침만으로는 동작하지 않습니다. 프로그램은 설치 승인·격리 시험 뒤 엔진 도구로 따로 연결합니다' : '필요 없음 · 글로 된 지침만', stL: ch.tool.needed ? '주의' : '통과', pillCls: pillCls(ch.tool.needed ? 'attn' : 'done') },
+            { name: '위험 문구', text: ch.risks.length ? ch.risks.join(' · ') : '없음', stL: ch.risks.length ? '보류 권장' : '통과', pillCls: pillCls(ch.risks.length ? 'stop' : 'done') }];
+          const KINDS = [['security', '보안'], ['policy', '정책·라이선스'], ['compatibility', '호환성']];
+          const suggest = { security: ch ? (ch.risks.length ? '위험 문구: ' + ch.risks.join(', ') : '원문에 위험한 지시 없음 확인') : '',
+            policy: ch ? '라이선스 ' + ch.license.name : '', compatibility: ch ? (ch.tool.needed ? '외부 프로그램(' + ch.tool.hint + ') 필요 · 지침만으로는 동작 안 함' : '글로 된 지침형 · 팀 역할과 맞음') : '' };
+          const act = (p, msg) => this.act(p.then(() => this.loadSkills()), msg);
+          const reviewRows = KINDS.map(([kind, label]) => {
+            const r = k.reviews && k.reviews[kind];
+            const decide = (pass) => () => {
+              const note = window.prompt(label + ' 검토 메모 (' + (pass ? '통과' : '보류') + ')', suggest[kind] || '');
+              if (!note || !note.trim()) return;
+              act(this.api('POST', '/api/skills/' + k.id + '/review', { kind: kind, pass: pass, note: note.trim() }), label + ' 검토를 ' + (pass ? '통과' : '보류') + '로 기록했습니다');
+            };
+            return { label: label, stateL: r ? (r.pass ? '통과' : '보류') + ' · ' + r.note : '검토 전', pass: decide(true), hold: decide(false) };
+          });
+          const allPass = KINDS.every(([kind]) => k.reviews && k.reviews[kind] && k.reviews[kind].pass === true);
+          const done = KINDS.filter(([kind]) => k.reviews && k.reviews[kind]).length;
+          return { checkRows: checkRows, reviewRows: reviewRows, canActivate: allPass && k.status !== 'active', isActive: k.status === 'active',
+            gateL: k.status === 'active' ? '사용 중' : allPass ? '3가지 모두 통과 · 승인하면 켜집니다' : '켜려면 3가지 모두 통과가 필요합니다 (' + done + '/3 검토됨)',
+            activate: () => { if (window.confirm(k.name + ' 스킬을 켤까요? 적용 팀의 작업 지시에 이 스킬 원문이 들어갑니다.')) act(this.api('POST', '/api/skills/' + k.id + '/activate', { confirm: true }), k.name + ' 스킬을 켰습니다'); },
+            disableIt: () => act(this.api('POST', '/api/skills/' + k.id + '/disable', {}), k.name + ' 스킬을 껐습니다'),
+            removeIt: () => { if (window.confirm(k.name + ' 항목을 삭제할까요? 되돌릴 수 없습니다. 필요하면 다시 가져올 수 있습니다.')) act(this.api('DELETE', '/api/skills/' + k.id), k.name + ' 항목을 삭제했습니다'); } };
+        };
         const review=kind=>{const r=k.reviews?.[kind];return r?(r.pass?'통과':'보류')+' · '+r.note:'검토 전';};
-        return {...k,teamL:(k.teams || []).map(t=>TEAM_NAME[t] || t).join(' · '),sourceL:k.source==='local'?'로컬·자체 제작':'외부 원문',triggerL:(k.triggers || []).join(' · '),
-          statusL:({active:'사용 가능',pending:'검토 대기',disabled:'비활성'})[k.status] || k.status,pillCls:pillCls(k.status==='active'?'done':'idle'),security:review('security'),policy:review('policy'),compatibility:review('compatibility')};
+        return {...k,licenseL:k.license?.name || '미확인',licenseText:k.license?.content || '라이선스 원문이 아직 수집되지 않았습니다.',intakeL:k.intakeNote || '지침형 후보 · 추가 자료와 실행 호환성은 검토 필요',teamL:(k.teams || []).map(t=>TEAM_NAME[t] || t).join(' · '),sourceL:k.source==='local'?'로컬·자체 제작':'외부 원문',triggerL:(k.triggers || []).join(' · '),
+          statusL:({active:'사용 가능',pending:'검토 대기',disabled:'비활성'})[k.status] || k.status,pillCls:pillCls(k.status==='active'?'done':'idle'),security:review('security'),policy:review('policy'),compatibility:review('compatibility'),
+          ...skillActions(k)};
       }),
       vHome: s.view === 'home', vProjects: s.view === 'projects', vProject: s.view === 'project' && !!wp, vTeams: s.view === 'teams', vUsage: s.view === 'usage',
       vConnect: s.view === 'connect', env: env,
