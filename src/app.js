@@ -38,7 +38,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   const setting = (key, fallback) => store.getSettings()[key] ?? fallback;
   // 신뢰 쌓기 counters: how many results of each work team 대장 has accepted (all projects).
   const trust = { required: () => setting('trust.required', 3), count: team => setting(`trust.count.${team}`, 0),
-    add: team => store.setSetting(`trust.count.${team}`, setting(`trust.count.${team}`, 0) + 1) };
+    add: team => store.setSetting(`trust.count.${team}`, setting(`trust.count.${team}`, 0) + 1),
+    // 대장 decides this kind of work has earned trust: later results continue without a review.
+    complete: team => store.setSetting(`trust.count.${team}`, Math.max(setting(`trust.count.${team}`, 0) + 1, setting('trust.required', 3))) };
   const sentinelLog = path.join(dataDir, 'sentinel.jsonl');
   const workspaces = new ProjectWorkspaces(projectsDir);
   const autoSave = new AutoSave({ store, workspaces, transport: saveTransport, clock });
@@ -278,7 +280,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       return done;
     }],
     ['DELETE', /^\/api\/grants\/([0-9a-f-]{36})$/, m => approvals.revoke(m[1])],
-    ['POST', /^\/api\/goals\/([^/]+)\/trust-review$/, (m, body) => scheduler.trustReview(m[1], { accept: body.accept === true, note: body.note })],
+    ['POST', /^\/api\/goals\/([^/]+)\/trust-review$/, (m, body) => scheduler.trustReview(m[1], { accept: body.accept === true, note: body.note, trustFully: body.trustFully === true })],
     ['GET', /^\/api\/memory$/, () => ({ items: memory.list() })],
     ['POST', /^\/api\/memory$/, (m, body) => [201, memory.add({ scope: body.scope ?? 'all', text: body.text })]],
     ['POST', /^\/api\/memory\/reset$/, (m, body) => { if (body.confirm !== true) throw new Error('confirm reset'); return memory.reset(); }],

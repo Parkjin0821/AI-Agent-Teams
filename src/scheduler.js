@@ -168,16 +168,16 @@ export class GoalScheduler {
 
   // 신뢰 쌓기: 대장 looked at a work team's result. Accept counts toward that kind of work running on its own;
   // send back returns the note to planning.
-  trustReview(goalId, { accept, note = '' }) {
+  trustReview(goalId, { accept, note = '', trustFully = false }) {
     const goal = this.store.getGoal(goalId);
     if (!goal || goal.status !== GoalStatus.REVIEW_REQUIRED || goal.reason !== 'trust_review' || !goal.trustReview) throw new Error('goal is not waiting for a result review');
     const { team } = goal.trustReview;
     const at = iso(this.clock.now());
     const text = String(note ?? '').trim().slice(0, 1000);
     const messages = [...(goal.messages ?? []), { role: 'user', kind: 'review', at,
-      text: accept ? `${TEAMS[team].name} 결과 확인 · 계속${text ? ` · ${text}` : ''}` : `${TEAMS[team].name} 결과 되돌림${text ? ` · ${text}` : ''}` }].slice(-100);
+      text: accept ? `${TEAMS[team].name} 결과 확인 · 계속${trustFully ? ' · 이 종류는 이제 믿고 맡김' : ''}${text ? ` · ${text}` : ''}` : `${TEAMS[team].name} 결과 되돌림${text ? ` · ${text}` : ''}` }].slice(-100);
     if (accept) {
-      this.trust?.add(team);
+      if (trustFully && this.trust?.complete) this.trust.complete(team); else this.trust?.add(team);
       this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, question: null, trustReview: null, nextRunAt: at, messages });
     } else {
       if (!text) throw new Error('say what to fix when sending a result back');

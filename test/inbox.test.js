@@ -109,6 +109,16 @@ test('신뢰 쌓기: the first results of each kind of work wait for 대장; sta
     await call('POST', `/api/goals/${h.id}/trust-review`, { accept: false, note: '테스트가 없음' });
     assert.deepEqual([app.store.getGoal(h.id).team.step, app.store.getGoal(h.id).team.feedback], ['plan', '[대장] 개발팀 결과를 되돌림: 테스트가 없음']);
     assert.equal(app.store.getSettings()['trust.count.dev'], 1, 'a send-back does not count');
+    // "이 종류는 이제 맡기기": accepting with trustFully ends the reviews for that kind of work at once
+    const k = (await call('POST', '/api/projects', { objective: '세 번째', completionCriteria: ['c'] })).body;
+    await app.scheduler.runGoal(k.id); await app.scheduler.runGoal(k.id);
+    assert.equal(app.store.getGoal(k.id).reason, 'trust_review');
+    await call('POST', `/api/goals/${k.id}/trust-review`, { accept: true, trustFully: true });
+    assert.equal(app.store.getSettings()['trust.count.dev'], 2);
+    assert.match(app.store.getGoal(k.id).messages.at(-1).text, /이 종류는 이제 믿고 맡김/);
+    const n = (await call('POST', '/api/projects', { objective: '네 번째', completionCriteria: ['c'] })).body;
+    await app.scheduler.runGoal(n.id); await app.scheduler.runGoal(n.id);
+    assert.notEqual(app.store.getGoal(n.id).reason, 'trust_review', 'dev now runs without a review');
   } finally { await app.close(); }
 });
 
