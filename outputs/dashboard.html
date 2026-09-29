@@ -33,25 +33,38 @@ button{cursor:pointer}
 
 /* 상단 바 */
 .top{position:sticky;top:0;z-index:20;background:rgba(250,250,250,.86);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
-.top-in{max-width:1520px;margin:0 auto;padding:0 32px;height:64px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:20px}
+.top-in{max-width:1840px;margin:0 auto;padding:12px 32px;min-height:72px;display:grid;grid-template-columns:minmax(140px,1fr) auto minmax(480px,1fr);align-items:center;gap:20px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em;font-size:14.5px;flex:none;border:0;background:none;padding:0}
 .mark{width:24px;height:24px;border-radius:7px;background:var(--text);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700;font-family:var(--mono)}
-.tabs-top{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.tabs-top{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none}
 .tabs-top::-webkit-scrollbar{display:none}
 .tt{border:0;background:none;padding:6px 10px;border-radius:var(--r-sm);color:var(--text-3);font-weight:500;white-space:nowrap;transition:color .15s,background .15s}
 .tt:hover{color:var(--text);background:var(--subtle)}
 .tt.on{color:var(--text);background:var(--subtle)}
 .tt .n{margin-left:6px;font-family:var(--mono);font-size:11.5px;color:var(--attn);font-weight:600}
-.top-r{justify-self:end;display:flex;align-items:center;gap:10px;flex:none}
+.top-r{justify-self:end;display:flex;align-items:center;gap:10px;min-width:0;white-space:nowrap}
+.top-r>*,.top-r .btn{flex-shrink:0;white-space:nowrap}
+.notification-status{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:999px;background:var(--subtle);font-size:12px;color:var(--text-3);white-space:nowrap}
+.notification-status::before{content:'';width:6px;height:6px;border-radius:50%;background:#32936f;flex-shrink:0}
 .att-list{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
 .att{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:var(--surface);max-width:100%}
 .att img{width:36px;height:36px;object-fit:cover;border-radius:4px}
 .att-img{border:0;padding:0;background:none;display:block}.att-img img{max-width:240px;max-height:180px;border-radius:8px;border:1px solid var(--line);display:block}
 .meter{display:flex;gap:8px;border:1px solid var(--line);background:none;border-radius:999px;padding:4px 10px;font-size:12px;color:var(--text-3);white-space:nowrap}
 .meter:hover{background:var(--subtle)}.meter b{color:var(--text);font-weight:600}.meter .mi.old b{color:var(--text-3)}.meter .mi.warn b{color:#b54708}.meter .mi.stop b{color:#b42318}
+.meter .mi{display:inline-flex;align-items:center;gap:4px}
+.meter .provider-label{font-weight:600}
+.meter .mi.claude .provider-label{color:#a94f34}
+.meter .mi.claude .provider-label::before{content:'';display:inline-block;width:6px;height:6px;margin-right:4px;border-radius:50%;background:#d97757}
+.meter .mi.codex .provider-label{color:#171717}
+.meter .mi.codex .provider-label::before{content:'';display:inline-block;width:6px;height:6px;margin-right:4px;border-radius:50%;background:#171717}
 @media(max-width:480px){.meter{display:none}}
 .brand{justify-self:start}
-@media(max-width:760px){.top-in{height:auto;min-height:64px;grid-template-columns:1fr auto;padding-top:12px!important;padding-bottom:8px!important}.tabs-top{grid-column:1 / -1;grid-row:2;justify-content:center;max-width:100%}.top-r{grid-column:2;grid-row:1}}
+.brand-group{display:flex;align-items:center;gap:12px;justify-self:start;white-space:nowrap}
+.brand-group .mode{font-size:12px;padding:6px 9px;gap:6px;line-height:normal}
+.brand-group .mode i{width:6px;height:6px}
+@media(max-width:1500px){.top-in{grid-template-columns:auto minmax(0,1fr);gap:12px 24px}.top-r{grid-column:2;grid-row:1}.tabs-top{grid-column:1 / -1;grid-row:2;justify-content:center;min-width:0;max-width:100%;padding-top:8px;border-top:1px solid var(--line)}}
+@media(max-width:760px){.top-in{padding:12px 16px!important;gap:12px}.top-r{flex-wrap:wrap;justify-content:flex-end}.top-r .meter{display:none}.tabs-top{justify-content:flex-start}.notification-status,.brand-group .mode{font-size:11px;padding:4px 6px}}
 .mode{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:var(--text-2);padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);white-space:nowrap}
 .mode i{width:7px;height:7px;border-radius:50%;background:var(--idle)}
 .mode.real{color:var(--stop);border-color:#F5C9B5;background:var(--stop-soft)}
@@ -59,18 +72,20 @@ button{cursor:pointer}
 .mode.off{color:var(--text-3)}
 
 /* 버튼 */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 13px;border-radius:var(--r-sm);border:1px solid var(--line-strong);background:var(--surface);font-weight:500;font-size:13.5px;white-space:nowrap;transition:background .15s,border-color .15s,transform .08s}
-.btn:hover{background:var(--subtle)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:7px 14px;border-radius:9px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text-2);font-weight:500;font-size:13px;line-height:1.3;white-space:nowrap;transition:background .15s,border-color .15s,transform .08s,box-shadow .15s}
+.btn:hover{background:var(--subtle);border-color:var(--text-3);color:var(--text)}
+.btn:focus-visible,.link:focus-visible,.seg button:focus-visible,.tt:focus-visible,.pt:focus-visible,summary:focus-visible{outline:2px solid var(--text);outline-offset:3px}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
 .btn:active{transform:translateY(1px)}
 .btn.pri{background:var(--text);border-color:var(--text);color:#fff}
-.btn.pri:hover{background:#27272A}
+.btn.pri:hover{background:#27272A;color:#fff}
 .btn.danger{color:var(--stop);border-color:#F2C6B4}
 .btn.danger:hover{background:var(--stop-soft)}
-.btn.ghost{border-color:transparent;background:none;color:var(--text-2)}
+.btn.ghost{border-color:var(--line);background:var(--surface);color:var(--text-2)}
 .btn.ghost:hover{background:var(--subtle);color:var(--text)}
-.btn.sm{height:28px;padding:0 10px;font-size:12.5px}
-.link{border:0;background:none;padding:0;color:var(--accent-ink);font-weight:500}
-.link:hover{text-decoration:underline;text-underline-offset:3px}
+.btn.sm{min-height:32px;padding:6px 11px;font-size:12px}
+.link{border:1px solid var(--line);border-radius:7px;background:var(--surface);padding:4px 8px;color:var(--accent-ink);font-weight:500;line-height:1.4}
+.link:hover{background:var(--subtle);border-color:var(--line-strong)}
 
 /* 레이아웃 */
 main{max-width:1520px;margin:0 auto;padding:36px 32px 96px}
@@ -228,10 +243,11 @@ h2{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em}
 .ev .who .tool{font-family:var(--mono);font-size:11.5px;color:var(--text-3);font-weight:400}
 .ev .res{margin-top:3px;color:var(--text-2)}
 details{margin-top:8px}
-summary{cursor:pointer;color:var(--accent-ink);font-weight:500;font-size:12.5px;list-style:none;display:inline-flex;align-items:center;gap:4px}
+summary{cursor:pointer;color:var(--text-2);font-weight:500;font-size:12.5px;list-style:none;display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface);line-height:1.4}
+summary:hover{background:var(--subtle);border-color:var(--line-strong);color:var(--text)}
 summary::-webkit-details-marker{display:none}
 summary::before{content:"";width:0;height:0;border-left:4px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .15s}
-details[open] summary::before{transform:rotate(90deg)}
+details[open]>summary::before{transform:rotate(90deg)}
 .progs{display:grid;gap:0;margin-top:6px;border-top:1px solid var(--line)}
 .prog{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start;padding:10px 0;border-bottom:1px solid var(--line)}
 .prog .kind{margin-left:6px}
@@ -265,11 +281,11 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 @media (max-width:900px){.erow{grid-template-columns:minmax(0,1fr) auto}.erow .bill{grid-column:1 / -1}}
 
 /* 설정 */
-.seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--subtle);border:1px solid var(--line)}
+.seg{display:inline-flex;gap:4px;padding:4px;border-radius:10px;background:var(--subtle);border:1px solid var(--line)}
 .seg button{border:0;background:none;height:28px;padding:0 12px;border-radius:6px;color:var(--text-3);font-weight:500;font-size:13px;transition:background .15s,color .15s}
 .seg button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .row-f{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.seg.wrap{display:flex;flex-wrap:wrap;gap:2px}
+.seg.wrap{display:flex;flex-wrap:wrap;gap:4px}
 /* 승인함·기억 */
 .ib-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
 .ib-row:last-of-type{border-bottom:0}
@@ -336,6 +352,24 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .field label{display:block;font-weight:500;font-size:13px;margin-bottom:6px}
 .field .opt{color:var(--text-4);font-weight:400}
 .field .hint{margin-top:6px}
+.digest-settings .field{margin-top:16px}
+.digest-settings .field label{margin-bottom:8px}
+.digest-settings>.btn{margin-top:16px}
+.program-toggle{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--text-2);font-size:12.5px;font-weight:500;cursor:pointer;list-style:none}
+.program-toggle::-webkit-details-marker{display:none}
+.program-toggle::before{display:none}
+.program-toggle::after{content:'⌄';font-size:14px;line-height:1}
+details[open]>.program-toggle::after{content:'⌃'}
+.program-toggle:hover{background:var(--subtle);color:var(--text)}
+.program-toggle:focus-visible{outline:2px solid var(--text);outline-offset:3px}
+.digest-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.digest-actions .btn{flex:1;min-width:150px;height:auto;min-height:64px;padding:12px;justify-content:flex-start;gap:10px;text-align:left;background:var(--surface);color:var(--text);border-color:var(--line);border-radius:12px;white-space:normal}
+.digest-actions .btn:hover{background:var(--subtle);border-color:var(--line-strong);transform:translateY(-1px)}
+.digest-actions .btn:focus-visible{outline:2px solid var(--text);outline-offset:3px}
+.digest-actions .digest-icon{display:grid;place-items:center;flex-shrink:0;width:32px;height:32px;border-radius:9px;background:var(--subtle);color:var(--text-2);font-size:17px}
+.digest-actions .digest-copy{display:flex;flex-direction:column;gap:3px}
+.digest-actions .digest-copy b{font-size:13px;font-weight:600;line-height:1.3}
+.digest-actions .digest-copy small{font-size:11px;color:var(--text-3);font-weight:400;line-height:1.3}
 .note{padding:12px 14px;border-radius:var(--r);background:var(--subtle);font-size:12.5px;color:var(--text-2);line-height:1.65}
 .note b{color:var(--text)}
 @keyframes fade{from{opacity:0}}
@@ -369,15 +403,14 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 <div style="--accent: {{accent}}">
 <header class="top">
   <div class="top-in">
-    <button class="brand" onClick="{{goHome}}" aria-label="홈으로"><span class="mark">HQ</span><span class="word">AGENT HQ</span></button>
+    <div class="brand-group"><button class="brand" onClick="{{goHome}}" aria-label="홈으로"><span class="mark">HQ</span><span class="word">AGENT HQ</span></button><span class="{{modeCls}}" title="{{modeTitle}}"><i></i><span>{{modeL}}</span></span></div>
     <nav class="tabs-top" aria-label="주 메뉴">
       <sc-for list="{{nav}}" as="n"><button class="{{n.cls}}" aria-current="{{n.cur}}" onClick="{{n.go}}">{{n.l}}<sc-if value="{{n.hasN}}"><span class="n">{{n.n}}</span></sc-if></button></sc-for>
     </nav>
     <div class="top-r">
       <sc-if value="{{notif.canAsk}}"><button class="btn ghost sm" onClick="{{notif.enable}}" title="질문·승인·완료·멈춤이 생기면 이 창을 보고 있지 않아도 알려 줍니다">알림 켜기</button></sc-if>
-      <sc-if value="{{notif.on}}"><span class="small muted" title="이 브라우저 창이 열려 있는 동안 알려 줍니다">알림 켜짐</span></sc-if>
-      <sc-if value="{{meter.has}}"><button class="meter" onClick="{{meter.go}}" title="{{meter.title}}" aria-label="{{meter.title}}"><sc-for list="{{meter.items}}" as="m"><span class="{{m.cls}}">{{m.l}} <b>{{m.v}}</b></span></sc-for></button></sc-if>
-      <span class="{{modeCls}}" title="{{modeTitle}}"><i></i><span>{{modeL}}</span></span>
+      <sc-if value="{{notif.on}}"><span class="notification-status" role="status" title="이 브라우저 창이 열려 있는 동안 알려 줍니다">알림 켜짐</span></sc-if>
+      <sc-if value="{{meter.has}}"><button class="meter" onClick="{{meter.go}}" title="{{meter.title}}" aria-label="{{meter.title}}"><sc-for list="{{meter.items}}" as="m"><span class="{{m.cls}}"><span class="provider-label">{{m.l}}</span> <b>{{m.v}}</b></span></sc-for></button></sc-if>
       <button class="btn pri sm" onClick="{{openNew}}">새 프로젝트</button>
     </div>
   </div>
@@ -442,14 +475,14 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
           <sc-if value="{{dg.hasProjects}}"><div class="crit" style="margin-top: 8px"><sc-for list="{{dg.projects}}" as="p"><button class="cr link" style="grid-template-columns: minmax(0,1fr) auto; text-align: left; width: 100%" onClick="{{p.open}}"><span class="small"><b>{{p.title}}</b> · {{p.detail}}</span><span class="small muted">{{p.statusL}}</span></button></sc-for></div></sc-if>
         </sc-if>
         <sc-if value="{{dg.none}}"><p class="hint" style="margin: 0">아직 요약이 없습니다. 정해 둔 시각에 엔진이 만들고, 지금 바로 만들 수도 있습니다.</p></sc-if>
-        <div class="row-f" style="margin-top: 12px"><button class="btn sm" onClick="{{dg.makeDaily}}">오늘 요약 만들기</button><button class="btn ghost sm" onClick="{{dg.makeWeekly}}">주간 보고 만들기</button></div>
+        <div class="digest-actions" role="group" aria-label="요약과 보고서 만들기"><button class="btn" onClick="{{dg.makeDaily}}"><span class="digest-icon" aria-hidden="true">☀</span><span class="digest-copy"><b>오늘 요약 만들기</b><small>하루의 작업과 결과 정리</small></span></button><button class="btn" onClick="{{dg.makeWeekly}}"><span class="digest-icon" aria-hidden="true">▤</span><span class="digest-copy"><b>주간 보고 만들기</b><small>한 주의 진행 상황 정리</small></span></button></div>
         <div class="lbl" style="margin-top: 16px">예정</div>
         <div class="crit"><sc-for list="{{dg.upcoming}}" as="u"><div class="cr" style="grid-template-columns: 110px minmax(0,1fr) auto"><span class="small muted num">{{u.when}}</span><span class="small">{{u.what}}</span><span></span></div></sc-for></div>
         <sc-if value="{{dg.noUpcoming}}"><p class="hint" style="margin: 0">예정된 일이 없습니다.</p></sc-if>
         <sc-if value="{{dg.hasOlder}}"><details style="margin-top: 12px"><summary class="small">지난 요약 {{dg.olderN}}개</summary>
           <sc-for list="{{dg.older}}" as="o"><div style="margin-top: 10px"><div class="row-f small"><b>{{o.title}}</b><span class="muted">{{o.when}}</span><button class="link small" onClick="{{o.remove}}" aria-label="{{o.when}} 요약 삭제">삭제</button></div><ul class="ul"><sc-for list="{{o.lines}}" as="l"><li class="small">{{l}}</li></sc-for></ul></div></sc-for></details></sc-if>
-        <details style="margin-top: 12px"><summary class="small">요약 설정</summary>
-          <div class="field" style="margin-top: 10px"><label for="dg-time">요약 시각</label>
+        <details class="digest-settings" style="margin-top: 12px"><summary class="small">요약 설정</summary>
+          <div class="field"><label for="dg-time">요약 시각</label>
             <div class="row-f"><input class="input" id="dg-time" type="time" style="max-width: 130px" value="{{dg.timeDraft}}" onChange="{{dg.onTime}}"><button class="btn sm" onClick="{{dg.saveTime}}">저장</button></div></div>
           <div class="field"><label>매일 요약</label><div class="seg" role="group" aria-label="매일 요약"><sc-for list="{{dg.dailyChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div>
           <div class="field"><label>주간 보고</label><div class="seg wrap" role="group" aria-label="주간 보고 요일"><sc-for list="{{dg.weekChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div>
@@ -900,7 +933,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
         <div class="row-f" style="justify-content: space-between"><div class="row-f"><h2>{{t.name}}</h2><span class="kind">{{t.kind}}</span></div><span class="{{t.pillCls}}"><i></i>{{t.stL}}</span></div>
         <p class="hint" style="margin: 4px 0 14px">{{t.role}}</p>
         <dl class="facts"><dt>AI</dt><dd>{{t.ai}}</dd><dt>할 수 있는 일</dt><dd>{{t.access}}</dd><dt>최근 실제 실행</dt><dd>{{t.model}}</dd><dt>오늘</dt><dd class="num">{{t.today}}회</dd><dt>지금</dt><dd>{{t.now}}</dd></dl>
-        <details style="margin-top: 16px"><summary class="lbl" style="display: list-item; cursor: pointer">{{t.progsL}}</summary>
+        <details style="margin-top: 16px"><summary class="program-toggle">{{t.progsL}}</summary>
         <div class="progs" style="margin-top: 8px"><sc-for list="{{t.tools}}" as="p"><div class="prog">
           <div style="min-width: 0"><div class="row-f"><b class="small">{{p.name}}</b><span class="kind">{{p.howL}}</span></div>
             <div class="small muted">{{p.what}}</div>
@@ -919,9 +952,8 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 <!-- ================= 연결 ================= -->
 <sc-if value="{{vConnect}}">
   <div class="card" style="margin-bottom: 16px">
-    <h2>모델 프로필 등록 · 계정 확인</h2>
-    <p class="hint">정확한 모델 ID·지원 추론·능력을 등록하고 공식 문서와 계정 선택 화면을 확인하세요. 아래 확인은 대장의 수동 확인 기록이며 자동 접속 검증이 아닙니다. 이름만으로 성능·지원 여부를 추정하지 않습니다.</p>
-    <button class="btn sm" onClick="{{registerModel}}">모델 프로필 등록</button>
+    <h2>모델 연결 · 계정 확인</h2>
+    <p class="hint">모델·추론 수준은 프로젝트의 설정 탭에서 선택합니다. 아래는 등록된 모델의 확인 상태이며, 수동 확인 기록은 자동 접속 검증이 아닙니다.</p>
     <sc-for list="{{modelProfiles}}" as="profile"><div class="row-f" style="margin-top: 12px"><span>{{profile.label}} · {{profile.executor}} · {{profile.status}}</span><button class="btn sm" onClick="{{profile.attest}}">공식 계정 수동 확인</button></div></sc-for>
   </div>
   <div class="page-h">
@@ -1151,6 +1183,14 @@ const pillCls = (tone) => 'pill ' + tone;
 const RUNNING_LIKE = ['scheduled', 'running', 'retry_wait', 'model_wait'];
 
 class Component extends DCLogic {
+  setState(patch) {
+    const next = typeof patch === 'function' ? patch(this.state, this.props) : patch;
+    const leavingArtifacts = this.state.ptab === 'artifacts' && (
+      (next.ptab !== undefined && next.ptab !== 'artifacts') ||
+      (next.view !== undefined && next.view !== 'project') ||
+      (next.pid !== undefined && next.pid !== this.state.pid));
+    super.setState(leavingArtifacts ? {...next, previewUrl:'', artifactMessage:''} : next);
+  }
   constructor(props) {
     super(props);
     this.state = { view: 'home', pid: null, ptab: 'over', eng: null, offline: false, toast: '',
@@ -1184,6 +1224,7 @@ class Component extends DCLogic {
       .catch(() => { if (!quiet) this.say('사용량 조회 실패 · 연결 확인 필요'); });
   }
   refresh() {
+    if (this.state.view === 'skills') this.loadSkills();
     if (this.state.view === 'project' && this.state.pid) this.loadSentinel(this.state.pid);
     this.loadInbox(); this.loadDigests();
     return fetch('/api/engine').then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
@@ -1836,16 +1877,17 @@ class Component extends DCLogic {
         // 상단 사용량: 공급자마다 가장 적게 남은 창의 %, 퍼센트가 없으면 팀 실행 때 받은 한도 상태
         const items = (s.quotas || []).map((q) => {
           const name = q.provider === 'codex' ? 'Codex' : 'Claude';
+          const providerClass = q.provider === 'codex' ? 'mi codex' : 'mi claude';
           const win = (w) => (w.period === 'five_hour' ? '5시간' : '주간');
           if (q.windows && q.windows.length) {
             return { l: name, v: q.windows.map((w) => (w.period === 'five_hour' ? '5h ' : '주 ') + Math.round(w.remaining) + '%').join(' · '),
-              cls: 'mi' + (q.windows.some((x) => x.blocked) ? ' stop' : q.stale ? ' old' : ''),
+              cls: providerClass + (q.windows.some((x) => x.blocked) ? ' stop' : q.stale ? ' old' : ''),
               t: name + ' ' + q.windows.map((w) => win(w) + ' ' + Math.round(w.remaining) + '% 남음').join(', ') + (q.stale ? ' (' + ago(q.observedAt) + ' 값)' : '') };
           }
           const worst = (q.limitStatus || []).map((l) => l.status).sort((a, b) => ['rejected', 'allowed_warning', 'allowed'].indexOf(a) - ['rejected', 'allowed_warning', 'allowed'].indexOf(b))[0];
-          if (!worst) return { l: name, v: '—', cls: 'mi old', t: name + ' 남은 양은 아직 모름 · 팀이 실행할 때 받는 한도 상태로 멈출지 판단' };
+          if (!worst) return { l: name, v: '—', cls: providerClass + ' old', t: name + ' 남은 양은 아직 모름 · 팀이 실행할 때 받는 한도 상태로 멈출지 판단' };
           const st = LIMIT_ST[worst] || [worst, 'idle'];
-          return { l: name, v: st[0], cls: 'mi' + (st[1] === 'stop' ? ' stop' : st[1] === 'attn' ? ' warn' : ''), t: name + ' 한도 상태 ' + st[0] };
+          return { l: name, v: st[0], cls: providerClass + (st[1] === 'stop' ? ' stop' : st[1] === 'attn' ? ' warn' : ''), t: name + ' 한도 상태 ' + st[0] };
         }).filter(Boolean);
         return { has: items.length > 0, items: items, go: () => this.go('usage'), title: '구독 남은 양 · ' + items.map((i) => i.t).join(' · ') + ' · 눌러서 자세히' };
       })(),
@@ -1898,12 +1940,6 @@ class Component extends DCLogic {
       }),
       vHome: s.view === 'home', vProjects: s.view === 'projects', vProject: s.view === 'project' && !!wp, vTeams: s.view === 'teams', vUsage: s.view === 'usage',
       vConnect: s.view === 'connect', env: env,
-      registerModel: () => {
-        const input = window.prompt('계정의 정확한 ID와 공식 지원 프로필을 JSON으로 입력하세요. tier는 운영 등급(0~2)이며 공식 성능 점수가 아닙니다.', JSON.stringify({ executor: 'codex', id: '', label: '', tier: 1, efforts: ['medium'], capabilities: ['text','code'] }));
-        if (input === null) return;
-        let body; try { body = JSON.parse(input); } catch { this.say('올바른 JSON을 입력하세요'); return; }
-        this.act(this.api('POST', '/api/models', body), '등록됨 · 계정 확인 전까지 배정하지 않습니다');
-      },
       modelProfiles: (s.eng?.catalog || []).map(profile => ({ label: profile.label, executor: TOOL[profile.executor],
         status: profile.usable ? '사용 가능 · 수동 확인 기록' : '확인 대기',
         attest: () => {
