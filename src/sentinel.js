@@ -77,7 +77,7 @@ export function decide(input, { workspace, grants = [], project = null, webMode 
 export function readAsks(file, { project, since }) {
   let lines = [];
   try { lines = readFileSync(file, 'utf8').split('\n').filter(Boolean).slice(-5000); } catch { return []; }
-  return lines.flatMap((l) => { try { const e = JSON.parse(l); return e.decision === 'ask' && e.project === project && e.at >= since && e.ask ? [{ ...e.ask, reason: e.reason, team: e.team }] : []; } catch { return []; } });
+  return lines.flatMap((l) => { try { const e = JSON.parse(l); return e.decision === 'ask' && e.project === project && e.at >= since && e.ask ? [{ ...e.ask, reason: e.reason, team: e.team, tool: e.tool, detail: e.target }] : []; } catch { return []; } });
 }
 
 export function logDecision(file, entry) {

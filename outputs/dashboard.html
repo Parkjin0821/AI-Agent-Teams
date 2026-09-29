@@ -688,16 +688,51 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 
 <!-- ================= 승인함 (감시 에이전트 요청 · 결과 확인 · 기억 제안) ================= -->
 <sc-if value="{{vInbox}}">
-  <div class="page-h"><div><h1>승인함</h1><p class="lede">팀이 대장의 결정을 기다리는 일입니다. 감시 에이전트가 멈춰 둔 동작, 처음 몇 번 확인하는 작업 결과, 팀이 제안한 기억이 여기에 모입니다.</p></div>
+  <div class="page-h"><div><h1>승인함</h1><p class="lede">대장의 결정을 기다리는 일이 모두 여기에 모입니다 · {{ib.total}}건. 팀의 질문, 감시 에이전트가 멈춰 둔 동작, 처음 몇 번 확인하는 작업 결과, 팀이 제안한 기억.</p></div>
     <button class="btn sm" onClick="{{ib.reload}}">새로고침</button></div>
   <div class="stack">
+    <sc-if value="{{ib.hasOthers}}">
+      <section class="card">
+        <div class="lbl">질문 · 개선안 · 멈춘 프로젝트 · {{ib.othersN}}건</div>
+        <div class="list inbox">
+          <sc-for list="{{ib.others}}" as="it">
+            <div class="item">
+              <span class="{{it.icoCls}}" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{it.icon}}"></path></svg></span>
+              <div>
+                <div class="t">{{it.title}} <span class="proj">· {{it.project}}</span></div>
+                <div class="b">{{it.body}}</div>
+                <sc-if value="{{it.isQuestion}}">
+                  <div class="q">{{it.question}}</div>
+                  <div class="acts" style="flex-direction: column; align-items: stretch; max-width: 72ch">
+                    <label class="hint" for="{{it.ibInputId}}">답변</label>
+                    <textarea class="ta" id="{{it.ibInputId}}" placeholder="예: 결제 기능은 빼고 진행해" value="{{it.draft}}" onChange="{{it.onDraft}}"></textarea>
+                    <div class="row-f"><button class="btn pri sm" onClick="{{it.send}}">답변 보내고 계속</button><button class="btn ghost sm" onClick="{{it.open}}">프로젝트 보기</button></div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{it.isProposal}}">
+                  <ul class="ul"><sc-for list="{{it.items}}" as="x"><li>{{x}}</li></sc-for></ul>
+                  <div class="acts"><button class="btn pri sm" onClick="{{it.accept}}">승인하고 계속</button><button class="btn sm" onClick="{{it.dismiss}}">보류</button><button class="btn ghost sm" onClick="{{it.open}}">프로젝트 보기</button></div>
+                </sc-if>
+                <sc-if value="{{it.isIssue}}">
+                  <div class="acts"><sc-for list="{{it.actions}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for></div>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+    </sc-if>
     <section class="card">
       <div class="lbl">감시 에이전트 승인 요청 · {{ib.approvalsN}}건</div>
       <sc-for list="{{ib.approvals}}" as="a">
-        <div class="ib-row">
-          <div style="min-width: 0"><div class="row-f"><b>{{a.kindL}}</b><span class="mono small">{{a.target}}</span></div>
-            <div class="small muted">{{a.project}} · {{a.team}} · {{a.when}} · {{a.reason}}</div></div>
-          <div class="row-f ib-acts"><sc-for list="{{a.actions}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for></div>
+        <div class="ib-row col">
+          <div style="min-width: 0"><div><b>{{a.sentence}}</b></div>
+            <sc-if value="{{a.hasTask}}"><div class="small">하던 일 · {{a.task}}</div></sc-if>
+            <sc-if value="{{a.hasExamples}}"><div class="small">열려던 주소 · <span class="mono">{{a.examples}}</span></div></sc-if>
+            <div class="small muted">{{a.project}} · {{a.when}} · {{a.reason}}</div></div>
+          <div class="row-f"><sc-for list="{{a.actions}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for><button class="link small" onClick="{{a.open}}">프로젝트 열기</button></div>
+          <details><summary class="small">다른 허용 범위</summary>
+            <div class="row-f" style="margin-top: 8px"><sc-for list="{{a.more}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for></div></details>
         </div>
       </sc-for>
       <sc-if value="{{ib.noApprovals}}"><p class="hint">기다리는 요청이 없습니다.</p></sc-if>
@@ -708,7 +743,11 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
       <sc-for list="{{ib.reviews}}" as="r">
         <div class="ib-row col">
           <div class="row-f"><b>{{r.team}}</b><span class="kind">{{r.step}}</span><span class="small muted">{{r.project}}</span></div>
-          <div class="small">{{r.files}}</div>
+          <div class="small">{{r.files}} · 파일을 누르면 내용을 봅니다 (실행하지 않고 보여 주기만 합니다)</div>
+          <div class="row-f"><sc-for list="{{r.fileBtns}}" as="f"><button class="{{f.cls}}" onClick="{{f.go}}">{{f.l}}</button></sc-for></div>
+          <sc-if value="{{r.hasRemoved}}"><div class="small muted">{{r.removed}}</div></sc-if>
+          <sc-if value="{{r.hasText}}"><pre class="answer" style="max-height: 50vh" aria-label="{{r.previewPath}} 내용">{{r.previewText}}</pre></sc-if>
+          <sc-if value="{{r.hasFrame}}"><iframe title="바뀐 파일 내용" src="{{r.previewUrl}}" sandbox="" referrerpolicy="no-referrer" style="width:100%;height:50vh;border:1px solid var(--line);border-radius:10px;background:white"></iframe></sc-if>
           <sc-if value="{{r.hasTools}}"><div class="tchecks"><sc-for list="{{r.tools}}" as="k"><div class="tcheck"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><span class="small"><b>{{k.name}}</b> · {{k.summary}}</span></div></sc-for></div></sc-if>
           <sc-if value="{{r.hasAnswer}}"><details><summary>팀 답변 전체</summary><div class="answer">{{r.answer}}</div></details></sc-if>
           <div class="row-f"><button class="btn pri sm" onClick="{{r.accept}}">확인하고 계속</button><button class="btn sm" onClick="{{r.sendBack}}">되돌려 보내기</button><button class="link small" onClick="{{r.open}}">프로젝트 열기</button></div>
@@ -1080,9 +1119,6 @@ class Component extends DCLogic {
     const goals = [].concat.apply([], (eng.projects || []).map((p) => (p.goals || []).map((g) => Object.assign({ pname: g.title || clip(g.objective, 40) }, g))));
     goals.forEach((g) => { now[g.id] = key(g); });
     const before = this._seen; this._seen = now;
-    const count = goals.filter((g) => (g.status === 'review_required' || g.status === 'blocked' || g.status === 'recovery_required')
-      || (g.proposal && g.proposal.status === 'pending')).length;
-    document.title = (count ? '(' + count + ') ' : '') + 'AGENT HQ';
     if (!before || !('Notification' in window) || Notification.permission !== 'granted') return;
     goals.forEach((g) => {
       if (before[g.id] === now[g.id]) return;
@@ -1175,13 +1211,62 @@ class Component extends DCLogic {
       sub: p.isTeam && p.goal.team && p.goal.team.task ? '지금 작업 · ' + clip(p.goal.team.task, 90) : clip(p.goal.objective, 90),
       ago: ago(p.last), flow: flowOf(p), open: () => this.openProject(p.id) });
 
+    // ── 대장 결정: 승인 요청·결과 확인은 홈·프로젝트·승인함 어디서나 같은 버튼으로 바로 처리한다 ──
+    const ibd = s.inbox || { approvals: [], reviews: [], memoryProposals: [], grants: [], decided: [], trust: { required: 3, teams: [] }, scopes: {}, webMode: 'ask' };
+    const grantAct = (a, scope, anySite) => () => {
+      if (scope === 'always' && !window.confirm(a.target + '을(를) 모든 프로젝트에서 계속 허용할까요?')) return;
+      if (anySite && !window.confirm('이 프로젝트에서 모든 공개 사이트를 허용할까요? 내부 주소·유출 의심 주소는 계속 막습니다.')) return;
+      this.inboxAct(this.api('POST', '/api/approvals/' + a.id + '/grant', { scope: scope, anySite: !!anySite }), '허용했습니다 · ' + (ibd.scopes[scope] || scope));
+    };
+    const denyAct = (a) => () => {
+      const note = window.prompt('거절 이유를 적어 주세요 (팀에게 전달됩니다, 비워도 됩니다)', '');
+      if (note === null) return;
+      this.inboxAct(this.api('POST', '/api/approvals/' + a.id + '/deny', { note: note }), '거절했습니다 · 팀이 이것 없이 진행합니다');
+    };
+    const approvalMain = (a) => [{ l: '이번 한 번 허용', cls: 'btn pri sm', go: grantAct(a, 'once') },
+      { l: '이 프로젝트에서 계속 허용', cls: 'btn sm', go: grantAct(a, 'project') }, { l: '거절', cls: 'btn danger sm', go: denyAct(a) }];
+    const approvalMore = (a) => [{ l: '24시간 허용', cls: 'btn sm', go: grantAct(a, 'day') }, { l: '모든 프로젝트에서 허용', cls: 'btn sm', go: grantAct(a, 'always') }]
+      .concat(a.kind === 'web' ? [{ l: '이 프로젝트의 모든 공개 사이트 허용', cls: 'btn ghost sm', go: grantAct(a, 'project', true) }] : []);
+    const approvalSentence = (a) => (TEAM_NAME[a.team] || a.team) + '이 ' + (a.kind === 'web' ? a.target + ' 사이트를 열려고 합니다' : '커넥터 동작 ' + a.target + '을(를) 하려고 합니다');
+    const reviewFiles = (r) => { const cp = r.checkpoint; return cp ? '추가 ' + cp.added.length + ' · 수정 ' + cp.modified.length + ' · 삭제 ' + cp.removed.length + ' 파일' : '파일 변경 기록 없음'; };
+    const reviewAccept = (r) => () => this.inboxAct(this.api('POST', '/api/goals/' + r.goalId + '/trust-review', { accept: true }), '확인했습니다 · 다음 단계로 이어갑니다');
+    const reviewSendBack = (r) => () => {
+      const note = window.prompt('무엇을 고쳐야 하는지 적어 주세요. 기획팀이 이걸 보고 다시 계획합니다.', '');
+      if (!note) return;
+      this.inboxAct(this.api('POST', '/api/goals/' + r.goalId + '/trust-review', { accept: false, note: note }), '되돌려 보냈습니다 · 기획팀이 다시 계획합니다');
+    };
+    const toInbox = { l: '승인함에서 자세히', cls: 'btn ghost sm', go: () => this.go('inbox') };
+    // 대장만 풀 수 있는 대기(시작 버튼으로는 넘어가지 않음): 이유에 맞는 설명과 버튼
+    const heldView = (g, pid) => {
+      if (g.reason === 'approval_required') {
+        const mine = ibd.approvals.filter((a) => a.goalId === g.id);
+        if (!mine.length) return { body: reasonText(g.reason), actions: [{ l: '승인함 열기', cls: 'btn pri sm', go: () => this.go('inbox') }] };
+        const a = mine[0];
+        return { body: approvalSentence(a) + (a.task ? ' · 하던 일: ' + clip(a.task, 90) : '') + (mine.length > 1 ? ' · 외 ' + (mine.length - 1) + '건' : ''),
+          actions: mine.length > 1 ? [{ l: '승인함에서 ' + mine.length + '건 보기', cls: 'btn pri sm', go: () => this.go('inbox') }] : approvalMain(a).concat([toInbox]) };
+      }
+      if (g.reason === 'trust_review') {
+        const r = ibd.reviews.find((x) => x.goalId === g.id);
+        if (!r) return { body: reasonText(g.reason), actions: [{ l: '승인함 열기', cls: 'btn pri sm', go: () => this.go('inbox') }] };
+        return { body: (TEAM_NAME[r.team] || r.team) + ' 결과를 확인해 주세요 · 신뢰 쌓기 ' + r.number + '/' + r.required + ' · ' + reviewFiles(r),
+          actions: [{ l: '확인하고 계속', cls: 'btn pri sm', go: reviewAccept(r) }, { l: '되돌려 보내기', cls: 'btn sm', go: reviewSendBack(r) },
+            { l: '바뀐 내용 보기', cls: 'btn ghost sm', go: () => this.go('inbox') }] };
+      }
+      if (g.reason === 'criteria_approval_required') return { body: reasonText(g.reason), actions: [{ l: '완료 조건 확인하기', cls: 'btn pri sm', go: () => this.openProject(pid) }] };
+      return null;
+    };
+
     // 확인 필요 (실제 엔진 상태에서만 만든다)
     const inbox = [];
     P.forEach((p) => {
       const g = p.goal, open = () => this.openProject(p.id);
       const restart = { l: '다시 시작', cls: 'btn pri sm', go: () => { if (this.confirmStart(p.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '다시 시작했습니다'); } };
       const see = { l: '프로젝트 보기', cls: 'btn ghost sm', go: open };
-      if (g.status === 'review_required' && g.reason === 'needs_decision') {
+      const held = g.status === 'review_required' ? heldView(g, p.id) : null;
+      if (held) {
+        inbox.push({ icon: ICON.issue, icoCls: 'ico', title: g.reason === 'approval_required' ? '승인 요청' : (g.reason === 'trust_review' ? '결과 확인' : '확인 필요'), project: p.name,
+          body: held.body, isIssue: true, held: ['approval_required', 'trust_review'].includes(g.reason), actions: held.actions });
+      } else if (g.status === 'review_required' && g.reason === 'needs_decision') {
         const inputId = 'ans-' + g.id;
         inbox.push({ icon: ICON.question, icoCls: 'ico', title: askedBy(g.question) + ' 질문', project: p.name, body: '답을 주면 기획팀이 이어서 계획합니다.', question: stripAsker(g.question),
           isQuestion: true, inputId: inputId, draft: s.drafts[g.id] || '', open: open,
@@ -1200,6 +1285,10 @@ class Component extends DCLogic {
           actions: [{ l: '모델 설정', cls: 'btn pri sm', go: () => this.openProject(p.id, 'settings') }, see] });
       }
     });
+
+    if (ibd.memoryProposals.length) inbox.push({ icon: ICON.proposal, icoCls: 'ico', title: '기억 제안 ' + ibd.memoryProposals.length + '건', project: '모든 프로젝트',
+      body: '팀이 기억해 두자고 제안했습니다 · 예: ' + clip(ibd.memoryProposals[0].text, 80), isIssue: true, held: true,
+      actions: [{ l: '승인함에서 보기', cls: 'btn pri sm', go: () => this.go('inbox') }] });
 
     // 팀 현황 (실행 기록에서 계산)
     const allRuns = [].concat.apply([], P.map((p) => p.runs.map((r) => Object.assign({}, r, { project: p }))));
@@ -1230,7 +1319,8 @@ class Component extends DCLogic {
     if (s.view === 'project' && wp) {
       const g = wp.goal, st = wp.st, team = g.team || {};
       const isTeam = wp.isTeam;
-      const startable = isTeam && g.status !== 'verified' && g.status !== 'running' && !(g.status === 'review_required' && g.reason === 'needs_decision') && !(g.autoRun && RUNNING_LIKE.includes(g.status));
+      const heldW = g.status === 'review_required' ? heldView(g, wp.id) : null;
+      const startable = isTeam && g.status !== 'verified' && g.status !== 'running' && !(g.status === 'review_required' && g.reason === 'needs_decision') && !heldW && !(g.autoRun && RUNNING_LIKE.includes(g.status));
       const runsDesc = wp.runs.slice().sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
       const latest = runsDesc.find((r) => r.answer);
       const issue = ['review_required', 'blocked', 'recovery_required', 'model_wait'].includes(g.status) && g.reason !== 'needs_decision';
@@ -1277,8 +1367,9 @@ class Component extends DCLogic {
         accept: () => { if (this.confirmStart(wp.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/accept', {}), '개선을 시작했습니다'); },
         dismiss: () => this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/dismiss', {}), '개선안을 보류했습니다'),
         hasIssue: issue, issueCls: 'card ' + (g.status === 'review_required' || g.status === 'model_wait' ? 'attn' : 'stop'),
-        issueTitle: g.status === 'model_wait' ? '모델 대기' : (g.status === 'review_required' ? '확인 필요' : '멈춤'), issueText: reasonText(g.reason),
-        issueActions: ['approval_required', 'trust_review'].includes(g.reason) ? [{ l: '승인함 열기', cls: 'btn pri sm', go: () => this.go('inbox') }]
+        issueTitle: g.status === 'model_wait' ? '모델 대기' : (g.reason === 'approval_required' ? '승인 요청' : g.reason === 'trust_review' ? '결과 확인' : (g.status === 'review_required' ? '확인 필요' : '멈춤')),
+        issueText: heldW ? heldW.body : reasonText(g.reason),
+        issueActions: heldW ? heldW.actions
           : g.status === 'model_wait' ? [{ l: '모델 설정', cls: 'btn pri sm', go: () => this.setState({ ptab: 'settings' }) }]
           : [{ l: isTeam ? '다시 시작' : '다시 실행', cls: 'btn pri sm', go: () => {
               if (!this.confirmStart(wp.name)) return;
@@ -1410,48 +1501,49 @@ class Component extends DCLogic {
     }
 
     const ptabDefs = [['over', '개요', ''], ['artifacts', '결과물', ''], ['activity', '활동', wp ? wp.runs.length : ''], ['verify', '검증', wp ? wp.proven + '/' + wp.total : ''], ['settings', '설정', '']];
-    const inboxN = inbox.length;
-    const ibd = s.inbox || { approvals: [], reviews: [], memoryProposals: [], grants: [], decided: [], trust: { required: 3, teams: [] }, scopes: {}, webMode: 'ask' };
-    const approvalsN = ibd.approvals.length + ibd.reviews.length + ibd.memoryProposals.length;
-    const navDefs = [['home', '홈', inboxN], ['inbox', '승인함', approvalsN], ['projects', '프로젝트', 0], ['teams', '팀', 0], ['memory', '기억', 0], ['skills','스킬',0], ['connect', '연결', 0], ['usage', '사용량', 0]];
+    // 결정 대기는 승인함 한곳에서 센다 (홈 목록과 겹치지 않게: 승인 요청·결과 확인·기억 제안 + 그 밖의 질문·개선안·멈춤).
+    const othersN = inbox.filter((it) => !it.held).length;
+    const pendingTotal = ibd.approvals.length + ibd.reviews.length + ibd.memoryProposals.length + othersN;
+    const docTitle = (pendingTotal ? '(' + pendingTotal + ') ' : '') + 'AGENT HQ';
+    if (document.title !== docTitle) document.title = docTitle;
+    const navDefs = [['home', '홈', 0], ['inbox', '승인함', pendingTotal],['projects', '프로젝트', 0], ['teams', '팀', 0], ['memory', '기억', 0], ['skills','스킬',0], ['connect', '연결', 0], ['usage', '사용량', 0]];
     // ── 승인함 ──
     const KIND_L = { web: '웹사이트 열기', connector: '커넥터 동작' };
     const ib = {
       reload: () => this.loadInbox(),
+      others: inbox.filter((it) => !it.held).map((it) => Object.assign({}, it, { ibInputId: 'ib-' + (it.inputId || '') })), hasOthers: othersN > 0, othersN: othersN, total: pendingTotal,
       approvalsN: ibd.approvals.length, noApprovals: !ibd.approvals.length,
-      approvals: ibd.approvals.map((a) => {
-        const grant = (scope, anySite) => () => {
-          if (scope === 'always' && !window.confirm(a.target + '을(를) 모든 프로젝트에서 계속 허용할까요?')) return;
-          if (anySite && !window.confirm('이 프로젝트에서 모든 공개 사이트를 허용할까요? 내부 주소·유출 의심 주소는 계속 막습니다.')) return;
-          this.inboxAct(this.api('POST', '/api/approvals/' + a.id + '/grant', { scope: scope, anySite: !!anySite }), '허용했습니다 · ' + (ibd.scopes[scope] || scope));
-        };
-        const actions = [{ l: '이번 한 번', cls: 'btn pri sm', go: grant('once') }, { l: '이 프로젝트에서 계속', cls: 'btn sm', go: grant('project') },
-          { l: '24시간', cls: 'btn sm', go: grant('day') }, { l: '모든 프로젝트', cls: 'btn sm', go: grant('always') }];
-        if (a.kind === 'web') actions.push({ l: '이 프로젝트의 모든 공개 사이트', cls: 'btn ghost sm', go: grant('project', true) });
-        actions.push({ l: '거절', cls: 'btn danger sm', go: () => {
-          const note = window.prompt('거절 이유를 적어 주세요 (팀에게 전달됩니다, 비워도 됩니다)', '');
-          if (note === null) return;
-          this.inboxAct(this.api('POST', '/api/approvals/' + a.id + '/deny', { note: note }), '거절했습니다 · 팀이 이것 없이 진행합니다');
-        } });
-        return { kindL: KIND_L[a.kind] || a.kind, target: a.target, project: a.projectTitle, team: TEAM_NAME[a.team] || a.team, when: ago(a.at), reason: a.reason, actions: actions };
-      }),
+      approvals: ibd.approvals.map((a) => ({ kindL: KIND_L[a.kind] || a.kind, target: a.target, project: a.projectTitle, team: TEAM_NAME[a.team] || a.team, when: ago(a.at),
+        reason: a.reason, sentence: approvalSentence(a), hasTask: !!a.task, task: a.task || '',
+        hasExamples: !!(a.examples && a.examples.length), examples: (a.examples || []).join('  ·  '),
+        actions: approvalMain(a), more: approvalMore(a), open: () => this.openProject(a.project) })),
       reviewsN: ibd.reviews.length, noReviews: !ibd.reviews.length, trustRequired: ibd.trust.required,
       trustLevels: ibd.trust.teams.map((t) => t.name + ' ' + Math.min(t.count, ibd.trust.required) + '/' + ibd.trust.required).join(' · ') || '—',
       reviews: ibd.reviews.map((r) => {
-        const cp = r.checkpoint;
-        const files = cp ? ['추가 ' + cp.added.length, '수정 ' + cp.modified.length, '삭제 ' + cp.removed.length].join(' · ') + ' 파일'
-          + (cp.added.concat(cp.modified).length ? ' (' + clip(cp.added.concat(cp.modified).join(', '), 160) + ')' : '') : '파일 변경 기록 없음';
-        return { team: TEAM_NAME[r.team] || r.team, step: '신뢰 쌓기 ' + r.number + '/' + r.required, project: r.projectTitle, files: files,
+        const cp = r.checkpoint || { added: [], modified: [], removed: [] };
+        const pv = s.ibPreview && s.ibPreview.goalId === r.goalId ? s.ibPreview : null;
+        const src = (f) => '/api/projects/' + encodeURIComponent(r.projectId) + '/preview?path=' + encodeURIComponent(f);
+        // 글·코드는 받아서 글자로 보여 주고(실행 안 함), HTML·그림만 격리된 틀에 띄운다.
+        const fileBtn = (f, tag) => ({ l: tag + ' ' + f, cls: 'btn sm' + (pv && pv.path === f ? ' on' : ''),
+          go: () => {
+            if (pv && pv.path === f) { this.setState({ ibPreview: null }); return; }
+            this.setState({ ibPreview: { goalId: r.goalId, path: f, text: '불러오는 중…', frame: false } });
+            fetch(src(f)).then((res) => {
+              if (!res.ok) return res.json().then((e) => { throw new Error(e.error || String(res.status)); });
+              const type = res.headers.get('content-type') || '';
+              if (/^text\/plain/.test(type)) return res.text().then((t) => ({ text: t.length > 60000 ? t.slice(0, 60000) + '\n… (앞부분만 표시)' : t, frame: false }));
+              return { text: '', frame: true };
+            }).catch((e) => ({ text: '이 파일은 미리 볼 수 없습니다 · ' + korErr(e.message), frame: false }))
+              .then((v) => { if (this.state.ibPreview && this.state.ibPreview.path === f) this.setState({ ibPreview: Object.assign({ goalId: r.goalId, path: f }, v) }); });
+          } });
+        return { team: TEAM_NAME[r.team] || r.team, step: '신뢰 쌓기 ' + r.number + '/' + r.required, project: r.projectTitle, files: reviewFiles(r),
+          fileBtns: cp.added.map((f) => fileBtn(f, '추가')).concat(cp.modified.map((f) => fileBtn(f, '수정'))).slice(0, 30),
+          hasRemoved: cp.removed.length > 0, removed: '삭제: ' + clip(cp.removed.join(', '), 200),
+          hasFrame: !!(pv && pv.frame), previewUrl: pv ? src(pv.path) : '', hasText: !!(pv && !pv.frame), previewText: pv ? pv.text : '', previewPath: pv ? pv.path : '',
           hasTools: (r.tools || []).length > 0, tools: (r.tools || []).map((k) => ({ name: k.name, summary: k.summary,
             stL: TOOL_ST[k.status] ? TOOL_ST[k.status][0] : k.status, pillCls: pillCls(TOOL_ST[k.status] ? TOOL_ST[k.status][1] : 'idle') })),
           hasAnswer: !!r.answer, answer: r.answer ? cleanAnswer(r.answer) : '',
-          accept: () => this.inboxAct(this.api('POST', '/api/goals/' + r.goalId + '/trust-review', { accept: true }), '확인했습니다 · 다음 단계로 이어갑니다'),
-          sendBack: () => {
-            const note = window.prompt('무엇을 고쳐야 하는지 적어 주세요. 기획팀이 이걸 보고 다시 계획합니다.', '');
-            if (!note) return;
-            this.inboxAct(this.api('POST', '/api/goals/' + r.goalId + '/trust-review', { accept: false, note: note }), '되돌려 보냈습니다 · 기획팀이 다시 계획합니다');
-          },
-          open: () => this.openProject(r.projectId) };
+          accept: reviewAccept(r), sendBack: reviewSendBack(r), open: () => this.openProject(r.projectId) };
       }),
       proposalsN: ibd.memoryProposals.length, noProposals: !ibd.memoryProposals.length,
       proposals: ibd.memoryProposals.map((p) => ({ text: p.text, scope: p.scope === 'all' ? '모든 팀' : (TEAM_NAME[p.scope] || p.scope), by: p.by, when: ago(p.at),
@@ -1617,9 +1709,9 @@ class Component extends DCLogic {
           color: w.blocked ? '#b42318' : q.stale ? '#a1a1aa' : '#397d60',
           status: (w.blocked ? '중단 기준 도달 · 새 단계 멈춤' : '기준 이내') + ' (' + w.stopAt + '% 이하 남으면 중단)' + (q.stale ? ' · ' + ago(q.observedAt) + ' 기준' : ''), reset: new Date(w.resetAt).toLocaleString() })) })),
       greeting: (hour < 12 ? '좋은 아침입니다' : hour < 18 ? '안녕하세요' : '수고하셨습니다') + ', 대장',
-      homeLede: inboxN ? '팀이 결정을 기다리는 일이 ' + inboxN + '건 있습니다.' : (activeN ? '팀이 프로젝트 ' + activeN + '개를 진행하고 있습니다.' : '진행 중인 프로젝트가 없습니다.'),
+      homeLede: pendingTotal ? '대장의 결정을 기다리는 일이 ' + pendingTotal + '건 있습니다.' : (activeN ? '팀이 프로젝트 ' + activeN + '개를 진행하고 있습니다.' : '진행 중인 프로젝트가 없습니다.'),
       hasProjects: P.length > 0, noProjects: P.length === 0 && !!s.eng,
-      st: { active: activeN, inbox: inboxN, today: P.reduce((n, p) => n + p.today, 0), done: P.filter((p) => p.goal.status === 'verified').length, attnCls: 'stat' + (inboxN ? ' attn' : '') },
+      st: { active: activeN, inbox: pendingTotal, today: P.reduce((n, p) => n + p.today, 0), done: P.filter((p) => p.goal.status === 'verified').length, attnCls: 'stat' + (pendingTotal ? ' attn' : '') },
       inbox: inbox, inboxEmpty: inbox.length === 0,
       homeProjects: P.slice(0, 6).map(rowOf), allProjects: P.map(rowOf), teams: teams,
       projectTeams: wp ? TEAMS.map(t => {

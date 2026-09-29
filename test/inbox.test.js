@@ -46,6 +46,8 @@ test('a site the Sentinel held back pauses the project until 대장 picks a scop
     const inbox = (await call('GET', '/api/inbox')).body;
     assert.equal(inbox.approvals.length, 1);
     assert.deepEqual([inbox.approvals[0].kind, inbox.approvals[0].target], ['web', 'nodejs.org']);
+    assert.deepEqual([inbox.approvals[0].task, inbox.approvals[0].examples, inbox.approvals[0].tool], ['경쟁 서비스 조사', ['nodejs.org/api'], 'WebFetch'],
+      'the request says what the team was doing and which address it tried');
     assert.match((await call('POST', `/api/approvals/${inbox.approvals[0].id}/grant`, { scope: 'forever' })).body.error, /unknown approval scope/);
     assert.equal((await call('POST', `/api/approvals/${inbox.approvals[0].id}/grant`, { scope: 'project' })).status, 200);
     goal = app.store.getGoal(g.id);

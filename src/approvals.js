@@ -43,14 +43,21 @@ export class Approvals {
   grants() { return readGrants(this.grantsFile); }
 
   // From the Sentinel's asks during one round. One pending request per (project, kind, target).
-  request(asks, { goalId, project, team }) {
+  // `task` is what the team was doing, and `examples` the exact addresses it tried, so 대장 can judge why.
+  request(asks, { goalId, project, team, task = '' }) {
     const created = [];
     for (const ask of asks) {
       if (!['web', 'connector'].includes(ask?.kind) || typeof ask.target !== 'string' || !ask.target) continue;
       const id = createHash('sha256').update(JSON.stringify([project, ask.kind, ask.target])).digest('hex').slice(0, 24);
       const existing = this.store.getSettings()[KEY + id];
-      if (existing?.status === 'pending') continue;
+      const example = typeof ask.detail === 'string' && ask.detail ? ask.detail.slice(0, 200) : null;
+      if (existing?.status === 'pending') {
+        const examples = existing.examples ?? [];
+        if (example && !examples.includes(example) && examples.length < 5) this.store.setSetting(KEY + id, { ...existing, examples: [...examples, example] });
+        continue;
+      }
       const entry = { id, kind: ask.kind, target: ask.target.slice(0, 200), project, goalId, team, reason: String(ask.reason ?? '').slice(0, 300),
+        task: String(task ?? '').slice(0, 300), tool: typeof ask.tool === 'string' ? ask.tool.slice(0, 100) : null, examples: example ? [example] : [],
         status: 'pending', at: new Date(this.clock.now()).toISOString() };
       this.store.setSetting(KEY + id, entry);
       created.push(entry);

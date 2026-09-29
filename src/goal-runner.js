@@ -76,7 +76,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       let approvalRequests = [];
       if (sentinel && approvals && !simulated) {
         approvalRequests = approvals.request(readAsks(sentinel.log, { project: goal.projectId, since: roundStart }),
-          { goalId: goal.id, project: goal.projectId, team: team ?? 'task' });
+          { goalId: goal.id, project: goal.projectId, team: team ?? 'task', task: goal.team?.task ?? goal.objective });
         approvals.consumeOnce(goal.projectId);
       }
       if (runRecord) {
