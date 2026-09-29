@@ -31,11 +31,11 @@ function usage(five, week, metric = 'remaining') {
     { period: 'weekly', metric, percent: week, observedAt: new Date().toISOString() }] };
 }
 test('quota boundaries agree for opposite display metrics', () => {
-  assert.equal(assessUsage(usage(3, 11)).state, 'available');
-  assert.equal(assessUsage(usage(2.9, 11)).state, 'limited');
+  assert.equal(assessUsage(usage(20.1, 11)).state, 'available');
+  assert.equal(assessUsage(usage(20, 11)).state, 'limited');
   assert.equal(assessUsage(usage(20, 10)).state, 'limited');
-  assert.equal(assessUsage(usage(97, 89, 'used')).state, 'available');
-  assert.equal(assessUsage(usage(97.1, 89, 'used')).state, 'limited');
+  assert.equal(assessUsage(usage(79.9, 89, 'used')).state, 'available');
+  assert.equal(assessUsage(usage(80, 89, 'used')).state, 'limited');
   assert.equal(assessUsage(usage(40, 90, 'used')).state, 'limited');
   assert.equal(assessUsage({ windows: [] }).state, 'unknown');
 });

@@ -215,6 +215,13 @@ summary{cursor:pointer;color:var(--accent-ink);font-weight:500;font-size:12.5px;
 summary::-webkit-details-marker{display:none}
 summary::before{content:"";width:0;height:0;border-left:4px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .15s}
 details[open] summary::before{transform:rotate(90deg)}
+.progs{display:grid;gap:0;margin-top:6px;border-top:1px solid var(--line)}
+.prog{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start;padding:10px 0;border-bottom:1px solid var(--line)}
+.prog .kind{margin-left:6px}
+.tchecks{display:grid;gap:6px;margin-top:8px}
+.tcheck{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;align-items:baseline}
+.tcheck details{grid-column:2}
+@media (max-width:560px){.prog{grid-template-columns:minmax(0,1fr)}}
 details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border-radius:var(--r);font-size:13px}
 .log{font-family:var(--mono);font-size:12px;color:var(--text-2);padding:14px 20px;line-height:1.9;max-height:360px;overflow:auto}
 .log .ts{color:var(--text-4);margin-right:12px}
@@ -373,7 +380,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
           <div class="team">
             <div class="h"><span class="nm">{{t.name}}</span><span class="{{t.pillCls}}"><i></i>{{t.stL}}</span></div>
             <div class="role">{{t.now}}</div>
-            <dl><dt>실행 도구</dt><dd class="mono small">{{t.tool}} · {{t.model}}</dd><dt>오늘</dt><dd class="num">{{t.today}}회</dd></dl>
+            <dl><dt>AI 모델 계열</dt><dd>{{t.family}}</dd><dt>실행 도구</dt><dd class="mono small">{{t.tool}}</dd><dt>확인된 모델</dt><dd class="mono small">{{t.model}}</dd><dt>오늘</dt><dd class="num">{{t.today}}회</dd></dl>
           </div>
         </sc-for>
       </div>
@@ -383,7 +390,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
   <sc-if value="{{noProjects}}">
     <div class="panel empty">
       <div class="h">첫 프로젝트를 만들어 보세요</div>
-      <p>목표와 완료 조건만 적으면 됩니다. 기획팀이 할 일을 정하고, 개발팀이 만들고, 검증팀이 확인하며 끝날 때까지 이어서 진행합니다.</p>
+      <p>대화로 시작하세요. 팀이 검증 조건을 도출하고 작업·수정·검증을 이어갑니다.</p>
       <button class="btn pri" onClick="{{openNew}}">새 프로젝트</button>
     </div>
   </sc-if>
@@ -416,6 +423,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     <div style="min-width: 0">
       <div class="row-f"><h1>{{w.name}}</h1><span class="{{w.pillCls}}"><i></i>{{w.stL}}</span></div>
       <p class="goal">{{w.objective}}</p>
+      <button class="btn" onClick="{{approveCriteria}}">완료 조건 확인·승인</button>
     </div>
     <div class="acts">
       <sc-if value="{{w.canStart}}"><button class="btn pri" onClick="{{w.start}}">{{w.startL}}</button></sc-if>
@@ -428,6 +436,11 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 
   <!-- 개요 -->
   <sc-if value="{{pt.over}}">
+    <div class="card"><div class="lbl">결과물·격리 테스트 콘솔</div>
+      <button class="btn sm" onClick="{{showArtifacts}}">결과물 미리보기</button>
+      <button class="btn sm" onClick="{{runSandboxTests}}">격리 테스트 실행</button>
+      <p class="hint">미리보기는 외부 통신·스크립트 실행을 차단합니다. 콘솔은 고정 테스트 명령만 지원하며 전체 터미널은 아닙니다.</p>
+    </div>
     <sc-if value="{{w.isTeam}}">
       <div class="flow-lg" style="{{w.flowCols}}" aria-label="이번 순환의 팀 흐름">
         <sc-for list="{{w.flowLg}}" as="f"><div class="{{f.cls}}"><div class="t">{{f.name}}<span class="tool">{{f.tool}}</span></div><div class="d">{{f.d}}</div></div></sc-for>
@@ -435,6 +448,24 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     </sc-if>
     <div class="grid2" style="margin-top: 20px">
       <div class="stack">
+        <div class="card">
+          <div class="lbl">프로젝트 대화 · 실행 중에는 체크포인트 저장 후 요청하세요</div>
+          <sc-for list="{{w.messages}}" as="msg"><p>{{msg.text}}</p></sc-for>
+          <textarea class="ta" aria-label="프로젝트 추가 요청" placeholder="추가 요청이나 수정할 점" value="{{w.draft}}" onChange="{{w.onDraft}}"></textarea>
+          <button class="btn pri sm" onClick="{{w.sendMessage}}">요청 반영</button>
+          <p class="hint">중지한 프로젝트는 메시지를 보내도 자동 시작하지 않습니다.</p>
+        </div>
+        <div class="card">
+          <div class="lbl">팀 협업 · 후속 작업 제안</div>
+          <p class="hint">{{w.assignmentL}}</p>
+          <sc-for list="{{w.assignmentCandidates}}" as="candidate"><p>{{candidate.executor}} · {{candidate.model}} · 비교 실측 {{candidate.samples}}건 · 점수 {{candidate.score}}</p></sc-for>
+          <sc-for list="{{w.requests}}" as="req"><p>{{req.team}} · {{req.task}} · {{req.status}} · 위험 {{req.risk}}</p></sc-for>
+          <p class="hint">{{w.autonomyL}} · 허용 시 저위험·외부 작업 없는 제안만 최대 2건 이어갑니다. 같은 프로젝트는 순차 실행합니다.</p>
+          <button class="btn sm" onClick="{{w.toggleAutonomy}}">자율 후속 작업 켜기 / 끄기</button>
+          <a class="btn sm" href="{{w.recordsUrl}}" target="_blank" rel="noopener noreferrer">GitHub·Notion 기록 초안 보기</a>
+          <button class="btn sm" onClick="{{configureAutoSave}}">GitHub·Notion 자동 저장 설정</button>
+          <button class="btn sm" onClick="{{inspectAutoSave}}">자동 저장 상태</button>
+        </div>
         <sc-if value="{{w.hasQuestion}}">
           <div class="card attn">
             <div class="lbl">{{w.askedBy}} 질문 · 대장의 답이 필요합니다</div>
@@ -502,6 +533,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
           <div style="min-width: 0">
             <div class="who">{{a.who}}<span class="tool">{{a.tool}}</span><span class="{{a.pillCls}}"><i></i>{{a.resL}}</span></div>
             <div class="res">{{a.res}}</div>
+            <sc-if value="{{a.hasTools}}"><div class="tchecks"><sc-for list="{{a.tools}}" as="k"><div class="tcheck"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><span class="small"><b>{{k.name}}</b> · {{k.summary}}</span><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
             <sc-if value="{{a.hasAnswer}}"><details><summary>답변 보기</summary><div class="answer">{{a.answer}}</div></details></sc-if>
           </div>
         </div>
@@ -540,7 +572,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     <div class="stack" style="max-width: 720px">
       <div class="card">
         <div class="lbl">모델</div>
-        <p class="hint" style="margin: 0 0 12px">자동 선택은 각 팀의 실행 도구가 기본 모델을 씁니다. 고정한 모델을 쓸 수 없으면 다른 모델로 바꾸지 않고 기다립니다. 변경은 다음 단계부터 적용됩니다.</p>
+        <p class="hint" style="margin: 0 0 12px">새 대화 프로젝트는 검증된 모델 프로필에서 위험도·반복 실패에 따라 모델과 추론 수준을 선택합니다. 프로필 미등록 시 대기합니다. 기존 프로젝트는 자동 선택을 눌러 전환하세요. 변경은 체크포인트 이후 적용됩니다.</p>
         <div class="seg" role="group" aria-label="모델 정책"><button class="{{m.autoCls}}" aria-pressed="{{m.isAuto}}" onClick="{{m.setAuto}}">자동 선택</button><button class="{{m.pinCls}}" aria-pressed="{{m.isPin}}" onClick="{{m.setPin}}">모델 고정</button></div>
         <sc-if value="{{m.isPin}}">
           <div class="row-f" style="margin-top: 12px"><input class="input" style="max-width: 320px" id="pin-in" placeholder="공식 문서의 모델 ID" value="{{pinDraft}}" onChange="{{onPin}}" autocomplete="off"><button class="btn sm" onClick="{{m.applyPin}}">저장</button></div>
@@ -563,13 +595,22 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 
 <!-- ================= 팀 ================= -->
 <sc-if value="{{vTeams}}">
-  <div class="page-h"><div><h1>팀</h1><p class="lede">기획팀과 검증팀은 매 순환에, 개발팀·디자인팀은 맡은 작업에, 보안팀·정책팀은 기획팀이 부를 때만 참여합니다. 팀은 역할이고, 실행 도구와 모델은 그 역할을 수행하는 수단입니다.</p></div></div>
+  <div class="note" style="margin-bottom: 16px">Claude·GPT는 생각하고 답하는 모델 계열이며 Claude Code·Codex는 작업 실행 도구입니다. 기획·아이디어·조사에도 사용됩니다. 계열은 연결 경로 기준이고 정확한 모델은 실행 결과로 확인합니다. ChatGPT·Claude 웹앱이 별도로 연결된 것은 아닙니다.</div>
+  <div class="page-h"><div><h1>팀</h1><p class="lede">실제 작업 뒤에는 보안·정책 검토가 필수입니다. 복잡한 개발은 전환 정책에 따라 Codex에 배정하며 검증 AI는 읽기 전용입니다. 후속 제안은 프로젝트 협업 큐에 기록됩니다.</p></div></div>
+  <div class="card" style="margin-bottom: 16px"><h2>기록팀 · 엔진 기반</h2><p class="hint">실행·검증 메타데이터를 GitHub Markdown·Notion 블록 초안으로 정리합니다. 원문 대화·파일은 제외합니다. 외부 연결·자동 전송은 아직 미연결입니다.</p></div>
   <div class="stack">
     <sc-for list="{{teams}}" as="t">
       <div class="card">
         <div class="row-f" style="justify-content: space-between"><div class="row-f"><h2>{{t.name}}</h2><span class="kind">{{t.kind}}</span></div><span class="{{t.pillCls}}"><i></i>{{t.stL}}</span></div>
         <p class="hint" style="margin: 4px 0 14px">{{t.role}}</p>
-        <dl class="facts"><dt>실행 도구</dt><dd class="mono small">{{t.tool}}</dd><dt>권한</dt><dd>{{t.access}}</dd><dt>모델</dt><dd class="mono small">{{t.model}}</dd><dt>오늘</dt><dd class="num">{{t.today}}회</dd><dt>지금</dt><dd>{{t.now}}</dd></dl>
+        <dl class="facts"><dt>AI 모델 계열</dt><dd>{{t.family}}</dd><dt>실행 도구</dt><dd class="mono small">{{t.tool}}</dd><dt>권한</dt><dd>{{t.access}}</dd><dt>최근 확인된 모델</dt><dd class="mono small">{{t.model}}</dd><dt>요청한 추론 수준</dt><dd>{{t.effort}}</dd><dt>오늘</dt><dd class="num">{{t.today}}회</dd><dt>지금</dt><dd>{{t.now}}</dd></dl>
+        <div class="lbl" style="margin-top: 16px">쓰는 프로그램</div>
+        <div class="progs"><sc-for list="{{t.tools}}" as="p"><div class="prog">
+          <div style="min-width: 0"><div class="row-f"><b class="small">{{p.name}}</b><span class="kind">{{p.howL}}</span></div>
+            <div class="small muted">{{p.what}}</div>
+            <sc-if value="{{p.hasDocs}}"><div class="small muted">{{p.extra}}<a href="{{p.docs}}" target="_blank" rel="noopener noreferrer">공식 문서</a></div></sc-if></div>
+          <span class="{{p.pillCls}}"><i></i>{{p.statusL}}</span></div></sc-for>
+          <sc-if value="{{t.noTools}}"><div class="small muted">프로그램 상태를 불러오는 중입니다.</div></sc-if></div>
         <sc-if value="{{t.hasRecent}}">
           <div class="lbl" style="margin-top: 16px">최근 작업</div>
           <div class="crit"><sc-for list="{{t.recent}}" as="r"><div class="cr" style="grid-template-columns: 84px minmax(0,1fr) auto"><span class="small muted num">{{r.when}}</span><span class="small">{{r.project}} · {{r.res}}</span><span></span></div></sc-for></div>
@@ -581,6 +622,12 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 
 <!-- ================= 연결 ================= -->
 <sc-if value="{{vConnect}}">
+  <div class="card" style="margin-bottom: 16px">
+    <h2>모델 프로필 등록 · 계정 확인</h2>
+    <p class="hint">정확한 모델 ID·지원 추론·능력을 등록하고 공식 문서와 계정 선택 화면을 확인하세요. 아래 확인은 대장의 수동 확인 기록이며 자동 접속 검증이 아닙니다. 이름만으로 성능·지원 여부를 추정하지 않습니다.</p>
+    <button class="btn sm" onClick="{{registerModel}}">모델 프로필 등록</button>
+    <sc-for list="{{modelProfiles}}" as="profile"><div class="row-f" style="margin-top: 12px"><span>{{profile.label}} · {{profile.executor}} · {{profile.status}}</span><button class="btn sm" onClick="{{profile.attest}}">공식 계정 수동 확인</button></div></sc-for>
+  </div>
   <div class="page-h">
     <div><h1>연결</h1><p class="lede">팀이 쓰는 AI 도구와 서비스입니다. 공식 연결 방법만 쓰며, 상태는 각 도구의 공식 명령으로 확인합니다.</p></div>
     <div class="row-f"><span class="hint">{{env.checkedL}}</span><button class="btn" onClick="{{env.refresh}}">{{env.refreshL}}</button></div>
@@ -610,9 +657,12 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
   <div class="page-h"><div><h1>사용량</h1><p class="lede">토큰을 아끼기 위한 한도와 오늘 실행한 단계 수입니다.</p></div></div>
   <div class="stack">
     <div class="card attn">
-      <div class="lbl">구독 잔여량 · 확인 불가</div>
-      <div class="big">Claude Code와 Codex 모두 구독 잔여량을 읽어 올 공식 방법이 없어 표시하지 않습니다.</div>
-      <p class="hint" style="margin: 8px 0 0">대신 실행 중 한도 초과 오류가 나면 그 자리에서 멈추고, 프로젝트마다 하루 {{limits.day}}단계까지만 실행합니다. 추정한 숫자는 보여 주지 않습니다.</p>
+      <div class="lbl">공식 구독 사용량</div>
+      <button class="btn sm" onClick="{{refreshUsage}}">사용량 새로고침</button>
+      <button class="btn sm" onClick="{{recoverLimitStorage}}">한도 저장 장애 재검사·복구</button>
+      <p class="hint">잔여율은 토큰 개수가 아닌 구독 한도입니다.</p>
+      <p class="hint">구독 전용 · 종량제 API·유료 이미지 크레딧 연결 차단. 계정의 추가 사용·자동 충전은 각 서비스에서 꺼야 합니다. 이미지 자동 실행은 아직 연결되지 않았습니다.</p>
+      <sc-for list="{{quotaRows}}" as="q"><div style="margin-top:16px"><b>{{q.name}}</b><p class="hint">{{q.source}} · {{q.observed}}</p><p>{{q.note}}</p><sc-for list="{{q.windows}}" as="w"><div style="margin:12px 0"><strong>{{w.label}} · {{w.remaining}}% 남음</strong><span class="bar" style="display:block;width:100%;margin:8px 0"><i style="width:{{w.remaining}}%;background:{{w.color}}"></i></span><span class="hint">{{w.status}} · 초기화 {{w.reset}}</span></div></sc-for><sc-if value="{{q.hasLimits}}"><div class="lbl" style="margin-top:12px">팀 실행에서 받은 한도 상태 (퍼센트 없음)</div><sc-for list="{{q.limits}}" as="l"><div class="tcheck" style="margin-top:6px"><span class="{{l.pillCls}}"><i></i>{{l.stL}}</span><span class="small">{{l.label}} · 초기화 {{l.reset}} · {{l.seen}} 확인</span></div></sc-for></sc-if></div></sc-for>
     </div>
     <div class="list" role="table" aria-label="프로젝트별 오늘 실행">
       <div class="urow head" role="row"><span role="columnheader">프로젝트</span><span role="columnheader">오늘 실행</span><span role="columnheader">한도 사용</span><span role="columnheader">상태</span></div>
@@ -635,8 +685,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     <div class="sheet-b">
       <div class="field"><label for="np-title">이름 <span class="opt">(선택)</span></label><input class="input" id="np-title" placeholder="예: 가계부 앱" value="{{np.title}}" onChange="{{np.onTitle}}" autocomplete="off"></div>
       <div class="field"><label for="np-goal">목표</label><textarea class="ta" id="np-goal" placeholder="무엇을, 어떤 상태까지 만들지" value="{{np.goal}}" onChange="{{np.onGoal}}"></textarea></div>
-      <div class="field"><label for="np-crit">완료 조건</label><textarea class="ta" id="np-crit" placeholder="한 줄에 하나씩. 예: index.html 파일이 있다" value="{{np.crit}}" onChange="{{np.onCrit}}"></textarea>
-        <div class="hint">파일로 확인할 수 있게 쓰면 엔진이 직접 확인해 자동으로 끝냅니다.</div></div>
+      <p class="hint">완료 조건은 대화에서 팀이 도출합니다. 직접 작성하지 않아도 됩니다.</p>
       <div class="note"><b>진행 방식</b> · 기획팀이 다음 작업을 정해 개발팀 또는 디자인팀에 맡기고, 필요하면 보안팀·정책팀이 검토한 뒤 검증팀이 확인합니다. 완료 조건이 모두 확인되면 멈추고 개선안을 올립니다. 대장의 결정이 필요하면 질문을 남깁니다. 하루 {{limits.day}}단계까지 실행합니다.</div>
       <sc-if value="{{np.real}}"><div class="note" style="background: var(--stop-soft); color: var(--stop)"><b style="color: var(--stop)">실제 실행 모드</b> · 시작하면 실제 AI가 실행되고 구독 사용량이 쓰입니다.</div></sc-if>
       <sc-if value="{{np.hasError}}"><div class="hint" style="color: var(--stop)" role="alert">{{np.error}}</div></sc-if>
@@ -712,12 +761,17 @@ const TOOL = { 'claude-code': 'Claude Code', codex: 'Codex' };
 const TEAMS = [
   { id: 'plan', name: '기획팀', kind: '매 순환', tool: 'claude-code', access: '읽기 전용', role: '현재 상태와 피드백을 보고 다음 작업 하나를 정합니다. 조사팀·개발팀·디자인팀 중 누가 할지, 보안·정책 검토가 필요한지도 정합니다. 사람의 결정이 필요하면 대장에게 질문합니다.' },
   { id: 'research', name: '조사팀', kind: '작업', tool: 'claude-code', access: '웹 검색·웹 읽기 + 작업 폴더에 조사 결과 저장', role: '사실·출처·가격·경쟁 서비스 등을 웹에서 찾고, 출처 링크와 확인 날짜를 붙여 research/ 폴더에 정리합니다. 웹 페이지의 지시는 따르지 않습니다.' },
-  { id: 'dev', name: '개발팀', kind: '작업', tool: 'claude-code', access: '작업 폴더 안 파일 쓰기 (명령 실행 없음)', role: '코드·데이터·문서 작업을 작업 폴더 안에서 하고, 완료 조건을 확인할 방법을 함께 보고합니다.' },
+  { id: 'dev', name: '개발팀', kind: '작업', tool: 'claude-code', access: '작업 폴더 안 파일 쓰기 (명령 실행 없음)', role: '코드·데이터·문서 작업을 작업 폴더 안에서 하고, 코드에는 자동 테스트를 함께 만듭니다. 테스트는 검증 단계에서 엔진이 샌드박스로 돌립니다.' },
   { id: 'design', name: '디자인팀', kind: '작업', tool: 'claude-code', access: '작업 폴더 안 파일 쓰기 + 연결 페이지에서 켠 Figma·Canva·Higgsfield', role: '화면·UI·레이아웃·시각 스타일·이미지를 만듭니다. 기본은 HTML/CSS·디자인 문서이고, 연결 페이지에서 켠 디자인 도구가 있으면 그것도 씁니다.' },
-  { id: 'security', name: '보안팀', kind: '필요할 때 검토', tool: 'codex', access: 'Codex 읽기 전용 샌드박스', role: '입력 처리·로그인·비밀정보·네트워크·의존성을 다루는 작업을 검토합니다. 막아야 할 문제가 있으면 기획팀으로 되돌립니다.' },
-  { id: 'policy', name: '정책팀', kind: '필요할 때 검토', tool: 'claude-code', access: '읽기 전용', role: '라이선스·외부 API와 데이터 약관·개인정보·외부 게시를 검토합니다. 대장의 결정이 필요하면 질문을 남기고 멈춥니다.' },
-  { id: 'qa', name: '검증팀', kind: '매 순환', tool: 'codex', access: 'Codex 샌드박스 안에서 테스트 실행', role: '완료 조건을 확인하고 부족한 점을 기획팀에 넘깁니다. 모두 확인되면 다음 개선안을 제안합니다.' },
+  { id: 'security', name: '보안팀', kind: '필요할 때 검토', tool: 'codex', access: 'Codex 읽기 전용 샌드박스', role: '입력 처리·로그인·비밀정보·네트워크·의존성을 다루는 작업을 검토합니다. 엔진이 먼저 비밀정보 스캔을 돌려 결과를 넘기고, 막아야 할 문제가 있으면 기획팀으로 되돌립니다.' },
+  { id: 'policy', name: '정책팀', kind: '필요할 때 검토', tool: 'claude-code', access: '읽기 전용', role: '라이선스·외부 API와 데이터 약관·개인정보·외부 게시를 검토합니다. 엔진이 라이선스와 개인정보 패턴을 먼저 확인하고, GPL 계열처럼 대장의 결정이 필요하면 질문을 남기고 멈춥니다.' },
+  { id: 'qa', name: '검증팀', kind: '매 순환', tool: 'codex', access: 'Codex 샌드박스 (파일 변경 금지)', role: '엔진이 샌드박스에서 돌린 테스트·검사 결과와 함께 완료 조건을 확인합니다. 테스트가 실패하거나 비밀정보가 있으면 완료로 치지 않고, 모두 확인되면 다음 개선안을 제안합니다.' },
 ];
+// 팀이 쓰는 프로그램이 어떻게 돌아가는지, 엔진 검사 결과 상태
+const HOW_L = { ai: 'AI가 사용', engine: '엔진 내장 검사', sandbox: '엔진 · 격리 실행', network: '엔진 · 공식 조회', connector: '계정 커넥터', api: '종량제 API', missing: '미설치 프로그램' };
+const LIMIT_ST = { allowed: ['정상', 'done'], allowed_warning: ['한도 근접', 'attn'], rejected: ['한도 초과', 'stop'] };
+const LIMIT_WIN = { five_hour: '5시간', seven_day: '주간', seven_day_opus: '주간 (Opus)', seven_day_sonnet: '주간 (Sonnet)' };
+const TOOL_ST = { pass: ['통과', 'done'], found: ['발견', 'attn'], fail: ['실패', 'stop'], timeout: ['시간 초과', 'stop'], skipped: ['건너뜀', 'idle'], unavailable: ['실행 못 함', 'attn'] };
 const TEAM_NAME = { plan: '기획팀', research: '조사팀', dev: '개발팀', design: '디자인팀', security: '보안팀', policy: '정책팀', qa: '검증팀' };
 // 이번 순환에서 거치는 팀: 기획 → 작업팀 → [요청된 검토] → 검증
 // 검토팀 질문은 "[정책팀] …" 형태로 온다. 접두어가 없으면 기획팀 질문이다.
@@ -725,6 +779,10 @@ const askedBy = (q) => { const m = /^\[([^\]]+)\]/.exec(q || ''); return m ? m[1
 const stripAsker = (q) => (q || '').replace(/^\[[^\]]+\]\s*/, '');
 const pathOf = (team) => ['plan', (team && team.worker) || 'dev'].concat((team && team.plannedReviews) || (team && team.reviews) || [], ['qa']);
 const REASON = {
+  criteria_approval_required: '완료 조건 승인 대기 · 기획팀이 도출한 조건을 확인하고 승인해 주세요.',
+  criteria_not_derived: '완료 조건 도출 실패 · 기획팀이 검증 가능한 조건을 제시하지 못했습니다. 요구사항을 보완해 주세요.',
+  no_verified_capable_assignment: '모델 등록·계정 확인 또는 작업에 필요한 기능이 부족합니다. 연결 화면에서 확인하세요. 독립 검토용 다른 실행 도구도 필요할 수 있습니다.',
+  usage_unavailable_or_limited: '구독 로그인 미확인, 초과 사용 감지, 최신 사용량 미확인 또는 중단 기준(5시간 20%·주간 10%)에 닿아 기다립니다',
   unclear_review: '검토팀의 결과를 읽지 못해 멈췄습니다', needs_decision: '팀이 대장의 결정을 기다립니다', unclear_plan: '기획팀이 다음 작업을 정하지 못했습니다',
   no_progress: '개발 단계에서 3번 연속 진전이 없어 멈췄습니다', awaiting_review: '엔진이 확인하지 못한 조건이 남아 멈췄습니다',
   daily_cap: '오늘 실행 한도에 닿아 내일 이어서 합니다', pinned_model_unavailable: '고정한 모델을 쓸 수 없어 기다립니다',
@@ -791,6 +849,7 @@ class Component extends DCLogic {
       envs: null, envErr: '', envBusy: false };
   }
   componentDidMount() {
+    this.loadUsage();
     this.refresh();
     this.loadEnvs();
     try {
@@ -808,6 +867,10 @@ class Component extends DCLogic {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || String(res.status));
     return data;
+  }
+  loadUsage() {
+    return this.api('GET', '/api/usage').then(data => this.setState({ quotas: data.items }))
+      .catch(() => this.say('사용량 조회 실패 · 연결 확인 필요'));
   }
   refresh() {
     return fetch('/api/engine').then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
@@ -893,8 +956,17 @@ class Component extends DCLogic {
     const teams = TEAMS.map((t) => {
       const mine = allRuns.filter((r) => r.team === t.id).sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
       const working = P.filter((p) => p.goal.status === 'running' && p.goal.team && p.goal.team.step === t.id);
-      const lastModel = (mine.find((r) => r.actualModel) || {}).actualModel;
-      return { name: t.name, kind: t.kind, role: t.role, access: t.access, tool: TOOL[t.tool], model: lastModel || '확인 필요',
+      const lastConfirmed = mine.find((r) => r.actualModel && !r.simulated);
+      const lastModel = lastConfirmed && lastConfirmed.actualModel;
+      const executor = (working[0] && working[0].goal.model && working[0].goal.model.executor) || (mine[0] && mine[0].executor) || t.tool;
+      const family = (executor === 'codex' ? 'GPT 계열' : 'Claude 계열') + ' · 연결 경로 기준';
+      const progs = (s.teamTools && s.teamTools[t.id]) || [];
+      return { name: t.name, kind: t.kind, role: t.role, access: t.access, tool: TOOL[executor], family: family,
+        model: lastModel ? lastModel + ' · ' + TOOL[lastConfirmed.executor || t.tool] + ' · ' + ago(lastConfirmed.startedAt) : (real ? '실행 결과 확인 전' : '미호출 · 모의 실행'),
+        effort: mine[0] && mine[0].requestedEffort ? mine[0].requestedEffort + ' (요청값)' : '미지정 / 확인 전',
+        noTools: !progs.length,
+        tools: progs.map((p) => ({ name: p.name, howL: HOW_L[p.how] || p.how, what: p.what || '', statusL: p.statusL, pillCls: pillCls(p.tone),
+          hasDocs: !!p.docs, docs: p.docs || '', extra: p.license ? '라이선스 ' + p.license + ' · ' : '' })),
         today: mine.filter((r) => sameDay(r.startedAt)).length,
         stL: working.length ? '작업 중' : '대기', pillCls: pillCls(working.length ? 'run' : 'idle'),
         now: working.length ? working.map((p) => p.name).join(', ') + ' 작업 중' : (mine[0] ? '최근 · ' + mine[0].project.name + ' (' + ago(mine[0].finishedAt || mine[0].startedAt) + ')' : '아직 작업 기록 없음'),
@@ -936,6 +1008,20 @@ class Component extends DCLogic {
         hasQuestion: g.status === 'review_required' && g.reason === 'needs_decision', question: stripAsker(g.question), askedBy: askedBy(g.question),
         draft: s.drafts[g.id] || '', onDraft: (e) => { const d = Object.assign({}, this.state.drafts); d[g.id] = e.target.value; this.setState({ drafts: d }); },
         sendAnswer: () => this.sendAnswer(g.id),
+        messages: g.messages || [],
+        requests: g.collaboration || [],
+        assignmentL: '다음 배정 근거: ' + (g.model?.reason || '확인 전') + ' · 팀 제안: ' + (g.model?.proposalReason || '없음'),
+        assignmentCandidates: (g.model?.comparison || []).map(c => ({ executor: TOOL[c.executor], model: c.model, samples: c.samples, score: c.score === null ? '미측정' : c.score })),
+        autonomyL: g.autonomy?.enabled ? '켜짐 · 잔여 ' + g.autonomy.remaining : '꺼짐',
+        recordsUrl: '/api/projects/' + encodeURIComponent(wp.id) + '/records',
+        toggleAutonomy: () => {
+          const enabled = !g.autonomy?.enabled;
+          if (enabled && !window.confirm('이 프로젝트 안에서 저위험 후속 제안을 최대 2건 자동 실행하도록 허용할까요? 설치·외부 게시·결제·자격증명·삭제는 허용하지 않습니다.')) return;
+          this.act(this.api('PUT', '/api/goals/' + g.id + '/autonomy', { enabled: enabled, remaining: enabled ? 2 : 0 }), '자율 후속 작업 정책을 변경했습니다');
+        },
+        sendMessage: () => this.api('POST', '/api/goals/' + g.id + '/messages', { text: this.state.drafts[g.id] || '' })
+          .then(() => { const d = Object.assign({}, this.state.drafts); d[g.id] = ''; this.setState({ drafts: d }); return this.refresh(); })
+          .catch(e => this.say(korErr(e.message))),
         hasProposal: !!(g.proposal && g.proposal.status === 'pending'), proposal: g.proposal ? g.proposal.items : [],
         accept: () => { if (this.confirmStart(wp.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/accept', {}), '개선을 시작했습니다'); },
         dismiss: () => this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/dismiss', {}), '개선안을 보류했습니다'),
@@ -980,7 +1066,10 @@ class Component extends DCLogic {
             : r.review.verdict === 'pass' ? '문제 없음' : (r.review.blocking ? '막아야 할 문제 ' : '참고할 점 ') + r.review.issues.length + '건 · ' + clip(r.review.issues.join(' / '), 160);
           else res = '엔진 확인 ' + (r.evidence || []).length + '/' + r.goal.completionCriteria.length + ' 조건';
           return { when: fmt(r.startedAt), who: r.team ? TEAM_NAME[r.team] : '실행 ' + r.round + '회', tool: TOOL[r.executor || 'claude-code'] + ' · ' + (r.actualModel || '모델 확인 필요'),
-            resL: resL, pillCls: pillCls(tone), res: res, hasAnswer: !!r.answer, answer: r.answer ? cleanAnswer(r.answer) : '' };
+            resL: resL, pillCls: pillCls(tone), res: res, hasAnswer: !!r.answer, answer: r.answer ? cleanAnswer(r.answer) : '',
+            hasTools: (r.tools || []).length > 0, tools: (r.tools || []).map((k) => ({ name: k.name, summary: k.summary,
+              stL: TOOL_ST[k.status] ? TOOL_ST[k.status][0] : k.status, pillCls: pillCls(TOOL_ST[k.status] ? TOOL_ST[k.status][1] : 'idle'),
+              hasDetails: (k.details || []).length > 0, details: (k.details || []).join('\n') })) };
         }),
         log: (s.eng.events || []).filter((e) => wp.goals.some((x) => x.id === e.goalId) || e.projectId === wp.id).map((e) => ({ ts: fmt(e.at), tx: e.type + (e.team ? ' · ' + TEAM_NAME[e.team] : '') + (e.reason ? ' · ' + reasonText(e.reason) : '') })),
         hasHistory: wp.goals.length > 1,
@@ -991,11 +1080,11 @@ class Component extends DCLogic {
       const pol = wp.policy, pinOpen = pol.mode === 'pinned' || !!s.pinOpen[wp.id];
       const put = (body, msg) => this.act(this.api('PUT', '/api/projects/' + wp.id + '/model-policy', body), msg);
       m = { isAuto: !pinOpen, isPin: pinOpen, autoCls: pinOpen ? '' : 'on', pinCls: pinOpen ? 'on' : '',
-        setAuto: () => { const o = Object.assign({}, this.state.pinOpen); o[wp.id] = false; this.setState({ pinOpen: o }); if (pol.mode !== 'auto') put({ mode: 'auto' }, '자동 선택으로 바꿨습니다'); },
+        setAuto: () => { const o = Object.assign({}, this.state.pinOpen); o[wp.id] = false; this.setState({ pinOpen: o }); put({ mode: 'auto', strategy: 'adaptive' }, '검증된 모델·추론 자동 선택 · 미등록 시 대기'); },
         setPin: () => { const o = Object.assign({}, this.state.pinOpen); o[wp.id] = true; this.setState({ pinOpen: o, pinDraft: pol.model || '' }); },
         applyPin: () => put({ mode: 'pinned', model: this.state.pinDraft }, '모델을 고정했습니다 · 다음 단계부터 적용'),
         fb: pol.allowFallback, fbL: pol.allowFallback ? '켜짐' : '꺼짐', toggleFb: () => put({ allowFallback: !pol.allowFallback }, '대체 모델 허용을 ' + (pol.allowFallback ? '껐습니다' : '켰습니다')),
-        summary: pol.mode === 'pinned' ? '고정 · ' + pol.model + (pol.allowFallback ? ' (대체 허용)' : '') : '자동 선택', version: pol.version,
+        summary: (pol.mode === 'pinned' ? '고정 · ' + pol.model + (pol.allowFallback ? ' (대체 허용)' : '') : '자동 선택') + ' · 다음 추론: ' + (g.model?.nextEffort || '확인 필요') + ' · 선택 근거: ' + (g.model?.reason || '확인 필요'), version: pol.version,
         actual: (wp.runs.slice().reverse().find((r) => r.actualModel) || {}).actualModel || '확인 필요 (실행 도구가 알려 준 모델만 표시)' };
     }
 
@@ -1005,11 +1094,12 @@ class Component extends DCLogic {
 
     // 연결 페이지
     const envs = s.envs;
-    const KIND_GROUP = [['구독 CLI', '구독으로 쓰는 실행 도구'], ['Claude Code 내장 도구', '구독 안에서 쓰는 도구'], ['claude.ai 커넥터', '디자인 도구 (claude.ai 계정 커넥터)'],
+    const KIND_GROUP = [['구독 CLI', '구독으로 쓰는 실행 도구'], ['Claude Code 내장 도구', '구독 안에서 쓰는 도구'],
+      ['Codex 내장 명령', '엔진이 테스트를 돌리는 격리 실행'], ['공식 조회 도구', '엔진이 쓰는 무료 조회 도구'], ['claude.ai 커넥터', '디자인 도구 (claude.ai 계정 커넥터)'],
       ['종량제 API', '종량제 API (키와 월 상한을 정해야 연결)'], ['연결 불가', '공식 연결 방법 없음']];
     const envItem = (e) => ({ name: e.name, sub: e.kind + (e.usedBy.length ? ' · ' + e.usedBy.join(', ') : ''), statusL: e.statusL, pillCls: pillCls(e.tone),
       billing: e.billing, note: e.note || '', hasNote: !!e.note, docs: e.docs, hasToggle: !!e.setting, on: e.enabled === true,
-      swCls: 'switch' + (e.enabled ? ' on' : ''), swLabel: e.name + ' 디자인팀 사용', swDisabled: !(e.enabled || /연결됨/.test(e.statusL)),
+      swCls: 'switch' + (e.enabled ? ' on' : ''), swLabel: e.name + ' ' + (e.usedBy.join(', ') || '팀') + ' 사용', swDisabled: !(e.enabled || /연결됨|^꺼짐/.test(e.statusL)),
       toggle: () => this.toggleSetting(e) });
     const env = { groups: envs ? KIND_GROUP.map((g) => ({ title: g[1], items: envs.items.filter((e) => e.kind === g[0]).map(envItem) })).filter((g) => g.items.length) : [],
       empty: !!s.envErr, checkedL: envs && envs.checkedAt ? '확인 ' + ago(envs.checkedAt) : (envs ? '아직 확인 전' : ''),
@@ -1022,10 +1112,9 @@ class Component extends DCLogic {
     const createNew = (start) => () => {
       const lines = np.crit.split('\n').map((x) => x.trim()).filter(Boolean);
       if (!np.goal.trim()) { this.setState({ np: Object.assign({}, np, { error: '목표를 적어 주세요.' }) }); return; }
-      if (!lines.length) { this.setState({ np: Object.assign({}, np, { error: '완료 조건을 한 줄 이상 적어 주세요.' }) }); return; }
       const name = np.title.trim() || clip(np.goal.trim(), 40);
       if (start && !this.confirmStart(name)) return;
-      this.api('POST', '/api/projects', { title: np.title.trim(), objective: np.goal.trim(), completionCriteria: lines, start: start })
+      this.api('POST', '/api/projects', { title: np.title.trim(), objective: np.goal.trim(), conversation: true, start: start })
         .then((g) => this.refresh().then(() => {
           this.setState({ showNew: false, np: { title: '', goal: '', crit: '', error: '' } });
           this.openProject(g.projectId);
@@ -1044,6 +1133,69 @@ class Component extends DCLogic {
       offline: s.offline,
       vHome: s.view === 'home', vProjects: s.view === 'projects', vProject: s.view === 'project' && !!wp, vTeams: s.view === 'teams', vUsage: s.view === 'usage',
       vConnect: s.view === 'connect', env: env,
+      registerModel: () => {
+        const input = window.prompt('계정의 정확한 ID와 공식 지원 프로필을 JSON으로 입력하세요. tier는 운영 등급(0~2)이며 공식 성능 점수가 아닙니다.', JSON.stringify({ executor: 'codex', id: '', label: '', tier: 1, efforts: ['medium'], capabilities: ['text','code'] }));
+        if (input === null) return;
+        let body; try { body = JSON.parse(input); } catch { this.say('올바른 JSON을 입력하세요'); return; }
+        this.act(this.api('POST', '/api/models', body), '등록됨 · 계정 확인 전까지 배정하지 않습니다');
+      },
+      modelProfiles: (s.eng?.catalog || []).map(profile => ({ label: profile.label, executor: TOOL[profile.executor],
+        status: profile.usable ? '사용 가능 · 수동 확인 기록' : '확인 대기',
+        attest: () => {
+          const supportUrl = window.prompt('이 모델과 기능을 지원하는 공식 문서 URL'); if (!supportUrl) return;
+          const note = window.prompt('계정의 모델 선택 화면에서 확인한 근거 (키·비밀번호 입력 금지)'); if (!note) return;
+          if (!window.confirm('공식 문서와 실제 계정에서 모델·추론·능력을 직접 확인했습니까? 확인하면 자동 배정 후보가 됩니다.')) return;
+          this.act(this.api('POST', '/api/models/attest', { executor: profile.executor, id: profile.id, source: 'manual_official_ui', supportUrl: supportUrl, note: note, confirm: true }), '대장의 수동 계정 확인을 기록했습니다');
+        } })),
+      refreshUsage: () => this.loadUsage(),
+      configureAutoSave: async () => {
+        if (!wp) return;
+        try {
+          const current = await this.api('GET', '/api/projects/' + wp.id + '/auto-save');
+          const input = window.prompt('자동 저장 정책 (비밀정보 입력 금지). 실제 업로드 어댑터는 아직 연결되지 않았습니다.', JSON.stringify(current.policy));
+          if (input) this.act(this.api('PUT', '/api/projects/' + wp.id + '/auto-save', JSON.parse(input)), '자동 저장 정책 저장');
+        } catch (e) { window.alert(e.message); }
+      },
+      inspectAutoSave: async () => {
+        if (!wp) return;
+        try { const state = await this.api('POST', '/api/projects/' + wp.id + '/auto-save/check', {}); window.alert(JSON.stringify(state, null, 2)); }
+        catch (e) { window.alert(e.message); }
+      },
+      showArtifacts: async () => {
+        if (!wp) return;
+        try {
+          const data = await this.api('GET', '/api/projects/' + wp.id + '/artifacts');
+          if (!data.items.length) return window.alert('미리보기 가능한 결과물이 없습니다.');
+          const chosen = window.prompt('미리볼 파일 경로를 선택하세요:\n' + data.items.map(a => a.path).join('\n'), data.items[0].path);
+          if (chosen && data.items.some(a => a.path === chosen)) window.open('/api/projects/' + wp.id + '/preview?path=' + encodeURIComponent(chosen), '_blank', 'noopener,noreferrer');
+        } catch (e) { window.alert(e.message); }
+      },
+      runSandboxTests: async () => {
+        if (!wp || !window.confirm('프로젝트 테스트 코드를 격리 환경에서 실행합니까? 프로젝트 안의 파일은 변경될 수 있습니다. AI는 호출하지 않습니다.')) return;
+        try {
+          const result = await this.api('POST', '/api/projects/' + wp.id + '/console/test', { confirm: true });
+          window.alert(result.label + ' · ' + result.status + '\n' + result.note);
+        } catch (e) { window.alert(e.message); }
+      },
+      recoverLimitStorage: () => {
+        if (window.confirm('저장 상태를 재검사하고 장애 차단을 해제합니까? 프로젝트는 자동 재개하지 않습니다.'))
+          this.act(this.api('POST', '/api/safety/limit-storage/recover', { confirm: true }), '저장 장애 복구 완료 · 프로젝트 재개는 별도');
+      },
+      approveCriteria: () => {
+        const g = wp && (s.eng.projects || []).flatMap(p => p.goals || []).find(g => g.projectId === wp.id && g.criteriaApprovalPending);
+        if (!g) return window.alert('승인 대기 중인 완료 조건이 없습니다.');
+        if (window.confirm('이 조건으로 완료 여부를 검증합니까?\n\n' + g.completionCriteria.join('\n')))
+          this.act(this.api('POST', '/api/goals/' + g.id + '/criteria/approve', { confirm: true, criteria: g.completionCriteria }), '완료 조건 승인');
+      },
+      quotaRows: (s.quotas || []).map(q => ({ name: q.provider === 'codex' ? 'Codex' : 'Claude Max', source: q.source,
+        hasLimits: (q.limitStatus || []).length > 0,
+        limits: (q.limitStatus || []).map((l) => { const st = LIMIT_ST[l.status] || [l.status, 'idle'];
+          return { label: LIMIT_WIN[l.window] || l.window, stL: st[0] + (l.usingOverage ? ' · 추가 사용 중' : ''), pillCls: pillCls(st[1]),
+            reset: l.resetsAt ? new Date(l.resetsAt).toLocaleString() : '알 수 없음', seen: ago(l.observedAt) }; }),
+        observed: q.observedAt ? new Date(q.observedAt).toLocaleString() : '미수집', note: q.note || '',
+        windows: q.windows.map(w => ({ label: w.period === 'five_hour' ? '5시간' : '주간', remaining: Math.round(w.remaining * 10) / 10,
+          color: w.blocked ? '#b42318' : q.stale ? '#a1a1aa' : '#397d60',
+          status: (w.blocked ? '중단 기준 도달 · 새 단계 멈춤' : '기준 이내') + ' (' + w.stopAt + '% 이하 남으면 중단)' + (q.stale ? ' · ' + ago(q.observedAt) + ' 기준' : ''), reset: new Date(w.resetAt).toLocaleString() })) })),
       greeting: (hour < 12 ? '좋은 아침입니다' : hour < 18 ? '안녕하세요' : '수고하셨습니다') + ', 대장',
       homeLede: inboxN ? '팀이 결정을 기다리는 일이 ' + inboxN + '건 있습니다.' : (activeN ? '팀이 프로젝트 ' + activeN + '개를 진행하고 있습니다.' : '진행 중인 프로젝트가 없습니다.'),
       hasProjects: P.length > 0, noProjects: P.length === 0 && !!s.eng,
@@ -1065,19 +1217,26 @@ class Component extends DCLogic {
 
   loadEnvs() {
     return fetch('/api/environments').then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
-      .then((envs) => this.setState({ envs: envs, envErr: '' })).catch(() => this.setState({ envErr: 'x' }));
+      .then((envs) => this.setState({ envs: envs, envErr: '' })).catch(() => this.setState({ envErr: 'x' }))
+      .then(() => this.loadTeams());
+  }
+  loadTeams() {
+    return fetch('/api/teams').then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then((d) => { const by = {}; d.teams.forEach((t) => { by[t.id] = t.tools; }); this.setState({ teamTools: by }); })
+      .catch(() => {});
   }
   refreshEnvs() {
     if (this.state.envBusy) return;
     this.setState({ envBusy: true });
-    this.api('POST', '/api/environments/refresh', {}).then((envs) => { this.setState({ envs: envs, envBusy: false }); this.say('연결 상태를 다시 확인했습니다'); })
+    this.api('POST', '/api/environments/refresh', {}).then((envs) => { this.setState({ envs: envs, envBusy: false }); this.loadTeams(); this.say('연결 상태를 다시 확인했습니다'); })
       .catch((e) => { this.setState({ envBusy: false }); this.say(korErr(e.message)); });
   }
   toggleSetting(e) {
     const next = !e.enabled;
-    if (next && !window.confirm(e.name + '을(를) 디자인팀에 켭니다.\n\n' + (e.note || '') + '\n\n켤까요?')) return;
+    const who = e.usedBy.join(', ') || '팀';
+    if (next && !window.confirm(e.name + '을(를) ' + who + '에 켭니다.\n\n' + (e.note || '') + '\n\n켤까요?')) return;
     this.api('PUT', '/api/settings', { key: e.setting, value: next }).then(() => this.loadEnvs())
-      .then(() => this.say(e.name + ' · 디자인팀 사용을 ' + (next ? '켰습니다' : '껐습니다') + ' (다음 단계부터 적용)')).catch((err) => this.say(korErr(err.message)));
+      .then(() => this.say(e.name + ' · ' + who + ' 사용을 ' + (next ? '켰습니다' : '껐습니다') + ' (다음 단계부터 적용)')).catch((err) => this.say(korErr(err.message)));
   }
   sendAnswer(goalId) {
     const text = (this.state.drafts[goalId] || '').trim();

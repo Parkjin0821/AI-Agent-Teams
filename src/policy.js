@@ -1,3 +1,4 @@
+export const STOP_AT_REMAINING = Object.freeze({ five_hour: 20, weekly: 10 });
 export const DEFAULT_POLICY = Object.freeze({
   maxConcurrent: 2, providerConcurrent: { claude: 2, codex: 1 },
   researchIntervalMs: 6 * 60 * 60 * 1000,
@@ -20,7 +21,7 @@ export function assessUsage(snapshot, now = Date.now()) {
       || now - Date.parse(w.observedAt) > 5 * 60_000 || Date.parse(w.observedAt) > now
       || (w.resetAt && Date.parse(w.resetAt) <= now)) { unknown = true; continue; }
     const remaining = w.metric === 'used' ? 100 - w.percent : w.percent;
-    if (period === 'five_hour' ? remaining < 3 : remaining <= 10) reasons.push(period);
+    if (remaining <= STOP_AT_REMAINING[period]) reasons.push(period);
   }
   return { state: reasons.length ? 'limited' : unknown ? 'unknown' : 'available', reasons };
 }

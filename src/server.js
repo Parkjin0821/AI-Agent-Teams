@@ -12,5 +12,5 @@ const app = createApp({
   detectEnvironments: true,
 });
 
-const port = Number(process.env.PORT || 4310);
+const port = Number(process.env.PORT || 4311);
 app.server.listen(port, '127.0.0.1', () => console.log(`AGENT HQ http://localhost:${port}`));

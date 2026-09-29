@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { buildCommand, childEnv, classifyFailure, CliAgentAdapter, finalAnswer, reportedModel } from '../src/adapters.js';
@@ -9,18 +9,27 @@ test('child CLIs do not inherit a hosting Claude session (its tokens or endpoint
   const env = childEnv({ PATH: 'p', HOME: 'h', APPDATA: 'a', CLAUDECODE: '1', CLAUDE_CODE_ENTRYPOINT: 'desktop',
     CLAUDE_CODE_MESSAGING_TOKEN: 'secret', CLAUDE_AGENT_SDK_VERSION: 'x', CLAUDE_PID: '1', CLAUDE_EFFORT: 'low',
     ANTHROPIC_BASE_URL: 'http://127.0.0.1:1', OPENAI_API_KEY: 'kept-for-user' });
-  assert.deepEqual(Object.keys(env).sort(), ['APPDATA', 'HOME', 'OPENAI_API_KEY', 'PATH']);
-  assert.equal(childEnv({ ANTHROPIC_BASE_URL: 'https://proxy.example' }).ANTHROPIC_BASE_URL, 'https://proxy.example',
-    'a base URL the user set themselves (no hosting session) is kept');
+  assert.deepEqual(Object.keys(env).sort(), ['APPDATA', 'HOME', 'PATH']);
+  assert.deepEqual(childEnv({ ANTHROPIC_BASE_URL: 'https://proxy.example', ANTHROPIC_API_KEY: 'secret',
+    ANTHROPIC_AUTH_TOKEN: 'secret', OPENAI_BASE_URL: 'https://proxy.example', PERPLEXITY_API_KEY: 'secret',
+    CLAUDE_CODE_USE_VERTEX: '1', CLAUDE_CODE_USE_BEDROCK: '1', CLAUDE_CODE_USE_FOUNDRY: '1', PATH: 'p' }), { PATH: 'p' });
 });
 
 const bins = { claude: { file: 'claude.exe', prefix: [] }, codex: { file: 'codex.exe', prefix: [] } };
+test('cloud credentials and proxy overrides do not enter subscription children', () => {
+  assert.deepEqual(childEnv({ CODEX_API_KEY: 'x', AZURE_OPENAI_API_KEY: 'x', ANTHROPIC_VERTEX_PROJECT_ID: 'x',
+    AWS_BEARER_TOKEN_BEDROCK: 'x', HTTPS_PROXY: 'x', PATH: 'safe' }), { PATH: 'safe' });
+});
+
+test('paid image connectors cannot bypass subscription-only policy', () => {
+  assert.throws(() => buildCommand('claude', { cwd: 'C:/w', bins, connectors: ['higgsfield'], knownConnectors: ['higgsfield'] }), /subscription-only/);
+});
 
 test('claude runs non-interactively, edits only inside the workspace, without shell tools or any MCP', () => {
   const cmd = buildCommand('claude', { cwd: 'C:/w', model: null, bins });
   assert.equal(cmd.file, 'claude.exe');
   assert.deepEqual(cmd.args, ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits',
-    '--tools=Read,Write,Edit', '--no-session-persistence', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}']);
+    '--tools=Read,Write,Edit', '--no-session-persistence', '--setting-sources', 'user', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}']);
   assert.equal(cmd.env.ENABLE_CLAUDEAI_MCP_SERVERS, 'false', 'claude.ai connectors (mail, drive, …) are off by default');
   assert.equal(cmd.cwd, 'C:/w');
   assert.deepEqual(buildCommand('claude', { cwd: 'C:/w', model: 'sonnet', bins }).args.slice(-2), ['--model', 'sonnet']);
@@ -78,6 +87,19 @@ function fakeTool(script) {
   writeFileSync(file, script);
   return { claude: { file: process.execPath, prefix: [file] }, codex: { file: process.execPath, prefix: [file] } };
 }
+
+test('workspace configuration and instruction files block both CLIs before spawning', async () => {
+  for (const name of ['.claude/settings.json', '.codex/config.toml', '.mcp.json', 'CLAUDE.md', 'AGENTS.md', 'nested/AGENTS.override.md']) {
+    const cwd = mkdtempSync(path.join(tmpdir(), 'hq-untrusted-'));
+    const target = path.join(cwd, name);
+    mkdirSync(path.dirname(target), { recursive: true });
+    writeFileSync(target, 'untrusted configuration');
+    const adapter = new CliAgentAdapter({ enabled: true, bins: fakeTool('process.exit(0)') });
+    for (const provider of ['claude', 'codex']) {
+      await assert.rejects(adapter.run(provider, 'x', () => {}, { cwd }), e => e.kind === 'permission' && /workspace configuration/i.test(e.message));
+    }
+  }
+});
 
 test('a real child process: prompt via stdin, cwd respected, reported model captured', async () => {
   const cwd = mkdtempSync(path.join(tmpdir(), 'hq-ws-'));

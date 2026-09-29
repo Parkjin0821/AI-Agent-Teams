@@ -9,6 +9,20 @@ import { DEFAULT_POLICY } from '../src/policy.js';
 
 const T0 = new Date(2026, 8, 28, 10, 0, 0).getTime(); // local 10:00
 const C = ['index.html 파일이 있다', '합계 테스트 통과'];
+test('messages cannot release paused, recovery or authentication-blocked projects', () => {
+  const { store, scheduler, add } = setup(() => ({}));
+  try {
+    for (const status of ['paused', 'recovery_required', 'blocked']) {
+      const goal = add();
+      scheduler.update(goal, { status, reason: 'auth_error', nextRunAt: null, autoRun: false });
+      scheduler.message(goal.id, '요구사항 추가');
+      const saved = store.getGoal(goal.id);
+      assert.equal(saved.status, status);
+      assert.equal(saved.reason, 'auth_error');
+      assert.equal(saved.nextRunAt, null);
+    }
+  } finally { store.close(); }
+});
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
 function setup(respond, policy = {}) {
@@ -21,6 +35,88 @@ function setup(respond, policy = {}) {
   return { store, clock, calls, scheduler, add };
 }
 const ev = (...idx) => idx.map(i => ({ criterion: C[i], proof: '엔진 확인' }));
+test('development routing escalates complexity and never downgrades high-risk work for quota', () => {
+  const { store, scheduler, add } = setup(() => ({}));
+  try {
+    scheduler.registry = { getPolicy: () => ({ mode: 'auto', allowProviderSwitch: true }), catalog: () => [] };
+    const goal = add();
+    goal.team.step = 'dev';
+    goal.team.profile = { complexity: 'complex', risk: 'high', effects: [] };
+    assert.equal(scheduler.stepExecutor(goal), 'codex');
+    scheduler.capacity = executor => executor === 'claude-code';
+    assert.equal(scheduler.stepExecutor(goal), 'codex');
+    store.saveGoal(goal);
+    assert.equal(scheduler.claim(goal.id, T0), null);
+    assert.equal(store.getGoal(goal.id).round, 0);
+    goal.team.profile = { complexity: 'normal', risk: 'normal', effects: [] };
+    assert.equal(scheduler.stepExecutor(goal), 'claude-code');
+  } finally { store.close(); }
+});
+test('real worker results force reviews even when planning omitted them', async () => {
+  const { store, scheduler, add } = setup(team => team === 'plan'
+    ? { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } }
+    : { outcome: 'completed', diffHash: 'changed', requiredReviews: ['security', 'policy'] });
+  try {
+    const goal = add();
+    await ticks(scheduler, 2);
+    assert.equal(store.getGoal(goal.id).team.step, 'security');
+    assert.deepEqual(store.getGoal(goal.id).team.reviews, ['security','policy']);
+  } finally { store.close(); }
+});
+test('autonomy budgets move to a child without duplication or approval escalation', () => {
+  const { store, scheduler, add } = setup(() => ({}));
+  try {
+    const goal = add();
+    scheduler.setAutonomy(goal.id, { enabled: true, remaining: 2 });
+    const fresh = store.getGoal(goal.id);
+    Object.assign(fresh, { status: 'verified', autoRunBeforeFinish: true,
+      collaboration: [{ id: 'req', team: 'dev', task: '테스트 보완', criteria: ['추가 테스트 존재'], complexity: 'simple', risk: 'low', effects: [], status: 'proposed' }] });
+    store.saveGoal(fresh);
+    scheduler.dispatchFollowup(fresh);
+    scheduler.dispatchFollowup(fresh);
+    assert.equal(store.listGoals().length, 2);
+    const child = store.getGoal(store.getGoal(goal.id).followupId);
+    assert.equal(child.autonomy.remaining, 1);
+    assert.equal(child.team.step, 'dev');
+    assert.deepEqual(child.team.reviews, ['security','policy']);
+    assert.equal(store.getGoal(goal.id).autonomy.remaining, 0);
+    scheduler.setAutonomy(goal.id, { enabled: false, remaining: 0 });
+    assert.equal(store.getGoal(child.id).autoRun, false);
+    assert.equal(store.getGoal(child.id).autonomy.enabled, false);
+    assert.throws(() => scheduler.setAutonomy(goal.id, { enabled: true, remaining: 4 }), /budget/);
+  } finally { store.close(); }
+});
+test('conversation derives criteria, invalidates old confirmations and preserves stopped state', async () => {
+  const { store, scheduler, add } = setup(() => ({ outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [], completionCriteria: C } }));
+  try {
+    const g = add({ conversation: true, completionCriteria: [], autoRun: false });
+    await scheduler.runGoal(g.id);
+    assert.deepEqual(store.getGoal(g.id).completionCriteria, C);
+    scheduler.confirmCriterion(g.id, C[0], 'checked');
+    scheduler.message(g.id, '디자인도 변경해줘');
+    const changed = store.getGoal(g.id);
+    assert.equal(changed.autoRun, false);
+    assert.deepEqual(changed.confirmed, []);
+    assert.deepEqual(changed.completionCriteria, []);
+    assert.equal(changed.messages.length, 2);
+  } finally { store.close(); }
+});
+
+test('unavailable quota blocks before consuming a round and can recover', async () => {
+  const { store, scheduler, calls, add } = setup(() => ({ outcome: 'completed', plan: { nextTask: '구현', reviews: [] } }));
+  try {
+    let available = false;
+    scheduler.capacity = () => available;
+    const g = add();
+    await scheduler.runGoal(g.id);
+    assert.equal(calls.length, 0);
+    assert.equal(store.getGoal(g.id).round, 0);
+    assert.equal(store.getGoal(g.id).reason, 'usage_unavailable_or_limited');
+    available = true;
+    await scheduler.runGoal(g.id);
+    assert.equal(calls.length, 1);
+  } finally { store.close(); }
+});
 async function ticks(scheduler, n) { for (let i = 0; i < n; i++) await scheduler.tick({ autoOnly: true }); }
 
 test('teams rotate plan → dev → qa → plan, each with its own tool, passing the task and feedback on', async () => {
@@ -144,7 +240,7 @@ test('the planning team can hand a task to the design team', async () => {
   store.close();
 });
 
-test('requested reviews run between the work and verification; blocking issues go back to planning', async () => {
+test('requested reviews run between the work and verification; blocking issues go directly to workers', async () => {
   const { store, calls, scheduler, add } = setup((team, n) => ({
     plan: planFor('dev', ['security', 'policy']),
     dev: { outcome: 'completed', evidence: [], diffHash: `d${n}` },
@@ -153,7 +249,7 @@ test('requested reviews run between the work and verification; blocking issues g
   })[team]);
   const g = add();
   await ticks(scheduler, 4);
-  assert.deepEqual(calls.map(c => c.team), ['plan', 'dev', 'security', 'plan'], 'policy and qa are skipped after a blocking issue');
+  assert.deepEqual(calls.map(c => c.team), ['plan', 'dev', 'security', 'dev'], 'blocking review goes directly to the worker for correction');
   assert.equal(calls[2].executor, 'codex');
   assert.match(calls[3].feedback, /보안팀.*\n- API 키가 코드에 있음/);
   assert.equal(store.getGoal(g.id).team.cycle, 2);
@@ -218,5 +314,22 @@ test('concurrency: at most 2 at once, Codex at most 1, one round per project', a
   assert.equal(new Set(running.map(g => g.projectId)).size, running.length, 'one round per project');
   releases.splice(0).forEach(r => r({ outcome: 'completed' }));
   await flush(); await flush();
+  store.close();
+});
+
+test('failing tests found by the engine keep the goal open, and planning cannot declare it done until verification passes', async () => {
+  let qaRounds = 0;
+  const { store, calls, scheduler, add } = setup((team) => {
+    if (team === 'plan') return { outcome: 'completed', plan: { nextTask: '', needsDecision: null, allDone: true } };
+    if (['security','policy'].includes(team)) return { outcome: 'completed', review: { verdict: 'pass', issues: [], blocking: false } };
+    qaRounds++;
+    return { outcome: 'completed', evidence: ev(0, 1), findings: { feedback: '', improvements: [], blocking: qaRounds === 1 ? ['테스트 실패 (종료 코드 1): npm test'] : [] } };
+  });
+  const g = add();
+  await ticks(scheduler, 9);
+  assert.deepEqual(calls.map(c => c.team), ['plan', 'security', 'policy', 'qa', 'plan', 'security', 'policy', 'qa']);
+  assert.match(calls[4].feedback, /^\[엔진 검사\] 테스트 실패/);
+  const saved = store.getGoal(g.id);
+  assert.deepEqual([saved.status, saved.team.blockers], ['verified', []]);
   store.close();
 });

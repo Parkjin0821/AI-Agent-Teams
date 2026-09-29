@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync, lstatSync } from 'node:fs';
 import path from 'node:path';
 
 // Options checked against the installed CLIs' --help (Claude Code 2.1.265, codex-cli 0.158.0-alpha).
@@ -10,7 +10,10 @@ export const connectorTool = (name) => `mcp__claude_ai_${name.replace(/[^A-Za-z0
 // access: 'write' (default) lets the tool change files in the workspace; 'read' only lets it look.
 // web: adds Claude Code's built-in WebSearch/WebFetch. connectors: claude.ai connectors this team may use;
 // every other connector in knownConnectors is denied. Without connectors, all MCP is switched off.
-export function buildCommand(provider, { cwd, model = null, bins, access = 'write', web = false, connectors = [], knownConnectors = [] }) {
+export function buildCommand(provider, { cwd, model = null, effort = null, bins, access = 'write', web = false, connectors = [], knownConnectors = [] }) {
+  if (connectors.some(c => /higgsfield/i.test(c))) throw new Error('subscription-only: paid image credits are blocked');
+  if (effort && !['low','medium','high','xhigh','max','ultra'].includes(effort)) throw new Error('invalid reasoning effort');
+  if (provider === 'claude' && effort === 'ultra') throw new Error('unsupported Claude reasoning effort');
   if (!['read', 'write'].includes(access)) throw new Error(`unknown access: ${access}`);
   const env = childEnv();
   if (provider === 'claude') {
@@ -18,7 +21,7 @@ export function buildCommand(provider, { cwd, model = null, bins, access = 'writ
     // acceptEdits: file edits inside the workspace only; no shell tool is offered at all.
     // --strict-mcp-config drops local/project MCP servers; claude.ai connectors need their own switch.
     const args = ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits',
-      `--tools=${tools.join(',')}`, '--no-session-persistence', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}'];
+      `--tools=${tools.join(',')}`, '--no-session-persistence', '--setting-sources', 'user', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}'];
     if (connectors.length) {
       const unknown = connectors.filter(c => !knownConnectors.includes(c));
       if (!knownConnectors.length || unknown.length) throw new Error(`connector not available: ${unknown.join(', ') || connectors.join(', ')}`);
@@ -29,6 +32,7 @@ export function buildCommand(provider, { cwd, model = null, bins, access = 'writ
       env.ENABLE_CLAUDEAI_MCP_SERVERS = 'false'; // official switch: mail, drive and other account connectors stay off
     }
     if (model) args.push('--model', model);
+    if (effort) args.push('--effort', effort);
     return { file: bins.claude.file, args: [...bins.claude.prefix, ...args], cwd, env };
   }
   if (provider === 'codex') {
@@ -36,6 +40,7 @@ export function buildCommand(provider, { cwd, model = null, bins, access = 'writ
     const args = ['exec', '--json', '--ignore-user-config', '--sandbox', access === 'read' ? 'read-only' : 'workspace-write',
       '--skip-git-repo-check', '--ephemeral', '--cd', cwd];
     if (model) args.push('-m', model);
+    if (effort) args.push('-c', `model_reasoning_effort="${effort}"`);
     args.push('-');
     return { file: bins.codex.file, args: [...bins.codex.prefix, ...args], cwd, env };
   }
@@ -55,6 +60,16 @@ function answerFrom(event) {
   if (event.type === 'result' && !event.is_error && typeof event.result === 'string') return event.result;
   if (event.item?.type === 'agent_message' && typeof event.item.text === 'string') return event.item.text;
   return null;
+}
+
+// Claude Code stream-json reports the subscription limit state it saw (no percentages):
+// {"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1784283600,"rateLimitType":"five_hour",...}}
+// Undocumented shape (anthropics/claude-code#78476), so anything unexpected is ignored.
+export function rateLimitFrom(event) {
+  const info = event?.type === 'rate_limit_event' ? event.rate_limit_info : null;
+  if (!info || typeof info.status !== 'string' || typeof info.rateLimitType !== 'string') return null;
+  const resetsAt = Number.isFinite(info.resetsAt) && info.resetsAt > 0 ? new Date(info.resetsAt * 1000).toISOString() : null;
+  return { window: info.rateLimitType.slice(0, 40), status: info.status.slice(0, 40), resetsAt, usingOverage: info.isUsingOverage === true };
 }
 
 // Only a model name the tool itself printed counts; nothing is inferred from settings.
@@ -88,10 +103,11 @@ export function classifyFailure(text) {
 // should authenticate with the user's own login, and host tokens must not leak into other agents.
 const HOST_SESSION = /^(CLAUDECODE|CLAUDE_CODE_.*|CLAUDE_AGENT_SDK_.*|CLAUDE_PID|CLAUDE_EFFORT|CLAUDE_PREVIEW_.*)$/;
 export function childEnv(env = process.env) {
-  const hosted = Boolean(env.CLAUDECODE || env.CLAUDE_CODE_ENTRYPOINT);
   const clean = {};
   for (const [key, value] of Object.entries(env)) {
-    if (HOST_SESSION.test(key) || (hosted && key === 'ANTHROPIC_BASE_URL')) continue;
+    // Subscription-only: do not inherit metered credentials, proxies or cloud provider switches.
+    if (HOST_SESSION.test(key) || /(_API_KEY|_TOKEN)$/i.test(key) || /^(AWS_|AZURE_|ANTHROPIC_VERTEX_|GOOGLE_APPLICATION_CREDENTIALS$|HTTPS?_PROXY$|ALL_PROXY$)/i.test(key)
+      || /^(OPENAI_BASE_URL|OPENAI_API_BASE|ANTHROPIC_BASE_URL|CLAUDE_CODE_USE_BEDROCK|CLAUDE_CODE_USE_VERTEX|CLAUDE_CODE_USE_FOUNDRY)$/i.test(key)) continue;
     clean[key] = value;
   }
   return clean;
@@ -119,23 +135,27 @@ export class CliAgentAdapter {
     Object.assign(this, { enabled, cwd, bins, timeoutMs });
   }
 
-  async run(provider, prompt, onEvent, { cwd, model = null, access = 'write', web = false, connectors = [], knownConnectors = [] } = {}) {
+  async run(provider, prompt, onEvent, { cwd, model = null, effort = null, access = 'write', web = false, connectors = [], knownConnectors = [] } = {}) {
     if (!this.enabled) {
       onEvent({ type: 'provider.notice', provider, message: 'Safe mode: CLI execution is disabled' });
       return { outcome: 'simulated', summary: `${provider} dry-run only; no work executed`, model: null };
     }
     if (!cwd) throw new Error('Project workspace is required for CLI execution');
-    const command = buildCommand(provider, { cwd, model, access, web, connectors, knownConnectors, bins: this.bins ?? resolveBins() });
+    assertWorkspaceConfigurationSafe(cwd);
+    const command = buildCommand(provider, { cwd, model, effort, access, web, connectors, knownConnectors, bins: this.bins ?? resolveBins() });
     return new Promise((resolve) => {
       const child = spawn(command.file, command.args, { cwd: command.cwd, shell: false, windowsHide: true, env: command.env });
       let head = '', partial = '', model = null, answer = null, stderr = '', timedOut = false, settled = false;
-      const finish = (result) => { if (!settled) { settled = true; clearTimeout(timer); resolve({ ...result, answer }); } };
+      const limits = new Map();
+      const finish = (result) => { if (!settled) { settled = true; clearTimeout(timer); resolve({ ...result, answer, rateLimits: [...limits.values()] }); } };
       const timer = setTimeout(() => { timedOut = true; killTree(child); }, this.timeoutMs);
       // Read the JSON event stream line by line, keeping only what we need (model, final answer).
       const consume = (line) => {
         const event = parseEvent(line.trim());
         if (!event) return;
         model ??= modelFrom(event);
+        const limit = rateLimitFrom(event);
+        if (limit) limits.set(limit.window, limit);
         const text = answerFrom(event);
         if (text !== null) answer = text;
       };
@@ -161,6 +181,34 @@ export class CliAgentAdapter {
       child.stdin.on('error', () => { /* tool exited before reading the prompt */ });
       child.stdin.end(prompt);
     });
+  }
+}
+
+// Inspect before every actual spawn. Never execute/read the suspect file contents,
+// follow links, delete files, or silently grant approval for workspace settings.
+export function assertWorkspaceConfigurationSafe(cwd) {
+  const forbidden = /^(\.claude|\.codex|\.mcp\.json|CLAUDE(?:\.local)?\.md|AGENTS(?:\.override)?\.md)$/i;
+  const deny = relative => { throw Object.assign(new Error(`Untrusted workspace configuration: ${relative}`), { kind: 'permission' }); };
+  const root = path.resolve(cwd);
+  let inspected = 0;
+  const walk = (dir, depth = 0) => {
+    if (depth > 64) deny('inspection depth exceeded');
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (++inspected > 100000) deny('inspection entry limit exceeded');
+      const file = path.join(dir, entry.name);
+      if (forbidden.test(entry.name)) deny(path.relative(root, file));
+      if (entry.isSymbolicLink()) deny(`link: ${path.relative(root, file)}`);
+      if (entry.isDirectory()) walk(file, depth + 1);
+    }
+  };
+  if (lstatSync(root).isSymbolicLink()) deny('workspace root is a link');
+  walk(root);
+  // CLIs also discover instruction files above cwd.
+  for (let dir = path.dirname(root); ; dir = path.dirname(dir)) {
+    for (const entry of readdirSync(dir)) {
+      if (/^(CLAUDE(?:\.local)?\.md|AGENTS(?:\.override)?\.md)$/i.test(entry)) deny('ancestor instruction file');
+    }
+    if (path.dirname(dir) === dir) break;
   }
 }
 

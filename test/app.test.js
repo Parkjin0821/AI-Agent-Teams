@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createApp } from '../src/app.js';
+import { request } from 'node:http';
 
 const T0 = Date.parse('2026-09-28T00:00:00Z');
 
@@ -20,6 +21,97 @@ async function start(options = {}) {
   return { app, clock, call };
 }
 const goalInput = { projectId: 'research-hub', title: '리서치 허브', kind: 'research', objective: '자료 요약 웹앱', completionCriteria: ['E2E 통과', '요약 적합률 90%'] };
+test('storage recovery requires confirmation and never resumes goals', async () => {
+  const { app, call } = await start();
+  try {
+    app.store.setSetting('safety.limitStorageFailed', true);
+    assert.equal((await call('POST', '/api/safety/limit-storage/recover', {})).status, 400);
+    assert.equal(app.store.getSettings()['safety.limitStorageFailed'], true);
+    const recovered = await call('POST', '/api/safety/limit-storage/recover', { confirm: true });
+    assert.equal(recovered.body.resumed, false);
+    assert.equal(app.store.getSettings()['safety.limitStorageFailed'], false);
+  } finally { await app.close(); }
+});
+test('derived criteria require exact explicit approval and cannot be bypassed with resume', async () => {
+  const { app, call } = await start();
+  try {
+    app.scheduler.runner = { run: async () => ({ outcome: 'completed', plan: { completionCriteria: ['README exists'], nextTask: 'implement', team: 'dev' } }) };
+    const g = (await call('POST', '/api/goals', { projectId: 'approval', kind: 'team', objective: 'build', conversation: true, completionCriteria: [] })).body;
+    await call('POST', `/api/goals/${g.id}/run`, {});
+    assert.equal(app.store.getGoal(g.id).reason, 'criteria_approval_required');
+    assert.equal((await call('POST', `/api/goals/${g.id}/resume`, {})).status, 400);
+    assert.equal((await call('POST', `/api/goals/${g.id}/criteria/approve`, { confirm: true, criteria: ['different'] })).status, 400);
+    assert.equal((await call('POST', `/api/goals/${g.id}/criteria/approve`, { confirm: true, criteria: ['README exists'] })).status, 200);
+    assert.equal(app.store.getGoal(g.id).criteriaApprovalPending, false);
+  } finally { await app.close(); }
+});
+test('foreign Host, Origin and browser cross-site writes are rejected before mutation', async () => {
+  const { app, call } = await start();
+  try {
+    for (const headers of [
+      { host: 'attacker.example', 'content-type': 'application/json' },
+      { origin: 'https://attacker.example', 'content-type': 'application/json' },
+      { 'sec-fetch-site': 'cross-site', 'content-type': 'application/json' },
+    ]) {
+      const status = await new Promise((resolve, reject) => {
+        const req = request({ hostname: '127.0.0.1', port: app.server.address().port, path: '/api/goals', method: 'POST', headers }, res => {
+          res.resume(); resolve(res.statusCode);
+        });
+        req.on('error', reject); req.end(JSON.stringify(goalInput));
+      });
+      assert.equal(status, 403);
+    }
+    assert.equal(app.store.listGoals().length, 0);
+  } finally { await app.close(); }
+});
+test('API execution safety can be exercised with a fake adapter and blocks unsafe quota/auth', async () => {
+  let calls = 0;
+  let safe = false;
+  const monitor = { snapshot: {}, refreshAuthentication: async () => {
+    monitor.snapshot = { claude: { subscription: safe, checkedAt: new Date().toISOString() } };
+  } };
+  const { app, call } = await start({ enforceSafety: true, monitor,
+    usageReader: async () => ({ items: [{ provider: 'claude', stale: false,
+      windows: ['five_hour','weekly'].map(period => ({ period, blocked: false, resetAt: new Date(Date.now() + 3600000).toISOString() })) }] }),
+    adapter: { enabled: true, run: async () => { calls++; return { outcome: 'completed', model: null, answer: '' }; } } });
+  try {
+    const g = (await call('POST', '/api/goals', goalInput)).body;
+    await call('POST', `/api/goals/${g.id}/run`, {});
+    assert.equal(calls, 0, 'unconfirmed subscription must stop before fake adapter dispatch');
+    assert.equal(app.store.getGoal(g.id).status, 'model_wait');
+    safe = true;
+    await call('POST', `/api/goals/${g.id}/run`, {});
+    assert.equal(calls, 1, 'fresh confirmed subscription and quota allow dispatch');
+  } finally { await app.close(); }
+});
+test('model registration is pending, explicit official-account attestation enables it and edits revoke it', async () => {
+  const { app, call } = await start();
+  try {
+    const profile = { executor: 'codex', id: 'test-model', label: 'Test', tier: 1, efforts: ['medium'], capabilities: ['text','code'],
+      usable: true, accountCheckedAt: 'fake', supportEvidence: { url: 'fake', checkedAt: 'fake' } };
+    assert.equal((await call('POST', '/api/models', profile)).status, 201);
+    assert.equal((await call('GET', '/api/models')).body.items[0].usable, false);
+    const attestation = { executor: 'codex', id: profile.id, confirm: true, source: 'manual_official_ui',
+      supportUrl: 'https://learn.chatgpt.com/docs/models', note: 'Account model selector confirmed manually' };
+    assert.equal((await call('POST', '/api/models/attest', { ...attestation, supportUrl: 'https://example.org/fake' })).status, 400);
+    assert.equal((await call('POST', '/api/models/attest', { ...attestation, confirm: false })).status, 400);
+    assert.equal((await call('POST', '/api/models/attest', attestation)).body.usable, true);
+    await call('POST', '/api/models', profile);
+    assert.equal((await call('GET', '/api/models')).body.items[0].usable, false);
+  } finally { await app.close(); }
+});
+test('record drafts and opt-in autonomy are exposed without making external writes', async () => {
+  const { app, call } = await start();
+  try {
+    const { body: g } = await call('POST', '/api/projects', { objective: 'PRIVATE REQUIREMENT', conversation: true });
+    const record = await call('GET', `/api/projects/${g.projectId}/records`);
+    assert.equal(record.status, 200);
+    assert.equal(record.body.externalSync, 'not_connected');
+    assert.doesNotMatch(JSON.stringify(record.body), /PRIVATE REQUIREMENT/);
+    assert.equal((await call('PUT', `/api/goals/${g.id}/autonomy`, { enabled: true, remaining: 2 })).body.autonomy.remaining, 2);
+    assert.equal((await call('PUT', `/api/goals/${g.id}/autonomy`, { enabled: true, remaining: 10 })).status, 400);
+  } finally { await app.close(); }
+});
 
 test('writes require a JSON content type (blocks simple cross-site posts)', async () => {
   const { app, call } = await start();

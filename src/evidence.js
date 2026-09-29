@@ -18,7 +18,10 @@ export function reportInstructions(criteria) {
     'For each criterion give a check that proves it using files in the current directory, or null if no file can prove it:',
     '  {"type":"file_exists","path":"relative/path"}',
     '  {"type":"file_contains","path":"relative/path","text":"exact text that must appear"}',
+    '  {"type":"tests_pass"}  (the engine itself runs the project tests in a sandbox during verification:',
+    '   npm test if package.json has a test script, otherwise node --test, otherwise python -m unittest)',
     'Do not claim done without doing the work. Put anything a person must judge in "note".',
+    'You may add "requests":[{"team":"dev|design|research","task":"specific follow-up within this project","criteria":["verifiable criterion"],"risk":"low|normal|high","complexity":"simple|normal|complex","effects":[]}] to propose collaboration. Requests are proposals, not permissions. Never expand the user scope.',
     'A check must prove the criterion itself (the requested file or content). A status note you wrote that says',
     'the work is done is not proof: if nothing in the workspace can prove a criterion, use "check": null.',
   ].join('\n');
@@ -37,7 +40,8 @@ export function parseReport(answer) {
   } catch { return null; }
 }
 
-export function verifyReport(report, criteria, cwd) {
+// ctx.verifying: this is the verification round; ctx.test: { label, passed } if the engine ran the tests.
+export function verifyReport(report, criteria, cwd, ctx = {}) {
   const byIndex = new Map();
   for (const item of report?.criteria ?? []) {
     if (Number.isInteger(item?.index) && item.index >= 1 && item.index <= criteria.length) byIndex.set(item.index, item);
@@ -46,7 +50,7 @@ export function verifyReport(report, criteria, cwd) {
   criteria.forEach((criterion, i) => {
     const item = byIndex.get(i + 1);
     const note = typeof item?.note === 'string' ? item.note.slice(0, 500) : '';
-    const result = item?.check ? runCheck(item.check, cwd) : { status: 'none' };
+    const result = item?.check ? runCheck(item.check, cwd, ctx) : { status: 'none' };
     // A check only counts for a criterion the tool itself reports as done.
     if (result.status === 'pass' && item?.done === true) evidence.push({ criterion, proof: result.proof });
     claims.push({ criterion, claimed: item?.done === true, check: result.status, note, detail: result.proof ?? result.reason ?? '' });
@@ -54,7 +58,13 @@ export function verifyReport(report, criteria, cwd) {
   return { evidence, claims };
 }
 
-function runCheck(check, cwd) {
+function runCheck(check, cwd, ctx = {}) {
+  if (check?.type === 'tests_pass') {
+    if (!ctx.test) return ctx.verifying ? { status: 'fail', reason: '실행된 테스트 없음 (테스트 파일이 없거나 샌드박스를 쓸 수 없음)' }
+      : { status: 'later', reason: '테스트는 검증 단계에서 엔진이 실행' };
+    return ctx.test.passed ? { status: 'pass', proof: `엔진 확인 · 샌드박스에서 ${ctx.test.label} 통과` }
+      : { status: 'fail', reason: `${ctx.test.label} 실패` };
+  }
   const target = insideWorkspace(check.path, cwd);
   if (!target) return { status: 'invalid', reason: '작업 폴더 밖이거나 잘못된 경로' };
   const rel = path.relative(cwd, target).replace(/\\/g, '/');

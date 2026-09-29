@@ -8,7 +8,7 @@ test('seven teams, each with its own tool and access; only research gets the web
   assert.deepEqual(Object.values(TEAMS).map(t => [t.id, t.executor, t.access, Boolean(t.web)]), [
     ['plan', 'claude-code', 'read', false], ['research', 'claude-code', 'write', true], ['dev', 'claude-code', 'write', false],
     ['design', 'claude-code', 'write', false], ['security', 'codex', 'read', false], ['policy', 'claude-code', 'read', false],
-    ['qa', 'codex', 'write', false]]);
+    ['qa', 'codex', 'read', false]]);
 });
 
 test('the design team is told which design tools it may use, and to record what it made', () => {
@@ -83,4 +83,25 @@ test('QA findings are trimmed and bounded', () => {
   assert.equal(f.feedback.length, 1500);
   assert.deepEqual(f.improvements, ['다크 모드', 'CSV 내보내기', 'a', 'b', 'c']);
   assert.deepEqual(qaFindings(null), { feedback: '', improvements: [] });
+});
+
+test('every team prompt has the shared structure: identity, common purpose, project, boundaries, then its own sections', () => {
+  const sections = ['[AGENT HQ 공통 목적]', '[현재 프로젝트]', '[공통 안전 경계]', '[내 역할 · ', '[현재 작업]',
+    '[판단 근거 · 이렇게 한다]', '[협업 요청]', '[안전 경계 · ', '[결과와 한계]', '[출력 형식]'];
+  for (const step of Object.keys(TEAMS)) {
+    const p = teamPrompt(step, { goal, team: { task: '작업' }, files: ['a.md'], connectors: ['Figma'], candidates: [{ id: 'm', executor: 'codex' }] });
+    assert.ok(p.startsWith(`You are ${TEAMS[step].name}`), step);
+    let at = -1;
+    for (const s of sections) { const i = p.indexOf(s); assert.ok(i > at, `${step}: ${s} in order`); at = i; }
+    assert.match(p, /엔진이 확인한 증거와 대장의 승인으로만/);
+    assert.equal(p.includes('design/links.md'), step === 'design', `${step}: connectors only for design`);
+    assert.equal(p.includes('[검증된 모델 후보'), step === 'plan', `${step}: model candidates only for planning`);
+  }
+});
+
+test('the prompt says whether the completion criteria are approved, pending or not yet derived', () => {
+  const at = (g) => teamPrompt('dev', { goal: g, team: { task: 't' }, files: [] });
+  assert.match(at(goal), /완료 조건 · 대장 승인됨/);
+  assert.match(at({ ...goal, criteriaApprovalPending: true }), /대장 승인 대기 중 \(아직 효력 없음\)/);
+  assert.match(teamPrompt('plan', { goal: { ...goal, completionCriteria: [] }, team: {}, files: [] }), /아직 없음 — 기획팀이 대화에서 도출/);
 });

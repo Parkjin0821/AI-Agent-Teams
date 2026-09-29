@@ -8,6 +8,24 @@ import { ProjectWorkspaces } from '../src/workspaces.js';
 
 const goal = { id: 'g1', projectId: 'hello', objective: 'README를 쓴다', completionCriteria: ['README.md 파일이 있다', '팀 회의를 한다'] };
 const store = { emit: async () => {} };
+test('interrupted attempts persist before/after metadata and pass it to the next executor', async () => {
+  const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(), 'hq-cp-')));
+  let records = [{ id: 'r1', status: 'running', team: 'dev', executor: 'claude-code' }];
+  const cpStore = { emit: async () => {}, listRuns: () => records, saveRun: r => { records = records.map(old => old.id === r.id ? r : old); } };
+  let prompt = '';
+  const adapter = { enabled: true, run: async (provider, p, event, opts) => {
+    prompt = p; writeFileSync(path.join(opts.cwd, 'partial.txt'), 'unfinished'); return { outcome: 'limited' };
+  } };
+  const runner = createGoalRunner({ adapter, store: cpStore, workspaces });
+  await runner.run(goal, { executor: 'claude-code', team: 'dev' });
+  assert.deepEqual(records[0].checkpoint.added, ['partial.txt']);
+  records[0] = { ...records[0], status: 'finished', outcome: 'error' };
+  records.push({ id: 'r2', status: 'running', team: 'dev', executor: 'codex' });
+  await runner.run(goal, { executor: 'codex', team: 'dev' });
+  assert.match(prompt, /Previous attempt interrupted/);
+  assert.match(prompt, /claude-code/);
+  assert.match(prompt, /partial.txt/);
+});
 
 function runnerWith(adapterRun) {
   const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(), 'hq-gr-')));
@@ -85,7 +103,7 @@ test('the verification team returns engine-checked evidence plus feedback and im
   });
   const result = await runner.run({ ...teamGoal, team: { ...teamGoal.team, step: 'qa' } }, { executor: 'codex', team: 'qa', access: 'write', model: null });
   assert.deepEqual(result.evidence.map(e => e.criterion), ['README.md 파일이 있다']);
-  assert.deepEqual(result.findings, { feedback: '회의 조건 미충족', improvements: ['목차 추가'] });
+  assert.deepEqual(result.findings, { feedback: '회의 조건 미충족', improvements: ['목차 추가'], blocking: [] });
 });
 
 test('each team gets only its own tools: web for research, chosen connectors for design, nothing for others', async () => {
@@ -105,8 +123,53 @@ test('each team gets only its own tools: web for research, chosen connectors for
   assert.deepEqual(seen['개발팀'], { web: false, connectors: [], known: [] });
 });
 
+test('a secret the engine finds blocks the security review even when the AI passes it', async () => {
+  let prompt = '';
+  const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(), 'hq-gr-')));
+  writeFileSync(path.join(workspaces.resolve('hello'), 'config.js'), `const k = "${'sk-ant-' + 'x'.repeat(30)}";`);
+  const adapter = { enabled: true, run: async (provider, p) => { prompt = p; return { outcome: 'completed', answer: 'AGENT_HQ_REVIEW {"verdict":"pass","issues":[],"blocking":false,"needs_decision":null}' }; } };
+  const g = { ...teamGoal, team: { ...teamGoal.team, step: 'security', task: '설정' } };
+  const result = await createGoalRunner({ adapter, workspaces, store }).run(g, { executor: 'codex', team: 'security', access: 'read', model: null });
+  assert.match(prompt, /비밀정보 스캔: found/);
+  assert.equal(result.review.blocking, true);
+  assert.match(result.review.issues[0], /^\[엔진 검사\] 비밀정보가 파일에 있음: config\.js:1/);
+  assert.deepEqual(result.tools.map(t => [t.id, t.status]), [['secrets', 'found'], ['npm-audit', 'skipped']]);
+  assert.ok(!JSON.stringify(result.tools).includes('x'.repeat(30)));
+});
+
+test('in verification, tests_pass counts only when the engine ran the tests in the sandbox and they passed', async () => {
+  const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(), 'hq-gr-')));
+  writeFileSync(path.join(workspaces.resolve('hello'), 'package.json'), '{"scripts":{"test":"node --test"}}');
+  const answer = 'AGENT_HQ_REPORT {"criteria":[{"index":1,"done":true,"check":{"type":"tests_pass"}}],"feedback":"","improvements":[]}';
+  const adapter = { enabled: true, run: async () => ({ outcome: 'completed', answer }) };
+  const qa = { ...teamGoal, team: { ...teamGoal.team, step: 'qa' } };
+  const run = (sandbox) => createGoalRunner({ adapter, workspaces, store, sandbox }).run(qa, { executor: 'codex', team: 'qa', access: 'write', model: null });
+  const passing = await run({ available: true, run: async () => ({ status: 'pass', code: 0, output: 'ok' }) });
+  assert.deepEqual(passing.evidence, [{ criterion: 'README.md 파일이 있다', proof: '엔진 확인 · 샌드박스에서 npm test 통과' }]);
+  assert.deepEqual(passing.findings.blocking, []);
+  const failing = await run({ available: true, run: async () => ({ status: 'fail', code: 1, output: 'not ok' }) });
+  assert.equal(failing.evidence.length, 0);
+  assert.match(failing.findings.blocking[0], /^테스트 실패 \(종료 코드 1\): npm test/);
+  const noSandbox = await run(null);
+  assert.deepEqual([noSandbox.evidence.length, noSandbox.claims[0].check], [0, 'fail']);
+  // A development round cannot prove tests: they only run in verification.
+  const dev = await createGoalRunner({ adapter, workspaces, store }).run({ ...teamGoal, team: { ...teamGoal.team, step: 'dev' } }, { executor: 'claude-code', team: 'dev', access: 'write', model: null });
+  assert.deepEqual([dev.evidence.length, dev.claims[0].check, dev.tools.length], [0, 'later', 0]);
+});
+
 test('simulation still produces no evidence', async () => {
   const { runner } = runnerWith(() => ({ outcome: 'simulated' }));
   const result = await runner.run(goal, { executor: 'codex', model: null });
   assert.deepEqual([result.outcome, result.simulated, result.evidence.length], ['completed', true, 0]);
+});
+
+test('the limit state Claude Code reports during a run is handed to the usage record; Codex runs are not', async () => {
+  const seen = [];
+  const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(), 'hq-gr-')));
+  const limits = [{ window: 'five_hour', status: 'allowed', resetsAt: null, usingOverage: false }];
+  const adapter = { enabled: true, run: async () => ({ outcome: 'completed', answer: '', rateLimits: limits }) };
+  const runner = createGoalRunner({ adapter, workspaces, store, onRateLimits: l => seen.push(l) });
+  await runner.run(goal, { executor: 'claude-code', model: null });
+  await runner.run(goal, { executor: 'codex', model: null });
+  assert.deepEqual(seen, [limits]);
 });

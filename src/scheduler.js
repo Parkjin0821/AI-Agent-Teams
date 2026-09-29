@@ -4,6 +4,8 @@ import { resolveModel, validateExecutor } from './models.js';
 import { DEFAULT_POLICY } from './policy.js';
 import { nextStep, REVIEWS, TEAMS, WORKERS } from './teams.js';
 import { validateProjectId } from './workspaces.js';
+import { enqueueRequests, taskProfile } from './team-governance.js';
+import { selectAssignment } from './assignment.js';
 
 export const GoalStatus = Object.freeze({
   SCHEDULED: 'scheduled', RUNNING: 'running', RETRY_WAIT: 'retry_wait', VERIFIED: 'verified', MODEL_WAIT: 'model_wait',
@@ -25,8 +27,8 @@ const mergeEvidence = (list, confirmed = []) => [
 // The model is resolved only when a round is claimed, i.e. after the previous round's run record (the
 // checkpoint) is saved; a policy change during a round therefore takes effect from the next round.
 export class GoalScheduler {
-  constructor({ store, runner, clock = { now: () => Date.now() }, policy = DEFAULT_POLICY, registry = null }) {
-    Object.assign(this, { store, runner, clock, policy, registry });
+  constructor({ store, runner, clock = { now: () => Date.now() }, policy = DEFAULT_POLICY, registry = null, capacity = null, capabilities = null }) {
+    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities });
     for (const goal of store.listGoals().filter(g => g.status === GoalStatus.RUNNING)) {
       for (const run of store.listRuns(goal.id).filter(r => r.status === 'running')) store.saveRun({ ...run, status: 'interrupted' });
       this.update(goal, { status: GoalStatus.RECOVERY_REQUIRED, reason: 'interrupted_by_restart', nextRunAt: null });
@@ -39,7 +41,7 @@ export class GoalScheduler {
     const intervals = { team: null, task: null, research: this.policy.researchIntervalMs, improvement: this.policy.improvementIntervalMs };
     if (!Object.hasOwn(intervals, input?.kind)) throw new Error('kind must be team, task, research or improvement');
     if (!input.objective?.trim()) throw new Error('objective is required');
-    if (!input.completionCriteria?.length) throw new Error('Goal requires explicit completion criteria');
+    if (!input.completionCriteria?.length && !(input.kind === 'team' && input.conversation === true)) throw new Error('Goal requires explicit completion criteria');
     const title = typeof input.title === 'string' ? input.title.trim() : '';
     if (title.length > 100) throw new Error('title must be at most 100 characters');
     const modelOverride = input.modelOverride ?? { mode: 'inherit' };
@@ -52,11 +54,13 @@ export class GoalScheduler {
       executor: validateExecutor(input.executor ?? 'claude-code'),
       modelOverride: modelOverride.mode === 'pinned' ? { mode: 'pinned', model: modelOverride.model } : { mode: 'inherit' },
       activeModel: null,
-      objective: input.objective.trim(), completionCriteria: validateCriteria(input.completionCriteria),
+      objective: input.objective.trim(), completionCriteria: input.completionCriteria?.length ? validateCriteria(input.completionCriteria) : [],
+      conversation: input.conversation === true, messages: input.conversation ? [{ role: 'user', text: input.objective.trim(), at: now }] : [],
       intervalMs: intervals[input.kind], status: GoalStatus.SCHEDULED, reason: null,
       round: 0, attempt: 0, nextRunAt: now, evidence: [],
       testFixAttempts: 0, noProgressRounds: 0, bestCriteriaMet: 0, recentDiffs: [],
       autoRun: input.autoRun === true, question: null, proposal: null,
+      collaboration: [], autonomy: { enabled: false, remaining: 0 },
       team: input.kind === 'team' ? { step: 'plan', task: '', feedback: '', cycle: 1, worker: 'dev', reviews: [], reviewNotes: [] } : null,
       createdAt: now, updatedAt: now,
     };
@@ -75,7 +79,7 @@ export class GoalScheduler {
     const confirmed = [...(goal.confirmed ?? []).filter(c => c.criterion !== criterion),
       { criterion, proof: `대장 확인${text ? ` · ${text}` : ''}`, by: 'human', at: iso(this.clock.now()) }];
     const evidence = mergeEvidence(goal.evidence, confirmed);
-    const done = goal.completionCriteria.every(c => evidence.some(e => e.criterion === c));
+    const done = goal.kind !== 'team' && goal.completionCriteria.every(c => evidence.some(e => e.criterion === c));
     this.update(goal, { confirmed, evidence, ...(done ? { status: GoalStatus.VERIFIED, nextRunAt: null, reason: null } : {}) });
     void this.store.emit({ type: done ? 'goal.verified' : 'goal.confirmed', goalId, criterion });
     return goal;
@@ -84,6 +88,7 @@ export class GoalScheduler {
   // 시작: the team keeps working this goal on its own (the automatic tick only runs started goals).
   start(goalId) {
     const goal = this.store.getGoal(goalId);
+    if (goal?.criteriaApprovalPending) throw new Error('completion criteria approval required');
     if (!goal) throw new Error('goal not found');
     if (goal.status === GoalStatus.VERIFIED) throw new Error('goal is already verified');
     const changes = { autoRun: true, pauseRequested: false };
@@ -111,6 +116,7 @@ export class GoalScheduler {
   // 대장's answer to the planning team's question; planning continues with it.
   answer(goalId, text) {
     const goal = this.store.getGoal(goalId);
+    if (goal?.criteriaApprovalPending) throw new Error('completion criteria approval required');
     if (!goal || goal.reason !== 'needs_decision') throw new Error('goal is not waiting for an answer');
     const reply = String(text || '').trim().slice(0, 1000);
     if (!reply) throw new Error('answer is empty');
@@ -118,6 +124,20 @@ export class GoalScheduler {
       team: { ...goal.team, step: 'plan', feedback: `질문 · ${goal.question}\n대장 답변 · ${reply}` } });
     void this.store.emit({ type: 'goal.answered', goalId });
     return goal;
+  }
+
+  message(goalId, text) {
+    const goal = this.store.getGoal(goalId);
+    if (!goal || goal.kind !== 'team') throw new Error('team project not found');
+    if (goal.status === GoalStatus.RUNNING) throw new Error('wait for the current checkpoint');
+    const reply = String(text ?? '').trim();
+    if (!reply || reply.length > 4000) throw new Error('message must be 1 to 4000 characters');
+    const messages = [...(goal.messages ?? []), { role: 'user', text: reply, at: iso(this.clock.now()) }].slice(-100);
+    const held = [GoalStatus.PAUSED, GoalStatus.RECOVERY_REQUIRED, GoalStatus.BLOCKED].includes(goal.status);
+    return this.update(goal, { conversation: true, messages, completionCriteria: [], criteriaApprovalPending: false, evidence: [], confirmed: [],
+      objective: `${goal.objective}\n대장 추가 요청: ${reply}`.slice(-16000), status: held ? goal.status : GoalStatus.SCHEDULED, reason: held ? goal.reason : null,
+      question: held ? goal.question : null, proposal: null, nextRunAt: held ? goal.nextRunAt : iso(this.clock.now()),
+      team: { ...goal.team, step: 'plan', feedback: reply } });
   }
 
   // Improvements proposed after completion become a new goal only when 대장 accepts them.
@@ -136,6 +156,44 @@ export class GoalScheduler {
     return this.update(goal, { proposal: { ...goal.proposal, status: 'dismissed' } });
   }
 
+  setAutonomy(goalId, input) {
+    const goal = this.store.getGoal(goalId);
+    if (!goal || goal.kind !== 'team' || goal.status === GoalStatus.RUNNING) throw new Error('wait for a team checkpoint');
+    if (typeof input.enabled !== 'boolean' || !Number.isInteger(input.remaining) || input.remaining < 0 || input.remaining > 3) throw new Error('autonomy budget must be 0 to 3');
+    const updated = this.update(goal, { autonomy: { enabled: input.enabled, remaining: input.remaining } });
+    if (!input.enabled) {
+      let childId = goal.followupId;
+      const seen = new Set();
+      while (childId && !seen.has(childId)) {
+        seen.add(childId);
+        const child = this.store.getGoal(childId);
+        if (!child) break;
+        this.update(child, { autonomy: { enabled: false, remaining: 0 } });
+        this.stop(child.id);
+        childId = child.followupId;
+      }
+    }
+    return updated;
+  }
+
+  dispatchFollowup(goal) {
+    if (!goal.autonomy?.enabled || goal.autonomy.remaining <= 0) return;
+    const request = (goal.collaboration ?? []).find(r => r.status === 'proposed' && r.risk === 'low' && !r.effects.length);
+    if (!request) return;
+    // The parent's budget moves to the child, never multiplies. Daily project limits still apply.
+    this.store.transaction(() => {
+      const fresh = this.store.getGoal(goal.id);
+      if (fresh.followupId || fresh.status !== GoalStatus.VERIFIED) return;
+      const child = this.addGoal({ projectId: goal.projectId, kind: 'team', autoRun: goal.autoRunBeforeFinish === true,
+        title: goal.title, objective: `기존 프로젝트 내 후속 작업: ${request.task}`, completionCriteria: request.criteria });
+      this.update(child, { parentGoalId: goal.id, autonomy: { enabled: true, remaining: goal.autonomy.remaining - 1 },
+        team: { ...child.team, step: request.team, worker: request.team, task: request.task,
+          profile: taskProfile(request), reviews: ['security', 'policy'] } });
+      this.update(fresh, { followupId: child.id, autonomy: { enabled: true, remaining: 0 },
+        collaboration: fresh.collaboration.map(r => r.id === request.id ? { ...r, status: 'scheduled', goalId: child.id } : r) });
+    });
+  }
+
   // A running round is never cut off: the pause takes effect once that round is saved.
   pause(goalId) {
     const goal = this.store.getGoal(goalId);
@@ -152,6 +210,7 @@ export class GoalScheduler {
 
   resume(goalId) {
     const goal = this.store.getGoal(goalId);
+    if (goal?.criteriaApprovalPending) throw new Error('completion criteria approval required');
     if (goal?.status === GoalStatus.PAUSED) {
       this.update(goal, { status: goal.pausedFrom ?? GoalStatus.SCHEDULED, pausedFrom: null });
       void this.store.emit({ type: 'goal.resumed', goalId });
@@ -187,6 +246,18 @@ export class GoalScheduler {
   }
 
   stepExecutor(goal) {
+    const collaborative = this.collaborativeAssignment(goal);
+    if (collaborative) return collaborative.executor ?? TEAMS[goal.team?.step ?? 'plan'].executor;
+    if (goal.kind === 'team' && goal.team?.step === 'dev'
+      && this.registry?.getPolicy(`project:${goal.projectId}`).allowProviderSwitch) {
+      const preferred = goal.team.profile?.complexity === 'complex' || goal.team.profile?.risk === 'high' ? 'codex' : 'claude-code';
+      const other = preferred === 'codex' ? 'claude-code' : 'codex';
+      const project = this.registry.getPolicy(`project:${goal.projectId}`);
+      if (this.capacity && !this.capacity(preferred) && this.capacity(other) && goal.team.profile?.risk !== 'high'
+        && resolveModel({ executor: other, project, task: goal.modelOverride, catalog: this.registry.catalog(),
+          context: { critical: goal.team.profile?.complexity === 'complex' } }).state === 'ready') return other;
+      return preferred;
+    }
     return goal.kind === 'team' ? TEAMS[goal.team?.step ?? 'plan'].executor : (goal.executor ?? 'claude-code');
   }
 
@@ -211,12 +282,21 @@ export class GoalScheduler {
       return this.store.transaction(() => {
         const goal = this.store.getGoal(goalId);
         if (!goal || !DUE.includes(goal.status) || (!ignoreSchedule && Date.parse(goal.nextRunAt) > now)) return null;
+        const executor = this.stepExecutor(goal);
+        const running = this.store.listGoals().filter(g => g.status === GoalStatus.RUNNING);
+        const providerCap = executor === 'codex' ? this.policy.providerConcurrent?.codex ?? 1 : this.policy.providerConcurrent?.claude ?? 2;
+        if (running.length >= (this.policy.maxConcurrent ?? 2) || running.some(g => g.projectId === goal.projectId)
+          || running.filter(g => this.store.listRuns(g.id).at(-1)?.executor === executor).length >= providerCap) return null;
         // Team projects that used up today's rounds continue tomorrow (the daily token guard).
         if (goal.kind === 'team' && this.roundsToday(goal.projectId, now) >= (this.policy.maxRoundsPerDay ?? 10)) {
           if (goal.reason !== 'daily_cap') {
             this.update(goal, { reason: 'daily_cap', nextRunAt: iso(nextMidnight(now)) });
             void this.store.emit({ type: 'goal.daily_cap', goalId, projectId: goal.projectId });
           }
+          return null;
+        }
+        if (this.capacity && !this.capacity(this.stepExecutor(goal))) {
+          this.update(goal, { status: GoalStatus.MODEL_WAIT, waitingFrom: goal.waitingFrom ?? goal.status, reason: 'usage_unavailable_or_limited' });
           return null;
         }
         const model = this.resolveFor(goal);
@@ -235,6 +315,8 @@ export class GoalScheduler {
           status: 'running', startedAt: iso(now), executor: this.stepExecutor(goal),
           team: goal.team?.step ?? null, access: goal.kind === 'team' ? TEAMS[goal.team.step].access : 'write',
           requestedModel: model.model, modelSource: model.source, fallbackFrom: model.fallbackFrom ?? null,
+          requestedEffort: model.effort ?? null, selectionReason: model.reason ?? model.source,
+          assignmentComparison: model.comparison ?? [], requiredCapabilities: model.needs ?? [], proposalReason: model.proposalReason ?? null,
           policyVersion: model.policyVersion });
         this.update(goal, { status: GoalStatus.RUNNING, waitingFrom: null, reason: null });
         return run;
@@ -251,7 +333,7 @@ export class GoalScheduler {
     let result;
     try {
       result = await this.runner.run(structuredClone(goal),
-        { round: run.round, attempt: run.attempt, executor: run.executor, model: run.requestedModel, team: run.team, access: run.access });
+        { round: run.round, attempt: run.attempt, executor: run.executor, model: run.requestedModel, effort: run.requestedEffort, team: run.team, access: run.access });
     }
     catch (error) { result = { outcome: 'error', errorKind: error.kind }; }
     await this.settle(run, result ?? {});
@@ -271,18 +353,23 @@ export class GoalScheduler {
       errorKind: result.errorKind ?? null, diffHash: result.diffHash ?? null, evidence: roundEvidence, actualModel,
       simulated: result.simulated === true,
       answer: typeof result.answer === 'string' ? result.answer.slice(0, 4000) : null,
+      checkpoint: this.store.listRuns(goal.id).find(r => r.id === run.id)?.checkpoint ?? null,
       claims: Array.isArray(result.claims) ? result.claims.slice(0, 20) : [],
+      tools: Array.isArray(result.tools) ? result.tools.slice(0, 12) : [],
       plan: result.plan ? { nextTask: result.plan.nextTask, team: result.plan.team ?? 'dev', reviews: result.plan.reviews ?? [] } : null,
       review: result.review ? { verdict: result.review.verdict, issues: result.review.issues, blocking: result.review.blocking } : null });
     if (goal.status !== GoalStatus.RUNNING) return;
     const decided = goal.kind === 'team' && result.outcome === 'completed'
       ? this.decideTeam(goal, result, evidence, now) : this.decide(goal, result, evidence, now);
     const next = { ...decided, activeModel: actualModel };
+    if (next.status === GoalStatus.VERIFIED) next.autoRunBeforeFinish = goal.autoRun;
+    if (!result.simulated && Array.isArray(result.requests)) next.collaboration = enqueueRequests(goal.collaboration, result.requests);
     if (goal.pauseRequested) {
       next.pauseRequested = false;
       if (DUE.includes(next.status)) Object.assign(next, { pausedFrom: next.status, status: GoalStatus.PAUSED });
     }
     this.update(goal, next);
+    if (goal.status === GoalStatus.VERIFIED && !result.simulated) this.dispatchFollowup(goal);
     await this.store.emit({ type: `goal.${goal.status}`, goalId: goal.id, round: run.round, reason: goal.reason, team: run.team });
   }
 
@@ -292,7 +379,7 @@ export class GoalScheduler {
   decideTeam(goal, result, evidence, now) {
     const step = goal.team.step;
     const team = { worker: 'dev', reviews: [], reviewNotes: [], ...goal.team };
-    const proven = goal.completionCriteria.every(c => evidence.some(e => e.criterion === c));
+    const proven = goal.completionCriteria.length > 0 && goal.completionCriteria.every(c => evidence.some(e => e.criterion === c));
     const review = (reason, extra = {}) => ({ evidence, ...extra, team, status: GoalStatus.REVIEW_REQUIRED, reason, nextRunAt: null });
     const goTo = (next, extra = {}) => ({ evidence, ...extra, reason: null, question: null, status: GoalStatus.SCHEDULED,
       nextRunAt: iso(now), team: { ...team, step: next } });
@@ -304,12 +391,18 @@ export class GoalScheduler {
       const plan = result.plan;
       if (!plan) return review('unclear_plan');
       if (plan.needsDecision) return review('needs_decision', { question: plan.needsDecision });
-      if (plan.allDone && proven) return finish([]);
+      if (!goal.completionCriteria.length) {
+        if (!plan.completionCriteria?.length) return review('criteria_not_derived');
+        this.update(goal, { completionCriteria: validateCriteria(plan.completionCriteria), criteriaApprovalPending: true });
+        return review('criteria_approval_required', { question: '도출한 완료 조건을 확인하고 승인해 주세요.' });
+      }
       team.worker = WORKERS.includes(plan.team) ? plan.team : 'dev';
-      team.reviews = REVIEWS.filter(r => (plan.reviews ?? []).includes(r));
+      team.profile = taskProfile(plan.profile);
+      if (team.profile.effects.length) return review('needs_decision', { question: `승인 범위가 필요한 작업: ${team.profile.effects.join(', ')}. 해당 외부 작업은 아직 실행하지 않았습니다.` });
+      team.reviews = plan.allDone ? [...REVIEWS] : REVIEWS.filter(r => (plan.reviews ?? []).includes(r));
       team.reviewNotes = [];
       team.task = plan.allDone ? '완료 여부 최종 확인' : plan.nextTask;
-      return plan.allDone ? goTo('qa') : advance();
+      return plan.allDone ? goTo(team.reviews[0] ?? 'qa') : advance();
     }
     if (REVIEWS.includes(step)) {
       // Reviewers only look. A blocking finding sends the work back to planning; a question stops for 대장.
@@ -320,15 +413,19 @@ export class GoalScheduler {
       team.reviews = team.reviews.filter(r => r !== step);
       if (verdict.blocking) {
         team.feedback = `[${name}] 고쳐야 할 문제:\n- ${verdict.issues.join('\n- ')}`;
-        team.reviews = [];
+        // Planning cannot declare the goal done until verification runs again after the fix.
+        team.blockers = verdict.issues.map(i => `[${name}] ${i}`);
+        const pendingReviews = [step, ...team.reviews];
         team.reviewNotes = [];
         team.cycle = (team.cycle ?? 1) + 1;
-        return goTo('plan');
+        team.reviews = [...new Set(pendingReviews)];
+        return goTo(team.worker);
       }
       team.reviewNotes = [...team.reviewNotes, ...verdict.issues.map(i => `[${name}] ${i}`)];
       return advance();
     }
     if (WORKERS.includes(step)) {
+      team.reviews = [...new Set([...team.reviews, ...(result.requiredReviews ?? [])])].filter(r => REVIEWS.includes(r));
       // Progress means new evidence or a workspace change not seen before; only development rounds count.
       const diffIsNew = Boolean(result.diffHash) && !goal.recentDiffs.includes(result.diffHash);
       const progressed = evidence.length > goal.bestCriteriaMet || diffIsNew;
@@ -339,9 +436,12 @@ export class GoalScheduler {
       return advance(extra);
     }
     const findings = result.findings ?? { feedback: '', improvements: [] };
-    team.feedback = [findings.feedback, ...team.reviewNotes].filter(Boolean).join('\n');
+    // Failing tests or a secret the engine found keep the goal open even if every criterion has proof.
+    const gate = (findings.blocking ?? []).map(b => `[엔진 검사] ${b}`);
+    team.blockers = gate;
+    team.feedback = [...gate, findings.feedback, ...team.reviewNotes].filter(Boolean).join('\n');
     team.reviewNotes = [];
-    if (proven) return finish(findings.improvements ?? []);
+    if (proven && !gate.length) return finish(findings.improvements ?? []);
     team.cycle = (team.cycle ?? 1) + 1;
     return advance();
   }
@@ -355,6 +455,11 @@ export class GoalScheduler {
         return { status: GoalStatus.RETRY_WAIT, reason: 'network_error', nextRunAt: iso(now + p.retryDelaysMs[goal.attempt]) };
       }
       if (kind === 'network') return review('network_retries_exhausted');
+      if (kind === 'limit' && goal.kind === 'team'
+        && this.registry?.getPolicy(`project:${goal.projectId}`).allowProviderSwitch) {
+        return { status: GoalStatus.MODEL_WAIT, waitingFrom: GoalStatus.SCHEDULED,
+          reason: 'usage_unavailable_or_limited', nextRunAt: iso(now) };
+      }
       if (NON_RETRYABLE.includes(kind)) return { status: GoalStatus.BLOCKED, reason: `${kind}_error`, nextRunAt: null };
       return review('unclassified_error');
     }
@@ -391,10 +496,14 @@ export class GoalScheduler {
   }
 
   resolveFor(goal) {
+    const collaborative = this.collaborativeAssignment(goal);
+    if (collaborative) return collaborative;
     const executor = this.stepExecutor(goal);
     if (!this.registry) return { state: 'ready', model: null, source: 'executor_default', policyVersion: null };
     const project = this.registry.getPolicy(`project:${goal.projectId}`);
-    return { ...resolveModel({ executor, project, task: goal.modelOverride, catalog: this.registry.catalog() }),
+    return { ...resolveModel({ executor, project, task: goal.modelOverride, catalog: this.registry.catalog(),
+      context: { team: goal.team?.step, critical: goal.team?.profile?.risk === 'high' || goal.team?.profile?.complexity === 'complex',
+        simple: goal.team?.profile?.complexity === 'simple', failures: Math.max(goal.noProgressRounds ?? 0, goal.testFixAttempts ?? 0) } }),
       policyVersion: project.version };
   }
 
@@ -406,11 +515,32 @@ export class GoalScheduler {
     const next = this.resolveFor(goal);
     return { executor: this.stepExecutor(goal), requested: run?.requestedModel ?? null, actual: goal.activeModel ?? null,
       next: next.model, nextState: next.state,
+      effort: run?.requestedEffort ?? null, nextEffort: next.effort ?? null, reason: next.reason ?? next.source,
+      comparison: next.comparison ?? [], requiredCapabilities: next.needs ?? [], proposalReason: next.proposalReason ?? null,
       changePending: Boolean(run) && (next.state !== 'ready' || next.model !== run.requestedModel) };
   }
 
   update(goal, changes) {
     Object.assign(goal, changes, { updatedAt: iso(this.clock.now()) });
     return this.store.saveGoal(goal);
+  }
+
+  collaborativeAssignment(goal) {
+    if (goal.kind !== 'team' || !this.registry) return null;
+    const project = this.registry.getPolicy(`project:${goal.projectId}`);
+    if (!project.allowProviderSwitch) return null;
+    const team = goal.team?.step ?? 'plan';
+    const reviewing = REVIEWS.includes(team) || team === 'qa';
+    // Legacy development routing stays intact. Other teams can reassign on quota loss,
+    // but only through the same verified capability and independent-review filters.
+    if (project.strategy !== 'adaptive' && !reviewing && (goal.team?.step === 'dev'
+      || !this.capacity || this.capacity(TEAMS[goal.team?.step ?? 'plan'].executor))) return null;
+    const workerRun = this.store.listRuns(goal.id).slice().reverse().find(r => WORKERS.includes(r.team) && !r.simulated);
+    const profile = WORKERS.includes(team) ? goal.team?.profile ?? {} : {};
+    return { ...selectAssignment({ catalog: this.registry.catalog(), profile, team, project,
+      override: goal.modelOverride, capacity: this.capacity,
+      ...(this.capabilities ? { runtimeCapabilities: this.capabilities(team) } : {}),
+      excludeExecutor: REVIEWS.includes(team) || team === 'qa' ? workerRun?.executor ?? null : null,
+      evaluations: this.store.listEvals?.() ?? [] }), policyVersion: project.version };
   }
 }
