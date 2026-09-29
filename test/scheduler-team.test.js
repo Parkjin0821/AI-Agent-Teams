@@ -335,3 +335,26 @@ test('failing tests found by the engine keep the goal open, and planning cannot 
   assert.deepEqual([saved.status, saved.team.blockers], ['verified', []]);
   store.close();
 });
+test('reviews keep the proven evidence, and an unprovable criterion stops for 대장 instead of looping', async () => {
+  // seen in a real run: planning said "all done", reviews and verification repeated with no work in between
+  let plans = 0;
+  const { store, scheduler, add, calls } = setup(team => {
+    if (team === 'plan') return plans++ === 0 ? { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } }
+      : { outcome: 'completed', plan: { allDone: true } };
+    if (team === 'dev') return { outcome: 'completed', diffHash: 'd1', evidence: ev(0) };
+    if (team === 'qa') return { outcome: 'completed', evidence: ev(0), findings: { feedback: '2번은 확인할 방법이 없음', improvements: [] } };
+    return { outcome: 'completed', review: { blocking: false, issues: [] } };
+  });
+  try {
+    const goal = add();
+    const proven = [];
+    for (let i = 0; i < 12 && store.getGoal(goal.id).status !== 'review_required'; i++) {
+      await scheduler.runGoal(goal.id);
+      proven.push(`${calls.at(-1).team}:${store.getGoal(goal.id).evidence.length}`);
+    }
+    assert.deepEqual(proven, ['plan:0', 'dev:1', 'qa:1', 'plan:1', 'security:1', 'policy:1', 'qa:1'], 'the proven count never drops during reviews');
+    const g = store.getGoal(goal.id);
+    assert.deepEqual([g.status, g.reason], ['review_required', 'needs_decision']);
+    assert.match(g.question, /두 번 연속 그대로.*\n- 합계 테스트 통과/s);
+  } finally { store.close(); }
+});

@@ -404,8 +404,9 @@ export class GoalScheduler {
     const now = this.clock.now();
     const goal = this.store.getGoal(run.goalId);
     const roundEvidence = this.evidenceFor(goal, result.evidence);
-    // A planning round checks nothing, so it keeps the evidence gathered so far.
-    const evidence = run.team === 'plan' ? (goal.evidence ?? []) : mergeEvidence(roundEvidence, goal.confirmed);
+    // Planning and the read-only reviews (security, policy) check no criteria and cannot change files, so they keep
+    // the evidence gathered so far (otherwise the proven count drops to 0 after every review).
+    const evidence = run.team === 'plan' || REVIEWS.includes(run.team) ? (goal.evidence ?? []) : mergeEvidence(roundEvidence, goal.confirmed);
     // Only the tool's own report says which model actually ran; the requested model is not proof.
     const actualModel = typeof result.model === 'string' && result.model ? result.model : null;
     // Raw provider output is not persisted. The final answer is kept (capped) because it is the result
@@ -490,6 +491,7 @@ export class GoalScheduler {
       return advance();
     }
     if (WORKERS.includes(step)) {
+      team.workSinceQa = true;
       team.reviews = [...new Set([...team.reviews, ...(result.requiredReviews ?? [])])].filter(r => REVIEWS.includes(r));
       // Progress means new evidence or a workspace change not seen before; only development rounds count.
       const diffIsNew = Boolean(result.diffHash) && !goal.recentDiffs.includes(result.diffHash);
@@ -514,6 +516,17 @@ export class GoalScheduler {
     team.feedback = [...gate, findings.feedback, ...team.reviewNotes].filter(Boolean).join('\n');
     team.reviewNotes = [];
     if (proven && !gate.length) return finish(findings.improvements ?? []);
+    // The same criteria still unproven at two verifications in a row, with no work step in between: another
+    // plan → review → verify round cannot change the answer, so 대장 is asked instead of spending more usage.
+    const unproven = goal.completionCriteria.filter(c => !evidence.some(e => e.criterion === c));
+    const stalled = !gate.length && unproven.length > 0 && !team.workSinceQa && Array.isArray(team.lastUnproven)
+      && team.lastUnproven.length === unproven.length && unproven.every(c => team.lastUnproven.includes(c));
+    team.lastUnproven = unproven;
+    team.workSinceQa = false;
+    if (stalled) {
+      return review('needs_decision', { question: `[검증팀] 엔진이 확인하지 못한 완료 조건이 두 번 연속 그대로입니다 (그 사이 작업 없음):\n- ${unproven.join('\n- ')}\n`
+        + '검증 탭에서 대장이 직접 확인하거나, 조건을 고치거나, 확인할 방법을 알려 주세요.' });
+    }
     team.cycle = (team.cycle ?? 1) + 1;
     return advance();
   }
