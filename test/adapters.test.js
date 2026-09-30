@@ -184,3 +184,32 @@ test('Codex gets 대장\'s attached images through its own --image option', asyn
   const at = cmd.args.indexOf('-');
   assert.deepEqual(cmd.args.slice(at - 2), [`--image=${images[0]}`, `--image=${images[1]}`, '-'], 'the = form keeps stdin (-) as the prompt');
 });
+
+test('실시간 진행: tool uses become one short line; secret-looking text is never shown', async () => {
+  const { activityFrom } = await import('../src/adapters.js');
+  const claude = (name, input) => ({ type: 'assistant', message: { content: [{ type: 'text', text: '...' }, { type: 'tool_use', name, input }] } });
+  assert.equal(activityFrom(claude('Write', { file_path: 'C:/x/projects/p1/docs/research.md' })), '파일 쓰는 중 · docs/research.md');
+  assert.equal(activityFrom(claude('Read', { file_path: 'C:\\x\\p1\\a.md' })), '파일 읽는 중 · p1/a.md');
+  assert.equal(activityFrom(claude('WebFetch', { url: 'https://nodejs.org/en/download?x=1' })), '웹 페이지 읽는 중 · nodejs.org/en/download');
+  assert.equal(activityFrom(claude('WebSearch', { query: 'Node.js LTS 버전' })), '웹 검색 중 · Node.js LTS 버전');
+  assert.equal(activityFrom(claude('Write', { file_path: 'ghp_' + 'a'.repeat(36) + '.md' })), null);
+  assert.equal(activityFrom({ type: 'item.started', item: { type: 'command_execution', command: 'node --test' } }), '명령 실행 중 · node --test');
+  assert.equal(activityFrom({ type: 'item.started', item: { type: 'file_change', changes: [{ path: 'src/a.js' }, { path: 'b.md' }] } }), '파일 바꾸는 중 · src/a.js, b.md');
+  assert.equal(activityFrom({ type: 'item.started', item: { type: 'reasoning' } }), '생각 정리 중');
+  assert.equal(activityFrom({ type: 'item.completed', item: { type: 'agent_message', text: 'done' } }), null);
+  assert.equal(activityFrom({ type: 'result', result: 'x' }), null);
+});
+
+test('live updates reach listeners but are not stored as events', async () => {
+  const { PersistentStore } = await import('../src/persistent-store.js');
+  const { mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const store = new PersistentStore({ dataDir: mkdtempSync(path.join(tmpdir(), 'hq-live-')) });
+  try {
+    const seen = [];
+    store.subscribe(e => seen.push(e));
+    store.broadcast({ type: 'step.activity', goalId: 'g', text: '파일 쓰는 중 · a.md' });
+    assert.deepEqual(seen.map(e => [e.type, e.live]), [['step.activity', true]]);
+    assert.equal(store.recentEvents(10).length, 0);
+  } finally { store.close(); }
+});

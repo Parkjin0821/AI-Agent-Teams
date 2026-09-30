@@ -20,7 +20,7 @@ const PROVIDER = { 'claude-code': 'claude', codex: 'codex' };
 
 // toolsFor(team) → { connectors, knownConnectors }: which claude.ai connectors 대장 opened for that team.
 export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, settings = () => ({}),
-  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, docMaker = null }) {
+  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, docMaker = null, onActivity = () => {} }) {
   const simulated = adapter.enabled === false;
   return {
     async run(goal, run) {
@@ -79,7 +79,11 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
             workspaceChanged: old ? old.fingerprint !== before.fingerprint : null });
       }
       // Raw provider output is not forwarded: it may contain secrets and is not evidence.
-      const onEvent = event => { if (event.type === 'provider.notice') void store.emit({ ...event, goalId: goal.id }); };
+      const onEvent = event => {
+        if (event.type === 'provider.notice') void store.emit({ ...event, goalId: goal.id });
+        // 실시간 진행: what the step is doing now (live only, not stored).
+        if (event.type === 'step.activity') onActivity(goal.id, team ?? 'task', event.text);
+      };
       const roundStart = new Date().toISOString();
       const result = await adapter.run(PROVIDER[run.executor], prompt, onEvent, { cwd, model: run.model, effort: run.effort, access: run.access ?? 'write', ...tools,
         ...(PROVIDER[run.executor] === 'codex' ? { images: attachedImages(goal, cwd) } : {}),

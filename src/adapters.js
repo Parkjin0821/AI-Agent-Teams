@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync, lstatSync } from 'node:fs';
 import path from 'node:path';
-import { sentinelSettings } from './sentinel.js';
+import { hasSecret as hasSecretText, sentinelSettings } from './sentinel.js';
 
 // Options checked against the installed CLIs' --help (Claude Code 2.1.265, codex-cli 0.158.0-alpha).
 // The prompt always goes through stdin, never the command line, so it cannot be parsed as options.
@@ -69,6 +69,38 @@ function modelFrom(event) {
   const model = event.model ?? event.message?.model ?? event.session?.model;
   return typeof model === 'string' && model ? model : null;
 }
+// 실시간 진행: one short line for what a running step is doing right now, from the CLI's own event stream.
+// Claude Code stream-json: assistant messages carry tool_use blocks ({ name, input }). Codex --json: item.started events
+// carry command_execution / file_change / web_search / mcp_tool_call / reasoning items. Anything else is ignored.
+// Only names, file names, hosts and short queries are shown; secret-looking text is never shown.
+const shortPath = p => String(p ?? '').replace(/\\/g, '/').split('/').filter(Boolean).slice(-2).join('/');
+const cut = (s, n) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n)}…` : t; };
+export function activityFrom(event) {
+  const say = text => (hasSecretText(text) ? null : text);
+  if (event?.type === 'assistant' && Array.isArray(event.message?.content)) {
+    const use = event.message.content.find(c => c?.type === 'tool_use');
+    if (!use) return null;
+    const input = use.input ?? {};
+    switch (use.name) {
+      case 'Read': return say(`파일 읽는 중 · ${shortPath(input.file_path)}`);
+      case 'Write': return say(`파일 쓰는 중 · ${shortPath(input.file_path)}`);
+      case 'Edit': case 'MultiEdit': return say(`파일 고치는 중 · ${shortPath(input.file_path)}`);
+      case 'WebFetch': { try { const u = new URL(String(input.url)); return say(`웹 페이지 읽는 중 · ${cut(u.hostname + u.pathname, 70)}`); } catch { return '웹 페이지 읽는 중'; } }
+      case 'WebSearch': return say(`웹 검색 중 · ${cut(input.query, 50)}`);
+      default: return String(use.name).startsWith('mcp__') ? say(`연결 도구 사용 중 · ${cut(String(use.name).split('__').slice(1).join('.'), 50)}`) : say(`${cut(use.name, 30)} 사용 중`);
+    }
+  }
+  if (event?.type === 'item.started' && event.item) {
+    const item = event.item;
+    if (item.type === 'command_execution') return say(`명령 실행 중 · ${cut(item.command, 70)}`);
+    if (item.type === 'file_change') return say(`파일 바꾸는 중 · ${cut((item.changes ?? []).map(c => shortPath(c.path)).join(', '), 70)}`);
+    if (item.type === 'web_search') return say(`웹 검색 중 · ${cut(item.query, 50)}`);
+    if (item.type === 'mcp_tool_call') return say(`연결 도구 사용 중 · ${cut(`${item.server ?? ''}.${item.tool ?? ''}`, 50)}`);
+    if (item.type === 'reasoning') return '생각 정리 중';
+  }
+  return null;
+}
+
 // Claude Code stream-json ends with {"type":"result","result":"..."}; Codex --json emits agent_message items.
 function answerFrom(event) {
   if (event.type === 'result' && !event.is_error && typeof event.result === 'string') return event.result;
@@ -202,6 +234,8 @@ export class CliAgentAdapter {
         if (limit) limits.set(limit.window, limit);
         const text = answerFrom(event);
         if (text !== null) answer = text;
+        const doing = activityFrom(event);
+        if (doing) onEvent({ type: 'step.activity', provider, text: doing });
       };
       child.stdout.setEncoding('utf8');
       child.stderr.setEncoding('utf8');

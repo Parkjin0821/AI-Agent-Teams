@@ -50,6 +50,13 @@ export class PersistentStore {
   getTask(id) { const row = this.db.prepare('SELECT body FROM tasks WHERE id=?').get(id); return row ? JSON.parse(row.body) : undefined; }
   saveTask(task) { task.updatedAt = new Date().toISOString(); this.db.prepare('INSERT INTO tasks VALUES (?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(task.id, JSON.stringify(task)); return task; }
   recentEvents(limit = 200) { return this.db.prepare('SELECT body, id FROM events ORDER BY id DESC LIMIT ?').all(limit).map(r => ({ ...JSON.parse(r.body), id: r.id })); }
+  // Sent to live listeners (the dashboard's event stream) but not stored: frequent, short-lived updates such as what a
+  // running step is doing right now.
+  broadcast(event) {
+    const record = { at: new Date().toISOString(), live: true, ...event };
+    for (const listener of this.listeners) { try { listener(record); } catch { /* Disconnected UI must not stop work. */ } }
+    return record;
+  }
   subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   async emit(event) {
     const record = { at: new Date().toISOString(), ...event };

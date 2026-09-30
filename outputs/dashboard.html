@@ -356,27 +356,30 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .msg.team .meta b,.msg.action[class*="team-"] .meta b{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;background:var(--team-tint,var(--subtle));color:var(--team-accent,var(--text));font-size:12px;font-weight:600;white-space:nowrap}
 .msg.team .meta b::before,.msg.action[class*="team-"] .meta b::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--team-accent,var(--text));flex:none}
 .msg.team .meta .when{color:var(--text-4)}
-/* 팀 구분: 팀 색 글자 타일 + 왼쪽 색 줄 + 팀 이름 색. 도구·모델은 이름 아래 한 줄로. 같은 팀이 이어지면 타일은 첫 줄에만. */
-.msg.team{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:12px;border-left:3px solid var(--team-accent,var(--line-strong));padding-left:13px}
-.mono-tile{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:13px;font-weight:700;line-height:1;padding-top:1px;
-  color:var(--team-accent,var(--text-2));background:color-mix(in srgb,var(--team-accent,#71717A) 12%,#fff);border:1px solid color-mix(in srgb,var(--team-accent,#71717A) 22%,#fff)}
-.mono-tile.lg{width:36px;height:36px;border-radius:10px;font-size:15px}
+/* 팀 색은 원형 마크에 집중하고, 대화와 이름은 중립적인 톤으로 표시합니다. */
+.msg.team{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:12px;border:0;border-radius:0;background:transparent;box-shadow:none;padding:16px 0}
+.mono-tile{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:600;line-height:1;
+  color:var(--team-accent,var(--text-2));background:color-mix(in srgb,var(--team-accent,#71717A) 10%,var(--surface));border:0}
+.mono-tile.lg{width:38px;height:38px;border-radius:50%;font-size:14px}
 .msg.team>.mono-tile{grid-row:1 / span 20}
-/* 팀 화면도 대화창과 같은 팀 표시: 글자 타일 + 왼쪽 색 줄 + 이름 색 */
-.card.team-card{border-left:3px solid var(--team-accent,var(--line-strong))}
+/* 팀 화면도 동일한 원형 마크와 중립적인 카드로 표시합니다. */
+.card.team-card{border:1px solid var(--line);transition:border-color .18s,box-shadow .18s}
+.card.team-card:hover{border-color:var(--line-strong);box-shadow:0 4px 14px rgba(17,17,26,.04)}
 .team-card .team-title{display:flex;align-items:center;gap:12px;min-width:0}
-.team-card .team-title h2{color:var(--team-accent,var(--text))}
-.team .nm{display:inline-flex;align-items:center;gap:8px;color:var(--team-accent,var(--text))}
-.team .nm .mono-tile{width:24px;height:24px;border-radius:7px;font-size:12px}
+.team-card .team-title h2{color:var(--text)}
+.team .nm{display:inline-flex;align-items:center;gap:10px;color:var(--text)}
+.team .nm .mono-tile{width:28px;height:28px;border-radius:50%;font-size:11px}
 .msg.team>:not(.mono-tile){grid-column:2}
 .msg.team .meta b,.msg.team .meta b::before{background:none;padding:0}
-.msg.team .meta b{font-size:13.5px;font-weight:650;color:var(--team-accent,var(--text))}
+.msg.team .meta b{font-size:14px;font-weight:600;color:var(--text)}
 .msg.team .meta b::before{display:none}
 .msg.team .meta .sub{order:3;flex-basis:100%;color:var(--text-3);font-size:12px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msg.team .meta .when{order:2}
 .msg.team.cont{margin-top:-6px}
 .msg.team.cont>.mono-tile{visibility:hidden;height:0}
-.msg.action[class*="team-"]{border-left:3px solid var(--team-accent)}
+.msg.action[class*="team-"]{border:1px solid var(--line-strong)}
+.msg.action[class*="team-"] .meta b{border-radius:999px;padding:4px 9px;background:var(--team-tint,var(--subtle))}
+.msg.action[class*="team-"] .meta b::before{display:none}
 .msg.me.ctl{background:none;border:0;padding:0 2px;max-width:70%;color:var(--text-3);font-size:12px;display:flex;gap:6px;align-items:baseline;justify-content:flex-end}
 .msg.me.ctl .meta{margin:0;gap:6px}
 .msg.me.ctl .meta b{color:var(--text-3);font-weight:500}
@@ -384,7 +387,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .msg.me.ctl .body{font-size:12px;color:var(--text-2)}
 .msg.team .body{font-size:13.5px;line-height:1.65}
 .msg.team .tchecks{padding-top:9px;margin-top:11px;border-top:1px solid var(--line)}
-.msg.team.err{border-color:#E8C8C4;background:#FFFBFA}
+.msg.team.err{background:var(--stop-soft);border:0;border-radius:10px;padding:16px}
 .team-plan{--team-accent:#5947A8;--team-tint:#F6F4FC}
 .team-research{--team-accent:#0B746B;--team-tint:#F1FAF8}
 .team-dev{--team-accent:#245EB5;--team-tint:#F2F7FF}
@@ -436,6 +439,11 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .digest-settings .field{margin-top:16px}
 .digest-settings .field label{margin-bottom:8px}
 .digest-settings>.btn{margin-top:16px}
+.live-list{list-style:none;margin:-4px 0 0;padding:8px 12px;align-self:center;max-width:94%;width:560px;border-left:2px solid var(--line-strong);display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--text-3)}
+.live-list li{display:flex;gap:10px;min-width:0}
+.live-list li>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.live-list .when{font-variant-numeric:tabular-nums;color:var(--text-4);flex:none}
+.live-list li.now{color:var(--text);font-weight:500}
 .judge{display:flex;flex-direction:column;gap:6px;margin:10px 0 4px;max-width:72ch}
 .judge-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
 .judge-row>span{flex:1;min-width:0;font-size:13px}
@@ -764,7 +772,8 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
               <sc-if value="{{x.hasAnswer}}"><details><summary>팀 답변 전체</summary><div class="answer">{{x.answer}}</div></details></sc-if>
             </div>
           </sc-for>
-          <sc-if value="{{w.working}}"><div class="msg sys working"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>{{w.workingL}}</div></sc-if>
+          <sc-if value="{{w.working}}"><div class="msg sys working"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>{{w.workingL}}</div>
+            <sc-if value="{{w.hasLive}}"><ol class="live-list" aria-label="지금 하는 일" aria-live="polite"><sc-for list="{{w.live}}" as="l"><li class="{{l.cls}}"><span class="when">{{l.when}}</span><span>{{l.text}}</span></li></sc-for></ol></sc-if></sc-if>
           <sc-if value="{{w.hasQuestion}}">
             <div class="{{w.questionCls}}">
               <div class="meta"><b>{{w.askedBy}}</b><span class="small muted">대장의 답이 필요합니다</span></div>
@@ -1417,6 +1426,14 @@ class Component extends DCLogic {
       this._es = new EventSource('/api/events');
       this._es.onmessage = (m) => {
         let e; try { e = JSON.parse(m.data); } catch (err) { return; }
+        if (e.type === 'step.activity' && e.goalId) {
+          // live only: keep the last lines per goal, and redraw at most twice a second
+          const live = Object.assign({}, this._live || this.state.live || {});
+          live[e.goalId] = (live[e.goalId] || []).concat([{ at: e.at, team: e.team, text: e.text }]).slice(-8);
+          this._live = live;
+          if (!this._liveT) this._liveT = setTimeout(() => { this._liveT = null; this.setState({ live: this._live }); }, 500);
+          return;
+        }
         if (e.type && (e.type.indexOf('goal.') === 0 || e.type.indexOf('project.') === 0)) { clearTimeout(this._rt); this._rt = setTimeout(() => this.refresh(), 200); }
       };
     } catch (err) { /* 파일로 열면 이벤트 스트림이 없다 */ }
@@ -1880,6 +1897,12 @@ class Component extends DCLogic {
           { when: fmt(x.at), hasMono: team, mono: team ? String(x.who || '·').charAt(0) : '', cls: x.cls + (cont ? ' cont' : '') });
       });
       w.working = g.status === 'running';
+      // 실시간 진행: what the running step has done so far (sent live by the server, newest last).
+      const runStart = (wp.runs.filter((r) => r.goal.id === g.id && r.status === 'running').map((r) => r.startedAt).sort().pop()) || '';
+      const liveAll = ((s.live || {})[g.id] || ((s.eng && s.eng.live) || {})[g.id] || []).filter((x) => x.at >= runStart);
+      w.live = liveAll.slice(-6).map((x, i, arr) => ({ text: x.text, cls: i === arr.length - 1 ? 'now' : '',
+        when: new Date(x.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) }));
+      w.hasLive = w.working && w.live.length > 0;
       w.workingL = (TEAM_NAME[team.step] || '팀') + ' 작업 중…';
       w.questionCls = 'msg action attn' + teamTone(askedBy(g.question));
       w.pendingCriteria = g.criteriaApprovalPending ? g.completionCriteria : [];

@@ -91,6 +91,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   };
   // 제어팀 needs this account's Codex list (Luna / Sol); a real server reads it before the first step.
   if (executing) void modelChoices.get().catch(() => {});
+  const liveActivity = new Map();
   const scheduler = new GoalScheduler({ store, clock, registry,
     capacity: guarded ? capacity : null,
     dailyCap: () => store.getSettings()['limits.maxRoundsPerDay'],
@@ -113,6 +114,12 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       // 감시 에이전트: checks every Claude tool call before it runs (see src/sentinel.js).
       sentinel: { script: path.join(root, 'scripts', 'sentinel-hook.mjs'), log: sentinelLog, grants: approvals.grantsFile },
       approvals, memory,
+      // 실시간 진행: the last few things each running step did, in memory only, sent live to open pages.
+      onActivity: (goalId, team, text) => {
+        const list = [...(liveActivity.get(goalId) ?? []), { at: new Date(clock.now()).toISOString(), team, text }].slice(-8);
+        liveActivity.set(goalId, list);
+        store.broadcast({ type: 'step.activity', goalId, team, text });
+      },
       // 문서 만들기: kordoc in the sandbox (no network, no model call), the same tool that converts attachments.
       docMaker: () => { const d = docs(); return d.available ? d : null; } }) });
   const teamsView = () => {
@@ -134,7 +141,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       mode: executing ? 'execution' : 'simulation', autoTick, autoScope, now: iso(clock.now()),
       limits: { attachMaxMB: setting('attach.maxMB', DEFAULT_MAX_MB), maxRoundsPerDay: scheduler.dailyLimit(), autoSwitch: store.getSettings()['limits.autoSwitch'] !== false, autoLevels: store.getSettings()['models.auto'] !== false, maxRoundsPerDayDefault: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
       projects: [...byProject].map(([id, goals]) => ({ id, policy: registry.getPolicy(`project:${id}`), goals, autoSave: autoSave.view(id), routine: routines.view(id) })),
-      catalog: registry.catalog(), events: store.recentEvents(200),
+      catalog: registry.catalog(), events: store.recentEvents(200), live: Object.fromEntries(liveActivity),
       limitStorageFailed: store.getSettings()['safety.limitStorageFailed'] === true,
     };
   };
