@@ -5,15 +5,15 @@ import { CLAUDE_CHOICES } from './model-choices.js';
 // list are used (Claude Code: model-config docs; Codex: this account's app-server list). A team 대장 picked a model
 // for keeps that pick; this only fills in teams with no pick.
 // Codex models by this account's own list descriptions (read 2026-09-30): GPT-6-Luna "Fast and affordable model for
-// easier tasks", GPT-6-Sol "Previous generation workhorse model", GPT-6-Astra "Frontier intelligence for the most
+// easier tasks", GPT-6.1-Sol "Latest workhorse model for coding and everyday work.", GPT-6-Astra "Frontier intelligence for the most
 // demanding work". Astra is never picked automatically: on a Plus plan it uses the weekly allowance too fast (대장).
 // 대장's ranges: Luna at medium–high, Sol at low–medium; Sonnet 5.5 at high (가벼움) and xhigh (보통), since its usage
 // barely differs between reasoning levels (대장).
 export const LEVELS = Object.freeze([
   { id: 'light', label: '가벼움', claude: { model: 'claude-sonnet-5-5', effort: 'high' }, codex: { model: 'gpt-6-luna', effort: 'medium' } },
   { id: 'normal', label: '보통', claude: { model: 'claude-sonnet-5-5', effort: 'xhigh' }, codex: { model: 'gpt-6-luna', effort: 'high' } },
-  { id: 'deep', label: '깊게', claude: { model: 'claude-opus-5-5', effort: 'high' }, codex: { model: 'gpt-6-sol', effort: 'low' } },
-  { id: 'max', label: '최고', claude: { model: 'claude-fable-5-1', effort: 'high' }, codex: { model: 'gpt-6-sol', effort: 'medium' } },
+  { id: 'deep', label: '깊게', claude: { model: 'claude-opus-5-5', effort: 'high' }, codex: { model: 'gpt-6.1-sol', effort: 'low' } },
+  { id: 'max', label: '최고', claude: { model: 'claude-fable-5-1', effort: 'high' }, codex: { model: 'gpt-6.1-sol', effort: 'medium' } },
 ]);
 const REVIEWERS = ['plan', 'security', 'policy', 'qa'];
 
