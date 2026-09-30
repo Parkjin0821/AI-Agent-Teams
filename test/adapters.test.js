@@ -142,7 +142,8 @@ test('Codex keeps only the Windows sandbox mode from the user config it otherwis
 test('Codex on Windows is told to read UTF-8 files with Get-Content -Encoding UTF8 (Korean looked garbled otherwise)', async () => {
   const { promptFor, WINDOWS_ENCODING_NOTE } = await import('../src/adapters.js');
   assert.ok(promptFor('codex', 'TASK', 'win32').startsWith(WINDOWS_ENCODING_NOTE));
-  assert.match(WINDOWS_ENCODING_NOTE, /Get-Content -Raw -Encoding UTF8/);
+  assert.ok(WINDOWS_ENCODING_NOTE.includes('[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; Get-Content -Raw -Encoding UTF8'),
+    'both the reading and the output encoding (checked in the sandbox: reading alone still printed garbled Korean)');
   assert.equal(promptFor('codex', 'TASK', 'linux'), 'TASK');
   assert.equal(promptFor('claude', 'TASK', 'win32'), 'TASK', 'Claude Code reads files with its own tool');
 });

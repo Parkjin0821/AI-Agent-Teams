@@ -189,6 +189,8 @@ const reviewBlock = [
   `End your reply with the line ${REVIEW_MARK} followed by one JSON object:`,
   '{"verdict":"pass"|"issues","issues":["..."],"blocking":false,"needs_decision":null}',
   'blocking: true only if the work must be fixed before it can be verified.',
+  'Something you could not check (a file you could not read, garbled text, a missing tool) is not a defect in the work:',
+  'the worker cannot fix it, so never block for it. Say what you could not check in issues with blocking false.',
   'needs_decision: a question for 대장 if a human must decide (payment, credentials, publishing outside,',
   'installing software, licence terms, personal data); otherwise null.',
   'Do not change any files. Write your reply in Korean.',
