@@ -7,6 +7,8 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
   // Document previews the engine renders (served under the preview route's sandbox policy: no scripts run).
   '.svg': 'image/svg+xml',
+  // 한글 documents the engine made: offered as a download only.
+  '.hwpx': 'application/vnd.hancom.hwpx',
   // Code is shown as plain text only (never run), so 대장 can read what a team changed before approving it.
   ...Object.fromEntries(['.js', '.mjs', '.cjs', '.ts', '.jsx', '.tsx', '.css', '.py', '.csv'].map(e => [e, 'text/plain; charset=utf-8'])) };
 function resolveFile(cwd, relative) {
@@ -29,6 +31,7 @@ export function readArtifact(cwd, relative) {
   if (!stat.isFile() || stat.size > 2000000) throw new Error('artifact must be a file under 2MB');
   return { type, bytes: readFileSync(file) };
 }
+export const isDownloadOnly = (relative) => path.extname(String(relative)).toLowerCase() === '.hwpx';
 export function artifactList(cwd) {
   return listWorkspaceFiles(cwd, 2000).filter(file => {
     try { readArtifact(cwd, file); return true; } catch { return false; }

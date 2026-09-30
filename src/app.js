@@ -19,7 +19,7 @@ import { ProjectWorkspaces, validateProjectId } from './workspaces.js';
 import { readUsage, recordRateLimits } from './usage.js';
 import { projectRecord } from './records.js';
 import { capacityBasis, subscriptionCapacity } from './subscription-safety.js';
-import { artifactList, readArtifact } from './artifacts.js';
+import { artifactList, readArtifact, isDownloadOnly } from './artifacts.js';
 import { detectTests } from './checks.js';
 import { npmCommand } from './sandbox.js';
 import { AutoSave } from './auto-save.js';
@@ -381,7 +381,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       const artifactMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/preview$/);
       if (request.method === 'GET' && artifactMatch) {
         const artifact = readArtifact(existingWorkspace(artifactMatch[1]), url.searchParams.get('path'));
+        const file = url.searchParams.get('path');
         response.writeHead(200, { 'content-type': artifact.type, 'x-content-type-options': 'nosniff',
+          ...(isDownloadOnly(file) ? { 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(path.basename(file))}` } : {}),
           'cache-control': 'no-store', 'referrer-policy': 'no-referrer',
           'content-security-policy': "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" });
         return response.end(artifact.bytes);

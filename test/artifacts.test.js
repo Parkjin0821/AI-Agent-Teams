@@ -19,3 +19,16 @@ test('preview confines files, blocks hidden paths, sensitive names, unknown type
     assert.throws(() => readArtifact(cwd, file));
   assert.deepEqual(artifactList(cwd).map(a => a.path).sort(), ['app.js', 'index.html']);
 });
+
+test('an engine-made 한글 document is listed and offered only as a download', async () => {
+  const { artifactList, isDownloadOnly } = await import('../src/artifacts.js');
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const path = (await import('node:path')).default;
+  const cwd = mkdtempSync(path.join(tmpdir(), 'hq-art-hwpx-'));
+  writeFileSync(path.join(cwd, '회의록.hwpx'), 'PK');
+  writeFileSync(path.join(cwd, '회의록.hwpx.svg'), '<svg/>');
+  const items = artifactList(cwd);
+  assert.deepEqual(items.map(i => [i.path, i.type]), [['회의록.hwpx', 'application/vnd.hancom.hwpx'], ['회의록.hwpx.svg', 'image/svg+xml']]);
+  assert.deepEqual([isDownloadOnly('회의록.hwpx'), isDownloadOnly('회의록.hwpx.svg')], [true, false]);
+});
