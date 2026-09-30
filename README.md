@@ -111,6 +111,61 @@ Codex는 사용자 설정의 MCP 서버를 읽지 않습니다(`--ignore-user-co
 AI가 “했다”고 말한 것은 근거가 아닙니다. 파일 존재·내용처럼 엔진이 작업 폴더에서 직접 확인한 것,
 또는 대장이 확인한 것만 완료로 칩니다.
 
+## 다른 PC에서 쓰기
+
+GitHub에는 **코드만** 있습니다. 새 PC에서는 아래 순서로 한 번 준비하면 같은 AGENT HQ가 동작합니다.
+
+**준비물**
+- Windows 10/11
+  - `start-agent-hq.cmd`를 쓰는 경우입니다. 다른 OS는 아래 `npm start` 방식을 씁니다.
+- [Git](https://git-scm.com)
+- [Node.js](https://nodejs.org) **24 이상** (데이터베이스로 `node:sqlite`를 씁니다)
+- Claude 구독과 [Claude Code](https://code.claude.com)
+- ChatGPT 구독과 [Codex CLI](https://developers.openai.com/codex)
+
+**순서**
+
+1. 코드를 받고, AI 없이 도는 테스트로 설치를 확인합니다.
+   ```powershell
+   git clone https://github.com/Parkjin0821/AI-Agent-Teams.git
+   cd AI-Agent-Teams
+   npm test
+   ```
+2. 두 CLI에 **구독 계정**으로 로그인합니다. 종량제 API 키는 쓰지 않습니다.
+   ```powershell
+   claude auth login
+   codex login
+   ```
+3. 문서 변환·만들기 도구(kordoc)를 설치합니다. `tools/`는 저장소에 올라가지 않으므로 PC마다 설치합니다.
+   ```powershell
+   npm install kordoc@4.16.1 --prefix tools/kordoc --omit=optional --ignore-scripts
+   ```
+4. Claude 사용량을 재기 위해 `~/.claude/settings.json`에 상태줄을 추가합니다.
+   - 경로는 받은 폴더에 맞게 바꿉니다.
+   - 이 설정을 한 뒤 터미널에서 Claude Code를 한 번 쓰면 값이 기록됩니다.
+   - 없어도 동작하지만, 그때는 팀 실행이 받은 한도 상태(정상/근접/초과)로만 멈춤 여부를 판단합니다.
+   ```json
+   "statusLine": { "type": "command", "command": "node \"C:/경로/AI-Agent-Teams/scripts/claude-statusline.mjs\"" }
+   ```
+5. `start-agent-hq.cmd`를 두 번 누르면 http://localhost:4314 가 열립니다.
+6. (선택) `node scripts/cli-smoke.mjs`로 두 CLI가 실제로 도는지 한 번 확인합니다. 사용량이 조금 듭니다.
+
+**새 PC로 옮겨지지 않는 것**
+
+저장소가 공개(Public)라서 다음은 일부러 저장소에서 뺐습니다.
+- `data/`: 프로젝트, 대화, 실행 기록, 설정, 사이트 허용 목록
+- `projects/`: 팀이 만든 파일, 첨부
+- `tools/`
+- `.claude/settings.json`
+
+그래서 새 PC는 **빈 상태**로 시작합니다. 사이트 허용, 기억, 스킬 승인, 신뢰 쌓기도 처음부터 다시 합니다. 회사 자료를 다른 PC로 옮겨야 하면 GitHub를 쓰지 말고, 회사 반출 규정부터 확인하세요.
+
+**두 PC를 오가며 쓸 때**
+
+- 한쪽에서 코드를 고쳤으면 `git push`를 합니다.
+- 다른 쪽에서는 `git pull` 한 뒤 서버를 다시 켭니다. 서버 창을 닫고 `start-agent-hq.cmd`를 다시 누르면 됩니다.
+- 화면 파일(`outputs/dashboard.html`)만 바뀐 경우에는 새로고침만 하면 됩니다.
+
 ## 실행
 
 **가장 쉬운 방법:** 저장소 폴더의 `start-agent-hq.cmd`를 두 번 누르면 실제 실행 서버(http://localhost:4314, 데이터 `data/real-test`)가 켜지고 페이지가 열립니다.
