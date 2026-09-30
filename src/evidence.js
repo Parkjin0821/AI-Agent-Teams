@@ -41,6 +41,8 @@ export function reportInstructions(criteria, { verifying = false } = {}) {
     '   (the engine parses the JSON itself; kinds: string, one_line, number, integer, positive_integer, boolean, array,',
     '   string_array, date; count, fields and unique are each optional)',
     '  {"type":"folder_only","path":"folder/","files":["a.json","README.md"]}  (the folder holds exactly these files)',
+    '  {"type":"file_excludes","path":"index.html","texts":["http://","https://","fetch("]}  (none of these texts is in',
+    '   the file, letter case ignored; proves a "없다·쓰지 않는다" criterion for exactly those texts)',
     '  {"type":"screen_ok","path":"index.html"}  (in verification: the engine opened this page in an isolated browser at',
     '   PC 1440px and phone 390px just before this step and found no horizontal overflow, broken image or script error;',
     '   it does not judge whether the page looks good)',
@@ -56,6 +58,9 @@ export function reportInstructions(criteria, { verifying = false } = {}) {
     'judge it. Never use it for work that is still missing.',
     'You may add "requests":[{"team":"dev|design|research","task":"specific follow-up within this project","criteria":["verifiable criterion"],"risk":"low|normal|high","complexity":"simple|normal|complex","effects":[]}] to propose collaboration. Requests are proposals, not permissions. Never expand the user scope.',
     'You may add "remember":[{"scope":"all"|"<team id>","text":"..."}] (at most 3) for lasting preferences or rules 대장 stated; they apply only after 대장 approves them.',
+    'A criterion with several parts (four sections, three files, each field) may use "checks":[{...},{...}] instead of',
+    '"check" (at most 8); it counts only when every check passes and each is about the criterion. Use null only when no',
+    'combination of these checks can prove it — reading a file yourself and saying so is not proof.',
     'A check must prove the criterion itself (the requested file or content). A status note you wrote that says',
     'the work is done is not proof: if nothing in the workspace can prove a criterion, use "check": null.',
     'The engine ignores a check that is about something else: the searched text (or the file, for file_exists) must',
@@ -86,13 +91,13 @@ export function verifyReport(report, criteria, cwd, ctx = {}) {
   criteria.forEach((criterion, i) => {
     const item = byIndex.get(i + 1);
     const note = typeof item?.note === 'string' ? item.note.slice(0, 500) : '';
-    let result = item?.check ? runCheck(item.check, cwd, ctx) : { status: 'none' };
-    // A passing check that is about something else (e.g. "IMG-5390 is in result.md" for "nothing was guessed") proves nothing.
-    if (result.status === 'pass' && item?.done === true && !relatesTo(item.check, criterion)) {
-      result = { status: 'unrelated', reason: `${result.proof.replace(/^엔진 확인 · /, '')} — 이 조건과 관련 없는 검사라 근거로 치지 않음` };
-    }
+    // "checks": a criterion with several parts (four sections, three files) counts only when every check passes and
+    // each is about it. Seen in a real run: the verifier confirmed such criteria by reading and left "check": null,
+    // because one check could only look at one text.
+    const list = Array.isArray(item?.checks) && item.checks.length ? item.checks.slice(0, 8) : item?.check ? [item.check] : [];
+    let result = list.length ? runChecks(list, criterion, cwd, ctx, item?.done === true) : { status: 'none' };
     // stayed_inside proves only the work-folder part of a criterion; the rest (e.g. "nothing guessed") stays with 대장.
-    if (result.status === 'pass' && item?.done === true && item.check.type === 'stayed_inside') {
+    if (result.status === 'pass' && item?.done === true && list.length === 1 && list[0].type === 'stayed_inside') {
       const rest = beyondBoundary(criterion);
       if (rest.length) result = { status: 'partial', reason: `${result.proof.replace(/^엔진 확인 · /, '')} — 엔진은 이 부분만 확인함 · “${rest.join(' ')}” 부분은 대장 판단` };
     }
@@ -102,6 +107,21 @@ export function verifyReport(report, criteria, cwd, ctx = {}) {
       ...(item?.person === true && result.status !== 'pass' ? { person: true } : {}) });
   });
   return { evidence, claims };
+}
+
+// One check, or several that must all pass. A passing check that is about something else (e.g. "IMG-5390 is in
+// result.md" for "nothing was guessed") proves nothing.
+function runChecks(list, criterion, cwd, ctx, claimed) {
+  if (list.length > 1 && list.some(c => c?.type === 'stayed_inside')) return { status: 'invalid', reason: 'stayed_inside 는 다른 확인과 묶지 않고 따로 낸다' };
+  const proofs = [];
+  for (const [i, check] of list.entries()) {
+    const at = list.length > 1 ? `${i + 1}번째 확인: ` : '';
+    const r = check && typeof check === 'object' ? runCheck(check, cwd, ctx) : { status: 'invalid', reason: '잘못된 확인' };
+    if (r.status !== 'pass') return { ...r, reason: `${at}${r.reason ?? ''}` };
+    if (claimed && !relatesTo(check, criterion)) return { status: 'unrelated', reason: `${at}${r.proof.replace(/^엔진 확인 · /, '')} — 이 조건과 관련 없는 검사라 근거로 치지 않음` };
+    proofs.push(r.proof.replace(/^엔진 확인 · /, ''));
+  }
+  return { status: 'pass', proof: `엔진 확인 · ${proofs.join(' / ')}` };
 }
 
 // A check relates to a criterion when the criterion names what the check looks at: a word of the searched text,
@@ -125,6 +145,9 @@ function relatesTo(check, criterion) {
   if (check.type === 'file_unchanged') return UNCHANGED_WORDS.test(c);
   if (check.type === 'file_exists') return words(String(check.path).replace(/\\/g, '/')).some(w => mentions(c, w));
   if (check.type === 'screen_ok') return /화면|모바일|레이아웃|넘침|깨진|screen|layout/.test(c);
+  if (check.type === 'file_excludes') {
+    return ABSENCE.test(c) && ((check.texts ?? []).some(t => words(t).some(w => mentions(c, w)) || c.includes(String(t).toLowerCase())) || namesFile(c, check.path));
+  }
   // a data check speaks to a criterion that names the file (or JSON) and does not claim an absence
   if (check.type === 'json_shape') return (namesFile(c, check.path) || /json/.test(c)) && !/없[다고음]$/.test(c.trim());
   // "only these files": every listed file (or the folder) is named in the criterion
@@ -144,6 +167,8 @@ function relatesTo(check, criterion) {
 const DOCUMENT_TOPIC = /문서|hwpx|한글 파일|보고서|기안|서식|계획서|회의록|보도자료|통지/;
 const SOURCE_TOPIC =/출처|원문|공식|source|official/;
 const CLAIMS_ABSENCE =/없[다고으음이는었]|않[았는다고음]|아니[다고]|금지|no |never|without/;
+// file_excludes speaks only to a criterion that claims an absence ("…없이", "쓰지 않는다", "금지").
+const ABSENCE = /없[다고으음이는었이]|않[았는다고음]|아니[다고]|금지|제외|no |never|without|free/;
 const namesFile = (criterion, file) => {
   const base = path.basename(String(file ?? '').replace(/\\/g, '/')).toLowerCase();
   return base.length >= 3 && criterion.includes(base);
@@ -184,6 +209,7 @@ function runCheck(check, cwd, ctx = {}) {
       ? { status: 'pass', proof: `엔진 확인 · ${rel}에 “${shown}” 포함` } : { status: 'fail', reason: `${rel}에 “${shown}” 없음` };
   }
   if (check.type === 'screen_ok') return checkScreen(rel, ctx.visual);
+  if (check.type === 'file_excludes') return checkExcludes(check, target, rel);
   if (check.type === 'json_shape') return checkJsonShape(check, target, rel);
   if (check.type === 'folder_only') return checkFolderOnly(check, target, rel);
   return { status: 'invalid', reason: '지원하지 않는 확인 방식' };
@@ -235,6 +261,20 @@ function checkJsonShape(check, target, rel) {
     done.push(`${check.unique} 겹침 없음`);
   }
   return { status: 'pass', proof: `엔진 확인 · ${where}: ${done.join(', ')}` };
+}
+
+// file_excludes: none of these texts is in the file (letter case ignored). It proves an absence ("외부 주소가 없다")
+// only for exactly the texts listed, which is why the criterion must claim an absence and name one of them.
+function checkExcludes(check, target, rel) {
+  const texts = (Array.isArray(check.texts) ? check.texts : []).filter(t => typeof t === 'string' && t.trim()).slice(0, 20);
+  if (!texts.length) return { status: 'invalid', reason: '없어야 할 문구 목록(texts)이 없음' };
+  if (!existsSync(target) || !statSync(target).isFile()) return { status: 'fail', reason: `파일 ${rel} 없음` };
+  if (statSync(target).size > MAX_READ) return { status: 'invalid', reason: '파일이 너무 큼' };
+  const body = readFileSync(target, 'utf8').toLowerCase();
+  const found = texts.filter(t => body.includes(t.toLowerCase()));
+  const shown = list => list.slice(0, 6).map(t => `“${t.length > 30 ? `${t.slice(0, 30)}…` : t}”`).join(', ');
+  return found.length ? { status: 'fail', reason: `${rel}에 ${shown(found)} 있음` }
+    : { status: 'pass', proof: `엔진 확인 · ${rel}에 ${shown(texts)} 없음` };
 }
 
 // screen_ok: the engine's own 화면 검사 of this step (visual-check.js) captured the page at both widths and found

@@ -217,3 +217,31 @@ test('json_shape and folder_only: data criteria the engine can prove itself (see
   fs.unlinkSync(path.join(cwd, 'menu', 'extra.txt'));
   assert.equal(verifyReport({ criteria: [{ index: 1, done: true, check: only }] }, ['페이지가 예쁘다'], cwd).claims[0].check, 'unrelated');
 });
+
+test('checks (all must pass) and file_excludes: what the verifier confirmed by reading can be proven (real bakery criteria)', async () => {
+  const cwd = mkdtempSync(path.join(tmpdir(), 'hq-multi-'));
+  writeFileSync(path.join(cwd, 'index.html'), '<html lang="ko"><style>h2{}</style><h2>가게 소개</h2><h2>영업시간</h2><h2>오시는 길</h2><h2>메뉴 표</h2></html>');
+  const criteria = ['작업 폴더 루트에 index.html 한 장이 있고, 가게 소개·영업시간·오시는 길·메뉴 표 네 구역이 각각 제목과 함께 들어 있다',
+    'index.html은 외부 라이브러리·CDN·외부 URL 참조(http://, https://, // 로 시작하는 src/href)와 fetch/XMLHttpRequest 없이 동작한다'];
+  const sections = ['가게 소개', '영업시간', '오시는 길', '메뉴 표'].map(t => ({ type: 'file_contains', path: 'index.html', text: `<h2>${t}</h2>` }));
+  const none = { type: 'file_excludes', path: 'index.html', texts: ['http://', 'https://', 'src="//', 'href="//', 'fetch(', 'XMLHttpRequest'] };
+  const report = { criteria: [{ index: 1, done: true, checks: sections }, { index: 2, done: true, check: none }] };
+  const { evidence, claims } = verifyReport(report, criteria, cwd);
+  assert.equal(evidence.length, 2, JSON.stringify(claims));
+  assert.match(evidence[0].proof, /가게 소개.*메뉴 표/);
+  assert.match(evidence[1].proof, /없음/);
+  // one part missing → the whole criterion is not proven, and the reason says which check
+  writeFileSync(path.join(cwd, 'index.html'), '<h2>가게 소개</h2><h2>영업시간</h2><h2>메뉴 표</h2><script src="https://cdn.example/x.js"></script>');
+  const again = verifyReport(report, criteria, cwd).claims;
+  assert.match(again[0].detail, /^3번째 확인: .*없음/);
+  assert.match(again[1].detail, /“https:\/\/” 있음/);
+  // file_excludes only speaks to a criterion that claims an absence
+  writeFileSync(path.join(cwd, 'index.html'), '<h2>메뉴 표</h2>');
+  assert.equal(verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'file_excludes', path: 'index.html', texts: ['http://'] } }] },
+    ['index.html에 메뉴 표가 있다'], cwd).claims[0].check, 'unrelated');
+  // an unrelated check inside checks spoils the set; stayed_inside is never bundled
+  assert.equal(verifyReport({ criteria: [{ index: 1, done: true, checks: [sections[3], { type: 'file_contains', path: 'index.html', text: 'h2' }] }] },
+    ['메뉴 표 구역이 있다'], cwd).claims[0].check, 'unrelated');
+  assert.equal(verifyReport({ criteria: [{ index: 1, done: true, checks: [sections[3], { type: 'stayed_inside' }] }] },
+    ['index.html에 메뉴 표 구역이 있다'], cwd, { boundary: () => ({ status: 'pass', proof: 'x' }) }).claims[0].check, 'invalid');
+});
