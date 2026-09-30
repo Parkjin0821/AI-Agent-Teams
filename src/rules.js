@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 
 // 대장 규칙: 대장's own rules on top of the Sentinel's fixed ones — for a site, a file path in the work folder, or a
 // connected tool: 허용 (allow), 승인 필요 (ask), 금지 (deny); for all projects or one. The fixed safety rules (outside the
@@ -49,6 +50,47 @@ export function pathViolations(rules, project, changed = []) {
     const rule = ruleFor(rules, { kind: 'path', target: file, project });
     if (rule && rule.action !== 'allow') out.push({ file, rule: { id: rule.id, target: rule.target, action: rule.action, note: rule.note ?? '' } });
   }
+  return out;
+}
+
+// 금지 경로 되돌리기: Codex's writes cannot be stopped one by one, so before a step the engine keeps a copy of every file
+// a 금지 path rule covers, and right after the step puts them back: a changed or removed file gets its old content again,
+// a new one leaves the work folder. What the team wrote is kept aside (heldDir, outside the work folder) for 대장.
+// Nothing is removed without its held copy written first. 승인 필요 files stay as they are for 대장 to judge.
+const denied = (rules, project, file) => ruleFor(rules, { kind: 'path', target: file, project })?.action === 'deny';
+export function guardDenied(cwd, rules, project, files, { maxBytes = 50 * 1024 * 1024 } = {}) {
+  const copies = new Map();
+  let used = 0;
+  for (const file of files ?? []) {
+    if (!denied(rules, project, file)) continue;
+    try { const data = readFileSync(path.join(cwd, file)); if (used + data.length > maxBytes) continue; used += data.length; copies.set(file, data); }
+    catch { /* unreadable: cannot be put back */ }
+  }
+  return copies;
+}
+export function restoreDenied(cwd, copies, rules, project, { added = [], modified = [], removed = [] }, heldDir) {
+  const out = [];
+  const keep = (file) => {
+    const to = path.join(heldDir, ...file.split('/'));
+    mkdirSync(path.dirname(to), { recursive: true });
+    copyFileSync(path.join(cwd, file), to);
+    return to;
+  };
+  const each = (list, change, fix) => {
+    for (const file of list.filter(f => denied(rules, project, f))) {
+      try { out.push({ file, change, ...fix(file) }); } catch { out.push({ file, change, restored: false }); }
+    }
+  };
+  if (!heldDir) return out;
+  each(added, 'added', file => { const held = keep(file); unlinkSync(path.join(cwd, file)); return { restored: true, held }; });
+  each(modified, 'modified', file => {
+    if (!copies.has(file)) return { restored: false };
+    const held = keep(file); writeFileSync(path.join(cwd, file), copies.get(file)); return { restored: true, held };
+  });
+  each(removed, 'removed', file => {
+    if (!copies.has(file)) return { restored: false };
+    mkdirSync(path.dirname(path.join(cwd, file)), { recursive: true }); writeFileSync(path.join(cwd, file), copies.get(file)); return { restored: true };
+  });
   return out;
 }
 

@@ -1378,7 +1378,7 @@ const REASON = {
   usage_unavailable_or_limited: '구독 로그인 미확인, 초과 사용 감지, 최신 사용량 미확인 또는 중단 기준(5시간 20%·주간 10%)에 닿아 기다립니다',
   unclear_review: '검토팀의 결과를 읽지 못해 멈췄습니다', needs_decision: '팀이 대장의 결정을 기다립니다', rule_violation: '대장 규칙에 걸리는 변경이 있어 멈췄습니다', unclear_plan: '기획팀이 다음 작업을 정하지 못했습니다',
   no_progress: '개발 단계에서 3번 연속 진전이 없어 멈췄습니다', awaiting_review: '엔진이 확인하지 못한 조건이 남아 멈췄습니다',
-  daily_cap: '오늘 실행 한도에 닿아 내일 이어서 합니다', pinned_model_unavailable: '고정한 모델을 쓸 수 없어 기다립니다',
+  daily_cap: '오늘 실행 한도에 닿아 내일 이어서 합니다', lane_wait: '병렬 작업이 끝나기를 기다립니다. 끝나면 기획팀이 그 결과를 보고 이어갑니다', pinned_model_unavailable: '고정한 모델을 쓸 수 없어 기다립니다',
   network_error: '네트워크 오류로 잠시 후 다시 시도합니다', network_retries_exhausted: '네트워크 오류가 계속되어 멈췄습니다',
   auth_error: '로그인이 필요합니다 (CLI 인증 오류)', limit_error: '구독 사용 한도에 닿아 멈췄습니다',
   permission_error: '권한 오류로 멈췄습니다', unclassified_error: '알 수 없는 오류로 멈췄습니다', invalid_result: '실행 결과를 읽지 못했습니다',
@@ -1424,6 +1424,7 @@ function stateOf(g) {
     case 'running': return { l: (g.team ? TEAM_NAME[g.team.step] + ' 작업 중' : '실행 중') + (g.pauseRequested ? ' · 멈춤 예약' : ''), tone: 'run' };
     case 'scheduled':
       if (g.reason === 'daily_cap') return { l: '오늘 한도 · 내일 이어서', tone: 'wait' };
+      if (g.reason === 'lane_wait') return { l: '병렬 작업 기다리는 중', tone: 'wait' };
       if (g.kind === 'team') return g.autoRun ? { l: '다음 단계 준비', tone: 'run' } : { l: g.round ? '멈춤' : '시작 전', tone: 'idle' };
       return { l: '실행 대기', tone: 'idle' };
     case 'paused': return { l: '멈춤', tone: 'idle' };
@@ -1998,7 +1999,7 @@ class Component extends DCLogic {
         + '. 그대로 두면 자정에 이어집니다. 더 진행하려면 오늘만 단계를 늘리세요 · 구독 사용량 중단 기준(5시간 20%·주간 10%)과 반복 감지는 그대로 지킵니다.';
       w.extendActs = [{ l: '오늘만 5단계 더', cls: 'btn pri sm', go: extend(5) }, { l: '오늘만 10단계 더', cls: 'btn sm', go: extend(10) },
         { l: '기본 한도 바꾸기', cls: 'btn ghost sm', go: () => this.setState({ ptab: 'settings' }) }];
-      w.hasWaitNote = ['daily_cap', 'usage_unavailable_or_limited'].includes(g.reason) || g.status === 'paused' || (!g.autoRun && isTeam && g.status === 'scheduled');
+      w.hasWaitNote = ['daily_cap', 'usage_unavailable_or_limited', 'lane_wait'].includes(g.reason) || g.status === 'paused' || (!g.autoRun && isTeam && g.status === 'scheduled');
       w.waitNote = g.reason === 'daily_cap' ? '오늘 단계 한도(' + lim.day + ')를 다 써서 자정에 이어집니다.' : g.status === 'paused' ? '멈춤 상태입니다. 시작을 누르면 이어집니다.'
         : g.reason ? reasonText(g.reason) : '아직 시작 전입니다.';
       // ── 감시 에이전트 ──

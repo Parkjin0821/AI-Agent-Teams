@@ -119,6 +119,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       // 감시 에이전트: checks every Claude tool call before it runs (see src/sentinel.js).
       sentinel: { script: path.join(root, 'scripts', 'sentinel-hook.mjs'), log: sentinelLog, grants: approvals.grantsFile, rules: rules.file },
       approvals, memory,
+      // 금지 경로 되돌리기: what a team wrote under a 금지 path is kept here, outside the work folder (rules.js).
+      heldDir: path.join(dataDir, 'held'),
       // 실시간 진행: the last few things each running step did, in memory only, sent live to open pages.
       onActivity: (goalId, team, text) => {
         const list = [...(liveActivity.get(goalId) ?? []), { at: new Date(clock.now()).toISOString(), team, text }].slice(-8);

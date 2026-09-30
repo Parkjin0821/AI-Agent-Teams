@@ -196,7 +196,7 @@ test('실시간 진행: tool uses become one short line; secret-looking text is 
   assert.equal(activityFrom({ type: 'item.started', item: { type: 'command_execution', command: 'node --test' } }), '명령 실행 중 · node --test');
   assert.equal(activityFrom({ type: 'item.started', item: { type: 'file_change', changes: [{ path: 'src/a.js' }, { path: 'b.md' }] } }), '파일 바꾸는 중 · src/a.js, b.md');
   assert.equal(activityFrom({ type: 'item.started', item: { type: 'reasoning' } }), '생각 정리 중');
-  assert.equal(activityFrom({ type: 'item.completed', item: { type: 'agent_message', text: 'done' } }), null);
+  assert.equal(activityFrom({ type: 'item.completed', item: { type: 'agent_message', text: 'done' } }), 'done');
   assert.equal(activityFrom({ type: 'result', result: 'x' }), null);
 });
 
@@ -212,4 +212,15 @@ test('live updates reach listeners but are not stored as events', async () => {
     assert.deepEqual(seen.map(e => [e.type, e.live]), [['step.activity', true]]);
     assert.equal(store.recentEvents(10).length, 0);
   } finally { store.close(); }
+});
+
+test('실시간 진행: Codex commands as seen in a real Windows run read as plain activity', async () => {
+  const { activityFrom } = await import('../src/adapters.js');
+  // exactly as codex-cli 0.158 printed it (JSON-decoded): doubled backslashes inside a quoted path
+  const ps = inner => ({ type: 'item.started', item: { type: 'command_execution', command: `"C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe" -Command '${inner}'` } });
+  assert.equal(activityFrom(ps('Get-ChildItem -Force | Select-Object Mode,Name')), '폴더 살펴보는 중');
+  assert.equal(activityFrom(ps("New-Item -ItemType Directory -Force -Path notes | Out-Null; [System.IO.File]::WriteAllText((Join-Path (Get-Location) 'notes/hello.md'), 'x')")), '파일 쓰는 중 · notes/hello.md');
+  assert.equal(activityFrom(ps('cmd /c type docs\\plan.md')), '파일 읽는 중 · docs/plan.md');
+  assert.equal(activityFrom(ps('npm test')), '명령 실행 중 · npm test');
+  assert.equal(activityFrom({ type: 'item.completed', item: { type: 'agent_message', text: 'notes/hello.md를 작성하겠습니다.\n둘째 줄' } }), 'notes/hello.md를 작성하겠습니다.');
 });

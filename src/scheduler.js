@@ -105,6 +105,7 @@ export class GoalScheduler {
         messages: [...(goal.messages ?? []), { role: 'team', kind: 'question', text: String(goal.question ?? ''), at },
           { role: 'user', kind: 'approval', text: `남은 조건을 대장이 확인했습니다 · ${goal.team.awaitingJudgement.join(' · ')}`, at }].slice(-100) } : {}) });
     void this.store.emit({ type: done ? 'goal.verified' : 'goal.confirmed', goalId, criterion });
+    if (done && goal.lane) this.laneFinished(goal);
     if (done && judged) this.dispatchFollowup(goal);
     return goal;
   }
@@ -404,6 +405,7 @@ export class GoalScheduler {
       return this.store.transaction(() => {
         const goal = this.store.getGoal(goalId);
         if (!goal || !DUE.includes(goal.status) || (!ignoreSchedule && Date.parse(goal.nextRunAt) > now)) return null;
+        if (goal.reason === 'lane_wait' && this.openLanes(goal).length) return null;
         const executor = this.stepExecutor(goal);
         const running = this.store.listGoals().filter(g => g.status === GoalStatus.RUNNING);
         const providerCap = executor === 'codex' ? this.policy.providerConcurrent?.codex ?? 1 : this.policy.providerConcurrent?.claude ?? 2;
@@ -490,7 +492,8 @@ export class GoalScheduler {
     const decided = violations.length
       ? { status: GoalStatus.REVIEW_REQUIRED, reason: 'rule_violation', nextRunAt: null,
         question: `[엔진] ${TEAMS[run.team]?.name ?? '팀'}이 대장 규칙에 걸리는 파일을 바꿨습니다:\n${violations.slice(0, 10)
-          .map(v => `- ${v.file} · ${v.rule.action === 'deny' ? '금지' : '승인 필요'} 규칙 “${v.rule.target}”${v.rule.note ? ` (${v.rule.note})` : ''}`).join('\n')}\n`
+          .map(v => `- ${v.file}${v.change === 'removed' ? ' (지움)' : ''} · ${v.rule.action === 'deny' ? '금지' : '승인 필요'} 규칙 “${v.rule.target}”${v.rule.note ? ` (${v.rule.note})` : ''}`
+            + (v.restored ? ` · 엔진이 원래대로 되돌림${v.held ? ' (팀이 쓴 내용은 따로 보관)' : ''}` : '')).join('\n')}\n`
           + '파일을 확인한 뒤, 괜찮으면 다시 시작하고 아니면 고칠 점을 답으로 보내 주세요.' }
       : goal.kind === 'team' && result.outcome === 'completed'
         ? this.decideTeam(goal, result, evidence, now) : this.decide(goal, result, evidence, now);
@@ -502,6 +505,7 @@ export class GoalScheduler {
       if (DUE.includes(next.status)) Object.assign(next, { pausedFrom: next.status, status: GoalStatus.PAUSED });
     }
     this.update(goal, next);
+    if (goal.status === GoalStatus.VERIFIED && goal.lane) this.laneFinished(goal);
     if (goal.status === GoalStatus.VERIFIED && !result.simulated) this.dispatchFollowup(goal);
     await this.store.emit({ type: `goal.${goal.status}`, goalId: goal.id, round: run.round, reason: goal.reason, team: run.team });
   }
@@ -544,6 +548,8 @@ export class GoalScheduler {
       }
       // 병렬 작업: an independent piece of work runs at the same time as a lane in its own folder.
       if (plan.parallel && plan.parallel.team) this.spawnLane(goal, plan.parallel);
+      // next_task needs the running lane's result: wait without spending steps, plan again when it is done.
+      if (plan.waitParallel && this.openLanes(goal).length) return this.waitForLane(team, this.openLanes(goal)[0], evidence);
       team.worker = WORKERS.includes(plan.team) ? plan.team : 'dev';
       team.profile = taskProfile(plan.profile);
       if (team.profile.effects.length) return review('needs_decision', { question: `승인 범위가 필요한 작업: ${team.profile.effects.join(', ')}. 해당 외부 작업은 아직 실행하지 않았습니다.` });
@@ -597,7 +603,11 @@ export class GoalScheduler {
     team.blockers = gate;
     team.feedback = [...gate, findings.feedback, ...team.reviewNotes].filter(Boolean).join('\n');
     team.reviewNotes = [];
-    if (proven && !gate.length) return finish(findings.improvements ?? []);
+    if (proven && !gate.length) {
+      // The main work is never finished while its lane runs: it waits, then planning sees the lane's result.
+      const open = this.openLanes(goal);
+      return open.length ? this.waitForLane(team, open[0], evidence) : finish(findings.improvements ?? []);
+    }
     // The same criteria still unproven at two verifications in a row, with no work step in between: another
     // plan → review → verify round cannot change the answer, so 대장 is asked instead of spending more usage.
     const unproven = goal.completionCriteria.filter(c => !evidence.some(e => e.criterion === c));
@@ -740,6 +750,24 @@ export class GoalScheduler {
       messages: this.withControl(child, `병렬 작업 시작 · ${TEAMS[p.team].name} · ${p.folder}`) });
     void this.store.emit({ type: 'goal.lane_started', goalId: goal.id, laneGoalId: child.id, team: p.team, folder: p.folder });
     return child;
+  }
+  waitForLane(team, lane, evidence) {
+    return { evidence, team: { ...team, step: 'plan', waitingLane: lane.id }, status: GoalStatus.SCHEDULED, reason: 'lane_wait',
+      question: null, nextRunAt: null };
+  }
+  // A finished lane: its parent learns the result (the plan prompt names the folder), and a parent that was waiting
+  // for it plans again right away.
+  laneFinished(lane) {
+    const parent = lane.parentGoalId ? this.store.getGoal(lane.parentGoalId) : null;
+    if (!parent || parent.status === GoalStatus.VERIFIED) return;
+    const laneResult = { goalId: lane.id, team: lane.team?.worker ?? lane.team?.step, folder: lane.lane, criteria: lane.completionCriteria, at: iso(this.clock.now()) };
+    const changes = { team: { ...parent.team, laneResult },
+      messages: this.withControl(parent, `병렬 작업 끝남 · ${TEAMS[laneResult.team]?.name ?? '팀'} · ${lane.lane}`) };
+    if (parent.reason === 'lane_wait') {
+      Object.assign(changes, { reason: null, nextRunAt: iso(this.clock.now()), team: { ...changes.team, step: 'plan', waitingLane: null } });
+    }
+    this.update(parent, changes);
+    void this.store.emit({ type: 'goal.lane_finished', goalId: parent.id, laneGoalId: lane.id, folder: lane.lane });
   }
   // Two goals of one project may run at once only as a lane and its parent.
   sameProjectOk(a, b) {

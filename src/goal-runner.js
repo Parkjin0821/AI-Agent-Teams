@@ -9,7 +9,7 @@ import { SkillLibrary } from './skills.js';
 import { hasSecret, readAsks } from './sentinel.js';
 import { readGrants } from './approvals.js';
 import { saveSources, sourceRecords } from './web-sources.js';
-import { pathViolations, readRules, rulesPrompt } from './rules.js';
+import { guardDenied, pathViolations, readRules, restoreDenied, rulesPrompt } from './rules.js';
 
 // Bridges the goal scheduler to the CLI adapter. After a real run the engine reads the tool's final
 // answer, runs the checks it proposed inside the workspace, and only passing checks become evidence.
@@ -21,7 +21,7 @@ const PROVIDER = { 'claude-code': 'claude', codex: 'codex' };
 
 // toolsFor(team) → { connectors, knownConnectors }: which claude.ai connectors 대장 opened for that team.
 export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, settings = () => ({}),
-  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, docMaker = null, onActivity = () => {} }) {
+  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, docMaker = null, onActivity = () => {}, heldDir = null }) {
   const simulated = adapter.enabled === false;
   return {
     async run(goal, run) {
@@ -71,7 +71,8 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const laneDeny = (store.listGoals?.() ?? []).filter(g => g.parentGoalId === goal.id && g.lane && g.status !== 'verified').map(g => g.lane);
       if (goal.lane || laneDeny.length) {
         const note = goal.lane ? `\n[병렬 작업] 이 작업은 작업 폴더의 ${goal.lane} 안에서만 파일을 만들고 고친다. 다른 곳에 쓰면 엔진이 멈춘다.\n`
-          : `\n[병렬 작업 진행 중] ${laneDeny.join(', ')} 폴더는 다른 팀이 동시에 작업 중이다. 그 안에는 쓰지 않는다.\n`;
+          : `\n[병렬 작업 진행 중] ${laneDeny.join(', ')} 폴더는 다른 팀이 동시에 작업 중이다. 그 안에는 쓰지 않는다.${
+            team === 'plan' ? ' 다음 작업에 그 결과가 먼저 필요하면 wait_parallel 을 true 로 한다 (끝나면 기획을 다시 한다).' : ''}\n`;
         const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + note + prompt.slice(at) : prompt + note;
       }
       const rulesBlock = team ? rulesPrompt(stepRules, goal.projectId) : '';
@@ -96,6 +97,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
         // 실시간 진행: what the step is doing now (live only, not stored).
         if (event.type === 'step.activity') onActivity(goal.id, team ?? 'task', event.text);
       };
+      const deniedCopies = simulated || !heldDir ? new Map() : guardDenied(cwd, stepRules, goal.projectId, before.files);
       const roundStart = new Date().toISOString();
       const result = await adapter.run(PROVIDER[run.executor], prompt, onEvent, { cwd, model: run.model, effort: run.effort, access: run.access ?? 'write', ...tools,
         ...(PROVIDER[run.executor] === 'codex' ? { images: attachedImages(goal, cwd) } : {}),
@@ -111,11 +113,17 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
         approvals.consumeOnce(goal.projectId);
       }
       // 대장 규칙 after the step: files it added or changed that a 금지 / 승인 필요 path rule covers. The Sentinel stops
-      // Claude's writes one by one; Codex's cannot be stopped, so this is where they are caught.
+      // Claude's writes one by one; Codex's cannot be stopped, so this is where they are caught (and 금지 ones put back).
       const afterRules = snapshot();
-      const changedFiles = [...afterRules.files.filter(f => !before.files.includes(f)),
-        ...afterRules.files.filter(f => before.signatures[f] && before.signatures[f] !== afterRules.signatures[f])];
-      const ruleViolations = simulated ? [] : [...pathViolations(stepRules, goal.projectId, changedFiles),
+      const addedFiles = afterRules.files.filter(f => !before.files.includes(f));
+      const modifiedFiles = afterRules.files.filter(f => before.signatures[f] && before.signatures[f] !== afterRules.signatures[f]);
+      const removedFiles = before.files.filter(f => !afterRules.files.includes(f));
+      const changedFiles = [...addedFiles, ...modifiedFiles];
+      // 금지 경로 되돌리기: files under a 금지 path rule go back to how they were before the step (rules.js).
+      const restored = simulated || !heldDir ? [] : restoreDenied(cwd, deniedCopies, stepRules, goal.projectId,
+        { added: addedFiles, modified: modifiedFiles, removed: removedFiles }, path.join(heldDir, goal.projectId, `${goal.id}-${run.round ?? Date.now()}`));
+      const ruleViolations = simulated ? [] : [...pathViolations(stepRules, goal.projectId, [...changedFiles, ...removedFiles])
+        .map(v => { const r = restored.find(x => x.file === v.file); return r ? { ...v, change: r.change, restored: r.restored, ...(r.held ? { held: r.held } : {}) } : v; }),
         // 병렬 작업 folders, the same check (this is what catches Codex; Claude's writes were stopped by the Sentinel)
         ...changedFiles.filter(f => (goal.lane && !f.startsWith(goal.lane)) || laneDeny.some(p => f.startsWith(p)))
           .map(f => ({ file: f, rule: { id: 'lane', target: goal.lane ?? laneDeny.find(p => f.startsWith(p)), action: 'deny',

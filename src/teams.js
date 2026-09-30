@@ -88,6 +88,9 @@ function currentWork({ team = {} }, empty) {
     '[현재 작업]',
     team.task ? `맡은 작업: ${clip(team.task, 1000)}` : empty,
     ...(team.feedback ? [`최근 피드백 (검증팀·검토팀·대장): ${clip(team.feedback, 1500)}`] : []),
+    // 병렬 작업 that finished: its folder's files are now part of the project and may be used.
+    ...(team.laneResult ? [`병렬 작업 끝남: ${TEAMS[team.laneResult.team]?.name ?? '팀'}이 ${team.laneResult.folder} 에서 마침 `
+      + `(완료 조건: ${clip((team.laneResult.criteria ?? []).join(' / '), 400)}). 필요하면 그 폴더 파일을 읽어 반영한다.`] : []),
   ].join('\n');
 }
 
@@ -205,8 +208,10 @@ const planBlock = [
   'completion_criteria: when the criteria above are empty, or when 대장\'s newest message or answer changes what counts as done (then give the complete new list) — concrete and verifiable, derived from 대장\'s conversation. Otherwise leave it out: a request to continue or clarify keeps the current criteria.',
   'Optional "parallel": ONE piece of work another team can do AT THE SAME TIME, fully independent of next_task, written only',
   'into its own new top-level folder: {"team":"research|dev|design","task":"...","folder":"research","criteria":["verifiable',
-  'criterion about files in that folder"]}. The main task must not write into that folder. Leave it out when the work depends',
-  'on next_task or on each other, or when one team is enough. It doubles usage while both run.',
+  'criterion about files in that folder"]}. The main task must not write into that folder. next_task itself must not need it,',
+  'but a LATER main step may use its result. Leave it out when one team is enough. It doubles usage while both run.',
+  'Optional "wait_parallel": true when parallel work is still running and next_task needs its result first: the main work then',
+  'waits without spending steps and planning runs again when it is done. The main work is never finished while it runs.',
   'Optional "remember": up to 3 lasting preferences or rules 대장 stated that should apply to future projects, as',
   '[{"scope":"all"|"plan"|"research"|"dev"|"design"|"security"|"policy"|"qa","text":"..."}]. They take effect only after 대장 approves them.',
   'Write your reply in Korean.',
@@ -274,6 +279,7 @@ export function parsePlan(answer) {
     reviews: REVIEWS.filter(r => Array.isArray(raw.reviews) && raw.reviews.includes(r)),
     needsDecision: question(raw.needs_decision),
     allDone: raw.all_done === true,
+    ...(raw.wait_parallel === true ? { waitParallel: true } : {}),
     ...(raw.complexity || raw.risk || raw.effects || raw.task_type || raw.proposed_model || raw.evalTaskId || raw.conditionsKey || raw.required_capabilities ? { profile: {
       complexity: raw.complexity, risk: raw.risk, effects: raw.effects, taskType: raw.task_type,
       requiredCapabilities: raw.required_capabilities, proposedModel: raw.proposed_model, proposalReason: raw.proposal_reason,

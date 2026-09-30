@@ -249,3 +249,36 @@ test('병렬 작업: a lane step that wrote outside its folder is caught after t
     { executor: 'codex', team: 'research', access: 'write' });
   assert.deepEqual(result.ruleViolations.map(v => [v.file, v.rule.note]), [['index.html', '병렬 작업은 자기 폴더에만 씀']]);
 });
+
+test('금지 경로 되돌리기: what a Codex step did under a 금지 path is put back right after it, and kept aside for 대장', async () => {
+  const { mkdirSync, readFileSync, existsSync, unlinkSync } = await import('node:fs');
+  const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(), 'hq-deny-')));
+  const cwd = workspaces.resolve(goal.projectId);
+  mkdirSync(path.join(cwd, 'private'), { recursive: true });
+  writeFileSync(path.join(cwd, 'private', 'keep.md'), '원래 내용');
+  writeFileSync(path.join(cwd, 'private', 'old.md'), '지우면 안 됨');
+  const rulesFile = path.join(mkdtempSync(path.join(tmpdir(), 'hq-deny-r-')), 'rules.json');
+  writeFileSync(rulesFile, JSON.stringify({ rules: [{ id: 'r', kind: 'path', target: 'private/', action: 'deny', project: null, note: '개인 메모' }] }));
+  const heldDir = mkdtempSync(path.join(tmpdir(), 'hq-held-'));
+  let records = [{ id: 'r1', status: 'running', team: 'dev', executor: 'codex', round: 3 }];
+  const s = { emit: async () => {}, listRuns: () => records, saveRun: r => { records = records.map(o => o.id === r.id ? r : o); }, listGoals: () => [] };
+  const adapter = { enabled: true, run: async (provider, p, e, opts) => {
+    writeFileSync(path.join(opts.cwd, 'private', 'memo.md'), '새 메모');
+    writeFileSync(path.join(opts.cwd, 'private', 'keep.md'), '덮어씀');
+    unlinkSync(path.join(opts.cwd, 'private', 'old.md'));
+    writeFileSync(path.join(opts.cwd, 'index.html'), 'ok');
+    return { outcome: 'completed', answer: 'AGENT_HQ_REPORT {"criteria":[]}' };
+  } };
+  const runner = createGoalRunner({ adapter, workspaces, store: s, sentinel: { rules: rulesFile }, heldDir });
+  const result = await runner.run({ ...goal, kind: 'team', team: { step: 'dev', task: '작업', feedback: '', cycle: 1 } },
+    { executor: 'codex', team: 'dev', access: 'write', round: 3 });
+  assert.deepEqual(result.ruleViolations.map(v => [v.file, v.change, v.restored]).sort(),
+    [['private/keep.md', 'modified', true], ['private/memo.md', 'added', true], ['private/old.md', 'removed', true]]);
+  assert.equal(readFileSync(path.join(cwd, 'private', 'keep.md'), 'utf8'), '원래 내용');
+  assert.equal(readFileSync(path.join(cwd, 'private', 'old.md'), 'utf8'), '지우면 안 됨');
+  assert.equal(existsSync(path.join(cwd, 'private', 'memo.md')), false);
+  assert.equal(readFileSync(path.join(cwd, 'index.html'), 'utf8'), 'ok', 'files outside the rule are left alone');
+  const memo = result.ruleViolations.find(v => v.file === 'private/memo.md');
+  assert.equal(readFileSync(memo.held, 'utf8'), '새 메모', 'what the team wrote is kept outside the work folder');
+  assert.ok(!memo.held.startsWith(cwd));
+});

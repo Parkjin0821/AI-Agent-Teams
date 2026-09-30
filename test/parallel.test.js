@@ -73,3 +73,36 @@ test('folders are kept apart: a lane writes only in its folder, the parent stays
   assert.match(write('research/prices.md', { laneDeny: ['research/'] }).reason, /병렬 작업의 폴더/);
   assert.equal(write('index.html', { laneDeny: ['research/'] }).decision, 'allow');
 });
+
+test('the main work waits for its lane: never finished while it runs, and plans again with the result when it is done', async () => {
+  const { store, scheduler } = setup(() => ({ outcome: 'completed' }));
+  try {
+    const parent = scheduler.addGoal({ projectId: 'p1', kind: 'team', autoRun: true, title: '가게 홈페이지', objective: '홈페이지', completionCriteria: ['index.html이 있다'] });
+    scheduler.update(store.getGoal(parent.id), { team: { ...store.getGoal(parent.id).team, step: 'qa', worker: 'design' } });
+    const child = scheduler.spawnLane(store.getGoal(parent.id), parallelOf(lane));
+    // every parent criterion proven at verification, but the lane still runs → wait, not finish
+    const waiting = scheduler.decideTeam(store.getGoal(parent.id), { outcome: 'completed', findings: { feedback: '', improvements: [], blocking: [] } },
+      [{ criterion: 'index.html이 있다', proof: 'ok' }], Date.now());
+    assert.deepEqual([waiting.status, waiting.reason, waiting.team.step, waiting.team.waitingLane], ['scheduled', 'lane_wait', 'plan', child.id]);
+    scheduler.update(store.getGoal(parent.id), waiting);
+    assert.equal(scheduler.claim(parent.id, Date.now()), null, 'no step is spent while waiting');
+    // planning can also ask to wait when its next task needs the lane's result
+    const planWait = scheduler.decideTeam({ ...store.getGoal(parent.id), team: { ...store.getGoal(parent.id).team, step: 'plan' } },
+      { outcome: 'completed', plan: { nextTask: '가격표 넣기', team: 'design', reviews: [], waitParallel: true } }, [], Date.now());
+    assert.equal(planWait.reason, 'lane_wait');
+    // the lane finishes → the parent learns where the result is and plans again right away
+    scheduler.update(store.getGoal(child.id), { status: 'verified' });
+    scheduler.laneFinished(store.getGoal(child.id));
+    const after = store.getGoal(parent.id);
+    assert.deepEqual([after.reason, after.team.step, after.team.waitingLane, after.team.laneResult.folder], [null, 'plan', null, 'research/']);
+    assert.match(after.messages.at(-1).text, /병렬 작업 끝남 · 조사팀 · research\//);
+    assert.ok(scheduler.claim(parent.id, Date.now() + 1000));
+  } finally { store.close(); }
+});
+
+test('the plan prompt tells planning about a finished lane, and wait_parallel is read from the plan', async () => {
+  const { teamPrompt } = await import('../src/teams.js');
+  const text = teamPrompt('plan', { goal: { objective: 'x', completionCriteria: ['a'] }, team: { laneResult: { team: 'research', folder: 'research/', criteria: ['가격 3곳'] } }, files: [] });
+  assert.match(text, /병렬 작업 끝남: 조사팀이 research\/ 에서 마침/);
+  assert.equal(parsePlan('AGENT_HQ_PLAN ' + JSON.stringify({ next_task: 't', team: 'design', wait_parallel: true })).waitParallel, true);
+});

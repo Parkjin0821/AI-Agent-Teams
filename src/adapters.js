@@ -76,6 +76,23 @@ function modelFrom(event) {
 // Only names, file names, hosts and short queries are shown; secret-looking text is never shown.
 const shortPath = p => String(p ?? '').replace(/\\/g, '/').split('/').filter(Boolean).slice(-2).join('/');
 const cut = (s, n) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n)}…` : t; };
+// Seen in a real run (codex-cli 0.158, Windows): every command arrives wrapped as
+// "C:\\...\\powershell.exe" -Command '<inner>', and files are written through PowerShell, not file_change items.
+// The wrapper is dropped and a few common reads and writes are named by their file.
+export function commandActivity(command) {
+  let inner = String(command ?? '').trim();
+  const wrapped = /^"?[^"]*?(?:powershell|pwsh|cmd)(?:\.exe)?"?\s+(?:-NoProfile\s+)?(?:-Command|\/c)\s+([\s\S]*)$/i.exec(inner);
+  if (wrapped) inner = wrapped[1].trim().replace(/^'([\s\S]*)'$/, '$1').replace(/^"([\s\S]*)"$/, '$1');
+  const file = re => { const m = re.exec(inner); return m ? shortPath(m[1].replace(/["'\\]+$/g, '').replace(/^["']+/, '')) : null; };
+  const written = file(/(?:WriteAllText|Set-Content|Out-File|Add-Content)[^'"]*?['"]([^'"]+\.[A-Za-z0-9]{1,6})['"]/i)
+    ?? file(/(?:Set-Content|Out-File|Add-Content)\s+(?:-(?:Path|FilePath|LiteralPath)\s+)?([^\s;|'"]+\.[A-Za-z0-9]{1,6})/i);
+  if (written) return `파일 쓰는 중 · ${written}`;
+  const read = file(/(?:cmd\s+\/c\s+type|Get-Content|ReadAllText|\bcat)\s*\(?\s*['"]?([^\s;|'")]+\.[A-Za-z0-9]{1,6})/i);
+  if (read) return `파일 읽는 중 · ${read}`;
+  if (/^(Get-ChildItem|dir|ls|rg --files|tree)\b/i.test(inner)) return '폴더 살펴보는 중';
+  if (/^(rg|Select-String|findstr|grep)\b/i.test(inner)) return `찾는 중 · ${cut(inner, 60)}`;
+  return `명령 실행 중 · ${cut(inner, 70)}`;
+}
 export function activityFrom(event) {
   const say = text => (hasSecretText(text) ? null : text);
   if (event?.type === 'assistant' && Array.isArray(event.message?.content)) {
@@ -91,9 +108,13 @@ export function activityFrom(event) {
       default: return String(use.name).startsWith('mcp__') ? say(`연결 도구 사용 중 · ${cut(String(use.name).split('__').slice(1).join('.'), 50)}`) : say(`${cut(use.name, 30)} 사용 중`);
     }
   }
+  // Codex's short notes between commands ("…를 작성하겠습니다") say best what it is about to do.
+  if (event?.type === 'item.completed' && event.item?.type === 'agent_message' && typeof event.item.text === 'string') {
+    return say(cut(event.item.text.split('\n')[0], 80));
+  }
   if (event?.type === 'item.started' && event.item) {
     const item = event.item;
-    if (item.type === 'command_execution') return say(`명령 실행 중 · ${cut(item.command, 70)}`);
+    if (item.type === 'command_execution') return say(commandActivity(item.command));
     if (item.type === 'file_change') return say(`파일 바꾸는 중 · ${cut((item.changes ?? []).map(c => shortPath(c.path)).join(', '), 70)}`);
     if (item.type === 'web_search') return say(`웹 검색 중 · ${cut(item.query, 50)}`);
     if (item.type === 'mcp_tool_call') return say(`연결 도구 사용 중 · ${cut(`${item.server ?? ''}.${item.tool ?? ''}`, 50)}`);
