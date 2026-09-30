@@ -148,6 +148,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     ['POST', /^\/api\/skills\/import$/, (m,body) => skills.importGitHub(body)],
     ['POST', /^\/api\/skills\/intake$/, (m,body) => skills.intake(body)],
     ['POST', /^\/api\/skills\/([a-f0-9]{64})\/review$/, (m,body) => skills.review(m[1],body)],
+    ['PUT', /^\/api\/skills\/([a-f0-9]{64})\/teams$/, (m,body) => skills.setTeams(m[1],body.teams)],
     ['POST', /^\/api\/skills\/([a-f0-9]{64})\/activate$/, (m,body) => skills.activate(m[1],body)],
     ['POST', /^\/api\/skills\/([a-f0-9]{64})\/disable$/, m => skills.disable(m[1])],
     ['DELETE', /^\/api\/skills\/([a-f0-9]{64})$/, m => skills.remove(m[1])],

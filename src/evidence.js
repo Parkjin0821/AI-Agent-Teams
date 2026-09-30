@@ -27,6 +27,8 @@ export function reportInstructions(criteria) {
     'You may add "remember":[{"scope":"all"|"<team id>","text":"..."}] (at most 3) for lasting preferences or rules 대장 stated; they apply only after 대장 approves them.',
     'A check must prove the criterion itself (the requested file or content). A status note you wrote that says',
     'the work is done is not proof: if nothing in the workspace can prove a criterion, use "check": null.',
+    'The engine ignores a check that is about something else: the searched text (or the file, for file_exists) must',
+    'share a word with the criterion, and file_unchanged only proves a criterion about attached originals staying the same.',
   ].join('\n');
 }
 
@@ -53,12 +55,32 @@ export function verifyReport(report, criteria, cwd, ctx = {}) {
   criteria.forEach((criterion, i) => {
     const item = byIndex.get(i + 1);
     const note = typeof item?.note === 'string' ? item.note.slice(0, 500) : '';
-    const result = item?.check ? runCheck(item.check, cwd, ctx) : { status: 'none' };
+    let result = item?.check ? runCheck(item.check, cwd, ctx) : { status: 'none' };
+    // A passing check that is about something else (e.g. "IMG-5390 is in result.md" for "nothing was guessed") proves nothing.
+    if (result.status === 'pass' && item?.done === true && !relatesTo(item.check, criterion)) {
+      result = { status: 'unrelated', reason: `${result.proof.replace(/^엔진 확인 · /, '')} — 이 조건과 관련 없는 검사라 근거로 치지 않음` };
+    }
     // A check only counts for a criterion the tool itself reports as done.
     if (result.status === 'pass' && item?.done === true) evidence.push({ criterion, proof: result.proof });
     claims.push({ criterion, claimed: item?.done === true, check: result.status, note, detail: result.proof ?? result.reason ?? '' });
   });
   return { evidence, claims };
+}
+
+// A check relates to a criterion when the criterion names what the check looks at: a word of the searched text,
+// the file for file_exists, or attached originals for file_unchanged. tests_pass is the engine's own test run.
+const GENERIC_WORDS = new Set(['파일', '내용', '있다', '없다', '있음', '없음', '작업', '폴더', '항목', '결과', '확인', '적혀', '포함', '표시']);
+const words = text => (String(text).toLowerCase().match(/[가-힣]+|[a-z0-9]+(?:[.,_-][a-z0-9]+)*/g) ?? [])
+  .filter(w => w.length >= 2 && !GENERIC_WORDS.has(w));
+const mentions = (criterion, word) => criterion.includes(word) || (/^[가-힣]{3,}$/.test(word) && criterion.includes(word.slice(0, -1)));
+const UNCHANGED_WORDS = /원본|첨부|바뀌|바꾸|변경|수정하지|그대로|훼손|지문|unchanged|original|attach/;
+function relatesTo(check, criterion) {
+  const c = String(criterion).toLowerCase();
+  if (check.type === 'tests_pass') return true;
+  if (check.type === 'file_unchanged') return UNCHANGED_WORDS.test(c);
+  if (check.type === 'file_exists') return words(String(check.path).replace(/\\/g, '/')).some(w => mentions(c, w));
+  if (check.type === 'file_contains') return words(check.text).some(w => mentions(c, w));
+  return false;
 }
 
 function runCheck(check, cwd, ctx = {}) {

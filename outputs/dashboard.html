@@ -362,6 +362,12 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 details[open]>.program-toggle::after{content:'⌃'}
 .program-toggle:hover{background:var(--subtle);color:var(--text)}
 .program-toggle:focus-visible{outline:2px solid var(--text);outline-offset:3px}
+.team-recent{margin-top:16px}
+.team-recent[open]>.program-toggle{margin-bottom:10px}
+.skill-description{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin:8px 0;color:var(--text-2);font-size:13px;line-height:1.55}
+.skill-details{margin-top:14px}
+.skill-details>summary{font-size:12px}
+.skill-details[open]>summary{margin-bottom:12px}
 .digest-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .digest-actions .btn{flex:1;min-width:150px;height:auto;min-height:64px;padding:12px;justify-content:flex-start;gap:10px;text-align:left;background:var(--surface);color:var(--text);border-color:var(--line);border-radius:12px;white-space:normal}
 .digest-actions .btn:hover{background:var(--subtle);border-color:var(--line-strong);transform:translateY(-1px)}
@@ -923,15 +929,19 @@ details[open]>.program-toggle::after{content:'⌃'}
   <div class="stack">
     <sc-for list="{{skillRows}}" as="k"><article class="card">
       <div class="sec-h"><h2>{{k.name}}</h2><span class="{{k.pillCls}}"><i></i>{{k.statusL}}</span></div>
-      <p>{{k.description}}</p>
-      <div class="row-f small muted"><span>적용 분야·팀: {{k.teamL}}</span><span>출처: {{k.sourceL}}</span></div>
-      <p class="hint">라이선스: {{k.licenseL}} · {{k.intakeL}}</p>
-      <div class="skill-checks"><div class="lbl" style="margin:0 0 6px">엔진 자동 검사 (참고용 · 승인 아님)</div>
-        <sc-for list="{{k.checkRows}}" as="c"><div class="tcheck"><span class="{{c.pillCls}}"><i></i>{{c.stL}}</span><span class="small"><b>{{c.name}}</b> · {{c.text}}</span></div></sc-for></div>
-      <div class="skill-review"><div class="lbl" style="margin:12px 0 6px">대장 검토 · {{k.gateL}}</div>
-        <sc-for list="{{k.reviewRows}}" as="r"><div class="row-f small" style="margin-bottom:6px"><b style="min-width:84px">{{r.label}}</b><span class="muted" style="flex:1;min-width:160px">{{r.stateL}}</span><button class="btn sm" onClick="{{r.pass}}">통과</button><button class="btn ghost sm" onClick="{{r.hold}}">보류</button></div></sc-for>
-        <div class="row-f" style="margin-top:10px"><sc-if value="{{k.canActivate}}"><button class="btn pri sm" onClick="{{k.activate}}">승인하고 켜기</button></sc-if><sc-if value="{{k.isActive}}"><button class="btn sm" onClick="{{k.disableIt}}">끄기</button></sc-if><button class="btn danger sm" onClick="{{k.removeIt}}">삭제</button></div></div>
-      <details style="margin-top:14px"><summary>적용 조건 · 검토 기록 · 원문</summary>
+      <p class="skill-description">{{k.description}}</p>
+      <div class="row-f small muted"><span>{{k.teamL}}</span><span>출처: {{k.sourceL}}</span><span>{{k.usageL}}</span></div>
+      <details class="skill-details">
+        <summary>자세히 보기</summary>
+        <p class="hint">라이선스: {{k.licenseL}} · {{k.intakeL}}</p>
+        <div class="lbl" style="margin:12px 0 6px">적용 팀</div>
+        <div class="seg wrap" role="group" aria-label="이 스킬을 적용할 팀"><sc-for list="{{k.teamOptions}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" disabled="{{o.disabled}}" onClick="{{o.toggle}}">{{o.label}}</button></sc-for></div>
+        <p class="hint">팀을 바꾸면 호환성 검토를 다시 받아야 사용할 수 있습니다.</p>
+        <div class="skill-checks"><div class="lbl" style="margin:0 0 6px">자동 검사 결과 · 참고</div>
+          <sc-for list="{{k.checkRows}}" as="c"><div class="tcheck"><span class="{{c.pillCls}}"><i></i>{{c.stL}}</span><span class="small"><b>{{c.name}}</b> · {{c.text}}</span></div></sc-for></div>
+        <div class="skill-review"><div class="lbl" style="margin:12px 0 6px">검토 상태 · {{k.gateL}}</div>
+          <sc-for list="{{k.reviewRows}}" as="r"><div class="row-f small" style="margin-bottom:6px"><b style="min-width:84px">{{r.label}}</b><span class="muted" style="flex:1;min-width:160px">{{r.stateL}}</span><button class="btn sm" onClick="{{r.pass}}">통과</button><button class="btn ghost sm" onClick="{{r.hold}}">보류</button></div></sc-for>
+          <div class="row-f" style="margin-top:10px"><sc-if value="{{k.canActivate}}"><button class="btn pri sm" onClick="{{k.activate}}">승인하고 켜기</button></sc-if><sc-if value="{{k.isActive}}"><button class="btn sm" onClick="{{k.disableIt}}">끄기</button></sc-if><button class="btn danger sm" onClick="{{k.removeIt}}">삭제</button></div></div>
         <dl class="facts" style="margin-top:12px"><dt>자동 선택 조건</dt><dd>{{k.triggerL}}</dd><dt>버전 지문</dt><dd class="mono small">{{k.id}}</dd><dt>출처 원문</dt><dd class="small">{{k.source}}</dd><dt>보안</dt><dd>{{k.security}}</dd><dt>정책·라이선스</dt><dd>{{k.policy}}</dd><dt>호환성</dt><dd>{{k.compatibility}}</dd></dl>
         <pre class="answer" style="max-height:480px;margin-top:16px">{{k.content}}</pre>
         <details><summary>라이선스 원문</summary><pre class="answer">{{k.licenseText}}</pre></details>
@@ -958,8 +968,10 @@ details[open]>.program-toggle::after{content:'⌃'}
           <span class="{{p.pillCls}}"><i></i>{{p.statusL}}</span></div></sc-for>
           <sc-if value="{{t.noTools}}"><div class="small muted">프로그램 상태를 불러오는 중입니다.</div></sc-if></div></details>
         <sc-if value="{{t.hasRecent}}">
-          <div class="lbl" style="margin-top: 16px">최근 작업</div>
-          <div class="crit"><sc-for list="{{t.recent}}" as="r"><div class="cr" style="grid-template-columns: 84px minmax(0,1fr) auto"><span class="small muted num">{{r.when}}</span><span class="small">{{r.project}} · {{r.res}}</span><span></span></div></sc-for></div>
+          <details class="team-recent">
+            <summary class="program-toggle">최근 작업 {{t.recentCount}}건</summary>
+            <div class="crit"><sc-for list="{{t.recent}}" as="r"><div class="cr" style="grid-template-columns: 84px minmax(0,1fr) auto"><span class="small muted num">{{r.when}}</span><span class="small">{{r.project}} · {{r.res}}</span><span></span></div></sc-for></div>
+          </details>
         </sc-if>
       </div>
     </sc-for>
@@ -1474,6 +1486,7 @@ class Component extends DCLogic {
         stL: working.length ? '작업 중' : '대기', pillCls: pillCls(working.length ? 'run' : 'idle'),
         now: working.length ? working.map((p) => p.name).join(', ') + ' 작업 중' : (mine[0] ? '최근 · ' + mine[0].project.name + ' (' + ago(mine[0].finishedAt || mine[0].startedAt) + ')' : '아직 작업 기록 없음'),
         hasRecent: mine.length > 0,
+        recentCount: mine.length,
         recent: mine.slice(0, 5).map((r) => ({ when: fmt(r.startedAt), project: r.project.name, res: r.simulated ? '모의 실행' : (r.outcome === 'completed' ? '완료' : (r.status === 'running' ? '실행 중' : '오류 · ' + (r.errorKind || ''))) })) };
     });
 
@@ -1559,6 +1572,7 @@ class Component extends DCLogic {
           if (ev) e = ev.proof;
           else if (claim && claim.check === 'fail') e = '확인 실패 · ' + claim.detail;
           else if (claim && claim.check === 'invalid') e = '확인 방법이 잘못됨 · ' + claim.detail;
+          else if (claim && claim.check === 'unrelated') e = '조건과 관련 없는 검사 · ' + claim.detail + (claim.note ? ' · AI 보고: ' + clip(claim.note, 160) : '');
           else if (claim) e = (claim.claimed ? 'AI 보고: 완료 · 엔진이 확인할 방법 없음' : 'AI 보고: 미완료') + (claim.note ? ' · ' + clip(claim.note, 200) : '');
           return { t: c, ok: !!ev, ckCls: 'ck' + (ev ? ' ok' : (claim && claim.check === 'fail' ? ' no' : '')), e: e, eCls: 'e' + (ev ? ' ok' : ''),
             // 팀 프로젝트는 검증팀이 실제로 한 번 확인한 뒤, 엔진이 증명하지 못한 조건만 대장이 확인한다.
@@ -1964,6 +1978,9 @@ class Component extends DCLogic {
           const allPass = KINDS.every(([kind]) => k.reviews && k.reviews[kind] && k.reviews[kind].pass === true);
           const done = KINDS.filter(([kind]) => k.reviews && k.reviews[kind]).length;
           return { checkRows: checkRows, reviewRows: reviewRows, canActivate: allPass && k.status !== 'active' && k.kind !== 'tool', isActive: k.status === 'active',
+            teamOptions:Object.entries(TEAM_NAME).map(([team,label])=>{const assigned=(k.teams || []).includes(team);return {
+              label, cls:assigned?'on':'', pressed:assigned?'true':'false', disabled:assigned && k.teams.length===1,
+              toggle:()=>act(this.api('PUT','/api/skills/'+k.id+'/teams',{teams:assigned?k.teams.filter(t=>t!==team):[...k.teams,team]}),k.name+' 적용 팀을 바꿨습니다 · 호환성 재검토 필요')};}),
             gateL: k.kind === 'tool' ? '도구형 · 외부 프로그램이 필요해 스킬로 켤 수 없습니다 (설치 승인·격리 시험 뒤 엔진 도구로 연결)' : k.status === 'active' ? '사용 중' : allPass ? '3가지 모두 통과 · 승인하면 켜집니다' : '켜려면 3가지 모두 통과가 필요합니다 (' + done + '/3 검토됨)',
             activate: async () => { if (await ask(k.name + ' 스킬을 켤까요? 적용 팀의 작업 지시에 이 스킬 원문이 들어갑니다.')) act(this.api('POST', '/api/skills/' + k.id + '/activate', { confirm: true }), k.name + ' 스킬을 켰습니다'); },
             disableIt: () => act(this.api('POST', '/api/skills/' + k.id + '/disable', {}), k.name + ' 스킬을 껐습니다'),
@@ -1971,6 +1988,7 @@ class Component extends DCLogic {
         };
         const review=kind=>{const r=k.reviews?.[kind];return r?(r.pass?'통과':'보류')+' · '+r.note:'검토 전';};
         return {...k,licenseL:k.license?.name || '미확인',licenseText:k.license?.content || '라이선스 원문이 아직 수집되지 않았습니다.',intakeL:k.intakeNote || '지침형 후보 · 추가 자료와 실행 호환성은 검토 필요',teamL:(k.teams || []).map(t=>TEAM_NAME[t] || t).join(' · '),sourceL:k.source==='local'?'로컬·자체 제작':'외부 원문',triggerL:(k.triggers || []).join(' · '),
+          usageL:k.applied ? '실제 작업에 '+k.applied+'회 적용' : '적용 기록 없음',
           statusL:({active:'사용 가능',pending:'검토 대기',disabled:'비활성'})[k.status] || k.status,pillCls:pillCls(k.status==='active'?'done':'idle'),security:review('security'),policy:review('policy'),compatibility:review('compatibility'),
           ...skillActions(k)};
       }),

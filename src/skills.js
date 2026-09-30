@@ -50,6 +50,24 @@ export const DEFAULT_TRUSTED = ['anthropics/skills'];
 const TOPIC_WORDS = { design: ['design', 'frontend', 'canvas', 'theme', 'brand', 'art'], coding: ['code', 'develop', 'builder', 'webapp', 'mcp'],
   testing: ['test'], accessibility: ['accessib', 'a11y'], documentation: ['doc', 'pdf', 'pptx', 'xlsx', 'writ'] };
 const APPLIED_NOTICE = 3; // the first uses of a newly enabled skill are shown on the run
+const MATCH_STOP_WORDS = new Set(['프로젝트', '작업', '수정', '생성', '구현', '추가', '확인', '기능', 'create', 'make', 'with', 'from', 'using', 'project']);
+const MATCH_EQUIVALENTS = { ui:['화면','인터페이스'], ux:['사용성','사용자경험'], frontend:['프론트엔드','웹화면'],
+  프론트엔드:['frontend','화면'], 테스트:['testing','test'], 문서:['documentation','document'] };
+const matchTerms = value => [...new Set(String(value || '').toLowerCase().match(/[가-힣]{2,}|[a-z0-9]{3,}|\bui\b|\bux\b/g) || [])]
+  .filter(term => !MATCH_STOP_WORDS.has(term));
+function matchScore(skill, query) {
+  const text = String(query || '').toLowerCase();
+  if (!text.trim()) return 0;
+  const triggers = skill.triggers || [];
+  const exact = triggers.filter(trigger => trigger && text.includes(trigger.toLowerCase()));
+  if (exact.length) return 100 + Math.max(...exact.map(trigger => trigger.length));
+  const name = skill.name.toLowerCase().replaceAll('-', ' ');
+  if (text.includes(name)) return 90;
+  const description = String(skill.description || '').toLowerCase();
+  const terms = matchTerms(text).filter(term => [term,...(MATCH_EQUIVALENTS[term] || [])]
+    .some(candidate => name.includes(candidate) || description.includes(candidate)));
+  return terms.length ? 10 + terms.length : 0;
+}
 
 // Instruction-only candidates. No checkout, package installation, scripts or credentials.
 export class SkillLibrary {
@@ -117,6 +135,17 @@ export class SkillLibrary {
     const updated = {...entry,reviews,status:'pending'}; // every new review revokes activation
     this.store.setSetting('skill.entry.' + id, updated); return updated;
   }
+  setTeams(id, teams) {
+    const entry = this.list().find(s => s.id === id);
+    if (!entry || !Array.isArray(teams) || !teams.length || teams.some(team => !TEAMS[team])) throw new Error('invalid skill teams');
+    const clean = [...new Set(teams)];
+    if (clean.length === entry.teams.length && clean.every(team => entry.teams.includes(team))) return entry;
+    const reviews = {...entry.reviews};
+    delete reviews.compatibility;
+    const updated = {...entry, teams:clean, reviews, status:'pending', routingUpdatedAt:new Date().toISOString()};
+    this.store.setSetting('skill.entry.' + id, updated);
+    return updated;
+  }
   activate(id, input) {
     const entry = this.list().find(s => s.id === id);
     if (entry && kindOf(entry) === 'tool') throw new Error('this skill needs a separate program; connect it as an engine tool instead');
@@ -166,9 +195,12 @@ export class SkillLibrary {
     if (this.store.deleteSetting) this.store.deleteSetting('skill.entry.' + id); else this.store.setSetting('skill.entry.' + id, null);
     return { removed: id, name: entry.name };
   }
-  select(team, task) {
-    const query = String(task || '').toLowerCase();
-    return this.list().filter(s => s.status === 'active' && kindOf(s) === 'instruction' && s.teams.includes(team) && s.triggers.some(t => query.includes(t))).slice(0,2);
+  select(team, task, objective = '') {
+    const eligible = this.list().filter(s => s.status === 'active' && kindOf(s) === 'instruction' && s.teams.includes(team));
+    const ranked = query => eligible.map(skill => ({skill, score: matchScore(skill, query)}))
+      .filter(item => item.score > 0).sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name))
+      .slice(0, 2).map(item => item.skill);
+    return ranked(task).length ? ranked(task) : ranked(objective);
   }
   async github(endpoint) {
     const response = await this.fetcher('https://api.github.com' + endpoint,{redirect:'error',signal:AbortSignal.timeout(15000),headers:{Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2026-03-10'}});

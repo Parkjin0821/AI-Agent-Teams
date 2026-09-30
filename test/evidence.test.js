@@ -112,3 +112,27 @@ test('file_unchanged: attachments are proven unchanged against the fingerprint t
   assert.match(check(['result.md']).claims[0].detail, /원래 지문 기록이 없음/, 'a file 대장 did not attach cannot be proven unchanged');
   assert.equal(check(['../outside']).claims[0].check, 'invalid');
 });
+
+test('a passing check about something else is not proof for the criterion (real case from a Codex QA report)', () => {
+  const cwd = ws();
+  writeFileSync(path.join(cwd, 'result.md'), '- 버튼 글자: 변경 내용 저장\n- 화면 코드: IMG-5390\n- 관리 번호: DOC-2718\n');
+  const C = [
+    "result.md에 이미지의 버튼 글자 '변경 내용 저장', 화면 코드 'IMG-5390'이 캡처 이미지와 일치하게 적혀 있다",
+    "파일에서 직접 읽은 내용만 적혀 있고 추측이 없으며, 읽지 못한 항목이 있으면 '읽지 못함'으로 표시되어 있다",
+    '작업 폴더 밖 경로 사용, 비밀정보 기록, 금지된 설정 파일 생성이 없다',
+    '작업 폴더에 result.md가 존재한다',
+  ];
+  const { evidence, claims } = verifyReport({ criteria: [
+    { index: 1, done: true, check: { type: 'file_contains', path: 'result.md', text: '- 화면 코드: IMG-5390' } },
+    { index: 2, done: true, check: { type: 'file_contains', path: 'result.md', text: '- 화면 코드: IMG-5390' } },
+    { index: 3, done: true, check: { type: 'file_exists', path: 'result.md' } },
+    { index: 4, done: true, check: { type: 'file_exists', path: 'result.md' } },
+  ] }, C, cwd);
+  assert.deepEqual(evidence.map(e => e.criterion), [C[0], C[3]]);
+  assert.deepEqual(claims.map(c => c.check), ['pass', 'unrelated', 'unrelated', 'pass']);
+  assert.match(claims[1].detail, /관련 없는 검사/);
+  // file_unchanged only proves a criterion about the attached originals
+  const U = verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'file_unchanged', paths: ['attachments/a.png'] } }] },
+    [C[2]], cwd, { originals: {} });
+  assert.equal(U.evidence.length, 0);
+});

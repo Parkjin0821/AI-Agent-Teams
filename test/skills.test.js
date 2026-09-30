@@ -32,6 +32,25 @@ test('pending skills never apply; three documented reviews and approval are requ
  lib.review(skill.id,{kind:'security',pass:false,note:'재검토 필요'});
  assert.equal(lib.select('design','화면 제작').length,0);
 });
+test('approved skill matches relevant UI work and falls back to the project objective',()=>{
+ const lib=setup();const skill=lib.register(input);
+ for(const kind of ['security','policy','compatibility'])lib.review(skill.id,{kind,pass:true,note:'검토 완료'});
+ lib.activate(skill.id,{confirm:true});
+ assert.equal(lib.select('design','UI 구성')[0].id,skill.id);
+ assert.equal(lib.select('design','자료 정리','화면 레이아웃 제작')[0].id,skill.id);
+ assert.equal(lib.select('design','문서 정리','').length,0);
+ assert.equal(lib.select('dev','UI 구성').length,0);
+});
+test('changing assigned teams suspends active use until compatibility is reviewed again',()=>{
+ const lib=setup();const skill=lib.register(input);
+ for(const kind of ['security','policy','compatibility'])lib.review(skill.id,{kind,pass:true,note:'검토 완료'});
+ lib.activate(skill.id,{confirm:true});
+ const changed=lib.setTeams(skill.id,['dev']);
+ assert.equal(changed.status,'pending');
+ assert.equal(changed.reviews.compatibility,undefined);
+ assert.equal(lib.select('dev','화면 레이아웃 제작').length,0);
+ assert.throws(()=>lib.setTeams(skill.id,[]),/teams/);
+});
 test('new content is a separate pending version; disabling prevents selection',()=>{
  const lib=setup(), a=lib.register(input), b=lib.register({...input,body:'다른 절차'});
  assert.notEqual(a.id,b.id);assert.equal(lib.register(input).id,a.id);

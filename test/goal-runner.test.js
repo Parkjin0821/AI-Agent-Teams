@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createGoalRunner } from '../src/goal-runner.js';
 import { ProjectWorkspaces } from '../src/workspaces.js';
+import { SkillLibrary } from '../src/skills.js';
 
 const goal = { id: 'g1', projectId: 'hello', objective: 'README를 쓴다', completionCriteria: ['README.md 파일이 있다', '팀 회의를 한다'] };
 const store = { emit: async () => {} };
@@ -64,6 +65,27 @@ test('a claim of "done" with a check that fails is not evidence', async () => {
 });
 
 const teamGoal = { ...goal, kind: 'team', team: { step: 'plan', task: '', feedback: '', cycle: 1 } };
+
+test('a relevant approved skill reaches its team prompt and counts only completed runs', async () => {
+  const values = {}, events = [], prompts = [];
+  const skillStore = { getSettings:()=>structuredClone(values), setSetting:(key,value)=>{values[key]=structuredClone(value);},
+    emit:async event=>{events.push(event);} };
+  const library = new SkillLibrary({store:skillStore});
+  const skill = library.register({name:'ui-layout',description:'화면 레이아웃 검토',body:'정보 위계를 점검한다.',teams:['design'],triggers:['화면']});
+  for(const kind of ['security','policy','compatibility'])library.review(skill.id,{kind,pass:true,note:'검토 완료'});
+  library.activate(skill.id,{confirm:true});
+  const outcomes = ['limited','completed'];
+  const adapter = {enabled:true,run:async (provider,prompt)=>{prompts.push(prompt);return {outcome:outcomes.shift(),answer:'AGENT_HQ_REPORT {"criteria":[]}' };}};
+  const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(),'hq-skill-run-')));
+  const runner = createGoalRunner({adapter,workspaces,store:skillStore});
+  const work = {...teamGoal,team:{...teamGoal.team,step:'design',task:'UI 구성'}};
+  await runner.run(work,{executor:'claude-code',team:'design',access:'write'});
+  assert.match(prompts[0],/정보 위계를 점검한다/);
+  assert.equal(library.list()[0].applied,undefined);
+  await runner.run(work,{executor:'claude-code',team:'design',access:'write'});
+  assert.equal(library.list()[0].applied,1);
+  assert.equal(events.filter(e=>e.type==='skill.applied').length,1);
+});
 
 test('team rounds use the team prompt and access, and return the parsed plan', async () => {
   let seen;
