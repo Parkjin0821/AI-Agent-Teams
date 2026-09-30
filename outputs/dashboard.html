@@ -344,9 +344,14 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .msg details{margin-top:6px}
 .msg.me{align-self:flex-end;background:#EEF2FF;border-color:#DCE3FF}
 .msg.me .meta b{color:#2E5BFF}
-.msg.team{align-self:flex-start;border-left:3px solid var(--team-accent,var(--line-strong));background:var(--team-tint,var(--subtle))}
-.msg.team .meta b,.msg.action[class*="team-"] .meta b{color:var(--team-accent,var(--text))}
-.msg.team.err{border-color:#F2C6B4;border-left-color:var(--team-accent,#F2C6B4);background:#FFF7F4}
+.msg.team{align-self:flex-start;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.035)}
+.msg.team .meta{align-items:center;gap:6px 8px;margin-bottom:8px}
+.msg.team .meta b,.msg.action[class*="team-"] .meta b{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;background:var(--team-tint,var(--subtle));color:var(--team-accent,var(--text));font-size:12px;font-weight:600;white-space:nowrap}
+.msg.team .meta b::before,.msg.action[class*="team-"] .meta b::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--team-accent,var(--text));flex:none}
+.msg.team .meta .when{color:var(--text-4)}
+.msg.team .body{font-size:13.5px;line-height:1.65}
+.msg.team .tchecks{padding-top:9px;margin-top:11px;border-top:1px solid var(--line)}
+.msg.team.err{border-color:#E8C8C4;background:#FFFBFA}
 .team-plan{--team-accent:#5947A8;--team-tint:#F6F4FC}
 .team-research{--team-accent:#0B746B;--team-tint:#F1FAF8}
 .team-dev{--team-accent:#245EB5;--team-tint:#F2F7FF}
@@ -403,8 +408,14 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .judge{display:flex;flex-direction:column;gap:6px;margin:10px 0 4px;max-width:72ch}
 .judge-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
 .judge-row>span{flex:1;min-width:0;font-size:13px}
-.proj-group{margin:18px 0 8px}
-.proj-done>summary{cursor:pointer}
+.proj-group{margin:18px 0 8px;font-size:13px;font-weight:600;color:var(--text-2)}
+.proj-done{margin-top:0}
+.proj-done>summary.proj-group{display:inline-flex;align-items:center;gap:8px;padding:0;border:0;border-radius:0;background:none;font-size:13px;font-weight:600;color:var(--text-2)}
+.proj-done>summary.proj-group:hover{background:none;color:var(--text)}
+.proj-done>summary.proj-group::before{display:none}
+.proj-done>summary.proj-group::after{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:translateY(-2px) rotate(45deg);transition:transform .15s}
+.proj-done[open]>summary.proj-group::after{transform:translateY(1px) rotate(-135deg)}
+.proj-done>summary.proj-group:focus-visible{outline:2px solid var(--text);outline-offset:3px}
 .team-recent{margin-top:16px}
 .team-recent[open]>summary{margin-bottom:10px}
 .skill-description{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin:8px 0;color:var(--text-2);font-size:13px;line-height:1.55}
@@ -522,6 +533,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     <section class="sec" aria-labelledby="proj-h">
       <div class="sec-h"><h2 id="proj-h">프로젝트</h2><div class="row-f"><button class="link small" onClick="{{goProjects}}">모두 보기</button><button class="link create small" onClick="{{openNew}}">새 프로젝트</button></div></div>
       <div class="list">
+        <sc-if value="{{homeNoActive}}"><div class="empty sm">진행 중인 프로젝트가 없습니다. 완료된 프로젝트는 ‘모두 보기’에서 볼 수 있습니다.</div></sc-if>
         <sc-for list="{{homeProjects}}" as="p">
           <button class="prow" onClick="{{p.open}}">
             <span style="min-width: 0"><span class="name">{{p.name}}<sc-if value="{{p.single}}"><span class="kind">단일 실행</span></sc-if></span><span class="sub">{{p.sub}}</span></span>
@@ -570,7 +582,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     <button class="link create small" onClick="{{openNew}}">새 프로젝트</button>
   </div>
   <sc-if value="{{hasActiveProjects}}">
-    <div class="lbl proj-group">진행 중 · {{activeProjects.length}}</div>
+    <div class="proj-group">진행 중 · {{activeProjects.length}}</div>
     <div class="list">
       <sc-for list="{{activeProjects}}" as="p">
         <button class="prow" onClick="{{p.open}}">
@@ -585,7 +597,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
   </sc-if>
   <sc-if value="{{hasDoneProjects}}">
     <details class="proj-done" open="{{doneOpen}}" onToggle="{{onDoneToggle}}">
-      <summary class="lbl proj-group">완료 · {{doneProjects.length}}</summary>
+      <summary class="proj-group" aria-label="완료된 프로젝트 {{doneProjects.length}}개 펼치기·접기">완료 · {{doneProjects.length}}</summary>
       <div class="list">
         <sc-for list="{{doneProjects}}" as="p">
           <button class="prow" onClick="{{p.open}}">
@@ -2154,7 +2166,7 @@ class Component extends DCLogic {
       hasProjects: P.length > 0, noProjects: P.length === 0 && !!s.eng,
       st: { active: activeN, inbox: pendingTotal, today: P.reduce((n, p) => n + p.today, 0), done: P.filter((p) => p.goal.status === 'verified').length, attnCls: 'stat' + (pendingTotal ? ' attn' : '') },
       inbox: inbox, inboxEmpty: inbox.length === 0,
-      homeProjects: activeP.concat(doneP).slice(0, 6).map(rowOf), allProjects: P.map(rowOf),
+      homeProjects: activeP.slice(0, 6).map(rowOf), homeNoActive: P.length > 0 && !activeP.length, allProjects: P.map(rowOf),
       activeProjects: activeP.map(rowOf), hasActiveProjects: activeP.length > 0, doneProjects: doneP.map(rowOf), hasDoneProjects: doneP.length > 0,
       doneOpen: s.doneOpen !== false, onDoneToggle: (e) => { const open = e.target.open; if (open !== (s.doneOpen !== false)) this.setState({ doneOpen: open }); }, teams: teams, control: control,
       recentActivity: P.flatMap(p => (p.runs || []).map(r => ({ project:p.name, team:TEAM_NAME[r.team] || r.team || '팀', when:ago(r.startedAt), result:r.simulated ? '모의 실행' : r.outcome === 'completed' ? '완료' : r.status === 'running' ? '실행 중' : '종료', at:r.startedAt || '' }))).sort((a,b) => b.at.localeCompare(a.at)).slice(0,3),
