@@ -472,3 +472,48 @@ test('an answer lets planning propose changed criteria, which need 대장 approv
     assert.deepEqual([g.reason, g.criteriaApprovalPending, g.completionCriteria], ['criteria_approval_required', true, [C[0]]]);
   } finally { store.close(); }
 });
+test('a step whose tool hit its usage stop runs on the other subscription, and the run says so', async () => {
+  // Codex (security, qa) out of room, Claude has room: the reviews run on Claude, marked as not independent
+  const { store, scheduler, add, calls } = setup(team => {
+    if (team === 'plan') return { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: ['security'] } };
+    if (team === 'dev') return { outcome: 'completed', diffHash: 'd1', evidence: ev(0, 1) };
+    if (team === 'qa') return { outcome: 'completed', evidence: ev(0, 1), findings: { feedback: '', improvements: [] } };
+    return { outcome: 'completed', review: { blocking: false, issues: [] } };
+  });
+  try {
+    scheduler.capacity = executor => executor === 'claude-code';
+    const goal = add();
+    for (let i = 0; i < 8 && store.getGoal(goal.id).status !== 'verified'; i++) await scheduler.runGoal(goal.id);
+    assert.deepEqual(calls.map(c => `${c.team}:${c.executor}`), ['plan:claude-code', 'dev:claude-code', 'security:claude-code', 'qa:claude-code']);
+    const runs = store.listRuns(goal.id);
+    const qa = runs.find(r => r.team === 'qa');
+    assert.deepEqual([qa.switchedFrom, qa.sameAsWorker], ['codex', true]);
+    assert.equal(runs.find(r => r.team === 'dev').switchedFrom, undefined, 'a step on its planned tool is not marked');
+    assert.equal(store.getGoal(goal.id).status, 'verified');
+  } finally { store.close(); }
+});
+test('no switch when 대장 turned it off, for high-risk work, for web work onto Codex, or when both are out', () => {
+  const { store, scheduler, add } = setup(() => ({}));
+  try {
+    const goal = add();
+    goal.team.step = 'qa';
+    scheduler.capacity = executor => executor === 'claude-code';
+    assert.equal(scheduler.stepExecutor(goal), 'claude-code');
+    scheduler.autoSwitch = () => false;
+    assert.equal(scheduler.stepExecutor(goal), 'codex');
+    scheduler.autoSwitch = () => true;
+    scheduler.registry = { getPolicy: () => ({ mode: 'auto', allowProviderSwitch: false }), catalog: () => [] };
+    assert.equal(scheduler.stepExecutor(goal), 'codex', 'project opt-out');
+    scheduler.registry = null;
+    goal.team.profile = { risk: 'high', complexity: 'normal', effects: [] };
+    assert.equal(scheduler.stepExecutor(goal), 'codex', 'high-risk work waits for its tool');
+    goal.team.profile = { risk: 'normal', complexity: 'normal', effects: [] };
+    goal.team.step = 'research';
+    scheduler.capacity = executor => executor === 'codex';
+    assert.equal(scheduler.stepExecutor(goal), 'claude-code', 'research needs the web, which Codex does not have');
+    goal.team.step = 'dev';
+    assert.equal(scheduler.stepExecutor(goal), 'codex');
+    scheduler.capacity = () => false;
+    assert.equal(scheduler.stepExecutor(goal), 'claude-code');
+  } finally { store.close(); }
+});

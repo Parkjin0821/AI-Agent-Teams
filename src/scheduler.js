@@ -36,8 +36,8 @@ const mergeEvidence = (list, confirmed = []) => [
 // checkpoint) is saved; a policy change during a round therefore takes effect from the next round.
 export class GoalScheduler {
   constructor({ store, runner, clock = { now: () => Date.now() }, policy = DEFAULT_POLICY, registry = null, capacity = null, capabilities = null, dailyCap = null,
-    trust = null }) {
-    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities, dailyCap, trust });
+    trust = null, autoSwitch = () => true }) {
+    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities, dailyCap, trust, autoSwitch });
     for (const goal of store.listGoals().filter(g => g.status === GoalStatus.RUNNING)) {
       for (const run of store.listRuns(goal.id).filter(r => r.status === 'running')) store.saveRun({ ...run, status: 'interrupted' });
       this.update(goal, { status: GoalStatus.RECOVERY_REQUIRED, reason: 'interrupted_by_restart', nextRunAt: null });
@@ -315,7 +315,28 @@ export class GoalScheduler {
     await Promise.all(claimed.map(run => this.execute(run)));
   }
 
+  // The tool this step runs on: the planned one, or the other subscription when the planned one hit its usage stop.
   stepExecutor(goal) {
+    const planned = this.plannedExecutor(goal);
+    return this.limitSwitch(goal, planned) ?? planned;
+  }
+
+  // 한도 자동 전환: when the team's tool hit its usage stop (5h 20% / weekly 10% left, or a limit reported) and the
+  // other subscription has room, the step runs there on that tool's own default model. Never onto Codex for work that
+  // needs the web or claude.ai connectors (Codex has neither). 대장 can turn this off (limits.autoSwitch) or per project
+  // (allowProviderSwitch: false).
+  limitSwitch(goal, planned) {
+    if (goal.kind !== 'team' || !this.capacity || this.autoSwitch?.() === false || this.capacity(planned)) return null;
+    // High-risk work is never moved for quota: it waits for the tool it was planned on.
+    if (goal.team?.profile?.risk === 'high') return null;
+    if (this.registry?.getPolicy(`project:${goal.projectId}`).allowProviderSwitch === false) return null;
+    const other = planned === 'codex' ? 'claude-code' : 'codex';
+    const step = goal.team?.step ?? 'plan';
+    if (other === 'codex' && (TEAMS[step]?.web || this.capabilities?.(step)?.['claude-code']?.includes('connectors'))) return null;
+    return this.capacity(other) ? other : null;
+  }
+
+  plannedExecutor(goal) {
     const collaborative = this.collaborativeAssignment(goal);
     if (collaborative) return collaborative.executor ?? TEAMS[goal.team?.step ?? 'plan'].executor;
     if (goal.kind === 'team' && goal.team?.step === 'dev'
@@ -407,7 +428,7 @@ export class GoalScheduler {
         if (from === GoalStatus.RETRY_WAIT) goal.attempt++;
         else { goal.round++; goal.attempt = 0; }
         const run = this.store.insertRun({ id: randomUUID(), goalId, round: goal.round, attempt: goal.attempt,
-          status: 'running', startedAt: iso(now), executor: this.stepExecutor(goal),
+          status: 'running', startedAt: iso(now), executor: this.stepExecutor(goal), ...this.switchNote(goal),
           team: goal.team?.step ?? null, access: goal.kind === 'team' ? TEAMS[goal.team.step].access : 'write',
           requestedModel: model.model, modelSource: model.source, fallbackFrom: model.fallbackFrom ?? null,
           requestedEffort: model.effort ?? null, selectionReason: model.reason ?? model.source,
@@ -664,6 +685,17 @@ export class GoalScheduler {
       effort: run?.requestedEffort ?? null, nextEffort: next.effort ?? null, reason: next.reason ?? next.source,
       comparison: next.comparison ?? [], requiredCapabilities: next.needs ?? [], proposalReason: next.proposalReason ?? null,
       changePending: Boolean(run) && (next.state !== 'ready' || next.model !== run.requestedModel) };
+  }
+
+  // Recorded on a run that another subscription took over; a review on the worker's own tool is not independent.
+  switchNote(goal) {
+    const planned = this.plannedExecutor(goal), executor = this.stepExecutor(goal);
+    if (planned === executor) return {};
+    const step = goal.team?.step;
+    const worker = this.store.listRuns(goal.id).slice().reverse().find(r => WORKERS.includes(r.team) && !r.simulated);
+    const sameAsWorker = (REVIEWS.includes(step) || step === 'qa') && worker?.executor === executor;
+    void this.store.emit({ type: 'goal.provider_switched', goalId: goal.id, team: step, from: planned, to: executor, sameAsWorker });
+    return { switchedFrom: planned, ...(sameAsWorker ? { sameAsWorker: true } : {}) };
   }
 
   update(goal, changes) {

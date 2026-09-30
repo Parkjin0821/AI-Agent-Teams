@@ -87,6 +87,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   const scheduler = new GoalScheduler({ store, clock, registry,
     capacity: guarded ? capacity : null,
     dailyCap: () => store.getSettings()['limits.maxRoundsPerDay'],
+    autoSwitch: () => store.getSettings()['limits.autoSwitch'] !== false,
     trust,
     capabilities: team => ({ 'claude-code': ['text','code', ...(TEAMS[team]?.web ? ['web'] : []),
       ...(toolsFor(team).connectors?.length ? ['connectors'] : [])], codex: ['text','code'] }),
@@ -117,7 +118,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     }
     return {
       mode: executing ? 'execution' : 'simulation', autoTick, autoScope, now: iso(clock.now()),
-      limits: { attachMaxMB: setting('attach.maxMB', DEFAULT_MAX_MB), maxRoundsPerDay: scheduler.dailyLimit(), maxRoundsPerDayDefault: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
+      limits: { attachMaxMB: setting('attach.maxMB', DEFAULT_MAX_MB), maxRoundsPerDay: scheduler.dailyLimit(), autoSwitch: store.getSettings()['limits.autoSwitch'] !== false, maxRoundsPerDayDefault: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
       projects: [...byProject].map(([id, goals]) => ({ id, policy: registry.getPolicy(`project:${id}`), goals, autoSave: autoSave.view(id) })),
       catalog: registry.catalog(), events: store.recentEvents(200),
       limitStorageFailed: store.getSettings()['safety.limitStorageFailed'] === true,
