@@ -18,7 +18,9 @@ export function buildCommand(provider, { cwd, model = null, effort = null, bins,
   if (!['read', 'write'].includes(access)) throw new Error(`unknown access: ${access}`);
   const env = childEnv();
   if (provider === 'claude') {
-    const tools = [...(access === 'read' ? ['Read'] : ['Read', 'Write', 'Edit']), ...(web ? ['WebSearch', 'WebFetch'] : [])];
+    // Glob/Grep: list and search the work folder (a real run: "no tool to see the folder"). The Sentinel keeps every
+    // read, list and search inside it.
+    const tools = [...(access === 'read' ? ['Read', 'Glob', 'Grep'] : ['Read', 'Glob', 'Grep', 'Write', 'Edit']), ...(web ? ['WebSearch', 'WebFetch'] : [])];
     // acceptEdits: file edits inside the workspace only; no shell tool is offered at all.
     // --strict-mcp-config drops local/project MCP servers; claude.ai connectors need their own switch.
     const args = ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits',
@@ -106,6 +108,8 @@ export function activityFrom(event, cwd = null) {
     const input = use.input ?? {};
     switch (use.name) {
       case 'Read': return say(`파일 읽는 중 · ${inWork(input.file_path, cwd)}`);
+      case 'Glob': return say(`파일 찾는 중 · ${cut(input.pattern, 50)}`);
+      case 'Grep': return say(`내용 찾는 중 · ${cut(input.pattern, 50)}`);
       case 'Write': return say(`파일 쓰는 중 · ${inWork(input.file_path, cwd)}`);
       case 'Edit': case 'MultiEdit': return say(`파일 고치는 중 · ${inWork(input.file_path, cwd)}`);
       case 'WebFetch': { try { const u = new URL(String(input.url)); return say(`웹 페이지 읽는 중 · ${cut(u.hostname + u.pathname, 70)}`); } catch { return '웹 페이지 읽는 중'; } }

@@ -29,7 +29,7 @@ test('claude runs non-interactively, edits only inside the workspace, without sh
   const cmd = buildCommand('claude', { cwd: 'C:/w', model: null, bins });
   assert.equal(cmd.file, 'claude.exe');
   assert.deepEqual(cmd.args, ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits',
-    '--tools=Read,Write,Edit', '--no-session-persistence', '--setting-sources', 'user', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}']);
+    '--tools=Read,Glob,Grep,Write,Edit', '--no-session-persistence', '--setting-sources', 'user', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}']);
   assert.equal(cmd.env.ENABLE_CLAUDEAI_MCP_SERVERS, 'false', 'claude.ai connectors (mail, drive, …) are off by default');
   assert.equal(cmd.cwd, 'C:/w');
   assert.deepEqual(buildCommand('claude', { cwd: 'C:/w', model: 'sonnet', bins }).args.slice(-2), ['--model', 'sonnet']);
@@ -37,7 +37,7 @@ test('claude runs non-interactively, edits only inside the workspace, without sh
 
 test('web access adds only the built-in web search and fetch tools', () => {
   const args = buildCommand('claude', { cwd: 'C:/w', bins, web: true }).args;
-  assert.ok(args.includes('--tools=Read,Write,Edit,WebSearch,WebFetch'));
+  assert.ok(args.includes('--tools=Read,Glob,Grep,Write,Edit,WebSearch,WebFetch'));
 });
 
 test('selected claude.ai connectors are allowed by name and every other connector is denied', () => {
@@ -50,7 +50,7 @@ test('selected claude.ai connectors are allowed by name and every other connecto
 });
 
 test('read-only access gives Claude only the Read tool and Codex the read-only sandbox', () => {
-  assert.ok(buildCommand('claude', { cwd: 'C:/w', bins, access: 'read' }).args.includes('--tools=Read'));
+  assert.ok(buildCommand('claude', { cwd: 'C:/w', bins, access: 'read' }).args.includes('--tools=Read,Glob,Grep'));
   assert.deepEqual(buildCommand('codex', { cwd: 'C:/w', bins, access: 'read' }).args.slice(0, 5), ['exec', '--json', '--ignore-user-config', '--sandbox', 'read-only']);
   assert.throws(() => buildCommand('claude', { cwd: 'C:/w', bins, access: 'admin' }), /access/);
 });

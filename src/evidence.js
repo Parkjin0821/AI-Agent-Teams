@@ -8,12 +8,17 @@ import { FORBIDDEN_NAMES, WRITE_TOOLS, hasSecret } from './sentinel.js';
 export const REPORT_MARK = 'AGENT_HQ_REPORT';
 const MAX_READ = 2_000_000;
 
-export function reportInstructions(criteria) {
+// verifying: the verification team only looks, so it is not asked to polish. Work steps are (seen in real runs: a page
+// made in 20 seconds and handed on unchecked): they review their own result once before they finish.
+export function reportInstructions(criteria, { verifying = false } = {}) {
   return [
     'Completion criteria:',
     ...criteria.map((c, i) => `${i + 1}. ${c}`),
     '',
-    'Do only what these criteria need, then stop. When you finish, end your reply with the line',
+    verifying ? 'Check only what these criteria need, then stop. When you finish, end your reply with the line'
+      : 'Do what the task and these criteria need, and do it well. Before you finish, open what you made once more and review'
+        + ' it against the task and the criteria (for a page: the engine\'s screen captures listed above, if any); fix what'
+        + ' is weak, missing or awkward, without widening the task. Then end your reply with the line',
     `${REPORT_MARK}`,
     'followed by one JSON object: {"criteria":[{"index":1,"done":true,"check":{...}|null,"note":"..."}]}',
     'For each criterion give a check that proves it using files in the current directory, or null if no file can prove it:',

@@ -19,6 +19,7 @@ export const hasSecret = text => typeof text === 'string' && SECRET.some(re => r
 export const FORBIDDEN_NAMES = /^(\.claude|\.codex|\.mcp\.json|CLAUDE(\.local)?\.md|AGENTS(\.override)?\.md|\.env(\..+)?|\.git)$/i;
 const RISKY_CONNECTOR = /(delete|remove|trash|share|publish|send|invite|transfer|purchase|payment|pay_|checkout|upload_to|post_)/i;
 export const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
+export const READ_TOOLS = ['Read', 'Glob', 'Grep'];
 
 function privateHost(host) {
   const h = host.replace(/^\[|\]$/g, '').toLowerCase();
@@ -59,6 +60,22 @@ export function decide(input, { workspace, grants = [], project = null, webMode 
     if (hasSecret(query)) return { decision: 'deny', reason: '검색어에 비밀정보 형식이 들어 있음 (유출 차단)', target: '[가림]' };
     if (query.length > 300) return { decision: 'deny', reason: '검색어가 너무 김 (유출 의심)', target: `${query.length}자` };
     return { decision: 'allow', reason: '웹 검색', target: query.slice(0, 80) };
+  }
+  // Reading and searching (Read, Glob, Grep): only inside the work folder, and never a .env file. A read inside the
+  // folder passes without a log line (reads are many and change nothing); a blocked one is logged.
+  if (READ_TOOLS.includes(tool)) {
+    if (!workspace) return { decision: 'deny', reason: '작업 폴더를 알 수 없음', target: tool };
+    const root = path.resolve(workspace);
+    const where = String(args.file_path ?? args.path ?? '');
+    const rel = path.relative(root, path.resolve(root, where || '.'));
+    if (rel.startsWith('..') || path.isAbsolute(rel)) return { decision: 'deny', reason: '작업 폴더 밖은 읽거나 찾을 수 없음', target: path.basename(where) };
+    // Glob's pattern and Grep's glob are file paths (Grep's own pattern is the text searched for).
+    const filePattern = tool === 'Glob' ? args.pattern : tool === 'Grep' ? args.glob : null;
+    if (typeof filePattern === 'string' && (path.isAbsolute(filePattern) || /^[a-zA-Z]:/.test(filePattern) || /(^|[\\/])\.\.([\\/]|$)/.test(filePattern))) {
+      return { decision: 'deny', reason: '작업 폴더 밖을 가리키는 찾기 패턴', target: tool };
+    }
+    if (rel.split(/[\\/]/).some(part => /^\.env(\..+)?$/i.test(part) && !/\.example$/i.test(part))) return { decision: 'deny', reason: '비밀 파일(.env)은 읽지 않음', target: rel };
+    return { decision: 'ignore', reason: '', target: '' };
   }
   if (WRITE_TOOLS.includes(tool)) {
     const file = String(args.file_path ?? args.notebook_path ?? '');

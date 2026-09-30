@@ -3,6 +3,15 @@ import assert from 'node:assert/strict';
 import { kindOf, parseRepoRequest, quickApprovable, skillChecks, SkillLibrary } from '../src/skills.js';
 const setup = () => { const values={}; return new SkillLibrary({store:{getSettings:()=>structuredClone(values),setSetting:(k,v)=>{values[k]=structuredClone(v);}}}); };
 const input = {name:'ui-layout',description:'화면 레이아웃 검토',body:'화면 정보 위계를 검토한다.',teams:['design'],triggers:['화면']};
+
+test('design work falls back to approved frontend guidance without keyword overlap',()=>{
+ const lib=setup(); const skill=lib.register({...input,name:'frontend-design',description:'Create distinctive frontend interfaces',triggers:['frontend']});
+ assert.equal(lib.select('design','첫 시안 만들기').length,0);
+ for(const kind of ['security','policy','compatibility'])lib.review(skill.id,{kind,pass:true,note:'검토 완료'});
+ lib.activate(skill.id,{confirm:true});
+ assert.equal(lib.select('design','첫 시안 만들기')[0].id,skill.id);
+ assert.equal(lib.select('dev','자료 처리').length,0);
+});
 test('automatic requests are bounded, deduplicated and search only generic topics', async()=>{
  const lib=setup();
  lib.requestNeeds([{topic:'design',reason:'Private project needs layout'}, {topic:'secret-project-name',reason:'no'}],{team:'design',project:'private'});

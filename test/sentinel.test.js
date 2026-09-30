@@ -92,3 +92,18 @@ test('every Claude run carries the Sentinel hook; Codex runs are sandboxed witho
   assert.deepEqual([cmd.env.AGENT_HQ_WORKSPACE, cmd.env.AGENT_HQ_PROJECT, cmd.env.AGENT_HQ_TEAM], [ws, 'p-1', 'dev']);
   assert.ok(!buildCommand('codex', { cwd: ws, bins, sentinel }).args.includes('--settings'));
 });
+test('reading, listing and searching stay inside the work folder; .env is never read', () => {
+  const cwd = mkdtempSync(path.join(tmpdir(), 'hq-read-'));
+  const call = (tool_name, tool_input) => decide({ tool_name, tool_input }, { workspace: cwd });
+  assert.equal(call('Read', { file_path: path.join(cwd, 'index.html') }).decision, 'ignore', 'a read inside passes without a log line');
+  assert.equal(call('Glob', { pattern: '**/*.html' }).decision, 'ignore');
+  assert.equal(call('Grep', { pattern: 'menu', path: 'menu', glob: '*.json' }).decision, 'ignore');
+  assert.equal(call('Read', { file_path: path.join(cwd, '..', 'other', 'secret.txt') }).decision, 'deny');
+  assert.equal(call('Glob', { pattern: '../../**/*' }).decision, 'deny');
+  assert.equal(call('Glob', { pattern: 'C:/Users/**' }).decision, 'deny');
+  assert.equal(call('Grep', { pattern: 'x', path: 'C:/Windows' }).decision, 'deny');
+  assert.equal(call('Grep', { pattern: '..', glob: '*.md' }).decision, 'ignore', 'Grep\'s own pattern is text, not a path');
+  assert.match(call('Read', { file_path: path.join(cwd, '.env') }).reason, /\.env/);
+  assert.equal(call('Read', { file_path: path.join(cwd, '.env.example') }).decision, 'ignore');
+  assert.equal(decide({ tool_name: 'Read', tool_input: { file_path: 'a' } }, {}).decision, 'deny', 'no work folder, no reading');
+});

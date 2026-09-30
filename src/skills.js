@@ -200,7 +200,10 @@ export class SkillLibrary {
     const ranked = query => eligible.map(skill => ({skill, score: matchScore(skill, query)}))
       .filter(item => item.score > 0).sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name))
       .slice(0, 2).map(item => item.skill);
-    return ranked(task).length ? ranked(task) : ranked(objective);
+    const selected = ranked(task).length ? ranked(task) : ranked(objective);
+    // A vague design handoff must not silently omit the approved baseline.
+    const baseline = team === 'design' && eligible.find(s => s.name === 'frontend-design');
+    return baseline ? [baseline, ...selected.filter(s => s.id !== baseline.id)].slice(0, 2) : selected;
   }
   async github(endpoint) {
     const response = await this.fetcher('https://api.github.com' + endpoint,{redirect:'error',signal:AbortSignal.timeout(15000),headers:{Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2026-03-10'}});

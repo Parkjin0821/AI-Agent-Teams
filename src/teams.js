@@ -139,7 +139,8 @@ export const TEAM_BRIEFS = Object.freeze({
       '화면 구현은 design/brief.md 와 design/acceptance.md 를 먼저 읽고 글자·색·간격·컴포넌트 기준을 그대로 연결한다. 기준이 없으면 임의 시안을 만들지 말고 디자인팀에 requests 로 요청한다. 기존 UI와 무관한 스타일로 전면 교체하지 않는다.',
       '코드에는 자동 테스트를 함께 만든다 (package.json 의 "test" 스크립트, test/*.test.js, test_*.py 중 하나). 검증 단계에서 엔진이 네트워크 없는 샌드박스에서 돌리고, 실패하면 완료되지 않는다.',
       '외부 패키지 추가는 설치가 필요하므로 하지 않는다. 필요하면 needs_decision 으로 묻는다.',
-      '이전 시도가 중단됐다는 기록이 있으면 기존 파일을 먼저 읽고 이어서 한다. 되돌려졌다고 가정하지 않는다.'],
+      '이전 시도가 중단됐다는 기록이 있으면 기존 파일을 먼저 읽고 이어서 한다. 되돌려졌다고 가정하지 않는다.',
+      '끝내기 전에 만든 파일을 다시 열어 작업 지시·완료 조건과 대조한다. 빠진 경우(빈 값·잘못된 입력·긴 글·0건)와 어색한 곳을 한 번 더 다듬고 넘긴다. 작업 범위는 넓히지 않는다.'],
     collaborate: ['디자인·조사가 더 필요하면 보고서의 requests 에 제안한다.'],
     boundary: ['명령을 실행할 수 없다. 있는 척하지 않는다.',
       '키·토큰·비밀번호를 파일에 쓰지 않고 환경변수에서 읽는다. .env 는 만들지 않는다 (.env.example 은 가능). 개인정보 예시는 가짜 값을 쓴다.'],
@@ -153,6 +154,7 @@ export const TEAM_BRIEFS = Object.freeze({
       'brief 에 제목/본문/보조 글씨의 크기·굵기·행간, 배경/본문/강조/상태 색, 간격 토큰, 콘텐츠 최대 폭, 버튼 높이와 상태를 구체적인 값으로 정의한다. 색보다 글자 위계로 중요도를 나누고 흐린 보조 글씨·중복 테두리·무의미한 카드·과도한 장식을 피한다. 기존 프로젝트 기준을 우선하며 모든 결과물을 같은 스타일로 만들지 않는다.',
       '제작 전 주요 화면과 빈 상태·로딩·오류·긴 글·모바일 배치를 설계한다. 동급 버튼 크기와 텍스트 정렬을 통일하고, 카드 높이는 내용에 맞춘다. 결과물과 기준 파일을 개발팀 requests 에 함께 명시한다.',
       '엔진이 이 단계 전에 지금 화면을 PC 1440px·모바일 390px 로 찍어 .hq-screens/ 에 둔다 (아래 엔진 결과에 파일 이름). 작업 전에 캡처를 Read 로 직접 열어 보고, 잘림·넘침·어색한 줄바꿈·위계·여백·정렬 문제부터 고친다. 캡처가 없으면(첫 화면이거나 검사 미실시) 시각 확인 미실시라고 보고한다. 체크리스트나 캡처 파일 존재만으로 검증 통과라 하지 않는다.',
+      '끝내기 전에 바꾼 화면 코드를 다시 열어 brief 기준(글자 위계·간격·정렬·모바일 배치)과 대조하고 한 번 더 다듬는다. 이번에 바꾼 부분의 캡처는 다음 검증 단계에서 엔진이 새로 찍으니, 확인할 곳을 note 에 적는다.',
       'HTML 페이지마다 <title>, <html lang>, 모바일 viewport, 이미지 alt 를 넣는다. 엔진이 확인한다.',
       '외부 스크립트는 넣지 않는다. 꼭 필요하면 note 에 이유를 적는다.'],
     collaborate: ['구현·연결은 개발팀에 requests 로 제안한다.'],
@@ -235,7 +237,7 @@ export function teamPrompt(step, input) {
   ] : [];
   const output = step === 'plan' ? planBlock
     : REVIEWS.includes(step) ? reviewBlock
-    : ['[출력 형식]', reportInstructions(input.goal.completionCriteria),
+    : ['[출력 형식]', reportInstructions(input.goal.completionCriteria, { verifying: step === 'qa' }),
       ...(step === 'qa' ? ['In the same JSON object also add "feedback": what is still missing or wrong (for the planning team),',
         'HTML 작업에서 엔진의 실제 화면 검증이 unavailable 이면 시각 검증 완료를 주장하지 않는다. feedback 과 improvements 에 데스크톱·모바일 화면 검증 미실시 및 필요한 승인 도구 연결을 명시한다. HTML 기본 검사 통과와 디자인 품질 확인을 구분한다.',
         'and "improvements": up to 5 short ideas to develop the project further once the criteria are met.'] : []),
