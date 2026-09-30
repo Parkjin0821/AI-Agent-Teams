@@ -163,13 +163,30 @@ GitHub에는 **코드만** 있습니다. 새 PC에서는 아래 순서로 한 �
 **두 PC를 오가며 쓸 때**
 
 - 한쪽에서 코드를 고쳤으면 `git push`를 합니다.
-- 다른 쪽에서는 `git pull` 한 뒤 서버를 다시 켭니다. 서버 창을 닫고 `start-agent-hq.cmd`를 다시 누르면 됩니다.
+- 다른 쪽에서는 `git pull` 한 뒤 서버를 다시 켭니다.
+  - `node scripts/agent-hq.mjs restart`를 쓰거나,
+  - `stop-agent-hq.cmd`를 누른 다음 `start-agent-hq.cmd`를 누릅니다.
 - 화면 파일(`outputs/dashboard.html`)만 바뀐 경우에는 새로고침만 하면 됩니다.
 
 ## 실행
 
 **가장 쉬운 방법:** 저장소 폴더의 `start-agent-hq.cmd`를 두 번 누르면 실제 실행 서버(http://localhost:4314, 데이터 `data/real-test`)가 켜지고 페이지가 열립니다.
-Claude Code 대화나 Codex 앱을 켜 둘 필요가 없습니다(팀은 설치된 CLI로 일합니다). 열린 창이 서버이므로 최소화해 두면 계속 동작하고, 닫으면 꺼집니다. 이미 켜져 있으면 페이지만 엽니다.
+Claude Code 대화나 Codex 앱을 켜 둘 필요가 없습니다. 팀은 설치된 CLI로 일합니다.
+
+- **서버는 창 없이 뒤에서 돕니다.** 누를 때 잠깐 뜨는 창은 저절로 닫힙니다.
+- **이미 켜져 있으면** 페이지만 엽니다.
+- **끌 때**는 `stop-agent-hq.cmd`를 누릅니다.
+
+같은 일을 명령으로도 할 수 있습니다.
+
+```powershell
+node scripts/agent-hq.mjs status
+node scripts/agent-hq.mjs restart   # 새 코드 적용
+node scripts/agent-hq.mjs stop
+```
+
+- `restart`는 팀 단계가 도는 중이면 거절하고, 페이지를 새로 열지 않습니다.
+- 켜고 끈 기록과 이유는 `data/real-test/server.log`에, 서버 출력은 `server-output.log`에 남습니다.
 
 ```powershell
 npm test
