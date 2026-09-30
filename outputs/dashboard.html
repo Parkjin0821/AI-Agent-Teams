@@ -108,7 +108,8 @@ main{max-width:1520px;margin:0 auto;padding:36px 32px 96px}
 .home-side-toggle:hover,.home-side-toggle[aria-expanded="true"]{background:var(--subtle);border-color:var(--line-strong);color:var(--text)}
 .home-side-content{padding:16px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow)}
 .side-block{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
-.side-block:first-child{margin-top:0}
+.side-block:first-child{margin-top:0;border-top:0;padding-top:0}
+.home-side-content>.side-block:nth-child(2){border-top:0;padding-top:0}
 .side-block h2{font-size:13px;margin-bottom:10px}
 .side-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .side-stat{border:1px solid var(--line);border-radius:8px;padding:9px 10px}
@@ -116,8 +117,11 @@ main{max-width:1520px;margin:0 auto;padding:36px 32px 96px}
 .side-stat b{display:block;font-size:18px;margin-top:2px}
 .side-meter{display:grid;gap:7px}
 .side-meter .mi{display:flex;justify-content:space-between;gap:8px;font-size:12px}
-.side-meter .mi.claude .provider-label{color:#a94f34}.side-meter .mi.codex .provider-label{color:#171717}
-.side-meter .mi.old b{color:var(--text-3)}.side-meter .mi.stop b{color:var(--stop)}
+.side-meter .mi.claude .provider-label,.side-meter .mi.claude b{color:#A94F34}
+.side-meter .mi.codex .provider-label,.side-meter .mi.codex b{color:#171717}
+.side-meter .mi b{white-space:nowrap}
+.side-meter .mi.old b{opacity:.7}
+.side-meter .mi.stop b::after{content:'중단';display:inline-block;margin-left:6px;padding:1px 4px;border-radius:4px;background:var(--stop-soft);color:var(--stop);font-size:10px;line-height:1.4}
 .side-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
 .side-list li{font-size:12px;line-height:1.45;color:var(--text-2)}
 .side-list .muted{display:block}
@@ -162,9 +166,9 @@ h2{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em}
 /* 팀 흐름 */
 .flow{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-4)}
 .flow .s{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
-.flow .s b{width:6px;height:6px;border-radius:2px;background:var(--line-strong)}
-.flow .s.on{color:var(--text);font-weight:600}
-.flow .s.on b{background:var(--accent)}
+.flow .s b{width:6px;height:6px;border-radius:2px;background:color-mix(in srgb,var(--team-accent,#A1A1AA) 40%,#fff)}
+.flow .s.on{color:var(--team-accent,var(--text));font-weight:600}
+.flow .s.on b{background:var(--team-accent,var(--accent))}
 .flow .sep{width:10px;height:1px;background:var(--line-strong)}
 .flow-lg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
 .fstep{padding:14px 18px;border-left:1px solid var(--line);position:relative}
@@ -352,8 +356,16 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .msg.team .meta .when{color:var(--text-4)}
 /* 팀 구분: 팀 색 글자 타일 + 왼쪽 색 줄 + 팀 이름 색. 도구·모델은 이름 아래 한 줄로. 같은 팀이 이어지면 타일은 첫 줄에만. */
 .msg.team{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:12px;border-left:3px solid var(--team-accent,var(--line-strong));padding-left:13px}
-.msg.team>.mono-tile{grid-row:1 / span 20;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:13px;font-weight:700;line-height:1;padding-top:1px;
+.mono-tile{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:13px;font-weight:700;line-height:1;padding-top:1px;
   color:var(--team-accent,var(--text-2));background:color-mix(in srgb,var(--team-accent,#71717A) 12%,#fff);border:1px solid color-mix(in srgb,var(--team-accent,#71717A) 22%,#fff)}
+.mono-tile.lg{width:36px;height:36px;border-radius:10px;font-size:15px}
+.msg.team>.mono-tile{grid-row:1 / span 20}
+/* 팀 화면도 대화창과 같은 팀 표시: 글자 타일 + 왼쪽 색 줄 + 이름 색 */
+.card.team-card{border-left:3px solid var(--team-accent,var(--line-strong))}
+.team-card .team-title{display:flex;align-items:center;gap:12px;min-width:0}
+.team-card .team-title h2{color:var(--team-accent,var(--text))}
+.team .nm{display:inline-flex;align-items:center;gap:8px;color:var(--team-accent,var(--text))}
+.team .nm .mono-tile{width:24px;height:24px;border-radius:7px;font-size:12px}
 .msg.team>:not(.mono-tile){grid-column:2}
 .msg.team .meta b,.msg.team .meta b::before{background:none;padding:0}
 .msg.team .meta b{font-size:13.5px;font-weight:650;color:var(--team-accent,var(--text))}
@@ -563,7 +575,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
       </div>
     </section>
     </div><aside class="home-side" aria-label="상태와 요약"><div class="home-side-content">
-      <section class="side-block" aria-label="작업 현황"><div class="side-stats"><div class="side-stat"><span>진행 중</span><b>{{st.active}}개</b></div><div class="side-stat"><span>오늘 실행</span><b>{{st.today}}회</b></div><div class="side-stat"><span>완료</span><b>{{st.done}}개</b></div><div class="side-stat"><span>확인 필요</span><b>{{st.inbox}}건</b></div></div></section>
+  <section class="side-block" aria-label="작업 현황"><h2>작업 현황</h2><div class="side-stats"><div class="side-stat"><span>진행 중</span><b>{{st.active}}개</b></div><div class="side-stat"><span>오늘 실행</span><b>{{st.today}}회</b></div><div class="side-stat"><span>완료</span><b>{{st.done}}개</b></div><div class="side-stat"><span>확인 필요</span><b>{{st.inbox}}건</b></div></div></section>
       <section class="side-block"><div class="sec-h"><h2>구독 사용량</h2><button class="link small" onClick="{{meter.go}}">상세</button></div><sc-if value="{{meter.has}}"><div class="side-meter"><sc-for list="{{meter.items}}" as="m"><div class="{{m.cls}}" title="{{m.t}}"><span class="provider-label">{{m.l}}</span><b>{{m.v}}</b></div></sc-for></div></sc-if><sc-if value="{{meter.none}}"><p class="hint">확인된 사용량이 없습니다.</p></sc-if></section>
       <div class="side-block"><button class="home-side-toggle" aria-expanded="{{sideExpanded}}" aria-controls="home-side-extra" onClick="{{toggleSide}}">요약 · 활동 보기</button></div><sc-if value="{{sideOpen}}"><div id="home-side-extra">
       <section class="side-block"><h2>요약 · 예정</h2><sc-if value="{{dg.has}}"><p class="small"><b>{{dg.title}}</b> · {{dg.when}}</p><ul class="side-list"><sc-for list="{{dg.lines}}" as="l"><li>{{l}}</li></sc-for></ul><sc-if value="{{dg.hasProjects}}"><ul class="side-list" style="margin-top:10px"><sc-for list="{{dg.projects}}" as="p"><li><button class="link small" onClick="{{p.open}}">{{p.title}}</button> · {{p.statusL}}</li></sc-for></ul></sc-if></sc-if><sc-if value="{{dg.none}}"><p class="hint">아직 요약이 없습니다.</p></sc-if><sc-if value="{{dg.noUpcoming}}"><p class="hint">예정된 일이 없습니다.</p></sc-if><ul class="side-list"><sc-for list="{{dg.upcoming}}" as="u"><li><span class="muted">{{u.when}}</span>{{u.what}}</li></sc-for></ul><details style="margin-top:12px"><summary>요약 관리</summary><div class="side-manage"><div class="row-f"><button class="btn sm" onClick="{{dg.makeDaily}}">오늘 요약 만들기</button><button class="btn sm" onClick="{{dg.makeWeekly}}">주간 보고 만들기</button></div><details><summary>요약 설정</summary><div class="field"><label for="dg-time">요약 시각</label><div class="row-f"><input class="input" id="dg-time" type="time" value="{{dg.timeDraft}}" onChange="{{dg.onTime}}"><button class="btn sm" onClick="{{dg.saveTime}}">저장</button></div></div><div class="field"><label>매일 요약</label><div class="seg" role="group" aria-label="매일 요약"><sc-for list="{{dg.dailyChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div><div class="field"><label>주간 보고</label><div class="seg wrap" role="group" aria-label="주간 보고 요일"><sc-for list="{{dg.weekChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div></details><sc-if value="{{dg.hasOlder}}"><details><summary>지난 요약 {{dg.olderN}}개</summary><sc-for list="{{dg.older}}" as="o"><div class="small"><b>{{o.title}}</b> · {{o.when}}<button class="link small" onClick="{{o.remove}}">삭제</button></div></sc-for></details></sc-if><sc-if value="{{dg.has}}"><button class="btn ghost sm" onClick="{{dg.removeLatest}}">최근 요약 삭제</button><button class="btn danger sm" onClick="{{dg.clear}}">요약 모두 지우기</button></sc-if></div></details></section>
@@ -574,8 +586,8 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
       <div class="sec-h"><h2 id="team-h">팀</h2><button class="link small" onClick="{{goTeams}}">자세히</button></div>
       <div class="panel teams">
         <sc-for list="{{teams}}" as="t">
-          <div class="team">
-            <div class="h"><span class="nm">{{t.name}}</span><span class="{{t.pillCls}}"><i></i>{{t.stL}}</span></div>
+          <div class="{{t.miniCls}}">
+            <div class="h"><span class="nm"><span class="mono-tile" aria-hidden="true">{{t.mono}}</span>{{t.name}}</span><span class="{{t.pillCls}}"><i></i>{{t.stL}}</span></div>
             <div class="role">{{t.now}}</div>
             <dl><dt>AI 모델 계열</dt><dd>{{t.family}}</dd><dt>실행 도구</dt><dd class="mono small">{{t.tool}}</dd><dt>확인된 모델</dt><dd class="mono small">{{t.model}}</dd><dt>오늘</dt><dd class="num">{{t.today}}회</dd></dl>
           </div>
@@ -1030,8 +1042,8 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
   <div class="card" style="margin-bottom: 16px"><h2>기록팀 · AI 없이 엔진이 직접</h2><p class="hint">실행·검증 기록을 GitHub·Notion에 붙여 넣을 초안으로 정리합니다. 대화 원문과 파일은 넣지 않고, 자동으로 보내지 않습니다.</p></div>
   <div class="stack">
     <sc-for list="{{teams}}" as="t">
-      <div class="card">
-        <div class="row-f" style="justify-content: space-between"><div class="row-f"><h2>{{t.name}}</h2><span class="kind">{{t.kind}}</span></div><span class="{{t.pillCls}}"><i></i>{{t.stL}}</span></div>
+      <div class="{{t.cardCls}}">
+        <div class="row-f" style="justify-content: space-between"><div class="team-title"><span class="mono-tile lg" aria-hidden="true">{{t.mono}}</span><h2>{{t.name}}</h2><span class="kind">{{t.kind}}</span></div><span class="{{t.pillCls}}"><i></i>{{t.stL}}</span></div>
         <p class="hint" style="margin: 4px 0 14px">{{t.role}}</p>
         <dl class="facts"><dt>AI</dt><dd>{{t.ai}}</dd><dt>할 수 있는 일</dt><dd>{{t.access}}</dd><dt>최근 실제 실행</dt><dd>{{t.model}}</dd><dt>오늘</dt><dd class="num">{{t.today}}회</dd><dt>지금</dt><dd>{{t.now}}</dd></dl>
         <details style="margin-top: 16px"><summary>{{t.progsL}}</summary>
@@ -1448,7 +1460,7 @@ class Component extends DCLogic {
       return pathOf(team);
     };
     const flowOf = (p) => (p.isTeam ? cyclePath(p) : ['plan', 'dev', 'qa']).map((k, i) => ({ l: TEAM_NAME[k].replace('팀', ''), sep: i > 0,
-      cls: 's' + (p.isTeam && p.goal.team && p.goal.team.step === k && RUNNING_LIKE.includes(p.goal.status) && p.goal.autoRun ? ' on' : '') }));
+      cls: 's' + teamTone(k) + (p.isTeam && p.goal.team && p.goal.team.step === k && RUNNING_LIKE.includes(p.goal.status) && p.goal.autoRun ? ' on' : '') }));
     // 완료된 프로젝트는 아래 '완료' 묶음으로, 진행 중은 대장 확인이 필요한 것 → 실행 중 → 대기 순으로 위에.
     const isDone = (p) => p.goal.status === 'verified';
     const RANK = { review_required: 0, blocked: 0, recovery_required: 0, running: 1, model_wait: 2, retry_wait: 2, scheduled: 3, paused: 4 };
@@ -1567,6 +1579,7 @@ class Component extends DCLogic {
       const modelL = (id) => { const x = ch && (ch.models || []).find((m) => m.id === id); return x ? x.label : id; };
       const readyN = progs.filter((p) => p.tone === 'done').length;
       return { name: t.name, kind: t.kind, role: t.role, access: t.access, tool: TOOL[executor],
+        mono: t.name.charAt(0), cardCls: 'card team-card' + teamTone(t.id), miniCls: 'team' + teamTone(t.id),
         ai: TOOL[executor] + ' · ' + (autoOn ? '자동 · 작업 난이도에 따라 제어팀이 고름 (프로젝트에서 고른 팀은 그 모델)' : defM ? '기본 ' + defM.label + (defM.defaultEffort ? ' · ' + (EFFORT_L[defM.defaultEffort] || defM.defaultEffort) : '') : '모델 목록 확인 중'),
         model: lastModel ? modelL(lastModel) + (lastConfirmed.requestedEffort ? ' · ' + (EFFORT_L[lastConfirmed.requestedEffort] || lastConfirmed.requestedEffort) : '') + ' · ' + ago(lastConfirmed.startedAt)
           : '아직 실제 실행 없음',
