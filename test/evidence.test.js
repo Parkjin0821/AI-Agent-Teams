@@ -186,3 +186,34 @@ test('a found value (e.g. a version) counts when the criterion names the file, b
   ] }, C, cwd);
   assert.deepEqual(claims.map(c => c.check), ['pass', 'pass', 'unrelated']);
 });
+
+test('json_shape and folder_only: data criteria the engine can prove itself (seen in a real run: 대장 was asked)', async () => {
+  const fs = await import('node:fs');
+  const cwd = mkdtempSync(path.join(tmpdir(), 'hq-json-'));
+  mkdirSync(path.join(cwd, 'menu'));
+  const items = Array.from({ length: 12 }, (_, i) => ({ name: `빵${i}`, price: 1000 + i, description: '한 줄 설명', allergens: i % 2 ? ['밀'] : [] }));
+  writeFileSync(path.join(cwd, 'menu', 'menu.json'), JSON.stringify(items));
+  writeFileSync(path.join(cwd, 'menu', 'README.md'), '# 형식');
+  const criteria = ['menu/menu.json은 유효한 JSON 배열이며 정확히 12개 항목을 담는다',
+    '각 항목은 name, price, description, allergens 필드를 가지며 menu.json의 name은 서로 겹치지 않는다',
+    'menu 폴더 안에는 menu.json과 README.md만 있다'];
+  const shape = { type: 'json_shape', path: 'menu/menu.json', count: 12 };
+  const fields = { type: 'json_shape', path: 'menu/menu.json', fields: { name: 'string', price: 'positive_integer', description: 'one_line', allergens: 'string_array' }, unique: 'name' };
+  const only = { type: 'folder_only', path: 'menu/', files: ['menu.json', 'README.md'] };
+  const report = { criteria: [{ index: 1, done: true, check: shape }, { index: 2, done: true, check: fields }, { index: 3, done: true, check: only }] };
+  const { evidence, claims } = verifyReport(report, criteria, cwd);
+  assert.equal(evidence.length, 3, JSON.stringify(claims));
+  assert.match(evidence[1].proof, /name 겹침 없음/);
+  // and they fail when the data is wrong
+  writeFileSync(path.join(cwd, 'menu', 'menu.json'), JSON.stringify([...items.slice(0, 11), { ...items[0], price: 0 }]));
+  writeFileSync(path.join(cwd, 'menu', 'extra.txt'), 'x');
+  const again = verifyReport(report, criteria, cwd).claims.map(c => [c.check, c.detail]);
+  assert.equal(again[0][0], 'pass', 'still 12');
+  assert.match(again[1][1], /12번째 항목 price이\(가\) positive_integer가 아님/);
+  assert.match(again[2][1], /더 있는 파일: extra\.txt/);
+  writeFileSync(path.join(cwd, 'menu', 'menu.json'), '{ broken');
+  assert.match(verifyReport(report, criteria, cwd).claims[0].detail, /올바른 JSON이 아님/);
+  // a passing data check does not prove an unrelated criterion
+  fs.unlinkSync(path.join(cwd, 'menu', 'extra.txt'));
+  assert.equal(verifyReport({ criteria: [{ index: 1, done: true, check: only }] }, ['페이지가 예쁘다'], cwd).claims[0].check, 'unrelated');
+});

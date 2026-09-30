@@ -31,6 +31,11 @@ export function reportInstructions(criteria) {
     '   e.g. a version in research.md that matches the official page)',
     '  {"type":"file_updated","path":"relative/path"}  (in a repeated round: the file is new or changed since this round',
     '   started, compared with the fingerprints the engine recorded then)',
+    '  {"type":"json_shape","path":"data/x.json","list":"items (optional key; default the file itself is the list)",',
+    '   "count":12,"fields":{"name":"string","price":"positive_integer","note":"one_line","tags":"string_array"},"unique":"name"}',
+    '   (the engine parses the JSON itself; kinds: string, one_line, number, integer, positive_integer, boolean, array,',
+    '   string_array, date; count, fields and unique are each optional)',
+    '  {"type":"folder_only","path":"folder/","files":["a.json","README.md"]}  (the folder holds exactly these files)',
     '  {"type":"document_made","path":"x.hwpx","text":"optional exact text"}  (the engine itself made this 한글 document',
     '   from your Markdown, it passed the structure check and is unchanged since; with "text", the document contains it)',
     'To get a 한글 document (HWPX), write the text as Markdown and add "documents":[{"from":"x.md","to":"x.hwpx",',
@@ -111,6 +116,13 @@ function relatesTo(check, criterion) {
   }
   if (check.type === 'file_unchanged') return UNCHANGED_WORDS.test(c);
   if (check.type === 'file_exists') return words(String(check.path).replace(/\\/g, '/')).some(w => mentions(c, w));
+  // a data check speaks to a criterion that names the file (or JSON) and does not claim an absence
+  if (check.type === 'json_shape') return (namesFile(c, check.path) || /json/.test(c)) && !/없[다고음]$/.test(c.trim());
+  // "only these files": every listed file (or the folder) is named in the criterion
+  if (check.type === 'folder_only') {
+    return Array.isArray(check.files) && check.files.length > 0 && check.files.every(f => c.includes(path.basename(String(f)).toLowerCase()))
+      && /만\s|만$|only|외에|밖에/.test(c);
+  }
   if (check.type === 'file_contains') {
     if (words(check.text).some(w => mentions(c, w))) return true;
     // A value the work had to find (a version, a total) cannot appear in the criterion itself: a check still counts
@@ -162,7 +174,78 @@ function runCheck(check, cwd, ctx = {}) {
     return readFileSync(target, 'utf8').includes(check.text)
       ? { status: 'pass', proof: `엔진 확인 · ${rel}에 “${shown}” 포함` } : { status: 'fail', reason: `${rel}에 “${shown}” 없음` };
   }
+  if (check.type === 'json_shape') return checkJsonShape(check, target, rel);
+  if (check.type === 'folder_only') return checkFolderOnly(check, target, rel);
   return { status: 'invalid', reason: '지원하지 않는 확인 방식' };
+}
+
+// json_shape: a data file the engine parses itself — valid JSON, a list of exactly `count` items, each with the named
+// fields of the named kinds, and `unique` values not repeated. Seen in a real run: "menu.json has 12 items with these
+// fields" had no check, so 대장 was asked to judge what a program can prove.
+const FIELD_KINDS = {
+  string: v => typeof v === 'string' && v.trim() !== '',
+  one_line: v => typeof v === 'string' && v.trim() !== '' && !/[\r\n]/.test(v),
+  number: v => typeof v === 'number' && Number.isFinite(v),
+  integer: v => Number.isInteger(v),
+  positive_integer: v => Number.isInteger(v) && v > 0,
+  boolean: v => typeof v === 'boolean',
+  array: v => Array.isArray(v),
+  string_array: v => Array.isArray(v) && v.every(x => typeof x === 'string'),
+  date: v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)),
+};
+function checkJsonShape(check, target, rel) {
+  if (!existsSync(target) || !statSync(target).isFile()) return { status: 'fail', reason: `파일 ${rel} 없음` };
+  if (statSync(target).size > MAX_READ) return { status: 'invalid', reason: '파일이 너무 큼' };
+  let data;
+  try { data = JSON.parse(readFileSync(target, 'utf8').replace(/^﻿/, '')); } catch { return { status: 'fail', reason: `${rel}이(가) 올바른 JSON이 아님` }; }
+  const key = typeof check.list === 'string' && check.list ? check.list : null;
+  const list = key ? data?.[key] : data;
+  const where = key ? `${rel}의 ${key}` : rel;
+  if (!Array.isArray(list)) return { status: 'fail', reason: `${where}이(가) 목록(배열)이 아님` };
+  const done = [`올바른 JSON 목록 ${list.length}개`];
+  if (check.count !== undefined) {
+    if (!Number.isInteger(check.count) || check.count < 0) return { status: 'invalid', reason: '개수(count)가 잘못됨' };
+    if (list.length !== check.count) return { status: 'fail', reason: `${where}의 항목이 ${list.length}개 (${check.count}개여야 함)` };
+  }
+  const fields = check.fields && typeof check.fields === 'object' ? Object.entries(check.fields).slice(0, 20) : [];
+  for (const [name, kind] of fields) {
+    const ok = FIELD_KINDS[kind];
+    if (!ok) return { status: 'invalid', reason: `알 수 없는 값 종류: ${kind} (${Object.keys(FIELD_KINDS).join(', ')})` };
+    const bad = list.findIndex(item => !item || typeof item !== 'object' || !ok(item[name]));
+    if (bad >= 0) return { status: 'fail', reason: `${where}의 ${bad + 1}번째 항목 ${name}이(가) ${kind}가 아님` };
+  }
+  if (fields.length) done.push(`필드 ${fields.map(([n, k]) => `${n}(${k})`).join('·')}`);
+  if (typeof check.unique === 'string' && check.unique) {
+    const seen = new Set();
+    for (const item of list) {
+      const v = JSON.stringify(item?.[check.unique]);
+      if (seen.has(v)) return { status: 'fail', reason: `${where}에 ${check.unique} 값이 겹침: ${v.slice(0, 40)}` };
+      seen.add(v);
+    }
+    done.push(`${check.unique} 겹침 없음`);
+  }
+  return { status: 'pass', proof: `엔진 확인 · ${where}: ${done.join(', ')}` };
+}
+
+// folder_only: the folder holds exactly these files (at any depth), nothing more and nothing missing.
+function checkFolderOnly(check, target, rel) {
+  const want = (Array.isArray(check.files) ? check.files : []).map(f => String(f).replace(/\\/g, '/').replace(/^\.\//, ''));
+  if (!want.length || want.length > 50) return { status: 'invalid', reason: '확인할 파일 목록이 없음' };
+  if (!existsSync(target) || !statSync(target).isDirectory()) return { status: 'fail', reason: `폴더 ${rel} 없음` };
+  const have = [];
+  const walk = (dir, prefix) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (have.length > 500) return;
+      const r = prefix ? `${prefix}/${e.name}` : e.name;
+      if (e.isDirectory()) walk(path.join(dir, e.name), r); else have.push(r);
+    }
+  };
+  walk(target, '');
+  const extra = have.filter(f => !want.includes(f)), missing = want.filter(f => !have.includes(f));
+  if (extra.length || missing.length) {
+    return { status: 'fail', reason: `폴더 ${rel}${extra.length ? ` · 더 있는 파일: ${extra.slice(0, 5).join(', ')}` : ''}${missing.length ? ` · 없는 파일: ${missing.slice(0, 5).join(', ')}` : ''}` };
+  }
+  return { status: 'pass', proof: `엔진 확인 · 폴더 ${rel}에 ${want.join(', ')}만 있음` };
 }
 
 // originals: { "attachments/x": { sha, from } } — fingerprints the engine itself recorded (at upload, or in the
