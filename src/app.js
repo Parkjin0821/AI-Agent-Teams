@@ -32,6 +32,7 @@ import { buildReport, REPORTS_DIR } from './report.js';
 import { listWorkspaceFiles } from './evidence.js';
 import { hasSecret } from './sentinel.js';
 import { Routines } from './routines.js';
+import { Templates } from './templates.js';
 
 const MAX_BODY = 1_000_000;
 const iso = ms => new Date(ms).toISOString();
@@ -131,6 +132,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
 
   // 반복 실행: projects that run again on a schedule (routines.js).
   const routines = new Routines({ store, scheduler, workspaces, clock });
+  // 템플릿: finished projects saved as reusable recipes (templates.js).
+  const templates = new Templates({ store, registry, clock });
   const engineView = () => {
     const byProject = new Map();
     for (const goal of store.listGoals().sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
@@ -252,12 +255,26 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     ['POST', /^\/api\/goals\/([^/]+)\/resume$/, m => scheduler.resume(m[1])],
     // New project: no ID to type — the engine makes one. The AI team works it once started.
     ['POST', /^\/api\/projects$/, (m, body) => {
+      // 템플릿: a saved recipe fills in what 대장 left empty; 대장's edited objective and criteria win.
+      const tpl = body.templateId ? templates.get(String(body.templateId)) : null;
+      if (body.templateId && !tpl) throw new Error('template not found');
+      const criteria = Array.isArray(body.completionCriteria) && body.completionCriteria.length ? body.completionCriteria : tpl?.completionCriteria;
       const goal = scheduler.addGoal({
       projectId: `p-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, kind: 'team',
-      title: body.title, objective: body.objective, conversation: body.conversation === true, completionCriteria: body.completionCriteria, autoRun: body.start === true });
-      // New projects start on each app's default model; 대장 picks a model per team in the project settings.
-      return [201, goal];
+      title: body.title || tpl?.name, objective: body.objective || tpl?.objective, conversation: body.conversation === true && !criteria?.length,
+      completionCriteria: criteria, autoRun: body.start === true });
+      // New projects start on each app's default model (or 제어팀); a template brings 대장's per-team picks along.
+      if (tpl) {
+        if (Object.keys(tpl.teamModels ?? {}).length) registry.setPolicy(`project:${goal.projectId}`, { teamModels: tpl.teamModels }, { by: '대장', reason: `template ${tpl.name}` });
+        templates.markUsed(tpl.id);
+        scheduler.update(store.getGoal(goal.id), { template: { id: tpl.id, name: tpl.name },
+          messages: scheduler.withControl(store.getGoal(goal.id), `템플릿으로 시작 · ${tpl.name}`) });
+      }
+      return [201, store.getGoal(goal.id)];
     }],
+    ['GET', /^\/api\/templates$/, () => ({ items: templates.list() })],
+    ['POST', /^\/api\/templates$/, (m, body) => { existingWorkspace(String(body.projectId ?? '')); return [201, templates.save({ projectId: String(body.projectId), name: body.name })]; }],
+    ['DELETE', /^\/api\/templates\/([0-9a-f-]{36})$/, m => templates.remove(m[1])],
     ['POST', /^\/api\/goals\/([^/]+)\/messages$/, (m, body) => scheduler.message(m[1], body.text, attachmentsFor(m[1], body.attachments))],
     ['PUT', /^\/api\/goals\/([^/]+)\/autonomy$/, (m, body) => scheduler.setAutonomy(m[1], body)],
     ['POST', /^\/api\/goals\/([^/]+)\/start$/, m => scheduler.start(m[1])],
@@ -457,7 +474,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   }, tickMs) : null;
   timer?.unref();
   return {
-    server, store, scheduler, registry, orchestrator, workspaces, autoSave, digests, makeReport, routines,
+    server, store, scheduler, registry, orchestrator, workspaces, autoSave, digests, makeReport, routines, templates,
     close: () => new Promise(resolve => { if (timer) clearInterval(timer); server.close(() => { store.close(); resolve(); }); }),
   };
 }
