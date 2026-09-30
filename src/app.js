@@ -31,6 +31,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { buildReport, REPORTS_DIR } from './report.js';
 import { listWorkspaceFiles } from './evidence.js';
 import { hasSecret } from './sentinel.js';
+import { Routines } from './routines.js';
 
 const MAX_BODY = 1_000_000;
 const iso = ms => new Date(ms).toISOString();
@@ -121,6 +122,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       teams: Object.values(TEAMS).map(t => ({ id: t.id, name: t.name, executor: t.executor, access: t.access, tools: tools[t.id] ?? [] })) };
   };
 
+  // 반복 실행: projects that run again on a schedule (routines.js).
+  const routines = new Routines({ store, scheduler, workspaces, clock });
   const engineView = () => {
     const byProject = new Map();
     for (const goal of store.listGoals().sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
@@ -130,7 +133,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     return {
       mode: executing ? 'execution' : 'simulation', autoTick, autoScope, now: iso(clock.now()),
       limits: { attachMaxMB: setting('attach.maxMB', DEFAULT_MAX_MB), maxRoundsPerDay: scheduler.dailyLimit(), autoSwitch: store.getSettings()['limits.autoSwitch'] !== false, autoLevels: store.getSettings()['models.auto'] !== false, maxRoundsPerDayDefault: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
-      projects: [...byProject].map(([id, goals]) => ({ id, policy: registry.getPolicy(`project:${id}`), goals, autoSave: autoSave.view(id) })),
+      projects: [...byProject].map(([id, goals]) => ({ id, policy: registry.getPolicy(`project:${id}`), goals, autoSave: autoSave.view(id), routine: routines.view(id) })),
       catalog: registry.catalog(), events: store.recentEvents(200),
       limitStorageFailed: store.getSettings()['safety.limitStorageFailed'] === true,
     };
@@ -251,6 +254,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     ['POST', /^\/api\/goals\/([^/]+)\/messages$/, (m, body) => scheduler.message(m[1], body.text, attachmentsFor(m[1], body.attachments))],
     ['PUT', /^\/api\/goals\/([^/]+)\/autonomy$/, (m, body) => scheduler.setAutonomy(m[1], body)],
     ['POST', /^\/api\/goals\/([^/]+)\/start$/, m => scheduler.start(m[1])],
+    ['PUT', /^\/api\/projects\/([^/]+)\/routine$/, (m, body) => { existingWorkspace(m[1]); return routines.set(m[1], body); }],
+    ['POST', /^\/api\/projects\/([^/]+)\/routine\/run$/, async m => { existingWorkspace(m[1]); return [201, await routines.run(m[1], { manual: true })]; }],
     ['POST', /^\/api\/goals\/([^/]+)\/extend-today$/, (m, body) => scheduler.extendToday(m[1], body.steps)],
     ['POST', /^\/api\/goals\/([^/]+)\/stop$/, m => scheduler.stop(m[1])],
     ['POST', /^\/api\/goals\/([^/]+)\/answer$/, (m, body) => scheduler.answer(m[1], body.text, attachmentsFor(m[1], body.attachments))],
@@ -440,12 +445,12 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   });
 
   const timer = autoTick ? setInterval(async () => {
-    try { if (guarded) await refreshUsage(); await scheduler.tick({ autoOnly: executing }); await autoSave.tick(); digests.tick(); if (executing) await skills.processNeed(); }
+    try { if (guarded) await refreshUsage(); await routines.tick(); await scheduler.tick({ autoOnly: executing }); await autoSave.tick(); digests.tick(); if (executing) await skills.processNeed(); }
     catch (error) { console.error('tick failed:', error.message); }
   }, tickMs) : null;
   timer?.unref();
   return {
-    server, store, scheduler, registry, orchestrator, workspaces, autoSave, digests, makeReport,
+    server, store, scheduler, registry, orchestrator, workspaces, autoSave, digests, makeReport, routines,
     close: () => new Promise(resolve => { if (timer) clearInterval(timer); server.close(() => { store.close(); resolve(); }); }),
   };
 }

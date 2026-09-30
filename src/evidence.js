@@ -29,6 +29,8 @@ export function reportInstructions(criteria) {
     '  {"type":"source_contains","source":"sources/…","text":"exact text","path":"relative/path"}  (the text is in a web',
     '   page original the engine itself saved under sources/, unchanged since; with "path", that file contains it too —',
     '   e.g. a version in research.md that matches the official page)',
+    '  {"type":"file_updated","path":"relative/path"}  (in a repeated round: the file is new or changed since this round',
+    '   started, compared with the fingerprints the engine recorded then)',
     '  {"type":"document_made","path":"x.hwpx","text":"optional exact text"}  (the engine itself made this 한글 document',
     '   from your Markdown, it passed the structure check and is unchanged since; with "text", the document contains it)',
     'To get a 한글 document (HWPX), write the text as Markdown and add "documents":[{"from":"x.md","to":"x.hwpx",',
@@ -100,6 +102,7 @@ function relatesTo(check, criterion) {
   const c = String(criterion).toLowerCase();
   if (check.type === 'tests_pass') return true;
   if (check.type === 'stayed_inside') return BOUNDARY_TOPIC.test(c);
+  if (check.type === 'file_updated') return /회차|갱신|새로|update/.test(c);
   if (check.type === 'document_made') {
     return namesFile(c, check.path) || (check.text && words(check.text).some(w => mentions(c, w))) || DOCUMENT_TOPIC.test(c);
   }
@@ -143,6 +146,7 @@ function runCheck(check, cwd, ctx = {}) {
   if (check?.type === 'file_unchanged') return checkUnchanged(check, cwd, ctx.originals ?? {});
   if (check?.type === 'source_contains') return checkSource(check, cwd, ctx.sources ?? {});
   if (check?.type === 'document_made') return checkDocument(check, cwd, ctx.documents ?? {});
+  if (check?.type === 'file_updated') return checkUpdated(check, cwd, ctx.baseline);
   const target = insideWorkspace(check.path, cwd);
   if (!target) return { status: 'invalid', reason: '작업 폴더 밖이거나 잘못된 경로' };
   const rel = path.relative(cwd, target).replace(/\\/g, '/');
@@ -202,6 +206,19 @@ function checkSource(check, cwd, sources) {
     return { status: 'pass', proof: `엔진 확인 · ${check.path}의 “${shown}”이(가) 원문(${rec.url}, ${rec.fetchedAt.slice(0, 10)} 저장)에도 있음` };
   }
   return { status: 'pass', proof: `엔진 확인 · 원문(${rec.url}, ${rec.fetchedAt.slice(0, 10)} 저장)에 “${shown}” 있음` };
+}
+
+// baseline: { "file": sha } the engine recorded when a routine round started (routines.js). A file counts as updated
+// this round when it is new or its content differs from that record.
+function checkUpdated(check, cwd, baseline) {
+  if (!baseline) return { status: 'invalid', reason: '반복 실행 회차가 아니라 비교할 시작 기록이 없음' };
+  const target = insideWorkspace(check.path, cwd);
+  if (!target) return { status: 'invalid', reason: '작업 폴더 밖이거나 잘못된 경로' };
+  const rel = path.relative(cwd, target).replace(/\\/g, '/');
+  if (!existsSync(target) || !statSync(target).isFile()) return { status: 'fail', reason: `파일 ${rel} 없음` };
+  const now = createHash('sha256').update(readFileSync(target)).digest('hex');
+  if (baseline[rel] === now) return { status: 'fail', reason: `${rel}이(가) 이번 회차 시작 때와 같음 (갱신 안 됨)` };
+  return { status: 'pass', proof: `엔진 확인 · ${rel}이(가) 이번 회차에 ${baseline[rel] ? '새로 바뀜' : '새로 생김'}` };
 }
 
 // documents: { "x.hwpx": { from, preset, sha, validated, lint, readback: { path, sha } } } — what the engine made

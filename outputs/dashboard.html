@@ -102,7 +102,7 @@ main{max-width:1520px;margin:0 auto;padding:36px 32px 96px}
 .home-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:32px;align-items:start}
 .home-primary{min-width:0}
 .home-side{position:sticky;top:108px;min-width:0}
-.home-side-title{display:block;font-size:13px;font-weight:600;color:var(--text);letter-spacing:-.01em;line-height:normal;margin:0 0 8px}
+.home-side-title{display:block;font-size:15px;font-weight:600;color:var(--text);letter-spacing:-.01em;line-height:1.55;margin:0 0 12px}
 .home-side-toggle{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text-2);font-size:12.5px;font-weight:500;line-height:1.4}
 .home-side-toggle::before{content:"";width:0;height:0;border-left:4px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .15s}
 .home-side-toggle[aria-expanded="true"]::before{transform:rotate(90deg)}
@@ -496,6 +496,90 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
   .mode span{display:none}
   .brand .word{display:none}
 }
+/* 공통 디자인 기준: 글자 위계, 버튼 역할, 카드와 반응형 배치 */
+:root{--text-3:#63636E;--text-4:#797982;--line:#E4E4E8;--shadow:0 1px 3px rgba(17,17,26,.025);--r-lg:12px}
+main{padding-top:32px}
+.top-in{max-width:1520px;min-height:68px}
+.top{background:rgba(250,250,250,.96)}
+.tabs-top{gap:6px}
+.tt{min-height:34px;padding:7px 12px;font-size:13px}
+.tt.on{background:#EBEBEF;font-weight:600}
+.brand-group .mode{font-size:11px;padding:4px 7px}
+.top-more{margin-top:0}
+.top-more-label{border:0;background:none;border-radius:6px;font-size:13px;padding:7px 12px;min-height:34px}
+.page-h{margin-bottom:28px}
+h1{font-size:28px;line-height:1.3;font-weight:600}
+h2,.side-block h2{font-size:15px;font-weight:600;line-height:1.55;letter-spacing:-.01em}
+.sec-h{align-items:center;margin-bottom:12px;min-height:32px}
+.sec-h h2{margin:0}
+.home-side-title{min-height:32px;display:flex;align-items:center}
+.sec{margin-top:32px}
+.lede{font-size:14px;line-height:1.65}
+.hint,.small,.team .role,.side-list li{font-size:13px}
+.btn,.btn.sm,.link{min-height:34px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:7px 12px;font-size:13px;line-height:1.4;border-radius:7px;font-weight:500}
+.btn{min-height:36px}
+.link{color:var(--text-2);background:transparent;border-color:transparent}
+.link:hover{background:var(--subtle);border-color:transparent;color:var(--text)}
+.link.create{background:#18181B;border-color:#18181B;color:#fff}
+.btn.pri{font-weight:600}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.ghost:hover{border-color:var(--line)}
+summary,.home-side-toggle{min-height:32px;padding:6px 10px;font-size:12px;line-height:1.5;background:transparent;border-color:var(--line);border-radius:6px}
+summary:hover,.home-side-toggle:hover{background:var(--subtle)}
+.panel,.list,.card,.home-side-content,.stats,.flow-lg{box-shadow:none}
+.home-layout{gap:28px;grid-template-columns:minmax(0,1fr) 300px}
+.home-side-content{padding:18px}
+.side-stats{gap:10px}
+.side-stat{border:0;border-radius:8px;background:var(--subtle);padding:12px}
+.side-stat span{font-size:12px;color:var(--text-2)}
+.side-stat b{font-size:23px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.3;margin-top:5px}
+.side-block{margin-top:18px;padding-top:18px}
+.home-side-content>.side-block:nth-child(2){margin-top:22px}
+.side-block h2{margin-bottom:12px}
+.side-meter{gap:12px}
+.side-meter .mi{font-size:13px;align-items:center}
+.side-meter .mi b{font-weight:600;font-variant-numeric:tabular-nums}
+.side-block>.hint{margin:8px 0}
+#home-side-extra>.side-block:first-child{border-top:0;padding-top:0;margin-top:18px}
+.side-list{gap:10px}
+.teams{padding:0;gap:16px;background:transparent;border:0}
+.teams .team{padding:20px;border:1px solid var(--line)!important}
+.team .h{margin-bottom:8px}
+.team .nm{font-size:14px}
+.team .role{line-height:1.6}
+.team dl{font-size:13px;gap:8px 12px}
+.team dt{color:var(--text-3)}
+.team dd{overflow-wrap:anywhere;line-height:1.55}
+.team-recent{border-top:1px solid var(--line);padding-top:14px}
+.skill-description{font-size:14px;line-height:1.65;margin:10px 0}
+.skill-details{border-top:1px solid var(--line);padding-top:14px}
+.prow .sub{font-size:13px;line-height:1.6;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.prow .when{font-size:12px;color:var(--text-3)}
+.item{padding:20px;gap:14px}
+.item .t{font-size:14px;line-height:1.55}
+.item .b{font-size:14px;line-height:1.65;margin-top:6px}
+.item:has(.ico.stop){background:var(--stop-soft)}
+.item:has(.ico:not(.stop):not(.done)){background:#FFFCF6}
+.pill{font-size:12px;padding:3px 7px;border-radius:5px;line-height:1.5}
+.pill.run{background:var(--accent-soft)}
+.pill.attn,.pill.wait{background:var(--attn-soft)}
+.pill.stop{background:var(--stop-soft)}
+.pill.done{background:var(--done-soft)}
+.card{padding:20px}
+.facts{gap:10px 14px;font-size:13px}
+.card .lbl{font-size:13px;color:var(--text-2)}
+.project-team{gap:16px;padding:18px 20px}
+.ptabs{margin-top:24px;gap:12px}
+.pt{font-size:13px;min-height:40px;padding:10px 4px;margin-right:0}
+.input{height:38px;border-radius:7px}
+.ta{padding:12px;line-height:1.65}
+.field{margin-bottom:18px}
+.empty{line-height:1.7}
+.empty.sm{padding:28px 20px}
+@media(max-width:1100px){.top-in{min-height:68px}.home-layout{gap:20px;grid-template-columns:minmax(0,1fr) 280px}.top-more-menu{min-width:150px}}
+@media(max-width:900px){.home-layout{grid-template-columns:minmax(0,1fr)}.home-side{grid-row:auto}.home-side-content{padding:16px}.side-stats{grid-template-columns:repeat(4,minmax(0,1fr))}.home-side-title{margin-bottom:8px}.teams{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){main{padding:24px 16px 64px}.top-in{padding:12px 16px}.brand-group{gap:8px}.tabs-top{gap:4px}.tt{padding:6px 10px}.home-side{position:static}.teams{grid-template-columns:minmax(0,1fr)}.prow{padding:16px!important}.btn,.btn.sm,.link{min-height:36px}.side-stat b{font-size:21px}}
+@media(max-width:480px){.side-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.notification-status{font-size:11px}.top-r{gap:6px}h1{font-size:24px}}
 </style>
 </head>
 <body>
@@ -840,6 +924,15 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
           <p class="hint">켜 두면 모델을 고르지 않은 팀은 간단한 일과 보통 일에 가벼운 모델(Claude Sonnet 5.5 · Codex GPT-6-Luna 중간~높음), 복잡하거나 위험한 일에 무거운 모델(Opus 5.5 · GPT-6-Sol 낮음~중간)을 씁니다. Codex Astra는 자동으로 쓰지 않습니다. 끄면 고르지 않은 팀은 목록의 기본 모델로 돕니다.</p></div>
         <dl class="facts" style="margin-top: 16px"><dt>최근 실제 모델</dt><dd class="mono small">{{m.actual}}</dd></dl>
       </div>
+      <sc-if value="{{rt.show}}"><div class="card">
+        <div class="lbl">반복 실행</div>
+        <p class="hint" style="margin: 0 0 12px">정해진 때마다 이 프로젝트를 새 회차로 다시 돌립니다. 이전 회차가 끝나지 않았으면 건너뛰고, 회차마다 "결과 파일을 새로 갱신했다"를 엔진이 확인합니다. PC가 켜져 있어야 돌고, 꺼져 있던 동안 놓친 회차는 켠 뒤 한 번만 돕니다.</p>
+        <div class="seg" role="group" aria-label="반복 주기"><sc-for list="{{rt.kinds}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div>
+        <sc-if value="{{rt.weekly}}"><div class="seg wrap" role="group" aria-label="요일" style="margin-top: 8px"><sc-for list="{{rt.days}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div></sc-if>
+        <sc-if value="{{rt.timed}}"><div class="row-f" style="margin-top: 8px"><label class="hint" for="rt-time">시각</label><input class="input" id="rt-time" type="time" style="max-width: 130px" value="{{rt.time}}" onChange="{{rt.onTime}}"></div></sc-if>
+        <div class="row-f" style="margin-top: 10px"><button class="btn pri sm" onClick="{{rt.save}}">저장</button><button class="btn sm" onClick="{{rt.runNow}}">지금 한 번 실행</button></div>
+        <dl class="facts" style="margin-top: 12px"><dt>지금</dt><dd>{{rt.status}}</dd><dt>다음 실행</dt><dd>{{rt.next}}</dd><dt>최근</dt><dd>{{rt.last}}</dd></dl>
+      </div></sc-if>
       <div class="card">
         <div class="lbl">한도</div>
         <div class="field" style="margin-bottom: 12px"><label for="cap-in">하루 최대 단계 · 모든 프로젝트 공통 (기본 {{limits.dayDefault}})</label>
@@ -1445,7 +1538,7 @@ class Component extends DCLogic {
       const last = runs.map((r) => r.finishedAt || r.startedAt).concat([g.updatedAt]).sort().pop();
       const name = (goals.find((x) => x.title) || {}).title || clip(g.objective, 40);
       return { id: pr.id, name: name, goal: g, goals: goals, runs: runs, st: st, proven: proven, total: g.completionCriteria.length,
-        last: last, today: runs.filter((r) => sameDay(r.startedAt)).length, policy: pr.policy, isTeam: g.kind === 'team' };
+        last: last, today: runs.filter((r) => sameDay(r.startedAt)).length, policy: pr.policy, isTeam: g.kind === 'team', routine: pr.routine || null };
     }).sort((a, b) => (b.last || '').localeCompare(a.last || ''));
   }
 
@@ -2248,6 +2341,7 @@ class Component extends DCLogic {
       pinDraft: s.pinDraft, onPin: (e) => this.setState({ pinDraft: e.target.value }),
       autoLevelOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: autoOn === v ? 'on' : '', pressed: autoOn === v ? 'true' : 'false',
         pick: () => { if (autoOn === v) return; this.act(this.api('PUT', '/api/settings', { key: 'models.auto', value: v }), v ? '모델 자동 선택을 켰습니다 · 다음 단계부터' : '모델 자동 선택을 껐습니다 · 고르지 않은 팀은 기본 모델로'); } })),
+      rt: this.routineView(wp),
       switchOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: lim.autoSwitch === v ? 'on' : '', pressed: lim.autoSwitch === v ? 'true' : 'false',
         pick: () => { if (lim.autoSwitch === v) return; this.act(this.api('PUT', '/api/settings', { key: 'limits.autoSwitch', value: v }), v ? '한도 자동 전환을 켰습니다' : '한도 자동 전환을 껐습니다 · 한도에 닿으면 그 AI가 풀릴 때까지 기다립니다'); } })),
       capDraft: s.capDraft == null ? String(lim.day) : s.capDraft, onCap: (e) => this.setState({ capDraft: e.target.value }),
@@ -2333,6 +2427,33 @@ class Component extends DCLogic {
     if (failed) this.say(failed.name + ' · Markdown 변환 실패 (' + failed.convertError + ') · 팀이 이 문서를 못 읽을 수 있습니다');
     else if (big) this.say(big.name + ' · ' + big.warning);
     else if (added.length) this.say('첨부했습니다 (' + added.length + '개) · 보내기를 누르면 팀에게 전달됩니다');
+  }
+  // 반복 실행 card: the saved routine, or 대장's unsaved choice (draft) for this project.
+  routineView(wp) {
+    if (!wp || !wp.isTeam) return { show: false };
+    const saved = wp.routine;
+    const d = Object.assign({ kind: saved && saved.enabled ? saved.kind : 'off', weekday: (saved && saved.weekday) || 'mon', time: (saved && saved.time) || '09:00' },
+      (this.state.rtDraft || {})[wp.id] || {});
+    const setD = (patch) => { const all = Object.assign({}, this.state.rtDraft); all[wp.id] = Object.assign({}, d, patch); this.setState({ rtDraft: all }); };
+    const chip = (on, l, pick) => ({ l: l, cls: on ? 'on' : '', pressed: on ? 'true' : 'false', pick: pick });
+    const DAYS = [['mon', '월'], ['tue', '화'], ['wed', '수'], ['thu', '목'], ['fri', '금'], ['sat', '토'], ['sun', '일']];
+    const when = (iso) => iso ? fmt(iso) : '없음';
+    return { show: true, weekly: d.kind === 'weekly', timed: d.kind !== 'off', time: d.time,
+      kinds: [['off', '끔'], ['daily', '매일'], ['weekly', '매주']].map(([k, l]) => chip(d.kind === k, l, () => setD({ kind: k }))),
+      days: DAYS.map(([k, l]) => chip(d.weekday === k, l, () => setD({ weekday: k }))),
+      onTime: (e) => setD({ time: e.target.value }),
+      status: saved && saved.enabled ? saved.label + ' · ' + (saved.round || 0) + '회차까지 실행' : '꺼짐',
+      next: saved && saved.enabled ? when(saved.nextRunAt) : '없음', last: (saved && saved.lastResult) || '없음',
+      save: () => {
+        const body = d.kind === 'off' ? { enabled: false } : { enabled: true, kind: d.kind, time: d.time, weekday: d.weekday };
+        this.act(this.api('PUT', '/api/projects/' + encodeURIComponent(wp.id) + '/routine', body)
+          .then((r) => { const all = Object.assign({}, this.state.rtDraft); delete all[wp.id]; this.setState({ rtDraft: all }); return r; }),
+          d.kind === 'off' ? '반복 실행을 껐습니다' : '반복 실행을 저장했습니다 · ' + (d.kind === 'weekly' ? '매주 ' + DAYS.find((x) => x[0] === d.weekday)[1] + '요일 ' : '매일 ') + d.time);
+      },
+      runNow: async () => {
+        if (!await ask('지금 새 회차를 시작할까요? 실제 AI 사용량을 씁니다.')) return;
+        this.act(this.api('POST', '/api/projects/' + encodeURIComponent(wp.id) + '/routine/run', {}), '새 회차를 시작했습니다');
+      } };
   }
   // Criteria the last verification left for 대장 to judge (not yet confirmed), as buttons on the question card.
   judgeRows(g) {

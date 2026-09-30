@@ -166,6 +166,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       }
       const { evidence, claims } = verifyReport(report, goal.completionCriteria, cwd, { verifying: team === 'qa', test, originals: attachmentOriginals(goal, records),
         documents: { ...documentRecords(records), ...documentRecords([{ documents: documents?.made ?? [] }]) },
+        baseline: goal.routine?.baseline ?? null,
         sources: { ...sourceRecords(records), ...sourceRecords([{ sources: sources?.saved ?? [] }]) },
         boundary: () => boundaryCheck({ runs: store.listRuns?.(goal.id) ?? [], sentinelLog: sentinel?.log ?? null, project: goal.projectId, cwd }) });
       return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd), ...(sources ? { sources: sources.saved } : {}), ...(documents ? { documents: documents.made } : {}),
