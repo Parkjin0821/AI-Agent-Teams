@@ -113,11 +113,15 @@ AI가 “했다”고 말한 것은 근거가 아닙니다. 파일 존재·내�
 
 ## 실행
 
+**가장 쉬운 방법:** 저장소 폴더의 `start-agent-hq.cmd`를 두 번 누르면 실제 실행 서버(http://localhost:4314, 데이터 `data/real-test`)가 켜지고 페이지가 열립니다.
+Claude Code 대화나 Codex 앱을 켜 둘 필요가 없습니다(팀은 설치된 CLI로 일합니다). 열린 창이 서버이므로 최소화해 두면 계속 동작하고, 닫으면 꺼집니다. 이미 켜져 있으면 페이지만 엽니다.
+
 ```powershell
 npm test
 npm run dev                       # 모의 실행 (실제 AI 호출 없음), http://localhost:4311 · 파일이 바뀌면 서버가 자동으로 다시 켜짐
 npm start                         # 같은 서버, 자동 재시작 없음
 $env:AGENT_HQ_ENABLE_EXEC='1'; npm start   # 실제 실행: 시작한 프로젝트만 실제 AI가 진행
+$env:PORT='4314'; $env:AGENT_HQ_DATA_DIR='data\real-test'   # 포트·데이터 폴더 지정 (start-agent-hq.cmd가 쓰는 값)
 ```
 
 - 화면 파일(`outputs/dashboard.html`)은 새로고침만 하면 바뀌지만, 서버 코드(`src/`)가 바뀌면 서버를 다시 켜야 합니다(`npm run dev`는 자동).
