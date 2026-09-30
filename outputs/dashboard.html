@@ -38,10 +38,10 @@ button{cursor:pointer}
 .mark{width:24px;height:24px;border-radius:7px;background:var(--text);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700;font-family:var(--mono)}
 .tabs-top{display:flex;align-items:center;justify-content:center;gap:10px;min-width:0;overflow:visible}
 .top-more{position:relative;flex:none}
-.top-more-trigger{border:0;background:none;padding:6px 10px;border-radius:var(--r-sm);color:var(--text-3);font-weight:500;white-space:nowrap}
-.top-more-trigger::after{content:'⌄';margin-left:6px}
-.top-more-trigger:hover,.top-more-trigger[aria-expanded="true"]{color:var(--text);background:var(--subtle)}
-.top-more-menu{position:absolute;right:0;top:calc(100% + 8px);min-width:160px;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:0 12px 32px rgba(0,0,0,.14);display:grid;gap:2px;z-index:30}
+.top-more-label{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:var(--r-sm);color:var(--text-3);font-weight:500;white-space:nowrap;cursor:default}
+.top-more:hover .top-more-label,.top-more:focus-within .top-more-label{color:var(--text);background:var(--subtle)}
+.top-more-menu{position:absolute;left:100%;top:0;min-width:160px;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:0 12px 32px rgba(0,0,0,.14);display:grid;gap:2px;z-index:30;opacity:0;visibility:hidden;pointer-events:none;transform:translateX(-6px);transition:opacity .18s ease,transform .18s ease,visibility .18s}
+.top-more:hover .top-more-menu,.top-more:focus-within .top-more-menu{opacity:1;visibility:visible;pointer-events:auto;transform:translateX(0)}
 .top-more-menu button{border:0;background:none;text-align:left;padding:9px 10px;border-radius:6px;color:var(--text-2)}
 .top-more-menu button:hover,.top-more-menu button.on{background:var(--subtle);color:var(--text)}
 .tt{border:0;background:none;padding:6px 10px;border-radius:var(--r-sm);color:var(--text-3);font-weight:500;white-space:nowrap;transition:color .15s,background .15s}
@@ -71,6 +71,7 @@ button{cursor:pointer}
 .brand-group .mode i{width:6px;height:6px}
 @media(max-width:1100px){.top-in{grid-template-columns:auto minmax(0,1fr);gap:12px 24px}.top-r{grid-column:2;grid-row:1}.tabs-top{grid-column:1 / -1;grid-row:2;justify-content:center;max-width:100%;padding-top:8px;border-top:1px solid var(--line)}}
 @media(max-width:760px){.top-in{padding:12px 16px!important;gap:12px}.top-r{flex-wrap:wrap;justify-content:flex-end}.tabs-top{justify-content:flex-start;flex-wrap:wrap;gap:4px}.notification-status,.brand-group .mode{font-size:11px;padding:4px 6px}}
+@media(max-width:760px){.top-more-menu{left:auto;right:0;top:100%;transform:translateY(-6px)}.top-more:hover .top-more-menu,.top-more:focus-within .top-more-menu{transform:translateY(0)}}
 .mode{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:var(--text-2);padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);white-space:nowrap}
 .mode i{width:7px;height:7px;border-radius:50%;background:var(--idle)}
 .mode.real{color:var(--stop);border-color:#F5C9B5;background:var(--stop-soft)}
@@ -92,18 +93,19 @@ button{cursor:pointer}
 .btn.sm{min-height:32px;padding:6px 11px;font-size:12px}
 .link{border:1px solid var(--line);border-radius:7px;background:var(--surface);padding:4px 8px;color:var(--accent-ink);font-weight:500;line-height:1.4}
 .link:hover{background:var(--subtle);border-color:var(--line-strong)}
+.link.create{background:#18181B;border-color:#18181B;color:#fff}
+.link.create:hover{background:#303036;border-color:#303036;color:#fff}
 
 /* 레이아웃 */
 main{max-width:1520px;margin:0 auto;padding:36px 32px 96px}
 .home-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:32px;align-items:start}
 .home-primary{min-width:0}
 .home-side{position:sticky;top:108px;min-width:0}
-.home-side>details{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow)}
-.home-side>details>summary{display:flex;justify-content:space-between;border:0;border-radius:var(--r-lg);padding:14px 16px;font-size:13px;font-weight:600}
-.home-side>details>summary::before{display:none}
-.home-side>details>summary::after{content:'⌄';color:var(--text-3)}
-.home-side>details[open]>summary::after{content:'⌃'}
-.home-side-content{padding:0 16px 16px}
+.home-side-toggle{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text-2);font-size:12.5px;font-weight:500;line-height:1.4}
+.home-side-toggle::before{content:"";width:0;height:0;border-left:4px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .15s}
+.home-side-toggle[aria-expanded="true"]::before{transform:rotate(90deg)}
+.home-side-toggle:hover,.home-side-toggle[aria-expanded="true"]{background:var(--subtle);border-color:var(--line-strong);color:var(--text)}
+.home-side-content{padding:16px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow)}
 .side-block{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
 .side-block:first-child{margin-top:0}
 .side-block h2{font-size:13px;margin-bottom:10px}
@@ -452,7 +454,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     <div class="brand-group"><button class="brand" onClick="{{goHome}}" aria-label="홈으로"><span class="mark">HQ</span><span class="word">AGENT HQ</span></button><span class="{{modeCls}}" title="{{modeTitle}}"><i></i><span>{{modeL}}</span></span></div>
     <nav class="tabs-top" aria-label="주 메뉴">
       <sc-for list="{{nav}}" as="n"><button class="{{n.cls}}" aria-current="{{n.cur}}" onClick="{{n.go}}">{{n.l}}<sc-if value="{{n.hasN}}"><span class="n">{{n.n}}</span></sc-if></button></sc-for>
-      <div class="top-more"><button class="top-more-trigger" aria-expanded="{{moreExpanded}}" aria-controls="top-more-menu" onClick="{{toggleMore}}">더 보기</button><sc-if value="{{moreOpen}}"><div class="top-more-menu" id="top-more-menu"><sc-for list="{{navMore}}" as="n"><button class="{{n.cls}}" aria-current="{{n.cur}}" onClick="{{n.go}}">{{n.l}}</button></sc-for></div></sc-if></div>
+      <div class="top-more"><span class="top-more-label" tabindex="0" aria-haspopup="true">더 보기</span><div class="top-more-menu"><sc-for list="{{navMore}}" as="n"><button class="{{n.cls}}" aria-current="{{n.cur}}" onClick="{{n.go}}">{{n.l}}</button></sc-for></div></div>
     </nav>
     <div class="top-r">
       <sc-if value="{{notif.canAsk}}"><button class="btn ghost sm" onClick="{{notif.enable}}" title="질문·승인·완료·멈춤이 생기면 이 창을 보고 있지 않아도 알려 줍니다">알림 켜기</button></sc-if>
@@ -506,7 +508,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     </section>
 
     <section class="sec" aria-labelledby="proj-h">
-      <div class="sec-h"><h2 id="proj-h">프로젝트</h2><div class="row-f"><button class="link small" onClick="{{goProjects}}">모두 보기</button><button class="link small" onClick="{{openNew}}">새 프로젝트</button></div></div>
+      <div class="sec-h"><h2 id="proj-h">프로젝트</h2><div class="row-f"><button class="link small" onClick="{{goProjects}}">모두 보기</button><button class="link create small" onClick="{{openNew}}">새 프로젝트</button></div></div>
       <div class="list">
         <sc-for list="{{homeProjects}}" as="p">
           <button class="prow" onClick="{{p.open}}">
@@ -519,12 +521,13 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
         </sc-for>
       </div>
     </section>
-    </div><aside class="home-side" aria-label="상태와 요약"><details open="{{sideOpen}}" onToggle="{{onSideToggle}}"><summary>상태 · 요약</summary><div class="home-side-content">
+    </div><aside class="home-side" aria-label="상태와 요약"><div class="home-side-content">
       <section class="side-block" aria-label="작업 현황"><div class="side-stats"><div class="side-stat"><span>진행 중</span><b>{{st.active}}개</b></div><div class="side-stat"><span>오늘 실행</span><b>{{st.today}}회</b></div><div class="side-stat"><span>완료</span><b>{{st.done}}개</b></div><div class="side-stat"><span>확인 필요</span><b>{{st.inbox}}건</b></div></div></section>
       <section class="side-block"><div class="sec-h"><h2>구독 사용량</h2><button class="link small" onClick="{{meter.go}}">상세</button></div><sc-if value="{{meter.has}}"><div class="side-meter"><sc-for list="{{meter.items}}" as="m"><div class="{{m.cls}}" title="{{m.t}}"><span class="provider-label">{{m.l}}</span><b>{{m.v}}</b></div></sc-for></div></sc-if><sc-if value="{{meter.none}}"><p class="hint">확인된 사용량이 없습니다.</p></sc-if></section>
+      <div class="side-block"><button class="home-side-toggle" aria-expanded="{{sideExpanded}}" aria-controls="home-side-extra" onClick="{{toggleSide}}">요약 · 활동 보기</button></div><sc-if value="{{sideOpen}}"><div id="home-side-extra">
       <section class="side-block"><h2>요약 · 예정</h2><sc-if value="{{dg.has}}"><p class="small"><b>{{dg.title}}</b> · {{dg.when}}</p><ul class="side-list"><sc-for list="{{dg.lines}}" as="l"><li>{{l}}</li></sc-for></ul><sc-if value="{{dg.hasProjects}}"><ul class="side-list" style="margin-top:10px"><sc-for list="{{dg.projects}}" as="p"><li><button class="link small" onClick="{{p.open}}">{{p.title}}</button> · {{p.statusL}}</li></sc-for></ul></sc-if></sc-if><sc-if value="{{dg.none}}"><p class="hint">아직 요약이 없습니다.</p></sc-if><sc-if value="{{dg.noUpcoming}}"><p class="hint">예정된 일이 없습니다.</p></sc-if><ul class="side-list"><sc-for list="{{dg.upcoming}}" as="u"><li><span class="muted">{{u.when}}</span>{{u.what}}</li></sc-for></ul><details style="margin-top:12px"><summary>요약 관리</summary><div class="side-manage"><div class="row-f"><button class="btn sm" onClick="{{dg.makeDaily}}">오늘 요약 만들기</button><button class="btn sm" onClick="{{dg.makeWeekly}}">주간 보고 만들기</button></div><details><summary>요약 설정</summary><div class="field"><label for="dg-time">요약 시각</label><div class="row-f"><input class="input" id="dg-time" type="time" value="{{dg.timeDraft}}" onChange="{{dg.onTime}}"><button class="btn sm" onClick="{{dg.saveTime}}">저장</button></div></div><div class="field"><label>매일 요약</label><div class="seg" role="group" aria-label="매일 요약"><sc-for list="{{dg.dailyChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div><div class="field"><label>주간 보고</label><div class="seg wrap" role="group" aria-label="주간 보고 요일"><sc-for list="{{dg.weekChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div></details><sc-if value="{{dg.hasOlder}}"><details><summary>지난 요약 {{dg.olderN}}개</summary><sc-for list="{{dg.older}}" as="o"><div class="small"><b>{{o.title}}</b> · {{o.when}}<button class="link small" onClick="{{o.remove}}">삭제</button></div></sc-for></details></sc-if><sc-if value="{{dg.has}}"><button class="btn ghost sm" onClick="{{dg.removeLatest}}">최근 요약 삭제</button><button class="btn danger sm" onClick="{{dg.clear}}">요약 모두 지우기</button></sc-if></div></details></section>
       <section class="side-block"><h2>최근 활동</h2><ul class="side-list"><sc-for list="{{recentActivity}}" as="r"><li><b>{{r.project}}</b> · {{r.team}}<span class="muted">{{r.when}} · {{r.result}}</span></li></sc-for></ul><sc-if value="{{noRecentActivity}}"><p class="hint">아직 실행 기록이 없습니다.</p></sc-if></section>
-    </div></details></aside></div>
+    </div></sc-if></div></aside></div>
 
     <section class="sec" aria-labelledby="team-h" hidden>
       <div class="sec-h"><h2 id="team-h">팀</h2><button class="link small" onClick="{{goTeams}}">자세히</button></div>
@@ -552,7 +555,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 <sc-if value="{{vProjects}}">
   <div class="page-h">
     <div><h1>프로젝트</h1><p class="lede">각 프로젝트는 기획 → 개발 → 검증을 돌며 진행됩니다. 행을 누르면 상세로 이동합니다.</p></div>
-    <button class="btn pri" onClick="{{openNew}}">새 프로젝트</button>
+    <button class="link create small" onClick="{{openNew}}">새 프로젝트</button>
   </div>
   <div class="list">
     <sc-for list="{{allProjects}}" as="p">
@@ -564,7 +567,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
         <span class="when">{{p.ago}}</span>
       </button>
     </sc-for>
-    <sc-if value="{{noProjects}}"><div class="empty"><div class="h">아직 프로젝트가 없습니다</div><p>새 프로젝트를 만들면 여기에 나타납니다.</p><button class="btn pri" onClick="{{openNew}}">새 프로젝트</button></div></sc-if>
+    <sc-if value="{{noProjects}}"><div class="empty"><div class="h">아직 프로젝트가 없습니다</div><p>새 프로젝트를 만들면 여기에 나타납니다.</p><button class="link create small" onClick="{{openNew}}">새 프로젝트</button></div></sc-if>
   </div>
 </sc-if>
 
@@ -1237,7 +1240,7 @@ class Component extends DCLogic {
   }
   constructor(props) {
     super(props);
-    this.state = { view: 'home', pid: null, ptab: 'over', eng: null, offline: false, toast: '', sideOpen: true, moreOpen: false,
+    this.state = { view: 'home', pid: null, ptab: 'over', eng: null, offline: false, toast: '', sideOpen: false,
       showNew: false, np: { title: '', goal: '', crit: '', error: '' }, drafts: {}, pinOpen: {}, pinDraft: '',
       envs: null, envErr: '', envBusy: false };
   }
@@ -1654,7 +1657,7 @@ class Component extends DCLogic {
       wp.goals.forEach((goal) => {
         const msgs = goal.messages && goal.messages.length ? goal.messages : [{ role: 'user', text: goal.objective, at: goal.createdAt }];
         msgs.forEach((mm) => items.push({ at: mm.at, cls: mm.role === 'user' ? 'msg me' : 'msg team',
-          who: mm.role === 'user' ? '대장' : askedBy(mm.text), sub: ({ answer: '답변', approval: '승인', question: '질문' })[mm.kind] || '',
+          who: mm.role === 'user' ? '대장' : askedBy(mm.text), sub: ({ answer: '답변', approval: '승인', question: '질문', control: '조작', review: '결과 확인' })[mm.kind] || '',
           text: mm.role === 'user' ? (mm.text || (mm.attachments && mm.attachments.length ? '첨부 ' + mm.attachments.length + '개' : '')) : stripAsker(mm.text),
           hasAtt: !!(mm.attachments && mm.attachments.length), atts: (mm.attachments || []).map((a) => attView(wp.id, a)) }));
       });
@@ -1954,10 +1957,9 @@ class Component extends DCLogic {
     return {
       accent: '#2E5BFF',
       nav: navDefs.map((x) => ({ l: x[1], n: x[2], hasN: x[2] > 0, cls: 'tt' + (cur === x[0] ? ' on' : ''), cur: cur === x[0] ? 'page' : 'false', go: () => this.go(x[0]) })),
-      navMore: navMoreDefs.map((x) => ({ l: x[1], cls: cur === x[0] ? 'on' : '', cur: cur === x[0] ? 'page' : 'false', go: () => { this.setState({moreOpen:false}); this.go(x[0]); } })),
-      moreOpen: s.moreOpen, moreExpanded: s.moreOpen ? 'true' : 'false', toggleMore: () => this.setState({moreOpen:!this.state.moreOpen}),
+      navMore: navMoreDefs.map((x) => ({ l: x[1], cls: cur === x[0] ? 'on' : '', cur: cur === x[0] ? 'page' : 'false', go: () => this.go(x[0]) })),
       goHome: () => this.go('home'), goProjects: () => this.go('projects'), goTeams: () => this.go('teams'),
-      sideOpen: s.sideOpen, onSideToggle: (e) => { if (this.state.sideOpen !== e.target.open) this.setState({sideOpen:e.target.open}); },
+      sideOpen: s.sideOpen, sideExpanded: s.sideOpen ? 'true' : 'false', toggleSide: () => this.setState({sideOpen:!this.state.sideOpen}),
       notif: (() => { const p = s.notifPerm || (('Notification' in window) ? Notification.permission : 'unsupported');
         return { canAsk: p === 'default', on: p === 'granted', enable: () => this.enableNotifications() }; })(),
       meter: (() => {

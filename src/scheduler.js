@@ -100,6 +100,7 @@ export class GoalScheduler {
     const done = all && (goal.kind !== 'team' || judged);
     const at = iso(this.clock.now());
     this.update(goal, { confirmed, evidence, ...(done ? { status: GoalStatus.VERIFIED, nextRunAt: null, reason: null } : {}),
+      ...(!(done && judged) ? { messages: this.withControl(goal, `조건 확인 · ${criterion}${text ? ` · ${text}` : ''}`) } : {}),
       ...(done && judged ? { question: null, autoRun: false, autoRunBeforeFinish: goal.autoRun, team: { ...goal.team, awaitingJudgement: null },
         messages: [...(goal.messages ?? []), { role: 'team', kind: 'question', text: String(goal.question ?? ''), at },
           { role: 'user', kind: 'approval', text: `남은 조건을 대장이 확인했습니다 · ${goal.team.awaitingJudgement.join(' · ')}`, at }].slice(-100) } : {}) });
@@ -114,7 +115,7 @@ export class GoalScheduler {
     if (goal?.criteriaApprovalPending) throw new Error('completion criteria approval required');
     if (!goal) throw new Error('goal not found');
     if (goal.status === GoalStatus.VERIFIED) throw new Error('goal is already verified');
-    const changes = { autoRun: true, pauseRequested: false };
+    const changes = { autoRun: true, pauseRequested: false, messages: this.withControl(goal, goal.status === GoalStatus.PAUSED ? '다시 시작' : '시작') };
     if (goal.status === GoalStatus.PAUSED) Object.assign(changes, { status: goal.pausedFrom ?? GoalStatus.SCHEDULED, pausedFrom: null });
     else if (RESUMABLE.includes(goal.status) && !HELD_FOR_DAEJANG.includes(goal.reason)) {
       Object.assign(changes, { status: GoalStatus.SCHEDULED, reason: null, attempt: 0, testFixAttempts: 0, noProgressRounds: 0, nextRunAt: iso(this.clock.now()) });
@@ -128,7 +129,7 @@ export class GoalScheduler {
   stop(goalId) {
     const goal = this.store.getGoal(goalId);
     if (!goal) throw new Error('goal not found');
-    const changes = { autoRun: false };
+    const changes = { autoRun: false, messages: this.withControl(goal, goal.status === GoalStatus.RUNNING ? '멈춤 · 지금 단계가 끝나면 멈춥니다' : '멈춤') };
     if (goal.status === GoalStatus.RUNNING) changes.pauseRequested = true;
     else if (DUE.includes(goal.status)) Object.assign(changes, { status: GoalStatus.PAUSED, pausedFrom: goal.status });
     this.update(goal, changes);
@@ -181,6 +182,7 @@ export class GoalScheduler {
     if (!goal || goal.reason !== 'approval_required') return goal;
     const note = refusals.length ? `[대장] 감시 에이전트 요청 거절: ${refusals.join(', ')} · 이것 없이 진행할 방법을 쓰세요.` : '';
     this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, question: null, nextRunAt: iso(this.clock.now()),
+      messages: this.withControl(goal, refusals.length ? `감시 에이전트 요청 처리 · 거절 ${refusals.length}건 · 계속` : '감시 에이전트 요청 처리 · 계속'),
       ...(note ? { team: { ...goal.team, feedback: [goal.team?.feedback, note].filter(Boolean).join('\n') } } : {}) });
     void this.store.emit({ type: 'goal.approvals_answered', goalId });
     return goal;
@@ -214,21 +216,22 @@ export class GoalScheduler {
     if (goal?.proposal?.status !== 'pending') throw new Error('no pending proposal');
     const next = this.addGoal({ projectId: goal.projectId, kind: 'team', autoRun: true, title: goal.title,
       objective: `${goal.objective} — 개선: ${goal.proposal.items.join(', ')}`.slice(0, 2000), completionCriteria: goal.proposal.items });
-    this.update(goal, { proposal: { ...goal.proposal, status: 'accepted', nextGoalId: next.id } });
+    this.update(goal, { proposal: { ...goal.proposal, status: 'accepted', nextGoalId: next.id }, messages: this.withControl(goal, `개선안 승인 · ${goal.proposal.items.length}개를 새 목표로 진행`) });
     return next;
   }
 
   dismissProposal(goalId) {
     const goal = this.store.getGoal(goalId);
     if (goal?.proposal?.status !== 'pending') throw new Error('no pending proposal');
-    return this.update(goal, { proposal: { ...goal.proposal, status: 'dismissed' } });
+    return this.update(goal, { proposal: { ...goal.proposal, status: 'dismissed' }, messages: this.withControl(goal, '개선안 보류') });
   }
 
   setAutonomy(goalId, input) {
     const goal = this.store.getGoal(goalId);
     if (!goal || goal.kind !== 'team' || goal.status === GoalStatus.RUNNING) throw new Error('wait for a team checkpoint');
     if (typeof input.enabled !== 'boolean' || !Number.isInteger(input.remaining) || input.remaining < 0 || input.remaining > 3) throw new Error('autonomy budget must be 0 to 3');
-    const updated = this.update(goal, { autonomy: { enabled: input.enabled, remaining: input.remaining } });
+    const updated = this.update(goal, { autonomy: { enabled: input.enabled, remaining: input.remaining },
+      messages: this.withControl(goal, input.enabled ? `자율 후속 작업 켬 · 최대 ${input.remaining}번` : '자율 후속 작업 끔') });
     if (!input.enabled) {
       let childId = goal.followupId;
       const seen = new Set();
@@ -266,9 +269,9 @@ export class GoalScheduler {
   pause(goalId) {
     const goal = this.store.getGoal(goalId);
     if (goal?.status === GoalStatus.RUNNING) {
-      this.update(goal, { pauseRequested: true });
+      this.update(goal, { pauseRequested: true, messages: this.withControl(goal, '멈춤 · 지금 단계가 끝나면 멈춥니다') });
     } else if (goal && DUE.includes(goal.status)) {
-      this.update(goal, { status: GoalStatus.PAUSED, pausedFrom: goal.status });
+      this.update(goal, { status: GoalStatus.PAUSED, pausedFrom: goal.status, messages: this.withControl(goal, '멈춤') });
     } else {
       throw new Error('only waiting or running goals can be paused');
     }
@@ -280,7 +283,7 @@ export class GoalScheduler {
     const goal = this.store.getGoal(goalId);
     if (goal?.criteriaApprovalPending) throw new Error('completion criteria approval required');
     if (goal?.status === GoalStatus.PAUSED) {
-      this.update(goal, { status: goal.pausedFrom ?? GoalStatus.SCHEDULED, pausedFrom: null });
+      this.update(goal, { status: goal.pausedFrom ?? GoalStatus.SCHEDULED, pausedFrom: null, messages: this.withControl(goal, '다시 시작') });
       void this.store.emit({ type: 'goal.resumed', goalId });
       return goal;
     }
@@ -289,7 +292,7 @@ export class GoalScheduler {
       throw new Error('this goal waits for 대장: answer it in the approval inbox');
     }
     this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, attempt: 0, testFixAttempts: 0,
-      noProgressRounds: 0, nextRunAt: iso(this.clock.now()) });
+      noProgressRounds: 0, nextRunAt: iso(this.clock.now()), messages: this.withControl(goal, '다시 시작') });
     void this.store.emit({ type: 'goal.resumed', goalId });
     return goal;
   }
@@ -371,7 +374,8 @@ export class GoalScheduler {
     const now = this.clock.now(), day = new Date(now).toDateString();
     const already = goal.dailyExtra?.day === day ? goal.dailyExtra.steps : 0;
     if (already + steps > 50) throw new Error('at most 50 extra steps per project per day');
-    const changes = { dailyExtra: { day, steps: already + steps } };
+    const changes = { dailyExtra: { day, steps: already + steps },
+      messages: this.withControl(goal, `오늘만 ${steps}단계 더 · 오늘 한도 ${this.dailyLimit() + already + steps}단계 (기본 ${this.dailyLimit()} + 오늘 추가 ${already + steps})`) };
     // A project held only by today's limit continues at the next tick.
     if (goal.reason === 'daily_cap') Object.assign(changes, { reason: null, nextRunAt: iso(now) });
     void this.store.emit({ type: 'goal.daily_extended', goalId, steps: already + steps });
@@ -716,6 +720,12 @@ export class GoalScheduler {
     const sameAsWorker = (REVIEWS.includes(step) || step === 'qa') && worker?.executor === executor;
     void this.store.emit({ type: 'goal.provider_switched', goalId: goal.id, team: step, from: planned, to: executor, sameAsWorker });
     return { switchedFrom: planned, ...(sameAsWorker ? { sameAsWorker: true } : {}) };
+  }
+
+  // 대장's controls (시작·멈춤·오늘만 N단계 더 …) shown in the project conversation. Display only: team prompts are
+  // built from the objective and feedback, never from these lines.
+  withControl(goal, text) {
+    return [...(goal.messages ?? []), { role: 'user', kind: 'control', text, at: iso(this.clock.now()) }].slice(-100);
   }
 
   update(goal, changes) {

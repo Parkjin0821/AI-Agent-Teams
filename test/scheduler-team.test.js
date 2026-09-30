@@ -101,7 +101,7 @@ test('conversation derives criteria, invalidates old confirmations and preserves
     // the criteria were still awaiting approval, so a message means "derive them again"
     assert.deepEqual(changed.confirmed, []);
     assert.deepEqual(changed.completionCriteria, []);
-    assert.equal(changed.messages.length, 2);
+    assert.deepEqual(changed.messages.map(m => m.kind ?? null), [null, "control", null], "the objective, the confirmation as 대장's control, then the message");
   } finally { store.close(); }
 });
 
@@ -559,5 +559,18 @@ test('a limit hit during a step waits, and the next step moves to the other subs
     scheduler.capacity = null;
     for (let i = 0; i < 3; i++) await scheduler.runGoal(other.id);
     assert.deepEqual([store.getGoal(other.id).status, store.getGoal(other.id).reason], ['blocked', 'limit_error'], 'switch off: stops as before');
+  } finally { store.close(); }
+});
+test('대장\'s controls (extra steps, stop, start) show in the project conversation', () => {
+  const { store, scheduler, add } = setup(() => ({}));
+  try {
+    const goal = add();
+    scheduler.extendToday(goal.id, 5);
+    scheduler.extendToday(goal.id, 10);
+    scheduler.stop(goal.id);
+    scheduler.start(goal.id);
+    const lines = store.getGoal(goal.id).messages.filter(m => m.kind === 'control').map(m => [m.role, m.text]);
+    assert.deepEqual(lines, [['user', '오늘만 5단계 더 · 오늘 한도 15단계 (기본 10 + 오늘 추가 5)'], ['user', '오늘만 10단계 더 · 오늘 한도 25단계 (기본 10 + 오늘 추가 15)'],
+      ['user', '멈춤'], ['user', '다시 시작']]);
   } finally { store.close(); }
 });
