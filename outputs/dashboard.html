@@ -2441,7 +2441,7 @@ class Component extends DCLogic {
       rt: this.routineView(wp), ru: this.rulesView(P),
       parallelOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: lim.parallel === v ? 'on' : '', pressed: lim.parallel === v ? 'true' : 'false',
         pick: () => { if (lim.parallel === v) return; this.act(this.api('PUT', '/api/settings', { key: 'parallel.enabled', value: v }), v ? '병렬 작업을 켰습니다' : '병렬 작업을 껐습니다 · 진행 중인 병렬 작업은 끝까지 갑니다'); } })),
-      projModeOpts: (() => {
+      projModeOpts: !wp ? [] : (() => {
         const own = (wp.policy && wp.policy.permissionMode) || '', globalL = lim.permissionMode === 'careful' ? '꼼꼼히' : '알아서';
         return [['', '기본 따름 (' + globalL + ')'], ['auto', '알아서'], ['careful', '꼼꼼히']].map(([v, l]) => ({ l: l, cls: own === v ? 'on' : '', pressed: own === v ? 'true' : 'false',
           pick: () => { if (own !== v) this.act(this.api('PUT', '/api/projects/' + wp.id + '/model-policy', { permissionMode: v, reason: 'permission mode' }), v ? '이 프로젝트는 ' + l + ' 모드로 진행합니다 · 다음 단계부터' : '이 프로젝트는 기본 권한 모드를 따릅니다'); } }));
