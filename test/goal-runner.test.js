@@ -199,7 +199,9 @@ test('the limit state Claude Code reports during a run is handed to the usage re
 test('원문 저장: the web team lists its pages, the engine saves allowed originals, and a check can prove against them', async () => {
   const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(), 'hq-src-run-')));
   const grantsFile = path.join(mkdtempSync(path.join(tmpdir(), 'hq-grants-')), 'grants.json');
-  writeFileSync(grantsFile, JSON.stringify({ grants: [{ kind: 'web', target: 'nodejs.org', project: 'hello' }] }));
+  writeFileSync(grantsFile, JSON.stringify({ grants: [{ kind: 'web', target: 'nodejs.org', project: 'hello', scope: 'once' }] }));
+  // a one-time grant is spent right after the team's step; the engine's saving of that step's pages still uses it
+  const approvals = { request: () => [], consumeOnce: () => writeFileSync(grantsFile, JSON.stringify({ grants: [] })) };
   const events = [];
   let records = [{ id: 'r1', status: 'running', team: 'research', executor: 'claude-code' }];
   const srcStore = { emit: async e => { events.push(e); }, listRuns: () => records, saveRun: r => { records = records.map(o => o.id === r.id ? r : o); } };
@@ -212,7 +214,7 @@ test('원문 저장: the web team lists its pages, the engine saves allowed orig
   } };
   const webSources = { fetcher: async () => ({ ok: true, status: 200, text: async () => '<p>Get Node.js v24.21.0 (LTS)</p>',
     headers: { get: k => (k === 'content-type' ? 'text/html' : null) } }), resolve: async () => [{ address: '104.20.22.46', family: 4 }] };
-  const runner = createGoalRunner({ adapter, workspaces, store: srcStore, webSources,
+  const runner = createGoalRunner({ adapter, workspaces, store: srcStore, webSources, approvals,
     sentinel: { script: 'x', log: path.join(path.dirname(grantsFile), 's.jsonl'), grants: grantsFile } });
   const result = await runner.run({ ...goal, kind: 'team', completionCriteria: criteria, team: { step: 'research', task: '조사', feedback: '', cycle: 1 } },
     { executor: 'claude-code', team: 'research', access: 'write' });

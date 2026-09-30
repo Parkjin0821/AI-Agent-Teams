@@ -87,6 +87,8 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           webMode: settings()['sentinel.web'] === 'open' ? 'open' : 'ask' } } : {}) });
       // 승인 대기: what the Sentinel held back this round becomes approval requests; "once" grants are spent.
       let approvalRequests = [];
+      // The grants as they stood during this step: a "once" grant also covers the engine saving that step's pages.
+      const stepGrants = sentinel?.grants ? readGrants(sentinel.grants) : [];
       if (sentinel && approvals && !simulated) {
         approvalRequests = approvals.request(readAsks(sentinel.log, { project: goal.projectId, since: roundStart }),
           { goalId: goal.id, project: goal.projectId, team: team ?? 'task', task: goal.team?.task ?? goal.objective });
@@ -140,7 +142,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       let sources = null;
       if (team && TEAMS[team]?.web && Array.isArray(report?.sources) && report.sources.length && sentinel && !simulated) {
         sources = await saveSources({ urls: report.sources, cwd, project: goal.projectId,
-          grants: sentinel.grants ? readGrants(sentinel.grants) : [], webMode: settings()['sentinel.web'] === 'open' ? 'open' : 'ask', ...webSources });
+          grants: stepGrants, webMode: settings()['sentinel.web'] === 'open' ? 'open' : 'ask', ...webSources });
         await store.emit({ type: 'sources.saved', goalId: goal.id, team, saved: sources.saved.map(s => ({ path: s.path, url: s.url, bytes: s.bytes })),
           skipped: sources.skipped });
       }
