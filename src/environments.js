@@ -44,6 +44,8 @@ export const SETTINGS = Object.freeze({
   'limits.maxRoundsPerDay': { type: 'number', default: 10, min: 1, max: 100 },
   // 한도 자동 전환: a step whose tool hit its usage stop runs on the other subscription when that one has room.
   'limits.autoSwitch': { type: 'boolean', default: true },
+  // 제어팀: teams with no model pick get a model and reasoning level sized to the work.
+  'models.auto': { type: 'boolean', default: true },
   // 감시 에이전트: 'ask' — a public site needs 대장's approval before a team opens it; 'open' — any public https site.
   'sentinel.web': { type: 'string', default: 'ask', values: ['ask', 'open'] },
   // 신뢰 쌓기: how many results of each kind of work 대장 reviews before it runs on its own (0 = off).

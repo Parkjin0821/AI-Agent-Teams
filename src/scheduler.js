@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { attachmentNote } from './attachments.js';
 import { validateCriteria } from './domain.js';
-import { resolveModel, validateExecutor } from './models.js';
+import { isUsable, resolveModel, validateExecutor } from './models.js';
+import { levelChoice, levelFor } from './model-levels.js';
 import { DEFAULT_POLICY } from './policy.js';
 import { nextStep, REVIEWS, TEAMS, WORKERS } from './teams.js';
 import { validateProjectId } from './workspaces.js';
@@ -36,8 +37,8 @@ const mergeEvidence = (list, confirmed = []) => [
 // checkpoint) is saved; a policy change during a round therefore takes effect from the next round.
 export class GoalScheduler {
   constructor({ store, runner, clock = { now: () => Date.now() }, policy = DEFAULT_POLICY, registry = null, capacity = null, capabilities = null, dailyCap = null,
-    trust = null, autoSwitch = () => true }) {
-    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities, dailyCap, trust, autoSwitch });
+    trust = null, autoSwitch = () => true, autoLevels = () => true, codexModels = () => [] }) {
+    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities, dailyCap, trust, autoSwitch, autoLevels, codexModels });
     for (const goal of store.listGoals().filter(g => g.status === GoalStatus.RUNNING)) {
       for (const run of store.listRuns(goal.id).filter(r => r.status === 'running')) store.saveRun({ ...run, status: 'interrupted' });
       this.update(goal, { status: GoalStatus.RECOVERY_REQUIRED, reason: 'interrupted_by_restart', nextRunAt: null });
@@ -433,7 +434,7 @@ export class GoalScheduler {
           requestedModel: model.model, modelSource: model.source, fallbackFrom: model.fallbackFrom ?? null,
           requestedEffort: model.effort ?? null, selectionReason: model.reason ?? model.source,
           assignmentComparison: model.comparison ?? [], requiredCapabilities: model.needs ?? [], proposalReason: model.proposalReason ?? null,
-          policyVersion: model.policyVersion });
+          policyVersion: model.policyVersion, ...(model.level ? { level: model.level } : {}) });
         this.update(goal, { status: GoalStatus.RUNNING, waitingFrom: null, reason: null });
         return run;
       });
@@ -668,6 +669,8 @@ export class GoalScheduler {
       return namedModel(executor, { state: 'ready', model: pick.model, effort: pick.effort, source: 'team_choice', reason: 'team_choice', policyVersion: project.version });
     }
     if (collaborative) return collaborative;
+    const auto = this.autoLevel(goal, executor, project);
+    if (auto) return auto;
     return namedModel(executor, { ...resolveModel({ executor, project, task: goal.modelOverride, catalog: this.registry.catalog(),
       context: { team: goal.team?.step, critical: goal.team?.profile?.risk === 'high' || goal.team?.profile?.complexity === 'complex',
         simple: goal.team?.profile?.complexity === 'simple', failures: Math.max(goal.noProgressRounds ?? 0, goal.testFixAttempts ?? 0) } }),
@@ -685,6 +688,20 @@ export class GoalScheduler {
       effort: run?.requestedEffort ?? null, nextEffort: next.effort ?? null, reason: next.reason ?? next.source,
       comparison: next.comparison ?? [], requiredCapabilities: next.needs ?? [], proposalReason: next.proposalReason ?? null,
       changePending: Boolean(run) && (next.state !== 'ready' || next.model !== run.requestedModel) };
+  }
+
+  // 제어팀: a team with no model pick gets a model and reasoning level sized to the work (see model-levels.js).
+  // Pinned models, 대장's team picks and verified adaptive catalogs come first; turned off with models.auto.
+  autoLevel(goal, executor, project) {
+    if (goal.kind !== 'team' || this.autoLevels?.() === false) return null;
+    if (project.mode === 'pinned' || goal.modelOverride?.mode === 'pinned') return null;
+    if (project.strategy === 'adaptive' && this.registry.catalog().some(e => e.executor === executor && isUsable(e))) return null;
+    const level = levelFor({ team: goal.team?.step ?? 'plan', profile: goal.team?.profile ?? null,
+      failures: Math.max(goal.noProgressRounds ?? 0, goal.testFixAttempts ?? 0) });
+    const choice = levelChoice(executor, level, { codexModels: this.codexModels?.() ?? [] });
+    if (!choice) return null;
+    return { state: 'ready', model: choice.model, effort: choice.effort, source: 'auto_level', reason: 'auto_level',
+      level: { id: level.id, label: level.label, why: level.why }, policyVersion: project.version };
   }
 
   // Recorded on a run that another subscription took over; a review on the worker's own tool is not independent.

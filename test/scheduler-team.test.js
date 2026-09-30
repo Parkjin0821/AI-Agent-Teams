@@ -517,3 +517,23 @@ test('no switch when 대장 turned it off, for high-risk work, for web work onto
     assert.equal(scheduler.stepExecutor(goal), 'claude-code');
   } finally { store.close(); }
 });
+test('제어팀 fills in unpicked teams; a team pick, a pin or turning it off wins', () => {
+  const { store, scheduler, add } = setup(() => ({}));
+  try {
+    let policy = { mode: 'auto', version: 1 };
+    scheduler.registry = { getPolicy: () => policy, catalog: () => [] };
+    const goal = add();
+    goal.team.step = 'dev';
+    goal.team.profile = { complexity: 'simple', risk: 'low', effects: [] };
+    let m = scheduler.resolveFor(goal);
+    assert.deepEqual([m.model, m.effort, m.source, m.level.label], ['claude-sonnet-5-5', 'low', 'auto_level', '가벼움']);
+    policy = { mode: 'auto', version: 2, teamModels: { dev: { executor: 'claude-code', model: 'claude-opus-5-5', effort: 'max' } } };
+    m = scheduler.resolveFor(goal);
+    assert.deepEqual([m.model, m.effort, m.source], ['claude-opus-5-5', 'max', 'team_choice']);
+    policy = { mode: 'pinned', model: 'claude-opus-5-5', version: 3 };
+    assert.notEqual(scheduler.resolveFor(goal).source, 'auto_level');
+    policy = { mode: 'auto', version: 4 };
+    scheduler.autoLevels = () => false;
+    assert.notEqual(scheduler.resolveFor(goal).source, 'auto_level');
+  } finally { store.close(); }
+});

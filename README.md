@@ -146,6 +146,7 @@ $env:PORT='4314'; $env:AGENT_HQ_DATA_DIR='data\real-test'   # 포트·데이터 
 | `src/evidence.js` | 완료 근거 확인(파일 존재·문구·엔진이 돌린 테스트 통과), 작업 폴더 지문 |
 | `src/toolkit.js`, `src/checks.js`, `src/sandbox.js` | 팀별 프로그램 목록, 엔진 내장 검사, Codex 샌드박스 실행 |
 | `src/adapters.js` | Claude Code / Codex CLI 실행(셸 미사용, 프롬프트는 stdin) |
+| `src/model-levels.js` | 제어팀: 기획팀이 적은 난이도·위험도로, 모델을 고르지 않은 팀의 모델·추론 수준을 자동으로 정함 (AI 호출 없음) |
 | `src/models.js`, `src/model-policy.js`, `src/model-choices.js`, `src/model-evals.js`, `src/model-changes.js` | 실행 도구·모델 분리, 팀별 모델·추론 선택, 모델 정책·평가·승인 후 변경 |
 | `src/sentinel.js`, `scripts/sentinel-hook.mjs`, `src/approvals.js` | 감시 에이전트(허용·차단·승인 요청), 승인 범위와 허용 목록 |
 | `src/memory.js` | 대장 기억(보기·고치기·잊기, 팀 제안은 승인 후 적용) |

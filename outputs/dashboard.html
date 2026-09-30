@@ -38,6 +38,14 @@ button{cursor:pointer}
 .mark{width:24px;height:24px;border-radius:7px;background:var(--text);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700;font-family:var(--mono)}
 .tabs-top{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none}
 .tabs-top::-webkit-scrollbar{display:none}
+.top-more{position:relative;flex:none}
+.top-more>summary{border:0;background:none;padding:6px 10px;color:var(--text-3);font-weight:500}
+.top-more>summary::before{display:none}
+.top-more>summary::after{content:'⌄';margin-left:4px}
+.top-more[open]>summary{color:var(--text);background:var(--subtle)}
+.top-more-menu{position:absolute;right:0;top:calc(100% + 12px);min-width:150px;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:var(--shadow);display:grid;gap:2px;z-index:30}
+.top-more-menu button{border:0;background:none;text-align:left;padding:9px 10px;border-radius:6px;color:var(--text-2)}
+.top-more-menu button:hover,.top-more-menu button.on{background:var(--subtle);color:var(--text)}
 .tt{border:0;background:none;padding:6px 10px;border-radius:var(--r-sm);color:var(--text-3);font-weight:500;white-space:nowrap;transition:color .15s,background .15s}
 .tt:hover{color:var(--text);background:var(--subtle)}
 .tt.on{color:var(--text);background:var(--subtle)}
@@ -89,6 +97,33 @@ button{cursor:pointer}
 
 /* 레이아웃 */
 main{max-width:1520px;margin:0 auto;padding:36px 32px 96px}
+.home-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:32px;align-items:start}
+.home-primary{min-width:0}
+.home-side{position:sticky;top:108px;min-width:0}
+.home-side>details{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow)}
+.home-side>details>summary{display:flex;justify-content:space-between;border:0;border-radius:var(--r-lg);padding:14px 16px;font-size:13px;font-weight:600}
+.home-side>details>summary::before{display:none}
+.home-side>details>summary::after{content:'⌄';color:var(--text-3)}
+.home-side>details[open]>summary::after{content:'⌃'}
+.home-side-content{padding:0 16px 16px}
+.side-block{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
+.side-block:first-child{margin-top:0}
+.side-block h2{font-size:13px;margin-bottom:10px}
+.side-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.side-stat{border:1px solid var(--line);border-radius:8px;padding:9px 10px}
+.side-stat span{display:block;font-size:11px;color:var(--text-3)}
+.side-stat b{display:block;font-size:18px;margin-top:2px}
+.side-meter{display:grid;gap:7px}
+.side-meter .mi{display:flex;justify-content:space-between;gap:8px;font-size:12px}
+.side-meter .mi.claude .provider-label{color:#a94f34}.side-meter .mi.codex .provider-label{color:#171717}
+.side-meter .mi.old b{color:var(--text-3)}.side-meter .mi.stop b{color:var(--stop)}
+.side-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.side-list li{font-size:12px;line-height:1.45;color:var(--text-2)}
+.side-list .muted{display:block}
+.side-manage{display:grid;gap:10px;margin-top:10px}
+.side-manage .row-f{flex-wrap:wrap}
+.side-manage .input{max-width:130px}
+.side-manage .field{margin:10px 0}
 .page-h{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:28px}
 h1{margin:0;font-size:26px;line-height:1.25;letter-spacing:-.025em;font-weight:600;text-wrap:balance}
 .lede{margin:6px 0 0;color:var(--text-3);max-width:62ch;text-wrap:pretty}
@@ -389,6 +424,8 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 
 /* 반응형 */
 @media (max-width:900px){
+  .home-layout{grid-template-columns:minmax(0,1fr)}
+  .home-side{position:static;grid-row:1}
   .top-in{padding:0 16px;gap:12px}
   main{padding:24px 16px 80px}
   .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -417,11 +454,11 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     <div class="brand-group"><button class="brand" onClick="{{goHome}}" aria-label="홈으로"><span class="mark">HQ</span><span class="word">AGENT HQ</span></button><span class="{{modeCls}}" title="{{modeTitle}}"><i></i><span>{{modeL}}</span></span></div>
     <nav class="tabs-top" aria-label="주 메뉴">
       <sc-for list="{{nav}}" as="n"><button class="{{n.cls}}" aria-current="{{n.cur}}" onClick="{{n.go}}">{{n.l}}<sc-if value="{{n.hasN}}"><span class="n">{{n.n}}</span></sc-if></button></sc-for>
+      <details class="top-more"><summary>더 보기</summary><div class="top-more-menu"><sc-for list="{{navMore}}" as="n"><button class="{{n.cls}}" aria-current="{{n.cur}}" onClick="{{n.go}}">{{n.l}}</button></sc-for></div></details>
     </nav>
     <div class="top-r">
       <sc-if value="{{notif.canAsk}}"><button class="btn ghost sm" onClick="{{notif.enable}}" title="질문·승인·완료·멈춤이 생기면 이 창을 보고 있지 않아도 알려 줍니다">알림 켜기</button></sc-if>
       <sc-if value="{{notif.on}}"><span class="notification-status" role="status" title="이 브라우저 창이 열려 있는 동안 알려 줍니다">알림 켜짐</span></sc-if>
-      <sc-if value="{{meter.has}}"><button class="meter" onClick="{{meter.go}}" title="{{meter.title}}" aria-label="{{meter.title}}"><sc-for list="{{meter.items}}" as="m"><span class="{{m.cls}}"><span class="provider-label">{{m.l}}</span> <b>{{m.v}}</b></span></sc-for></button></sc-if>
       <button class="btn pri sm" onClick="{{openNew}}">새 프로젝트</button>
     </div>
   </div>
@@ -437,14 +474,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
   </div>
 
   <sc-if value="{{hasProjects}}">
-    <section class="sec" aria-label="요약">
-      <div class="stats">
-        <div class="stat"><div class="k">진행 중</div><div class="v">{{st.active}}<small>개</small></div></div>
-        <div class="{{st.attnCls}}"><div class="k">확인 필요</div><div class="v">{{st.inbox}}<small>건</small></div></div>
-        <div class="stat"><div class="k">오늘 실행한 단계</div><div class="v">{{st.today}}<small>회</small></div></div>
-        <div class="stat"><div class="k">완료</div><div class="v">{{st.done}}<small>개</small></div></div>
-      </div>
-    </section>
+    <div class="home-layout"><div class="home-primary">
 
     <section class="sec" aria-labelledby="inbox-h">
       <div class="sec-h"><h2 id="inbox-h">확인 필요</h2><span class="meta">팀이 대장의 결정을 기다리는 일</span></div>
@@ -478,31 +508,6 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
       </div>
     </section>
 
-    <section class="sec" aria-labelledby="digest-h">
-      <div class="sec-h"><h2 id="digest-h">요약 · 예정</h2><span class="meta">{{dg.scheduleL}} · 엔진이 기록으로 작성 (사용량 안 씀)</span></div>
-      <div class="card">
-        <sc-if value="{{dg.has}}">
-          <div class="row-f" style="justify-content: space-between"><b>{{dg.title}}</b><span class="row-f"><span class="small muted">{{dg.when}}</span><button class="btn ghost sm" onClick="{{dg.removeLatest}}" aria-label="이 요약 삭제">삭제</button></span></div>
-          <ul class="ul" style="margin-top: 8px"><sc-for list="{{dg.lines}}" as="l"><li>{{l}}</li></sc-for></ul>
-          <sc-if value="{{dg.hasProjects}}"><div class="crit" style="margin-top: 8px"><sc-for list="{{dg.projects}}" as="p"><button class="cr link" style="grid-template-columns: minmax(0,1fr) auto; text-align: left; width: 100%" onClick="{{p.open}}"><span class="small"><b>{{p.title}}</b> · {{p.detail}}</span><span class="small muted">{{p.statusL}}</span></button></sc-for></div></sc-if>
-        </sc-if>
-        <sc-if value="{{dg.none}}"><p class="hint" style="margin: 0">아직 요약이 없습니다. 정해 둔 시각에 엔진이 만들고, 지금 바로 만들 수도 있습니다.</p></sc-if>
-        <div class="digest-actions" role="group" aria-label="요약과 보고서 만들기"><button class="btn" onClick="{{dg.makeDaily}}"><span class="digest-icon" aria-hidden="true">☀</span><span class="digest-copy"><b>오늘 요약 만들기</b><small>하루의 작업과 결과 정리</small></span></button><button class="btn" onClick="{{dg.makeWeekly}}"><span class="digest-icon" aria-hidden="true">▤</span><span class="digest-copy"><b>주간 보고 만들기</b><small>한 주의 진행 상황 정리</small></span></button></div>
-        <div class="lbl" style="margin-top: 16px">예정</div>
-        <div class="crit"><sc-for list="{{dg.upcoming}}" as="u"><div class="cr" style="grid-template-columns: 110px minmax(0,1fr) auto"><span class="small muted num">{{u.when}}</span><span class="small">{{u.what}}</span><span></span></div></sc-for></div>
-        <sc-if value="{{dg.noUpcoming}}"><p class="hint" style="margin: 0">예정된 일이 없습니다.</p></sc-if>
-        <sc-if value="{{dg.hasOlder}}"><details style="margin-top: 12px"><summary class="small">지난 요약 {{dg.olderN}}개</summary>
-          <sc-for list="{{dg.older}}" as="o"><div style="margin-top: 10px"><div class="row-f small"><b>{{o.title}}</b><span class="muted">{{o.when}}</span><button class="link small" onClick="{{o.remove}}" aria-label="{{o.when}} 요약 삭제">삭제</button></div><ul class="ul"><sc-for list="{{o.lines}}" as="l"><li class="small">{{l}}</li></sc-for></ul></div></sc-for></details></sc-if>
-        <details class="digest-settings" style="margin-top: 12px"><summary class="small">요약 설정</summary>
-          <div class="field"><label for="dg-time">요약 시각</label>
-            <div class="row-f"><input class="input" id="dg-time" type="time" style="max-width: 130px" value="{{dg.timeDraft}}" onChange="{{dg.onTime}}"><button class="btn sm" onClick="{{dg.saveTime}}">저장</button></div></div>
-          <div class="field"><label>매일 요약</label><div class="seg" role="group" aria-label="매일 요약"><sc-for list="{{dg.dailyChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div>
-          <div class="field"><label>주간 보고</label><div class="seg wrap" role="group" aria-label="주간 보고 요일"><sc-for list="{{dg.weekChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div>
-          <sc-if value="{{dg.has}}"><button class="btn danger sm" onClick="{{dg.clear}}">요약 모두 지우기</button></sc-if>
-        </details>
-      </div>
-    </section>
-
     <section class="sec" aria-labelledby="proj-h">
       <div class="sec-h"><h2 id="proj-h">프로젝트</h2><button class="link small" onClick="{{goProjects}}">모두 보기</button></div>
       <div class="list">
@@ -517,6 +522,12 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
         </sc-for>
       </div>
     </section>
+    </div><aside class="home-side" aria-label="상태와 요약"><details open><summary>상태 · 요약</summary><div class="home-side-content">
+      <section class="side-block" aria-label="작업 현황"><div class="side-stats"><div class="side-stat"><span>진행 중</span><b>{{st.active}}개</b></div><div class="side-stat"><span>오늘 실행</span><b>{{st.today}}회</b></div><div class="side-stat"><span>완료</span><b>{{st.done}}개</b></div><div class="side-stat"><span>확인 필요</span><b>{{st.inbox}}건</b></div></div></section>
+      <section class="side-block"><div class="sec-h"><h2>구독 사용량</h2><button class="link small" onClick="{{meter.go}}">상세</button></div><sc-if value="{{meter.has}}"><div class="side-meter"><sc-for list="{{meter.items}}" as="m"><div class="{{m.cls}}" title="{{m.t}}"><span class="provider-label">{{m.l}}</span><b>{{m.v}}</b></div></sc-for></div></sc-if><sc-if value="{{meter.none}}"><p class="hint">확인된 사용량이 없습니다.</p></sc-if></section>
+      <section class="side-block"><h2>요약 · 예정</h2><sc-if value="{{dg.has}}"><p class="small"><b>{{dg.title}}</b> · {{dg.when}}</p><ul class="side-list"><sc-for list="{{dg.lines}}" as="l"><li>{{l}}</li></sc-for></ul></sc-if><sc-if value="{{dg.none}}"><p class="hint">아직 요약이 없습니다.</p></sc-if><sc-if value="{{dg.noUpcoming}}"><p class="hint">예정된 일이 없습니다.</p></sc-if><ul class="side-list"><sc-for list="{{dg.upcoming}}" as="u"><li><span class="muted">{{u.when}}</span>{{u.what}}</li></sc-for></ul><details style="margin-top:12px"><summary>요약 관리</summary><div class="side-manage"><div class="row-f"><button class="btn sm" onClick="{{dg.makeDaily}}">오늘 요약 만들기</button><button class="btn sm" onClick="{{dg.makeWeekly}}">주간 보고 만들기</button></div><details><summary>요약 설정</summary><div class="field"><label for="dg-time">요약 시각</label><div class="row-f"><input class="input" id="dg-time" type="time" value="{{dg.timeDraft}}" onChange="{{dg.onTime}}"><button class="btn sm" onClick="{{dg.saveTime}}">저장</button></div></div><div class="field"><label>매일 요약</label><div class="seg" role="group" aria-label="매일 요약"><sc-for list="{{dg.dailyChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div><div class="field"><label>주간 보고</label><div class="seg wrap" role="group" aria-label="주간 보고 요일"><sc-for list="{{dg.weekChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div></details><sc-if value="{{dg.hasOlder}}"><details><summary>지난 요약 {{dg.olderN}}개</summary><sc-for list="{{dg.older}}" as="o"><div class="small"><b>{{o.title}}</b> · {{o.when}}<button class="link small" onClick="{{o.remove}}">삭제</button></div></sc-for></details></sc-if><sc-if value="{{dg.has}}"><button class="btn ghost sm" onClick="{{dg.removeLatest}}">최근 요약 삭제</button></sc-if></div></details></section>
+      <section class="side-block"><h2>최근 활동</h2><ul class="side-list"><sc-for list="{{recentActivity}}" as="r"><li><b>{{r.project}}</b> · {{r.team}}<span class="muted">{{r.when}} · {{r.result}}</span></li></sc-for></ul><sc-if value="{{noRecentActivity}}"><p class="hint">아직 실행 기록이 없습니다.</p></sc-if></section>
+    </div></details></aside></div>
 
     <section class="sec" aria-labelledby="team-h" hidden>
       <div class="sec-h"><h2 id="team-h">팀</h2><button class="link small" onClick="{{goTeams}}">자세히</button></div>
@@ -746,7 +757,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     <div class="stack project-settings">
       <div class="card">
         <div class="lbl">팀별 모델 · 추론 수준</div>
-        <p class="hint" style="margin: 0 0 12px">팀마다 쓸 모델과 추론 수준을 고릅니다. 고르지 않은 팀은 "기본" 표시된 모델로 실행됩니다. 목록은 Claude Code 공식 문서와 이 계정의 Codex 공식 목록에서 가져오며, 바꾼 내용은 다음 단계부터 적용됩니다.</p>
+        <p class="hint" style="margin: 0 0 12px">팀마다 쓸 모델과 추론 수준을 고릅니다. 고르지 않은 팀("자동")은 제어팀이 작업 난이도에 맞춰 고르고, 제어팀을 끄면 "기본" 표시된 모델로 실행됩니다. 목록은 Claude Code 공식 문서와 이 계정의 Codex 공식 목록에서 가져오며, 바꾼 내용은 다음 단계부터 적용됩니다.</p>
         <sc-if value="{{m.loading}}"><p class="hint">모델 목록을 불러오는 중…</p></sc-if>
         <sc-if value="{{m.hasCodexError}}"><p class="hint" style="color: var(--attn-text, #B45309)">Codex 모델 목록을 불러오지 못했습니다 · {{m.codexError}} · 목록이 돌아올 때까지 Codex 팀의 모델을 바꿀 수 없습니다.</p></sc-if>
         <div class="tm-list">
@@ -760,6 +771,9 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
             </div>
           </sc-for>
         </div>
+        <div class="field" style="margin-top: 16px"><label>제어팀 · 작업 난이도에 따라 모델 자동 선택 · 모든 프로젝트 공통</label>
+          <div class="seg" role="group" aria-label="모델 자동 선택"><sc-for list="{{autoLevelOpts}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div>
+          <p class="hint">켜 두면 모델을 고르지 않은 팀은 간단한 일에 가벼운 모델(Sonnet 5.5 · 낮음), 복잡하거나 위험한 일에 무거운 모델(Opus 5.5 · 높음)을 씁니다. 끄면 고르지 않은 팀은 목록의 기본 모델로 돕니다.</p></div>
         <dl class="facts" style="margin-top: 16px"><dt>최근 실제 모델</dt><dd class="mono small">{{m.actual}}</dd></dl>
       </div>
       <div class="card">
@@ -955,6 +969,9 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 </sc-if>
 <sc-if value="{{vTeams}}">
   <div class="page-h"><div><h1>팀</h1><p class="lede">팀마다 맡은 일과 쓰는 AI, 할 수 있는 일입니다. 조사·개발·디자인팀이 만든 결과는 보안·정책팀이 검토하고 검증팀이 확인합니다. 모델은 각 프로젝트의 설정 탭에서 바꿉니다.</p></div></div>
+  <div class="card" style="margin-bottom: 16px"><div class="sec-h"><h2>제어팀 · AI 없이 엔진이 직접</h2><span class="{{control.pillCls}}"><i></i>{{control.stL}}</span></div>
+    <p class="hint">기획팀이 매 계획에 적는 난이도·위험도를 보고, 모델을 따로 고르지 않은 팀의 모델과 추론 수준을 정합니다. 간단한 일에 무거운 모델을 쓰지 않아 사용량을 아낍니다. 프로젝트 설정에서 팀 모델을 직접 고르면 그 선택이 우선입니다.</p>
+    <dl class="facts"><sc-for list="{{control.rows}}" as="c"><dt>{{c.l}}</dt><dd>{{c.d}}</dd></sc-for></dl></div>
   <div class="card" style="margin-bottom: 16px"><h2>기록팀 · AI 없이 엔진이 직접</h2><p class="hint">실행·검증 기록을 GitHub·Notion에 붙여 넣을 초안으로 정리합니다. 대화 원문과 파일은 넣지 않고, 자동으로 보내지 않습니다.</p></div>
   <div class="stack">
     <sc-for list="{{teams}}" as="t">
@@ -1466,6 +1483,13 @@ class Component extends DCLogic {
 
     // 팀 현황 (실행 기록에서 계산)
     const allRuns = [].concat.apply([], P.map((p) => p.runs.map((r) => Object.assign({}, r, { project: p }))));
+    const autoOn = !(s.eng && s.eng.limits && s.eng.limits.autoLevels === false);
+    const control = { stL: autoOn ? '켜짐' : '꺼짐', pillCls: pillCls(autoOn ? 'done' : 'idle'), rows: [
+      { l: '가벼움', d: 'Claude Sonnet 5.5 · 낮음 / Codex 기본 모델 · 낮음 — 간단하고 위험이 낮은 작업' },
+      { l: '보통', d: 'Claude Sonnet 5.5 · 중간 / Codex 기본 모델 · 중간 — 보통 작업. 기획·보안·정책·검증팀은 이보다 낮게 가지 않음' },
+      { l: '깊게', d: 'Claude Opus 5.5 · 높음 / Codex 기본 모델 · 높음 — 복잡한 작업, 위험도가 높은 작업' },
+      { l: '최고', d: 'Claude Fable 5.1 · 높음 / Codex 기본 모델 · 가장 가까운 높은 수준 — 복잡한 작업이 진전 없이 2번 이상 막힐 때만' },
+      { l: '올림 규칙', d: '진전 없음·테스트 실패가 2번 이어지면 한 단계 올립니다. 쓴 단계와 이유는 활동 기록에 남습니다.' }] };
     const teams = TEAMS.map((t) => {
       const mine = allRuns.filter((r) => r.team === t.id).sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
       const working = P.filter((p) => p.goal.status === 'running' && p.goal.team && p.goal.team.step === t.id);
@@ -1479,7 +1503,7 @@ class Component extends DCLogic {
       const modelL = (id) => { const x = ch && (ch.models || []).find((m) => m.id === id); return x ? x.label : id; };
       const readyN = progs.filter((p) => p.tone === 'done').length;
       return { name: t.name, kind: t.kind, role: t.role, access: t.access, tool: TOOL[executor],
-        ai: TOOL[executor] + ' · ' + (defM ? '기본 ' + defM.label + (defM.defaultEffort ? ' · ' + (EFFORT_L[defM.defaultEffort] || defM.defaultEffort) : '') : '모델 목록 확인 중'),
+        ai: TOOL[executor] + ' · ' + (autoOn ? '자동 · 작업 난이도에 따라 제어팀이 고름 (프로젝트에서 고른 팀은 그 모델)' : defM ? '기본 ' + defM.label + (defM.defaultEffort ? ' · ' + (EFFORT_L[defM.defaultEffort] || defM.defaultEffort) : '') : '모델 목록 확인 중'),
         model: lastModel ? modelL(lastModel) + (lastConfirmed.requestedEffort ? ' · ' + (EFFORT_L[lastConfirmed.requestedEffort] || lastConfirmed.requestedEffort) : '') + ' · ' + ago(lastConfirmed.startedAt)
           : '아직 실제 실행 없음',
         progsL: '쓰는 프로그램 ' + progs.length + '개' + (readyN ? ' · 사용 가능 ' + readyN + '개' : ''),
@@ -1604,6 +1628,7 @@ class Component extends DCLogic {
             : r.review.verdict === 'pass' ? '문제 없음' : (r.review.blocking ? '막아야 할 문제 ' : '참고할 점 ') + r.review.issues.length + '건 · ' + clip(r.review.issues.join(' / '), 160);
           else res = '엔진 확인 ' + (r.evidence || []).length + '/' + r.goal.completionCriteria.length + ' 조건';
           return { when: fmt(r.startedAt), who: r.team ? TEAM_NAME[r.team] : '실행 ' + r.round + '회', tool: TOOL[r.executor || 'claude-code'] + ' · ' + (r.actualModel || '모델 확인 필요')
+              + (r.level ? ' · 자동 ' + r.level.label + (r.requestedEffort ? ' ' + (EFFORT_L[r.requestedEffort] || r.requestedEffort) : '') + ' (' + r.level.why + ')' : '')
               + (r.switchedFrom ? ' · ' + TOOL[r.switchedFrom] + ' 한도로 대신 실행' + (r.sameAsWorker ? ' (작업팀과 같은 AI · 독립 검토 아님)' : '') : ''),
             resL: resL, pillCls: pillCls(tone), res: res, hasAnswer: !!r.answer, answer: r.answer ? cleanAnswer(r.answer) : '',
             hasTools: (r.tools || []).length > 0, tools: (r.tools || []).map((k) => ({ name: k.name, summary: k.summary,
@@ -1719,18 +1744,21 @@ class Component extends DCLogic {
           const saved = (pol.teamModels || {})[t.id];
           const pick = saved && saved.executor === t.tool ? saved : { model: null, effort: null };
           // 고르지 않은 팀은 목록의 기본 모델로 실행된다 (이름으로 표시). 기본 모델을 누르면 선택을 지운다.
-          const activeId = pick.model || choices.defaultModel;
+          // 제어팀이 켜져 있으면 고르지 않은 팀은 '자동'(작업 난이도에 따라)으로 돈다.
+          const isAuto = autoOn && !pick.model && !pick.effort;
+          const activeId = pick.model || (isAuto ? null : choices.defaultModel);
           const model = choices.models.find((x) => x.id === activeId);
           const save = (next, what) => put({ teamModel: { team: t.id, model: next.model || '', effort: next.effort || '' } }, t.name + ' · ' + what + ' · 다음 단계부터 적용');
           const pickModel = (x) => () => {
             const keep = !pick.effort || (x.efforts || []).includes(pick.effort);
-            save({ model: x.id === choices.defaultModel ? '' : x.id, effort: keep ? pick.effort : '' }, x.label);
+            save({ model: autoOn || x.id !== choices.defaultModel ? x.id : '', effort: keep ? pick.effort : '' }, x.label);
           };
           const defEffort = model && model.defaultEffort ? EFFORT_L[model.defaultEffort] || model.defaultEffort : '';
           return { name: t.name, tool: TOOL[t.tool],
-            current: (model ? model.label : '목록 확인 전') + ' · ' + (pick.effort ? EFFORT_L[pick.effort] || pick.effort : '기본 추론' + (defEffort ? ' (' + defEffort + ')' : '')),
-            models: choices.models.map((x) => chip(activeId === x.id, x.label + (x.id === choices.defaultModel ? ' · 기본' : ''), pickModel(x))),
-            efforts: [chip(!pick.effort, '기본' + (defEffort ? ' (' + defEffort + ')' : ''), () => save({ model: pick.model, effort: '' }, '기본 추론'))]
+            current: isAuto ? '자동 · 작업 난이도에 따라 제어팀이 고름' : (model ? model.label : '목록 확인 전') + ' · ' + (pick.effort ? EFFORT_L[pick.effort] || pick.effort : '기본 추론' + (defEffort ? ' (' + defEffort + ')' : '')),
+            models: (autoOn ? [chip(isAuto, '자동 (제어팀)', () => save({ model: '', effort: '' }, '자동'))] : [])
+              .concat(choices.models.map((x) => chip(activeId === x.id, x.label + (x.id === choices.defaultModel ? ' · 기본' : ''), pickModel(x)))),
+            efforts: isAuto ? [] : [chip(!pick.effort, '기본' + (defEffort ? ' (' + defEffort + ')' : ''), () => save({ model: pick.model, effort: '' }, '기본 추론'))]
               .concat(((model && model.efforts) || []).map((e) => chip(pick.effort === e, EFFORT_L[e] || e, () => save({ model: pick.model, effort: e }, EFFORT_L[e] || e)))) };
         }) };
     }
@@ -1741,7 +1769,8 @@ class Component extends DCLogic {
     const pendingTotal = ibd.approvals.length + ibd.reviews.length + ibd.memoryProposals.length + ibd.skillCandidates.length + othersN;
     const docTitle = (pendingTotal ? '(' + pendingTotal + ') ' : '') + 'AGENT HQ';
     if (document.title !== docTitle) document.title = docTitle;
-    const navDefs = [['home', '홈', 0], ['inbox', '승인함', pendingTotal],['projects', '프로젝트', 0], ['teams', '팀', 0], ['memory', '기억', 0], ['skills','스킬',0], ['connect', '연결', 0], ['usage', '사용량', 0]];
+    const navDefs = [['home', '홈', 0], ['projects', '프로젝트', 0], ['inbox', '승인함', pendingTotal], ['teams', '팀', 0]];
+    const navMoreDefs = [['memory', '기억'], ['skills', '스킬'], ['connect', '연결'], ['usage', '사용량 상세']];
     // ── 승인함 ──
     const KIND_L = { web: '웹사이트 열기', connector: '커넥터 동작' };
     const ib = {
@@ -1928,6 +1957,7 @@ class Component extends DCLogic {
     return {
       accent: '#2E5BFF',
       nav: navDefs.map((x) => ({ l: x[1], n: x[2], hasN: x[2] > 0, cls: 'tt' + (cur === x[0] ? ' on' : ''), cur: cur === x[0] ? 'page' : 'false', go: () => this.go(x[0]) })),
+      navMore: navMoreDefs.map((x) => ({ l: x[1], cls: cur === x[0] ? 'on' : '', cur: cur === x[0] ? 'page' : 'false', go: () => { document.querySelector('.top-more')?.removeAttribute('open'); this.go(x[0]); } })),
       goHome: () => this.go('home'), goProjects: () => this.go('projects'), goTeams: () => this.go('teams'),
       notif: (() => { const p = s.notifPerm || (('Notification' in window) ? Notification.permission : 'unsupported');
         return { canAsk: p === 'default', on: p === 'granted', enable: () => this.enableNotifications() }; })(),
@@ -1947,7 +1977,7 @@ class Component extends DCLogic {
           const st = LIMIT_ST[worst] || [worst, 'idle'];
           return { l: name, v: st[0], cls: providerClass + (st[1] === 'stop' ? ' stop' : st[1] === 'attn' ? ' warn' : ''), t: name + ' 한도 상태 ' + st[0] };
         }).filter(Boolean);
-        return { has: items.length > 0, items: items, go: () => this.go('usage'), title: '구독 남은 양 · ' + items.map((i) => i.t).join(' · ') + ' · 눌러서 자세히' };
+        return { has: items.length > 0, none: items.length === 0, items: items, go: () => this.go('usage'), title: '구독 남은 양 · ' + items.map((i) => i.t).join(' · ') + ' · 눌러서 자세히' };
       })(),
       modeCls: 'mode' + (s.offline ? ' off' : real ? ' real' : ''), modeL: s.offline ? '연결 끊김' : real ? '실제 실행' : '모의 실행',
       modeTitle: real ? '시작한 프로젝트는 실제 AI가 실행하며 구독 사용량이 쓰입니다' : '실제 AI를 호출하지 않는 모의 실행 모드입니다',
@@ -2081,7 +2111,9 @@ class Component extends DCLogic {
       hasProjects: P.length > 0, noProjects: P.length === 0 && !!s.eng,
       st: { active: activeN, inbox: pendingTotal, today: P.reduce((n, p) => n + p.today, 0), done: P.filter((p) => p.goal.status === 'verified').length, attnCls: 'stat' + (pendingTotal ? ' attn' : '') },
       inbox: inbox, inboxEmpty: inbox.length === 0,
-      homeProjects: P.slice(0, 6).map(rowOf), allProjects: P.map(rowOf), teams: teams,
+      homeProjects: P.slice(0, 6).map(rowOf), allProjects: P.map(rowOf), teams: teams, control: control,
+      recentActivity: P.flatMap(p => (p.runs || []).map(r => ({ project:p.name, team:TEAM_NAME[r.team] || r.team || '팀', when:ago(r.startedAt), result:r.simulated ? '모의 실행' : r.outcome === 'completed' ? '완료' : r.status === 'running' ? '실행 중' : '종료', at:r.startedAt || '' }))).sort((a,b) => b.at.localeCompare(a.at)).slice(0,3),
+      noRecentActivity: !P.some(p => (p.runs || []).length),
       projectTeams: wp ? TEAMS.map(t => {
         const runs = wp.runs.filter(r => r.team === t.id).sort((a,b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
         const active = wp.goal.status === 'running' && wp.goal.team?.step === t.id;
@@ -2097,6 +2129,8 @@ class Component extends DCLogic {
       previewUrl:s.previewUrl || '', hasPreview:!!s.previewUrl, artifactMessage:s.artifactMessage || '파일 새로고침을 눌러 결과물을 불러오세요.', testBusy:!!s.testBusy, testMessage:s.testMessage || '아직 실행하지 않았습니다.',
       pt: { artifacts:s.ptab === 'artifacts', over: s.ptab === 'over', activity: s.ptab === 'activity', verify: s.ptab === 'verify', settings: s.ptab === 'settings' },
       pinDraft: s.pinDraft, onPin: (e) => this.setState({ pinDraft: e.target.value }),
+      autoLevelOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: autoOn === v ? 'on' : '', pressed: autoOn === v ? 'true' : 'false',
+        pick: () => { if (autoOn === v) return; this.act(this.api('PUT', '/api/settings', { key: 'models.auto', value: v }), v ? '모델 자동 선택을 켰습니다 · 다음 단계부터' : '모델 자동 선택을 껐습니다 · 고르지 않은 팀은 기본 모델로'); } })),
       switchOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: lim.autoSwitch === v ? 'on' : '', pressed: lim.autoSwitch === v ? 'true' : 'false',
         pick: () => { if (lim.autoSwitch === v) return; this.act(this.api('PUT', '/api/settings', { key: 'limits.autoSwitch', value: v }), v ? '한도 자동 전환을 켰습니다' : '한도 자동 전환을 껐습니다 · 한도에 닿으면 그 AI가 풀릴 때까지 기다립니다'); } })),
       capDraft: s.capDraft == null ? String(lim.day) : s.capDraft, onCap: (e) => this.setState({ capDraft: e.target.value }),

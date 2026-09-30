@@ -61,7 +61,7 @@ test('every environment gets an honest status, billing and who uses it', () => {
 });
 
 test('only known settings with the right type are accepted', () => {
-  assert.deepEqual(Object.keys(SETTINGS), ['design.figma', 'design.canva', 'design.higgsfield', 'tools.npmAudit', 'limits.maxRoundsPerDay', 'limits.autoSwitch', 'sentinel.web', 'trust.required',
+  assert.deepEqual(Object.keys(SETTINGS), ['design.figma', 'design.canva', 'design.higgsfield', 'tools.npmAudit', 'limits.maxRoundsPerDay', 'limits.autoSwitch', 'models.auto', 'sentinel.web', 'trust.required',
     'digest.time', 'digest.daily', 'digest.weekly', 'attach.maxMB']);
   assert.equal(validateSetting('attach.maxMB', 100), 100);
   for (const bad of [0, 101, 2.5]) assert.throws(() => validateSetting('attach.maxMB', bad), /1 to 100/, String(bad));

@@ -344,8 +344,12 @@ test('each team picks a named model and reasoning level from the official list; 
     const status = () => app.scheduler.modelStatus(g.id);
     assert.deepEqual([status().next, status().nextEffort, status().reason], ['claude-fable-5-1', 'max', 'team_choice'], 'planning uses its pick');
     app.scheduler.update(app.store.getGoal(g.id), { team: { ...app.store.getGoal(g.id).team, step: 'dev' } });
+    assert.deepEqual([status().nextState, status().next, status().nextEffort, status().reason], ['ready', 'claude-sonnet-5-5', 'medium', 'auto_level'],
+      '제어팀: an unpicked team gets a model sized to the work, by its full ID');
+    app.store.setSetting('models.auto', false);
     assert.deepEqual([status().nextState, status().next, status().nextEffort], ['ready', 'claude-opus-5-5', null],
-      'an unpicked Claude team runs Opus 5.5 by its full ID, never an unnamed CLI default');
+      'with automatic levels off, an unpicked Claude team runs Opus 5.5 by its full ID, never an unnamed CLI default');
+    app.store.setSetting('models.auto', true);
     assert.equal((await put({ team: 'dev', model: '', effort: 'high' })).status, 200, 'a reasoning level alone applies to the default model');
     assert.deepEqual([status().next, status().nextEffort], ['claude-opus-5-5', 'high']);
     assert.equal((await put({ team: 'plan', model: '', effort: '' })).status, 200);

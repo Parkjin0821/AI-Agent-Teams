@@ -23,7 +23,7 @@ import { artifactList, readArtifact } from './artifacts.js';
 import { detectTests } from './checks.js';
 import { npmCommand } from './sandbox.js';
 import { AutoSave } from './auto-save.js';
-import { ModelChoices } from './model-choices.js';
+import { HIDDEN_CODEX_MODELS, ModelChoices } from './model-choices.js';
 import { kindOf, quickApprovable, SkillLibrary } from './skills.js';
 import { Approvals, SCOPES } from './approvals.js';
 import { Memory } from './memory.js';
@@ -88,6 +88,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     capacity: guarded ? capacity : null,
     dailyCap: () => store.getSettings()['limits.maxRoundsPerDay'],
     autoSwitch: () => store.getSettings()['limits.autoSwitch'] !== false,
+    autoLevels: () => store.getSettings()['models.auto'] !== false,
+    // This account's Codex list, as last read (a real server refreshes it in the background every 10 minutes).
+    codexModels: () => { if (executing) void modelChoices.get().catch(() => {}); return (modelChoices.codex ?? []).filter(m => !HIDDEN_CODEX_MODELS.some(re => re.test(m.id))); },
     trust,
     capabilities: team => ({ 'claude-code': ['text','code', ...(TEAMS[team]?.web ? ['web'] : []),
       ...(toolsFor(team).connectors?.length ? ['connectors'] : [])], codex: ['text','code'] }),
@@ -118,7 +121,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     }
     return {
       mode: executing ? 'execution' : 'simulation', autoTick, autoScope, now: iso(clock.now()),
-      limits: { attachMaxMB: setting('attach.maxMB', DEFAULT_MAX_MB), maxRoundsPerDay: scheduler.dailyLimit(), autoSwitch: store.getSettings()['limits.autoSwitch'] !== false, maxRoundsPerDayDefault: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
+      limits: { attachMaxMB: setting('attach.maxMB', DEFAULT_MAX_MB), maxRoundsPerDay: scheduler.dailyLimit(), autoSwitch: store.getSettings()['limits.autoSwitch'] !== false, autoLevels: store.getSettings()['models.auto'] !== false, maxRoundsPerDayDefault: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
       projects: [...byProject].map(([id, goals]) => ({ id, policy: registry.getPolicy(`project:${id}`), goals, autoSave: autoSave.view(id) })),
       catalog: registry.catalog(), events: store.recentEvents(200),
       limitStorageFailed: store.getSettings()['safety.limitStorageFailed'] === true,
