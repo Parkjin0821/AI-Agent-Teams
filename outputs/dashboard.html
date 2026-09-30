@@ -374,6 +374,15 @@ details[open]>.program-toggle::after{content:'⌃'}
 .note b{color:var(--text)}
 @keyframes fade{from{opacity:0}}
 @keyframes slide{from{transform:translateX(24px);opacity:0}}
+.dlg-scrim{position:fixed;inset:0;background:rgba(10,10,11,.38);display:grid;place-items:center;z-index:80;padding:16px;animation:fade .12s}
+.dlg{background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.22);width:min(520px,100%);max-height:min(80vh,720px);display:flex;flex-direction:column}
+.dlg-b{padding:20px 22px 8px;overflow:auto}
+.dlg-t{font-size:16px;font-weight:600;margin:0 0 8px;letter-spacing:-.01em}
+.dlg-m{font-size:13.5px;line-height:1.6;color:var(--text-2);white-space:pre-line;margin:0}
+.dlg-in{width:100%;margin-top:12px;min-height:84px;resize:vertical;font:inherit;font-size:13.5px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);color:var(--text)}
+.dlg-in:focus{outline:2px solid var(--run);outline-offset:1px}
+.dlg-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 22px 18px}
+.dlg-f .hint{margin:0 auto 0 0;align-self:center;font-size:12px;color:var(--text-3)}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 16px;border-radius:var(--r);font-size:13px;z-index:60;box-shadow:0 10px 30px rgba(0,0,0,.2);max-width:calc(100% - 32px);animation:fade .15s}
 
 /* 반응형 */
@@ -1310,9 +1319,9 @@ class Component extends DCLogic {
     const l = (this.state.eng && this.state.eng.limits) || {};
     return { day: l.maxRoundsPerDay || 10, dayDefault: l.maxRoundsPerDayDefault || 10, all: l.maxConcurrent || 2, claude: (l.providerConcurrent || {}).claude || 2, codex: (l.providerConcurrent || {}).codex || 1 };
   }
-  confirmStart(name) {
+  async confirmStart(name) {
     if (!this.isReal()) return true;
-    return window.confirm('‘' + name + '’ 프로젝트를 시작합니다.\n\n기획팀 → 개발팀 → 검증팀이 돌아가며 끝날 때까지 진행합니다.\n실제 AI가 실행되고 구독 사용량이 쓰입니다 (하루 최대 ' + this.limits().day + '단계).\n\n시작할까요?');
+    return await ask('‘' + name + '’ 프로젝트를 시작합니다.\n\n기획팀 → 개발팀 → 검증팀이 돌아가며 끝날 때까지 진행합니다.\n실제 AI가 실행되고 구독 사용량이 쓰입니다 (하루 최대 ' + this.limits().day + '단계).\n\n시작할까요?');
   }
 
   projects() {
@@ -1351,13 +1360,13 @@ class Component extends DCLogic {
 
     // ── 대장 결정: 승인 요청·결과 확인은 홈·프로젝트·승인함 어디서나 같은 버튼으로 바로 처리한다 ──
     const ibd = Object.assign({ approvals: [], reviews: [], memoryProposals: [], skillCandidates: [], skillsHeld: 0, grants: [], decided: [], trust: { required: 3, teams: [] }, scopes: {}, webMode: 'ask' }, s.inbox || {});
-    const grantAct = (a, scope, anySite) => () => {
-      if (scope === 'always' && !window.confirm(a.target + '을(를) 모든 프로젝트에서 계속 허용할까요?')) return;
-      if (anySite && !window.confirm('이 프로젝트에서 모든 공개 사이트를 허용할까요? 내부 주소·유출 의심 주소는 계속 막습니다.')) return;
+    const grantAct = (a, scope, anySite) => async () => {
+      if (scope === 'always' && !await ask(a.target + '을(를) 모든 프로젝트에서 계속 허용할까요?')) return;
+      if (anySite && !await ask('이 프로젝트에서 모든 공개 사이트를 허용할까요? 내부 주소·유출 의심 주소는 계속 막습니다.')) return;
       this.inboxAct(this.api('POST', '/api/approvals/' + a.id + '/grant', { scope: scope, anySite: !!anySite }), '허용했습니다 · ' + (ibd.scopes[scope] || scope));
     };
-    const denyAct = (a) => () => {
-      const note = window.prompt('거절 이유를 적어 주세요 (팀에게 전달됩니다, 비워도 됩니다)', '');
+    const denyAct = (a) => async () => {
+      const note = await askText('거절 이유를 적어 주세요 (팀에게 전달됩니다, 비워도 됩니다)', '');
       if (note === null) return;
       this.inboxAct(this.api('POST', '/api/approvals/' + a.id + '/deny', { note: note }), '거절했습니다 · 팀이 이것 없이 진행합니다');
     };
@@ -1368,8 +1377,8 @@ class Component extends DCLogic {
     const approvalSentence = (a) => (TEAM_NAME[a.team] || a.team) + '이 ' + (a.kind === 'web' ? a.target + ' 사이트를 열려고 합니다' : '커넥터 동작 ' + a.target + '을(를) 하려고 합니다');
     const reviewFiles = (r) => { const cp = r.checkpoint; return cp ? '추가 ' + cp.added.length + ' · 수정 ' + cp.modified.length + ' · 삭제 ' + cp.removed.length + ' 파일' : '파일 변경 기록 없음'; };
     const reviewAccept = (r) => () => this.inboxAct(this.api('POST', '/api/goals/' + r.goalId + '/trust-review', { accept: true }), '확인했습니다 · 다음 단계로 이어갑니다');
-    const reviewSendBack = (r) => () => {
-      const note = window.prompt('무엇을 고쳐야 하는지 적어 주세요. 기획팀이 이걸 보고 다시 계획합니다.', '');
+    const reviewSendBack = (r) => async () => {
+      const note = await askText('무엇을 고쳐야 하는지 적어 주세요. 기획팀이 이걸 보고 다시 계획합니다.', '');
       if (!note) return;
       this.inboxAct(this.api('POST', '/api/goals/' + r.goalId + '/trust-review', { accept: false, note: note }), '되돌려 보냈습니다 · 기획팀이 다시 계획합니다');
     };
@@ -1398,7 +1407,7 @@ class Component extends DCLogic {
     const inbox = [];
     P.forEach((p) => {
       const g = p.goal, open = () => this.openProject(p.id);
-      const restart = { l: '다시 시작', cls: 'btn pri sm', go: () => { if (this.confirmStart(p.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '다시 시작했습니다'); } };
+      const restart = { l: '다시 시작', cls: 'btn pri sm', go: async () => { if (await this.confirmStart(p.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '다시 시작했습니다'); } };
       const see = { l: '프로젝트 보기', cls: 'btn ghost sm', go: open };
       const held = g.status === 'review_required' ? heldView(g, p.id) : null;
       if (held) {
@@ -1413,7 +1422,7 @@ class Component extends DCLogic {
       } else if (g.proposal && g.proposal.status === 'pending') {
         inbox.push({ icon: ICON.proposal, icoCls: 'ico done', title: '완료 · 개선안 승인', project: p.name, body: '완료 조건을 모두 채웠습니다. 검증팀이 다음 개선을 제안합니다.',
           isProposal: true, items: g.proposal.items, open: open,
-          accept: () => { if (this.confirmStart(p.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/accept', {}), '개선을 시작했습니다'); },
+          accept: async () => { if (await this.confirmStart(p.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/accept', {}), '개선을 시작했습니다'); },
           dismiss: () => this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/dismiss', {}), '개선안을 보류했습니다') });
       } else if (['review_required', 'blocked', 'recovery_required'].includes(g.status)) {
         inbox.push({ icon: ICON.issue, icoCls: 'ico' + (g.status === 'review_required' ? '' : ' stop'), title: g.status === 'review_required' ? '확인 필요' : '멈춤', project: p.name,
@@ -1476,12 +1485,12 @@ class Component extends DCLogic {
       w = {
         id: wp.id, name: wp.name, objective: g.objective.replace(/\[대장 첨부 · 작업 폴더 안 파일 · 직접 열어서 확인\] [^\n]*/g, '(첨부 파일)'), stL: st.l, pillCls: pillCls(st.tone), isTeam: isTeam,
         canStart: startable, startL: g.round ? '이어서 시작' : '시작',
-        start: () => { if (this.confirmStart(wp.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '시작했습니다 · 기획팀부터 진행합니다'); },
+        start: async () => { if (await this.confirmStart(wp.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '시작했습니다 · 기획팀부터 진행합니다'); },
         canStop: isTeam && g.autoRun && RUNNING_LIKE.includes(g.status),
         stop: () => this.act(this.api('POST', '/api/goals/' + g.id + '/stop', {}), g.status === 'running' ? '지금 단계가 끝나면 멈춥니다' : '멈췄습니다'),
         canRunOnce: !isTeam && ['scheduled', 'retry_wait', 'model_wait'].includes(g.status),
-        runOnce: () => {
-          if (real && !window.confirm('실제 AI를 1회 실행합니다. 구독 사용량이 쓰입니다. 진행할까요?')) return;
+        runOnce: async () => {
+          if (real && !await ask('실제 AI를 1회 실행합니다. 구독 사용량이 쓰입니다. 진행할까요?')) return;
           this.say('실행 중입니다');
           this.api('POST', '/api/goals/' + g.id + '/run', {}).then((eng) => { this.setState({ eng: eng }); this.say('실행 1회가 끝났습니다'); }).catch((e) => this.say(korErr(e.message)));
         },
@@ -1502,29 +1511,29 @@ class Component extends DCLogic {
         assignmentCandidates: (g.model?.comparison || []).map(c => ({ executor: TOOL[c.executor], model: c.model, samples: c.samples, score: c.score === null ? '미측정' : c.score })),
         autonomyL: g.autonomy?.enabled ? '켜짐 · 잔여 ' + g.autonomy.remaining : '꺼짐',
         recordsUrl: '/api/projects/' + encodeURIComponent(wp.id) + '/records',
-        toggleAutonomy: () => {
+        toggleAutonomy: async () => {
           const enabled = !g.autonomy?.enabled;
-          if (enabled && !window.confirm('이 프로젝트 안에서 저위험 후속 제안을 최대 2건 자동 실행하도록 허용할까요? 설치·외부 게시·결제·자격증명·삭제는 허용하지 않습니다.')) return;
+          if (enabled && !await ask('이 프로젝트 안에서 저위험 후속 제안을 최대 2건 자동 실행하도록 허용할까요? 설치·외부 게시·결제·자격증명·삭제는 허용하지 않습니다.')) return;
           this.act(this.api('PUT', '/api/goals/' + g.id + '/autonomy', { enabled: enabled, remaining: enabled ? 2 : 0 }), '자율 후속 작업 정책을 변경했습니다');
         },
         sendMessage: () => this.api('POST', '/api/goals/' + g.id + '/messages', { text: this.state.drafts[g.id] || '', attachments: this.pendingAttach(g.id) })
-          .then((saved) => { const d = Object.assign({}, this.state.drafts); d[g.id] = ''; this.setState({ drafts: d }); this.clearAttach(g.id);
+          .then(async (saved) => { const d = Object.assign({}, this.state.drafts); d[g.id] = ''; this.setState({ drafts: d }); this.clearAttach(g.id);
             // A paused project keeps the message but does not run: offer to resume right away instead of silence.
-            if (saved && saved.status === 'paused' && window.confirm('이 프로젝트는 멈춰 있어서 메시지만 저장됐습니다. 지금 이어서 시작할까요? 기획팀이 이 메시지를 보고 다시 계획합니다.'))
+            if (saved && saved.status === 'paused' && await ask('이 프로젝트는 멈춰 있어서 메시지만 저장됐습니다. 지금 이어서 시작할까요? 기획팀이 이 메시지를 보고 다시 계획합니다.'))
               return this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '이어서 시작했습니다 · 기획팀이 메시지를 보고 다시 계획합니다');
             if (saved && saved.status === 'paused') this.say('메시지를 저장했습니다 · 프로젝트가 멈춰 있어 위의 "이어서 시작"을 눌러야 팀이 읽습니다');
             return this.refresh(); })
           .catch(e => this.say(korErr(e.message))),
         hasProposal: !!(g.proposal && g.proposal.status === 'pending'), proposal: g.proposal ? g.proposal.items : [],
-        accept: () => { if (this.confirmStart(wp.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/accept', {}), '개선을 시작했습니다'); },
+        accept: async () => { if (await this.confirmStart(wp.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/accept', {}), '개선을 시작했습니다'); },
         dismiss: () => this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/dismiss', {}), '개선안을 보류했습니다'),
         hasIssue: issue, issueCls: 'card ' + (g.status === 'review_required' || g.status === 'model_wait' ? 'attn' : 'stop'),
         issueTitle: g.status === 'model_wait' ? '모델 대기' : (g.reason === 'approval_required' ? '승인 요청' : g.reason === 'trust_review' ? '결과 확인' : (g.status === 'review_required' ? '확인 필요' : '멈춤')),
         issueText: heldW ? heldW.body : reasonText(g.reason),
         issueActions: heldW ? heldW.actions
           : g.status === 'model_wait' ? [{ l: '모델 설정', cls: 'btn pri sm', go: () => this.setState({ ptab: 'settings' }) }]
-          : [{ l: isTeam ? '다시 시작' : '다시 실행', cls: 'btn pri sm', go: () => {
-              if (!this.confirmStart(wp.name)) return;
+          : [{ l: isTeam ? '다시 시작' : '다시 실행', cls: 'btn pri sm', go: async () => {
+              if (!await this.confirmStart(wp.name)) return;
               this.act(this.api('POST', '/api/goals/' + g.id + (isTeam ? '/start' : '/resume'), {}), '다시 시작했습니다');
             } }, { l: '검증에서 완료 확인', cls: 'btn sm', go: () => this.setState({ ptab: 'verify' }) }],
         hasTask: isTeam && !!team.task, taskLbl: '지금 작업 · 기획팀이 정함', task: team.task,
@@ -1729,8 +1738,8 @@ class Component extends DCLogic {
           hasAnswer: !!r.answer, answer: r.answer ? cleanAnswer(r.answer) : '',
           accept: reviewAccept(r), sendBack: reviewSendBack(r), open: () => this.openProject(r.projectId),
           trustAllL: '확인하고, ' + (TEAM_NAME[r.team] || r.team) + ' 일은 이제 맡기기',
-          acceptAll: () => {
-            if (!window.confirm((TEAM_NAME[r.team] || r.team) + ' 결과를 확인하고, 앞으로 이 팀의 결과는 대장 확인 없이 다음 단계로 넘길까요? 보안·정책 검토와 검증은 그대로 합니다.')) return;
+          acceptAll: async () => {
+            if (!await ask((TEAM_NAME[r.team] || r.team) + ' 결과를 확인하고, 앞으로 이 팀의 결과는 대장 확인 없이 다음 단계로 넘길까요? 보안·정책 검토와 검증은 그대로 합니다.')) return;
             this.inboxAct(this.api('POST', '/api/goals/' + r.goalId + '/trust-review', { accept: true, trustFully: true }), '확인했습니다 · ' + (TEAM_NAME[r.team] || r.team) + ' 결과는 이제 바로 이어집니다');
           } };
       }),
@@ -1738,9 +1747,9 @@ class Component extends DCLogic {
       skills: ibd.skillCandidates.map((k) => ({ name: k.name, description: clip(k.description || '', 220), trusted: !!k.trusted,
         source: (k.source || '').replace(/^https:\/\/github\.com\//, '').replace(/\/blob\/[a-f0-9]{40}\//, ' · '),
         checksL: '라이선스 ' + (k.checks ? k.checks.license.name : '?') + ' · 글로 된 지침형 · 위험 문구 없음 · 팀: ' + (k.teams || []).map((t) => TEAM_NAME[t] || t).join('·'),
-        approve: () => { if (window.confirm(k.name + ' 스킬을 켤까요? 적용 팀의 작업 지시에 이 스킬 원문이 들어갑니다. 처음 3번은 적용될 때 표시됩니다.'))
+        approve: async () => { if (await ask(k.name + ' 스킬을 켤까요? 적용 팀의 작업 지시에 이 스킬 원문이 들어갑니다. 처음 3번은 적용될 때 표시됩니다.'))
           this.inboxAct(this.api('POST', '/api/skills/' + k.id + '/approve', { confirm: true }), k.name + ' 스킬을 켰습니다'); },
-        drop: () => { if (window.confirm(k.name + ' 후보를 버릴까요?')) this.inboxAct(this.api('DELETE', '/api/skills/' + k.id), k.name + ' 후보를 버렸습니다'); },
+        drop: async () => { if (await ask(k.name + ' 후보를 버릴까요?')) this.inboxAct(this.api('DELETE', '/api/skills/' + k.id), k.name + ' 후보를 버렸습니다'); },
         open: () => this.go('skills') })),
       proposalsN: ibd.memoryProposals.length, noProposals: !ibd.memoryProposals.length,
       proposals: ibd.memoryProposals.map((p) => ({ text: p.text, scope: p.scope === 'all' ? '모든 팀' : (TEAM_NAME[p.scope] || p.scope), by: p.by, when: ago(p.at),
@@ -1749,11 +1758,11 @@ class Component extends DCLogic {
       noGrants: !ibd.grants.length,
       grants: ibd.grants.map((g) => ({ kindL: KIND_L[g.kind] || g.kind, target: g.target === '*' ? '모든 공개 사이트' : g.target, scope: ibd.scopes[g.scope] || g.scope,
         project: g.projectTitle, when: ago(g.grantedAt) + (g.expiresAt ? ' · ' + fmt(g.expiresAt) + '까지' : ''),
-        revoke: () => { if (window.confirm('이 허용을 취소할까요? 다음에 필요하면 다시 승인 요청이 옵니다.')) this.inboxAct(this.api('DELETE', '/api/grants/' + g.id, {}), '허용을 취소했습니다'); } })),
+        revoke: async () => { if (await ask('이 허용을 취소할까요? 다음에 필요하면 다시 승인 요청이 옵니다.')) this.inboxAct(this.api('DELETE', '/api/grants/' + g.id, {}), '허용을 취소했습니다'); } })),
       webAsk: ibd.webMode !== 'open' ? 'true' : 'false', webOpen: ibd.webMode === 'open' ? 'true' : 'false',
       webAskCls: ibd.webMode !== 'open' ? 'on' : '', webOpenCls: ibd.webMode === 'open' ? 'on' : '',
       setWebAsk: () => this.inboxAct(this.api('PUT', '/api/settings', { key: 'sentinel.web', value: 'ask' }), '처음 여는 사이트는 승인을 받습니다'),
-      setWebOpen: () => { if (window.confirm('공개 https 사이트는 승인 없이 열게 할까요? 내부 주소·유출 의심 주소는 계속 막습니다.'))
+      setWebOpen: async () => { if (await ask('공개 https 사이트는 승인 없이 열게 할까요? 내부 주소·유출 의심 주소는 계속 막습니다.'))
         this.inboxAct(this.api('PUT', '/api/settings', { key: 'sentinel.web', value: 'open' }), '공개 사이트는 모두 허용합니다'); },
       trustDraft: s.trustDraft == null ? String(ibd.trust.required) : s.trustDraft, onTrust: (e) => this.setState({ trustDraft: e.target.value }),
       saveTrust: () => {
@@ -1796,8 +1805,8 @@ class Component extends DCLogic {
       detail: (x.steps ? '단계 ' + x.steps + '번' + (x.teams.length ? ' (' + x.teams.join('·') + ')' : '') : '실행 없음') + ' · 조건 ' + x.proven + '/' + x.total });
     const makeDigest = (kind) => () => this.act(this.api('POST', '/api/digests', { kind: kind }).then(() => this.loadDigests()), kind === 'weekly' ? '주간 보고를 만들었습니다' : '오늘 요약을 만들었습니다');
     const putSetting = (key, value, msg) => this.act(this.api('PUT', '/api/settings', { key: key, value: value }).then(() => this.loadDigests()), msg);
-    const removeDigest = (x) => () => {
-      if (!window.confirm(x.title + ' (' + fmt(x.at) + ')을(를) 삭제할까요?')) return;
+    const removeDigest = (x) => async () => {
+      if (!await ask(x.title + ' (' + fmt(x.at) + ')을(를) 삭제할까요?')) return;
       this.act(this.api('DELETE', '/api/digests/' + x.id).then(() => this.loadDigests()), '요약을 삭제했습니다');
     };
     const dg = {
@@ -1806,7 +1815,7 @@ class Component extends DCLogic {
       hasOlder: dgd.items.length > 1, olderN: Math.min(dgd.items.length - 1, 10),
       older: dgd.items.slice(1, 11).map((x) => ({ title: x.title, when: fmt(x.at), lines: x.lines, remove: removeDigest(x) })),
       removeLatest: dgLatest ? removeDigest(dgLatest) : () => {},
-      clear: () => { if (window.confirm('요약 ' + dgd.items.length + '개를 모두 지울까요? 되돌릴 수 없습니다. 정기 요약 일정은 그대로입니다.'))
+      clear: async () => { if (await ask('요약 ' + dgd.items.length + '개를 모두 지울까요? 되돌릴 수 없습니다. 정기 요약 일정은 그대로입니다.'))
         this.act(this.api('POST', '/api/digests/clear', { confirm: true }).then(() => this.loadDigests()), '요약을 모두 지웠습니다'); },
       upcoming: upcoming.slice(0, 8).map((u) => ({ when: whenL(u.at), what: u.what })), noUpcoming: !upcoming.length,
       scheduleL: (sch.daily ? '매일 ' + sch.time : '매일 요약 꺼짐') + ' · ' + (sch.weekly && sch.weekly !== 'off' ? '주간 ' + (WD.find((w) => w[0] === sch.weekly) || [0, sch.weekly])[1] + '요일' : '주간 꺼짐'),
@@ -1834,12 +1843,12 @@ class Component extends DCLogic {
       groups: ['all'].concat(TEAMS.map((t) => t.id)).map((sc) => {
         const items = memItems.filter((i) => i.status === 'active' && i.scope === sc);
         return { title: scopeL(sc), n: items.length, items: items.map((i) => ({ text: i.text, by: i.by + (i.approvedAt ? ' 제안 · 대장 승인' : ''), when: fmt(i.editedAt || i.approvedAt || i.at),
-          edit: () => { const t = window.prompt('기억을 고쳐 주세요', i.text); if (t && t.trim() && t.trim() !== i.text) this.inboxAct(this.api('PUT', '/api/memory/' + i.id, { text: t.trim() }), '고쳤습니다'); },
-          forget: () => { if (window.confirm('이 기억을 잊게 할까요?\n\n' + i.text)) this.inboxAct(this.api('DELETE', '/api/memory/' + i.id, {}), '잊었습니다'); } })) };
+          edit: async () => { const t = await askText('기억을 고쳐 주세요', i.text); if (t && t.trim() && t.trim() !== i.text) this.inboxAct(this.api('PUT', '/api/memory/' + i.id, { text: t.trim() }), '고쳤습니다'); },
+          forget: async () => { if (await ask('이 기억을 잊게 할까요?\n\n' + i.text)) this.inboxAct(this.api('DELETE', '/api/memory/' + i.id, {}), '잊었습니다'); } })) };
       }).filter((grp) => grp.n > 0),
       empty: !memItems.some((i) => i.status === 'active'),
       pendingN: memItems.filter((i) => i.status === 'pending').length, hasPending: memItems.some((i) => i.status === 'pending'),
-      reset: () => { if (window.confirm('기억과 기억 제안을 모두 지울까요? 되돌릴 수 없습니다.')) this.inboxAct(this.api('POST', '/api/memory/reset', { confirm: true }), '기억을 모두 지웠습니다'); },
+      reset: async () => { if (await ask('기억과 기억 제안을 모두 지울까요? 되돌릴 수 없습니다.')) this.inboxAct(this.api('POST', '/api/memory/reset', { confirm: true }), '기억을 모두 지웠습니다'); },
     };
 
     // 연결 페이지
@@ -1859,11 +1868,11 @@ class Component extends DCLogic {
     const activeN = P.filter((p) => p.isTeam && p.goal.autoRun && RUNNING_LIKE.includes(p.goal.status)).length;
 
     const np = s.np;
-    const createNew = (start) => () => {
+    const createNew = (start) => async () => {
       const lines = np.crit.split('\n').map((x) => x.trim()).filter(Boolean);
       if (!np.goal.trim()) { this.setState({ np: Object.assign({}, np, { error: '목표를 적어 주세요.' }) }); return; }
       const name = np.title.trim() || clip(np.goal.trim(), 40);
-      if (start && !this.confirmStart(name)) return;
+      if (start && !await this.confirmStart(name)) return;
       this.api('POST', '/api/projects', { title: np.title.trim(), objective: np.goal.trim(), conversation: true, start: start })
         .then((g) => this.refresh().then(() => {
           this.setState({ showNew: false, np: { title: '', goal: '', crit: '', error: '' } });
@@ -1925,8 +1934,8 @@ class Component extends DCLogic {
           const act = (p, msg) => this.act(p.then(() => this.loadSkills()), msg);
           const reviewRows = KINDS.map(([kind, label]) => {
             const r = k.reviews && k.reviews[kind];
-            const decide = (pass) => () => {
-              const note = window.prompt(label + ' 검토 메모 (' + (pass ? '통과' : '보류') + ')', suggest[kind] || '');
+            const decide = (pass) => async () => {
+              const note = await askText(label + ' 검토 메모 (' + (pass ? '통과' : '보류') + ')', suggest[kind] || '');
               if (!note || !note.trim()) return;
               act(this.api('POST', '/api/skills/' + k.id + '/review', { kind: kind, pass: pass, note: note.trim() }), label + ' 검토를 ' + (pass ? '통과' : '보류') + '로 기록했습니다');
             };
@@ -1936,9 +1945,9 @@ class Component extends DCLogic {
           const done = KINDS.filter(([kind]) => k.reviews && k.reviews[kind]).length;
           return { checkRows: checkRows, reviewRows: reviewRows, canActivate: allPass && k.status !== 'active' && k.kind !== 'tool', isActive: k.status === 'active',
             gateL: k.kind === 'tool' ? '도구형 · 외부 프로그램이 필요해 스킬로 켤 수 없습니다 (설치 승인·격리 시험 뒤 엔진 도구로 연결)' : k.status === 'active' ? '사용 중' : allPass ? '3가지 모두 통과 · 승인하면 켜집니다' : '켜려면 3가지 모두 통과가 필요합니다 (' + done + '/3 검토됨)',
-            activate: () => { if (window.confirm(k.name + ' 스킬을 켤까요? 적용 팀의 작업 지시에 이 스킬 원문이 들어갑니다.')) act(this.api('POST', '/api/skills/' + k.id + '/activate', { confirm: true }), k.name + ' 스킬을 켰습니다'); },
+            activate: async () => { if (await ask(k.name + ' 스킬을 켤까요? 적용 팀의 작업 지시에 이 스킬 원문이 들어갑니다.')) act(this.api('POST', '/api/skills/' + k.id + '/activate', { confirm: true }), k.name + ' 스킬을 켰습니다'); },
             disableIt: () => act(this.api('POST', '/api/skills/' + k.id + '/disable', {}), k.name + ' 스킬을 껐습니다'),
-            removeIt: () => { if (window.confirm(k.name + ' 항목을 삭제할까요? 되돌릴 수 없습니다. 필요하면 다시 가져올 수 있습니다.')) act(this.api('DELETE', '/api/skills/' + k.id), k.name + ' 항목을 삭제했습니다'); } };
+            removeIt: async () => { if (await ask(k.name + ' 항목을 삭제할까요? 되돌릴 수 없습니다. 필요하면 다시 가져올 수 있습니다.')) act(this.api('DELETE', '/api/skills/' + k.id), k.name + ' 항목을 삭제했습니다'); } };
         };
         const review=kind=>{const r=k.reviews?.[kind];return r?(r.pass?'통과':'보류')+' · '+r.note:'검토 전';};
         return {...k,licenseL:k.license?.name || '미확인',licenseText:k.license?.content || '라이선스 원문이 아직 수집되지 않았습니다.',intakeL:k.intakeNote || '지침형 후보 · 추가 자료와 실행 호환성은 검토 필요',teamL:(k.teams || []).map(t=>TEAM_NAME[t] || t).join(' · '),sourceL:k.source==='local'?'로컬·자체 제작':'외부 원문',triggerL:(k.triggers || []).join(' · '),
@@ -1949,10 +1958,10 @@ class Component extends DCLogic {
       vConnect: s.view === 'connect', env: env,
       modelProfiles: (s.eng?.catalog || []).map(profile => ({ label: profile.label, executor: TOOL[profile.executor],
         status: profile.usable ? '사용 가능 · 수동 확인 기록' : '확인 대기',
-        attest: () => {
-          const supportUrl = window.prompt('이 모델과 기능을 지원하는 공식 문서 URL'); if (!supportUrl) return;
-          const note = window.prompt('계정의 모델 선택 화면에서 확인한 근거 (키·비밀번호 입력 금지)'); if (!note) return;
-          if (!window.confirm('공식 문서와 실제 계정에서 모델·추론·능력을 직접 확인했습니까? 확인하면 자동 배정 후보가 됩니다.')) return;
+        attest: async () => {
+          const supportUrl = await askText('이 모델과 기능을 지원하는 공식 문서 URL'); if (!supportUrl) return;
+          const note = await askText('계정의 모델 선택 화면에서 확인한 근거 (키·비밀번호 입력 금지)'); if (!note) return;
+          if (!await ask('공식 문서와 실제 계정에서 모델·추론·능력을 직접 확인했습니까? 확인하면 자동 배정 후보가 됩니다.')) return;
           this.act(this.api('POST', '/api/models/attest', { executor: profile.executor, id: profile.id, source: 'manual_official_ui', supportUrl: supportUrl, note: note, confirm: true }), '대장의 수동 계정 확인을 기록했습니다');
         } })),
       refreshUsage: () => this.loadUsage(),
@@ -1960,14 +1969,14 @@ class Component extends DCLogic {
         if (!wp) return;
         try {
           const current = await this.api('GET', '/api/projects/' + wp.id + '/auto-save');
-          const input = window.prompt('자동 저장 정책 (비밀정보 입력 금지). 실제 업로드 어댑터는 아직 연결되지 않았습니다.', JSON.stringify(current.policy));
+          const input = await askText('자동 저장 정책 (비밀정보 입력 금지). 실제 업로드 어댑터는 아직 연결되지 않았습니다.', JSON.stringify(current.policy));
           if (input) this.act(this.api('PUT', '/api/projects/' + wp.id + '/auto-save', JSON.parse(input)), '자동 저장 정책 저장');
-        } catch (e) { window.alert(e.message); }
+        } catch (e) { await tell(e.message); }
       },
       inspectAutoSave: async () => {
         if (!wp) return;
-        try { const state = await this.api('POST', '/api/projects/' + wp.id + '/auto-save/check', {}); window.alert(JSON.stringify(state, null, 2)); }
-        catch (e) { window.alert(e.message); }
+        try { const state = await this.api('POST', '/api/projects/' + wp.id + '/auto-save/check', {}); await tell(JSON.stringify(state, null, 2)); }
+        catch (e) { await tell(e.message); }
       },
       showArtifacts: async () => {
         if (!wp) return;
@@ -1996,15 +2005,15 @@ class Component extends DCLogic {
           this.setState({ attMaxDraft: null });
           this.act(this.api('PUT', '/api/settings', { key: 'attach.maxMB', value: n }), '첨부 파일 최대 크기를 ' + n + 'MB로 바꿨습니다');
         } },
-      recoverLimitStorage: () => {
-        if (window.confirm('저장 상태를 재검사하고 장애 차단을 해제합니까? 프로젝트는 자동 재개하지 않습니다.'))
+      recoverLimitStorage: async () => {
+        if (await ask('저장 상태를 재검사하고 장애 차단을 해제합니까? 프로젝트는 자동 재개하지 않습니다.'))
           this.act(this.api('POST', '/api/safety/limit-storage/recover', { confirm: true }), '저장 장애 복구 완료 · 프로젝트 재개는 별도');
       },
       criteriaPending: !!(wp && s.eng && (s.eng.projects || []).some(p => (p.goals || []).some(g => g.projectId === wp.id && g.criteriaApprovalPending))),
-      approveCriteria: () => {
+      approveCriteria: async () => {
         const g = wp && (s.eng.projects || []).flatMap(p => p.goals || []).find(g => g.projectId === wp.id && g.criteriaApprovalPending);
-        if (!g) return window.alert('승인 대기 중인 완료 조건이 없습니다.');
-        if (window.confirm('이 조건으로 완료 여부를 검증합니까?\n\n' + g.completionCriteria.join('\n')))
+        if (!g) return await tell('승인 대기 중인 완료 조건이 없습니다.');
+        if (await ask('이 조건으로 완료 여부를 검증합니까?\n\n' + g.completionCriteria.join('\n')))
           this.act(this.api('POST', '/api/goals/' + g.id + '/criteria/approve', { confirm: true, criteria: g.completionCriteria }), '완료 조건 승인');
       },
       quotaRows: (s.quotas || []).map(q => ({ name: q.provider === 'codex' ? 'Codex' : 'Claude', source: q.provider === 'codex' ? 'Codex 공식 조회' : 'Claude Code가 알려 준 값',
@@ -2079,10 +2088,10 @@ class Component extends DCLogic {
     this.api('POST', '/api/environments/refresh', {}).then((envs) => { this.setState({ envs: envs, envBusy: false }); this.loadTeams(); this.say('연결 상태를 다시 확인했습니다'); })
       .catch((e) => { this.setState({ envBusy: false }); this.say(korErr(e.message)); });
   }
-  toggleSetting(e) {
+  async toggleSetting(e) {
     const next = !e.enabled;
     const who = e.usedBy.join(', ') || '팀';
-    if (next && !window.confirm(e.name + '을(를) ' + who + '에 켭니다.\n\n' + (e.note || '') + '\n\n켤까요?')) return;
+    if (next && !await ask(e.name + '을(를) ' + who + '에 켭니다.\n\n' + (e.note || '') + '\n\n켤까요?')) return;
     this.api('PUT', '/api/settings', { key: e.setting, value: next }).then(() => this.loadEnvs())
       .then(() => this.say(e.name + ' · ' + who + ' 사용을 ' + (next ? '켰습니다' : '껐습니다') + ' (다음 단계부터 적용)')).catch((err) => this.say(korErr(err.message)));
   }
@@ -2125,15 +2134,15 @@ class Component extends DCLogic {
     else if (big) this.say(big.name + ' · ' + big.warning);
     else if (added.length) this.say('첨부했습니다 (' + added.length + '개) · 보내기를 누르면 팀에게 전달됩니다');
   }
-  confirmCriterion(goalId, criterion) {
-    const note = window.prompt('‘' + criterion + '’ 조건을 대장이 직접 확인한 것으로 기록합니다.\n확인한 내용을 짧게 적어 주세요 (비워도 됩니다).', '');
+  async confirmCriterion(goalId, criterion) {
+    const note = await askText('‘' + criterion + '’ 조건을 대장이 직접 확인한 것으로 기록합니다.\n확인한 내용을 짧게 적어 주세요 (비워도 됩니다).', '');
     if (note === null) return;
     this.act(this.api('POST', '/api/goals/' + goalId + '/confirm', { criterion: criterion, note: note }), '완료로 확인했습니다');
   }
-  removeProject(p) {
+  async removeProject(p) {
     if (p.goal.status === 'running') { this.say('실행 중인 단계가 끝난 뒤에 삭제할 수 있습니다.'); return; }
-    if (!window.confirm('‘' + p.name + '’ 프로젝트를 삭제합니다.\n\n목표 ' + p.goals.length + '개, 실행 기록 ' + p.runs.length + '건, 로그, 모델 정책이 지워지며 되돌릴 수 없습니다.\n계속할까요?')) return;
-    const deleteFiles = window.confirm('작업 폴더(projects/' + p.id + ')의 파일도 지울까요?\n\n확인: 파일도 삭제\n취소: 파일은 남김');
+    if (!await ask('‘' + p.name + '’ 프로젝트를 삭제합니다.\n\n목표 ' + p.goals.length + '개, 실행 기록 ' + p.runs.length + '건, 로그, 모델 정책이 지워지며 되돌릴 수 없습니다.\n계속할까요?')) return;
+    const deleteFiles = await ask('작업 폴더(projects/' + p.id + ')의 파일도 지울까요?', { okL: '파일도 삭제', cancelL: '파일은 남김', danger: true });
     this.api('DELETE', '/api/projects/' + p.id, { deleteFiles: deleteFiles })
       .then((r) => this.refresh().then(() => { this.go('projects'); this.say('‘' + p.name + '’을 삭제했습니다' + (r.filesDeleted ? ' · 작업 폴더도 삭제' : ' · 작업 폴더 파일은 남김')); }))
       .catch((e) => this.say(korErr(e.message)));
@@ -2141,6 +2150,48 @@ class Component extends DCLogic {
 }
 
 const root = document.getElementById('app');
+// ── 페이지 안 대화상자 (브라우저 확인·입력 창 대신) ──
+// First line of the message is the title when it ends with "?" or is short; the rest is the body.
+function openDialog({ message = '', title = '', input = false, value = '', okL = '확인', cancelL = '취소', danger = false }) {
+  return new Promise((resolve) => {
+    const prev = document.activeElement;
+    let head = title, body = String(message);
+    if (!head) {
+      const lines = body.split('\n');
+      if (lines.length > 1 || body.length <= 60) { head = lines[0]; body = lines.slice(1).join('\n').replace(/^\n+/, ''); }
+      else { const m = /^(.{8,90}?[?？.])\s+([\s\S]+)$/.exec(body); if (m) { head = m[1]; body = m[2]; } } // first sentence as the title
+    }
+    const scrim = document.createElement('div'); scrim.className = 'dlg-scrim';
+    const box = document.createElement('div'); box.className = 'dlg'; box.setAttribute('role', input ? 'dialog' : 'alertdialog'); box.setAttribute('aria-modal', 'true');
+    const b = document.createElement('div'); b.className = 'dlg-b';
+    const h = document.createElement('h2'); h.className = 'dlg-t'; h.id = 'dlg-t-' + Date.now(); h.textContent = head || '확인';
+    box.setAttribute('aria-labelledby', h.id); b.appendChild(h);
+    if (body) { const p = document.createElement('p'); p.className = 'dlg-m'; p.textContent = body; b.appendChild(p); }
+    let field = null;
+    if (input) { field = document.createElement('textarea'); field.className = 'dlg-in'; field.value = value || ''; field.setAttribute('aria-label', head || '입력'); b.appendChild(field); }
+    const foot = document.createElement('div'); foot.className = 'dlg-f';
+    if (input) { const hint = document.createElement('span'); hint.className = 'hint'; hint.textContent = 'Ctrl+Enter로 확인'; foot.appendChild(hint); }
+    const done = (v) => { document.removeEventListener('keydown', onKey, true); scrim.remove(); if (prev && prev.focus && document.contains(prev)) prev.focus({ preventScroll: true }); resolve(v); };
+    const ok = document.createElement('button'); ok.className = 'btn sm ' + (danger ? 'danger' : 'pri'); ok.textContent = okL;
+    ok.onclick = () => done(input ? field.value : true);
+    if (cancelL) { const no = document.createElement('button'); no.className = 'btn sm'; no.textContent = cancelL; no.onclick = () => done(input ? null : false); foot.appendChild(no); }
+    foot.appendChild(ok);
+    box.append(b, foot); scrim.appendChild(box);
+    scrim.addEventListener('mousedown', (e) => { if (e.target === scrim && cancelL) done(input ? null : false); });
+    const onKey = (e) => {
+      if (e.key === 'Escape' && cancelL) { e.preventDefault(); done(input ? null : false); }
+      else if (e.key === 'Enter' && (!input || e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); ok.click(); }
+      else if (e.key === 'Tab') { const f = [...box.querySelectorAll('button,textarea')]; const i = f.indexOf(document.activeElement);
+        e.preventDefault(); f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus(); }
+    };
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(scrim);
+    (field || ok).focus();
+  });
+}
+const ask = (message, opts = {}) => openDialog({ message, ...opts }).then((v) => v === true);
+const askText = (message, value = '', opts = {}) => openDialog({ message, input: true, value, ...opts });
+const tell = (message, opts = {}) => openDialog({ message, cancelL: null, ...opts }).then(() => undefined);
 const tpl = document.getElementById('tpl').content;
 const comp = new Component({});
 let queued = false;
