@@ -537,3 +537,27 @@ test('제어팀 fills in unpicked teams; a team pick, a pin or turning it off wi
     assert.notEqual(scheduler.resolveFor(goal).source, 'auto_level');
   } finally { store.close(); }
 });
+test('a limit hit during a step waits, and the next step moves to the other subscription (no stop for 대장)', async () => {
+  let limited = true;
+  const { store, scheduler, add, calls } = setup(team => {
+    if (team === 'plan') return { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } };
+    if (team === 'dev') return { outcome: 'completed', diffHash: 'd1', evidence: ev(0, 1) };
+    if (team === 'qa' && limited) { limited = false; return { outcome: 'error', errorKind: 'limit' }; }
+    return { outcome: 'completed', evidence: ev(0, 1), findings: { feedback: '', improvements: [] } };
+  });
+  try {
+    const goal = add();
+    for (let i = 0; i < 3; i++) await scheduler.runGoal(goal.id);
+    assert.deepEqual([store.getGoal(goal.id).status, store.getGoal(goal.id).reason], ['model_wait', 'usage_unavailable_or_limited']);
+    scheduler.capacity = executor => executor === 'claude-code'; // Codex is now over its limit
+    await scheduler.runGoal(goal.id);
+    assert.deepEqual(calls.map(c => `${c.team}:${c.executor}`), ['plan:claude-code', 'dev:claude-code', 'qa:codex', 'qa:claude-code']);
+    assert.equal(store.getGoal(goal.id).status, 'verified');
+    scheduler.autoSwitch = () => false;
+    const other = add({ projectId: 'other' });
+    limited = true;
+    scheduler.capacity = null;
+    for (let i = 0; i < 3; i++) await scheduler.runGoal(other.id);
+    assert.deepEqual([store.getGoal(other.id).status, store.getGoal(other.id).reason], ['blocked', 'limit_error'], 'switch off: stops as before');
+  } finally { store.close(); }
+});

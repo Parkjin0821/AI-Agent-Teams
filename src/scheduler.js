@@ -616,8 +616,11 @@ export class GoalScheduler {
         return { status: GoalStatus.RETRY_WAIT, reason: 'network_error', nextRunAt: iso(now + p.retryDelaysMs[goal.attempt]) };
       }
       if (kind === 'network') return review('network_retries_exhausted');
+      // A limit hit during a step: with 한도 자동 전환 on, the step waits and the next claim moves it to the other
+      // subscription if that one has room (or keeps waiting until either has room), instead of stopping for 대장.
+      const switchPolicy = this.registry?.getPolicy(`project:${goal.projectId}`).allowProviderSwitch;
       if (kind === 'limit' && goal.kind === 'team'
-        && this.registry?.getPolicy(`project:${goal.projectId}`).allowProviderSwitch) {
+        && (switchPolicy === true || (switchPolicy !== false && this.autoSwitch?.() !== false))) {
         return { status: GoalStatus.MODEL_WAIT, waitingFrom: GoalStatus.SCHEDULED,
           reason: 'usage_unavailable_or_limited', nextRunAt: iso(now) };
       }
