@@ -2139,7 +2139,21 @@ const root = document.getElementById('app');
 const tpl = document.getElementById('tpl').content;
 const comp = new Component({});
 let queued = false;
-function scheduleRender() { if (!queued) { queued = true; queueMicrotask(() => { queued = false; render(); }); } }
+// Every render replaces the whole page. If that happens while 대장 is typing — above all in the middle of a
+// Hangul syllable (IME composition) — the box is swapped out and the syllable breaks or vanishes. Background
+// updates (a running project refreshes every few seconds) therefore wait until typing pauses.
+let composing = false, lastTyping = 0;
+document.addEventListener('compositionstart', () => { composing = true; }, true);
+document.addEventListener('compositionend', () => { composing = false; lastTyping = Date.now(); }, true);
+document.addEventListener('input', () => { lastTyping = Date.now(); }, true);
+document.addEventListener('keydown', () => { lastTyping = Date.now(); }, true);
+function typingNow() {
+  const a = document.activeElement;
+  const editable = !!a && root.contains(a) && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && /^(text|search|url|email|)$/i.test(a.type)));
+  return editable && (composing || Date.now() - lastTyping < 1000);
+}
+function tryRender() { if (typingNow()) { setTimeout(tryRender, 250); return; } queued = false; render(); }
+function scheduleRender() { if (!queued) { queued = true; queueMicrotask(tryRender); } }
 function render() {
   const active = document.activeElement, id = active && active.id;
   const range = id && typeof active.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null;
