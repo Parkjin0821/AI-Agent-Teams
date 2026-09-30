@@ -355,6 +355,9 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .digest-settings .field{margin-top:16px}
 .digest-settings .field label{margin-bottom:8px}
 .digest-settings>.btn{margin-top:16px}
+.judge{display:flex;flex-direction:column;gap:6px;margin:10px 0 4px;max-width:72ch}
+.judge-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.judge-row>span{flex:1;min-width:0;font-size:13px}
 .team-recent{margin-top:16px}
 .team-recent[open]>summary{margin-bottom:10px}
 .skill-description{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin:8px 0;color:var(--text-2);font-size:13px;line-height:1.55}
@@ -454,9 +457,10 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
               <div class="b">{{it.body}}</div>
               <sc-if value="{{it.isQuestion}}">
                 <div class="q">{{it.question}}</div>
+                <sc-if value="{{it.hasJudge}}"><div class="judge"><sc-for list="{{it.judge}}" as="j"><div class="judge-row"><span>{{j.l}}</span><button class="btn pri sm" onClick="{{j.go}}">완료로 확인</button></div></sc-for></div></sc-if>
                 <div class="acts" style="flex-direction: column; align-items: stretch; max-width: 72ch">
                   <label class="hint" for="{{it.inputId}}">답변</label>
-                  <textarea class="ta" id="{{it.inputId}}" placeholder="예: 결제 기능은 빼고 진행해" value="{{it.draft}}" onChange="{{it.onDraft}}"></textarea>
+                  <textarea class="ta" id="{{it.inputId}}" placeholder="예: 주석을 더 쉽게 고쳐 줘 · 이 조건은 빼고 진행해" value="{{it.draft}}" onChange="{{it.onDraft}}"></textarea>
                   <div class="row-f"><button class="btn pri sm" onClick="{{it.send}}">답변 보내고 계속</button><button class="btn ghost sm" onClick="{{it.open}}">프로젝트 보기</button></div>
                 </div>
               </sc-if>
@@ -594,7 +598,8 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
             <div class="msg action attn">
               <div class="meta"><b>{{w.askedBy}}</b><span class="small muted">대장의 답이 필요합니다</span></div>
               <div class="body big">{{w.question}}</div>
-              <div class="hint">아래 입력창에 답을 적어 보내면 기획팀이 이어서 계획합니다.</div>
+              <sc-if value="{{w.hasJudge}}"><div class="judge"><sc-for list="{{w.judge}}" as="j"><div class="judge-row"><span>{{j.l}}</span><button class="btn pri sm" onClick="{{j.go}}">완료로 확인</button></div></sc-for></div></sc-if>
+              <div class="hint">{{w.answerHint}}</div>
             </div>
           </sc-if>
           <sc-if value="{{criteriaPending}}">
@@ -789,9 +794,10 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
                 <div class="b">{{it.body}}</div>
                 <sc-if value="{{it.isQuestion}}">
                   <div class="q">{{it.question}}</div>
+                <sc-if value="{{it.hasJudge}}"><div class="judge"><sc-for list="{{it.judge}}" as="j"><div class="judge-row"><span>{{j.l}}</span><button class="btn pri sm" onClick="{{j.go}}">완료로 확인</button></div></sc-for></div></sc-if>
                   <div class="acts" style="flex-direction: column; align-items: stretch; max-width: 72ch">
                     <label class="hint" for="{{it.ibInputId}}">답변</label>
-                    <textarea class="ta" id="{{it.ibInputId}}" placeholder="예: 결제 기능은 빼고 진행해" value="{{it.draft}}" onChange="{{it.onDraft}}"></textarea>
+                    <textarea class="ta" id="{{it.ibInputId}}" placeholder="예: 주석을 더 쉽게 고쳐 줘 · 이 조건은 빼고 진행해" value="{{it.draft}}" onChange="{{it.onDraft}}"></textarea>
                     <div class="row-f"><button class="btn pri sm" onClick="{{it.send}}">답변 보내고 계속</button><button class="btn ghost sm" onClick="{{it.open}}">프로젝트 보기</button></div>
                   </div>
                 </sc-if>
@@ -1428,8 +1434,10 @@ class Component extends DCLogic {
           body: held.body, isIssue: true, held: ['approval_required', 'trust_review'].includes(g.reason), actions: held.actions });
       } else if (g.status === 'review_required' && g.reason === 'needs_decision') {
         const inputId = 'ans-' + g.id;
-        inbox.push({ icon: ICON.question, icoCls: 'ico', title: askedBy(g.question) + ' 질문', project: p.name, body: '답을 주면 기획팀이 이어서 계획합니다.', question: stripAsker(g.question),
-          isQuestion: true, inputId: inputId, draft: s.drafts[g.id] || '', open: open,
+        const judge = this.judgeRows(g);
+        inbox.push({ icon: ICON.question, icoCls: 'ico', title: askedBy(g.question) + ' 질문', project: p.name, question: stripAsker(g.question),
+          body: judge.length ? '남은 조건을 보고 ‘완료로 확인’을 누르면 바로 끝납니다. 고칠 점은 답으로 보내면 팀이 고칩니다.' : '답을 주면 기획팀이 이어서 계획합니다.',
+          judge: judge, hasJudge: judge.length > 0, isQuestion: true, inputId: inputId, draft: s.drafts[g.id] || '', open: open,
           onDraft: (e) => { const d = Object.assign({}, this.state.drafts); d[g.id] = e.target.value; this.setState({ drafts: d }); },
           send: () => this.sendAnswer(g.id) });
       } else if (g.proposal && g.proposal.status === 'pending') {
@@ -1517,6 +1525,9 @@ class Component extends DCLogic {
         }),
         flowCols: 'grid-template-columns: repeat(' + cyclePath(wp).length + ', minmax(0, 1fr))',
         hasQuestion: g.status === 'review_required' && g.reason === 'needs_decision', question: stripAsker(g.question), askedBy: askedBy(g.question),
+        judge: this.judgeRows(g), hasJudge: this.judgeRows(g).length > 0,
+        answerHint: this.judgeRows(g).length ? '남은 조건을 확인하면 추가 실행 없이 완료됩니다. 고칠 점이 있으면 아래 입력창에 적어 보내세요. 답으로 “승인”이라고 쓰는 것은 조건 확인이 아닙니다.'
+          : '아래 입력창에 답을 적어 보내면 기획팀이 이어서 계획합니다.',
         draft: s.drafts[g.id] || '', onDraft: (e) => { const d = Object.assign({}, this.state.drafts); d[g.id] = e.target.value; this.setState({ drafts: d }); },
         sendAnswer: () => this.sendAnswer(g.id),
         messages: g.messages || [],
@@ -2165,6 +2176,12 @@ class Component extends DCLogic {
     if (failed) this.say(failed.name + ' · Markdown 변환 실패 (' + failed.convertError + ') · 팀이 이 문서를 못 읽을 수 있습니다');
     else if (big) this.say(big.name + ' · ' + big.warning);
     else if (added.length) this.say('첨부했습니다 (' + added.length + '개) · 보내기를 누르면 팀에게 전달됩니다');
+  }
+  // Criteria the last verification left for 대장 to judge (not yet confirmed), as buttons on the question card.
+  judgeRows(g) {
+    if (!(g.status === 'review_required' && g.reason === 'needs_decision')) return [];
+    return ((g.team && g.team.awaitingJudgement) || []).filter((c) => !(g.evidence || []).some((e) => e.criterion === c))
+      .map((c) => ({ l: c, go: () => this.confirmCriterion(g.id, c) }));
   }
   async confirmCriterion(goalId, criterion) {
     const note = await askText('‘' + criterion + '’ 조건을 대장이 직접 확인한 것으로 기록합니다.\n확인한 내용을 짧게 적어 주세요 (비워도 됩니다).', '');

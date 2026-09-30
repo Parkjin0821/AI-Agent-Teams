@@ -430,3 +430,45 @@ test('a criterion the verifier did not mark as 대장-only keeps the normal rota
     assert.notEqual(store.getGoal(goal.id).status, 'review_required');
   } finally { store.close(); }
 });
+test('confirming the criteria a verification left for 대장 finishes the project with no extra run', async () => {
+  let plans = 0;
+  const { store, scheduler, add, calls } = setup(team => {
+    if (team === 'plan') return plans++ === 0 ? { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } } : { outcome: 'completed', plan: { allDone: true } };
+    if (team === 'dev') return { outcome: 'completed', diffHash: 'd1', evidence: ev(0) };
+    if (team === 'qa') return { outcome: 'completed', evidence: ev(0), findings: { feedback: '', improvements: [] },
+      claims: [{ criterion: C[0], check: 'pass' }, { criterion: C[1], check: 'none', person: true }] };
+    return { outcome: 'completed', review: { blocking: false, issues: [] } };
+  });
+  try {
+    const goal = add();
+    for (let i = 0; i < 6 && store.getGoal(goal.id).status !== 'review_required'; i++) await scheduler.runGoal(goal.id);
+    assert.deepEqual(store.getGoal(goal.id).team.awaitingJudgement, [C[1]]);
+    scheduler.confirmCriterion(goal.id, C[1], '직접 봤음');
+    const g = store.getGoal(goal.id);
+    assert.deepEqual([g.status, g.reason, g.question], ['verified', null, null]);
+    assert.equal(calls.length, 3, 'no further step ran');
+    assert.match(g.messages.at(-1).text, /남은 조건을 대장이 확인했습니다 · 합계 테스트 통과/);
+  } finally { store.close(); }
+});
+test('an answer lets planning propose changed criteria, which need 대장 approval again', async () => {
+  let plans = 0;
+  const { store, scheduler, add } = setup(team => {
+    if (team === 'plan') {
+      plans++;
+      if (plans === 1) return { outcome: 'completed', plan: { needsDecision: '조건 2를 줄일까요?' } };
+      return { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [], completionCriteria: [C[0]] } };
+    }
+    return { outcome: 'completed' };
+  });
+  try {
+    const goal = add();
+    await scheduler.runGoal(goal.id);
+    assert.equal(store.getGoal(goal.id).reason, 'needs_decision');
+    // a judgement question left open earlier is closed by the answer; confirming then does not finish anything
+    scheduler.answer(goal.id, '후자로 진행해');
+    assert.equal(store.getGoal(goal.id).team.criteriaCheck, true);
+    await scheduler.runGoal(goal.id);
+    const g = store.getGoal(goal.id);
+    assert.deepEqual([g.reason, g.criteriaApprovalPending, g.completionCriteria], ['criteria_approval_required', true, [C[0]]]);
+  } finally { store.close(); }
+});

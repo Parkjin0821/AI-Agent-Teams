@@ -201,7 +201,7 @@ const planBlock = [
   `End your reply with the line ${PLAN_MARK} followed by one JSON object:`,
   '{"next_task":"...","team":"dev","reviews":[],"completion_criteria":["..."],"complexity":"normal","risk":"normal","effects":[],',
   '"task_type":"coding","required_capabilities":["text","code"],"proposed_model":null,"proposal_reason":"","needs_decision":null,"all_done":false}',
-  'completion_criteria: when the criteria above are empty, or when 대장\'s newest message changes what counts as done (then give the complete new list) — concrete and verifiable, derived from 대장\'s conversation. Otherwise leave it out: a request to continue or clarify keeps the current criteria.',
+  'completion_criteria: when the criteria above are empty, or when 대장\'s newest message or answer changes what counts as done (then give the complete new list) — concrete and verifiable, derived from 대장\'s conversation. Otherwise leave it out: a request to continue or clarify keeps the current criteria.',
   'Optional "remember": up to 3 lasting preferences or rules 대장 stated that should apply to future projects, as',
   '[{"scope":"all"|"plan"|"research"|"dev"|"design"|"security"|"policy"|"qa","text":"..."}]. They take effect only after 대장 approves them.',
   'Write your reply in Korean.',

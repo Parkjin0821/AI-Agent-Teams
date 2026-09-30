@@ -91,9 +91,19 @@ export class GoalScheduler {
     const confirmed = [...(goal.confirmed ?? []).filter(c => c.criterion !== criterion),
       { criterion, proof: `대장 확인${text ? ` · ${text}` : ''}`, by: 'human', at: iso(this.clock.now()) }];
     const evidence = mergeEvidence(goal.evidence, confirmed);
-    const done = goal.kind !== 'team' && goal.completionCriteria.every(c => evidence.some(e => e.criterion === c));
-    this.update(goal, { confirmed, evidence, ...(done ? { status: GoalStatus.VERIFIED, nextRunAt: null, reason: null } : {}) });
+    const all = goal.completionCriteria.every(c => evidence.some(e => e.criterion === c));
+    // A team project finishes here only when the verification just before asked 대장 to judge the rest (no engine
+    // finding was open then, and nothing has run since); otherwise the next verification counts the confirmation.
+    const judged = goal.kind === 'team' && goal.status === GoalStatus.REVIEW_REQUIRED && goal.reason === 'needs_decision'
+      && Array.isArray(goal.team?.awaitingJudgement) && goal.team.awaitingJudgement.length > 0;
+    const done = all && (goal.kind !== 'team' || judged);
+    const at = iso(this.clock.now());
+    this.update(goal, { confirmed, evidence, ...(done ? { status: GoalStatus.VERIFIED, nextRunAt: null, reason: null } : {}),
+      ...(done && judged ? { question: null, autoRun: false, autoRunBeforeFinish: goal.autoRun, team: { ...goal.team, awaitingJudgement: null },
+        messages: [...(goal.messages ?? []), { role: 'team', kind: 'question', text: String(goal.question ?? ''), at },
+          { role: 'user', kind: 'approval', text: `남은 조건을 대장이 확인했습니다 · ${goal.team.awaitingJudgement.join(' · ')}`, at }].slice(-100) } : {}) });
     void this.store.emit({ type: done ? 'goal.verified' : 'goal.confirmed', goalId, criterion });
+    if (done && judged) this.dispatchFollowup(goal);
     return goal;
   }
 
@@ -138,7 +148,7 @@ export class GoalScheduler {
     const messages = [...(goal.messages ?? []), { role: 'team', kind: 'question', text: String(goal.question ?? ''), at },
       { role: 'user', kind: 'answer', text: typed, ...(attachments.length ? { attachments } : {}), at }].slice(-100);
     this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, question: null, autoRun: true, nextRunAt: at, messages,
-      team: { ...goal.team, step: 'plan', feedback: `질문 · ${goal.question}\n대장 답변 · ${reply}` } });
+      team: { ...goal.team, step: 'plan', feedback: `질문 · ${goal.question}\n대장 답변 · ${reply}`, criteriaCheck: true, awaitingJudgement: null } });
     void this.store.emit({ type: 'goal.answered', goalId });
     return goal;
   }
@@ -464,7 +474,7 @@ export class GoalScheduler {
   //   plan → worker (dev | design) → [security] → [policy] → qa → plan
   decideTeam(goal, result, evidence, now) {
     const step = goal.team.step;
-    const team = { worker: 'dev', reviews: [], reviewNotes: [], ...goal.team };
+    const team = { worker: 'dev', reviews: [], reviewNotes: [], ...goal.team, awaitingJudgement: null };
     const proven = goal.completionCriteria.length > 0 && goal.completionCriteria.every(c => evidence.some(e => e.criterion === c));
     const review = (reason, extra = {}) => ({ evidence, ...extra, team, status: GoalStatus.REVIEW_REQUIRED, reason, nextRunAt: null });
     const goTo = (next, extra = {}) => ({ evidence, ...extra, reason: null, question: null, status: GoalStatus.SCHEDULED,
@@ -561,13 +571,15 @@ export class GoalScheduler {
     const claimFor = c => (result.claims ?? []).find(k => k.criterion === c);
     const personOnly = !gate.length && unproven.length > 0 && unproven.every(c => claimFor(c)?.person === true || claimFor(c)?.check === 'partial');
     if (personOnly) {
+      team.awaitingJudgement = unproven;
       return review('needs_decision', { question: `[검증팀] 남은 조건은 파일이나 엔진 검사로 증명할 수 없어 대장 판단이 필요합니다:\n`
         + unproven.map(c => `- ${c}${claimFor(c)?.check === 'partial' ? ` (${claimFor(c).detail})` : ''}`).join('\n')
-        + '\n검증 탭에서 직접 확인하거나, 조건을 고치거나, 확인할 방법을 알려 주세요.' });
+        + '\n‘완료로 확인’을 누르거나, 고칠 점을 답으로 보내 주세요. 조건을 바꾸자고 답하면 기획팀이 새 조건을 제안합니다.' });
     }
     if (stalled) {
+      team.awaitingJudgement = unproven;
       return review('needs_decision', { question: `[검증팀] 엔진이 확인하지 못한 완료 조건이 두 번 연속 그대로입니다 (그 사이 작업 없음):\n- ${unproven.join('\n- ')}\n`
-        + '검증 탭에서 대장이 직접 확인하거나, 조건을 고치거나, 확인할 방법을 알려 주세요.' });
+        + '‘완료로 확인’을 누르거나, 고칠 점을 답으로 보내 주세요. 조건을 바꾸자고 답하면 기획팀이 새 조건을 제안합니다.' });
     }
     team.cycle = (team.cycle ?? 1) + 1;
     return advance();
