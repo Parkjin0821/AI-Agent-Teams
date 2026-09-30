@@ -84,6 +84,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     // team run that saw the limit near or hit ("allowed_warning" / "rejected") holds new rounds until its reset.
     return subscriptionCapacity(account, q, quotaCheckedAt);
   };
+  // 제어팀 needs this account's Codex list (Luna / Sol); a real server reads it before the first step.
+  if (executing) void modelChoices.get().catch(() => {});
   const scheduler = new GoalScheduler({ store, clock, registry,
     capacity: guarded ? capacity : null,
     dailyCap: () => store.getSettings()['limits.maxRoundsPerDay'],

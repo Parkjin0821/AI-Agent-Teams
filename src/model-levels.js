@@ -4,11 +4,14 @@ import { CLAUDE_CHOICES } from './model-choices.js';
 // the work (complexity, risk) and how it has gone so far. Only models and reasoning levels from each tool's official
 // list are used (Claude Code: model-config docs; Codex: this account's app-server list). A team 대장 picked a model
 // for keeps that pick; this only fills in teams with no pick.
+// Codex models by this account's own list descriptions (read 2026-09-30): GPT-6-Luna "Fast and affordable model for
+// easier tasks", GPT-6-Sol "Previous generation workhorse model", GPT-6-Astra "Frontier intelligence for the most
+// demanding work". Astra is never picked automatically: on a Plus plan it uses the weekly allowance too fast (대장).
 export const LEVELS = Object.freeze([
-  { id: 'light', label: '가벼움', claude: { model: 'claude-sonnet-5-5', effort: 'low' }, codexEffort: 'low' },
-  { id: 'normal', label: '보통', claude: { model: 'claude-sonnet-5-5', effort: 'medium' }, codexEffort: 'medium' },
-  { id: 'deep', label: '깊게', claude: { model: 'claude-opus-5-5', effort: 'high' }, codexEffort: 'high' },
-  { id: 'max', label: '최고', claude: { model: 'claude-fable-5-1', effort: 'high' }, codexEffort: 'xhigh' },
+  { id: 'light', label: '가벼움', claude: { model: 'claude-sonnet-5-5', effort: 'low' }, codex: { model: 'gpt-6-luna', effort: 'low' } },
+  { id: 'normal', label: '보통', claude: { model: 'claude-sonnet-5-5', effort: 'medium' }, codex: { model: 'gpt-6-sol', effort: 'medium' } },
+  { id: 'deep', label: '깊게', claude: { model: 'claude-opus-5-5', effort: 'high' }, codex: { model: 'gpt-6-sol', effort: 'high' } },
+  { id: 'max', label: '최고', claude: { model: 'claude-fable-5-1', effort: 'high' }, codex: { model: 'gpt-6-sol', effort: 'xhigh' } },
 ]);
 const REVIEWERS = ['plan', 'security', 'policy', 'qa'];
 
@@ -26,20 +29,20 @@ export function levelFor({ team, profile = null, failures = 0 }) {
 }
 
 // The model and reasoning level for one step on one tool, or null when the tool's list is not known yet.
-// codexModels: this account's Codex list [{ id, isDefault, efforts }] (the tool's default model is kept; only the
-// reasoning level changes, since the list does not say which Codex model is lighter).
+// codexModels: this account's Codex list [{ id, isDefault, efforts }]. A level's Codex model that the account does not
+// list gives no choice (the step then runs as if 제어팀 were off), never a guessed substitute.
 export function levelChoice(executor, level, { codexModels = [] } = {}) {
   if (executor === 'claude-code') {
     const m = CLAUDE_CHOICES.models.find(x => x.id === level.claude.model);
     if (!m || !m.efforts.includes(level.claude.effort)) return null;
     return { model: m.id, effort: level.claude.effort };
   }
-  const def = codexModels.find(m => m.isDefault);
-  if (!def || !def.efforts?.length) return null;
+  const m = codexModels.find(x => x.id === level.codex.model);
+  if (!m || !m.efforts?.length) return null;
   const order = ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
-  const want = order.indexOf(level.codexEffort);
+  const want = order.indexOf(level.codex.effort);
   // The listed level closest to the wanted one, preferring the lighter side.
-  const effort = [...def.efforts].sort((a, b) => Math.abs(order.indexOf(a) - want) - Math.abs(order.indexOf(b) - want)
+  const effort = [...m.efforts].sort((a, b) => Math.abs(order.indexOf(a) - want) - Math.abs(order.indexOf(b) - want)
     || order.indexOf(a) - order.indexOf(b))[0];
-  return { model: def.id, effort };
+  return { model: m.id, effort };
 }
