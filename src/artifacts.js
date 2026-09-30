@@ -5,6 +5,8 @@ import { listWorkspaceFiles } from './evidence.js';
 const TYPES = { '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8',
   '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.json': 'text/plain; charset=utf-8',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
+  // Document previews the engine renders (served under the preview route's sandbox policy: no scripts run).
+  '.svg': 'image/svg+xml',
   // Code is shown as plain text only (never run), so 대장 can read what a team changed before approving it.
   ...Object.fromEntries(['.js', '.mjs', '.cjs', '.ts', '.jsx', '.tsx', '.css', '.py', '.csv'].map(e => [e, 'text/plain; charset=utf-8'])) };
 function resolveFile(cwd, relative) {

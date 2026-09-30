@@ -29,6 +29,11 @@ export function reportInstructions(criteria) {
     '  {"type":"source_contains","source":"sources/…","text":"exact text","path":"relative/path"}  (the text is in a web',
     '   page original the engine itself saved under sources/, unchanged since; with "path", that file contains it too —',
     '   e.g. a version in research.md that matches the official page)',
+    '  {"type":"document_made","path":"x.hwpx","text":"optional exact text"}  (the engine itself made this 한글 document',
+    '   from your Markdown, it passed the structure check and is unchanged since; with "text", the document contains it)',
+    'To get a 한글 document (HWPX), write the text as Markdown and add "documents":[{"from":"x.md","to":"x.hwpx",',
+    '"preset":"보고서"}] (presets: 기안문, 보고서, 계획서, 통지, 회의록, 개조식, 업무보고, 서울방침, 보도자료; at most 3).',
+    'After your step the engine makes it, checks it, and saves previews (x.hwpx.svg, x.hwpx.html) and a read-back (x.hwpx.md).',
     'If you read web pages, list them in "sources":[{"url":"https://…"}] (at most 5). After your step the engine fetches',
     'each allowed page again and saves its original text under sources/ for comparison. Never write into sources/.',
     'Do not claim done without doing the work. Put anything a person must judge in "note".',
@@ -95,6 +100,9 @@ function relatesTo(check, criterion) {
   const c = String(criterion).toLowerCase();
   if (check.type === 'tests_pass') return true;
   if (check.type === 'stayed_inside') return BOUNDARY_TOPIC.test(c);
+  if (check.type === 'document_made') {
+    return namesFile(c, check.path) || (check.text && words(check.text).some(w => mentions(c, w))) || DOCUMENT_TOPIC.test(c);
+  }
   if (check.type === 'source_contains') {
     return words(check.text).some(w => mentions(c, w)) || (check.path ? namesFile(c, check.path) && !CLAIMS_ABSENCE.test(c) : SOURCE_TOPIC.test(c));
   }
@@ -109,7 +117,8 @@ function relatesTo(check, criterion) {
   }
   return false;
 }
-const SOURCE_TOPIC = /출처|원문|공식|source|official/;
+const DOCUMENT_TOPIC = /문서|hwpx|한글 파일|보고서|기안|서식|계획서|회의록|보도자료|통지/;
+const SOURCE_TOPIC =/출처|원문|공식|source|official/;
 const CLAIMS_ABSENCE =/없[다고으음이는었]|않[았는다고음]|아니[다고]|금지|no |never|without/;
 const namesFile = (criterion, file) => {
   const base = path.basename(String(file ?? '').replace(/\\/g, '/')).toLowerCase();
@@ -133,6 +142,7 @@ function runCheck(check, cwd, ctx = {}) {
   }
   if (check?.type === 'file_unchanged') return checkUnchanged(check, cwd, ctx.originals ?? {});
   if (check?.type === 'source_contains') return checkSource(check, cwd, ctx.sources ?? {});
+  if (check?.type === 'document_made') return checkDocument(check, cwd, ctx.documents ?? {});
   const target = insideWorkspace(check.path, cwd);
   if (!target) return { status: 'invalid', reason: '작업 폴더 밖이거나 잘못된 경로' };
   const rel = path.relative(cwd, target).replace(/\\/g, '/');
@@ -192,6 +202,30 @@ function checkSource(check, cwd, sources) {
     return { status: 'pass', proof: `엔진 확인 · ${check.path}의 “${shown}”이(가) 원문(${rec.url}, ${rec.fetchedAt.slice(0, 10)} 저장)에도 있음` };
   }
   return { status: 'pass', proof: `엔진 확인 · 원문(${rec.url}, ${rec.fetchedAt.slice(0, 10)} 저장)에 “${shown}” 있음` };
+}
+
+// documents: { "x.hwpx": { from, preset, sha, validated, lint, readback: { path, sha } } } — what the engine made
+// (doc-convert.js make). Only an engine-made, structure-checked, unchanged document counts.
+function checkDocument(check, cwd, documents) {
+  const target = insideWorkspace(check.path, cwd);
+  if (!target) return { status: 'invalid', reason: '작업 폴더 밖이거나 잘못된 경로' };
+  const rel = path.relative(cwd, target).replace(/\\/g, '/');
+  const rec = documents[rel];
+  if (!rec) return { status: 'invalid', reason: `${rel}은(는) 엔진이 만든 문서가 아님` };
+  const hash = p => createHash('sha256').update(readFileSync(path.join(cwd, p))).digest('hex');
+  if (!existsSync(target)) return { status: 'fail', reason: `${rel} 없어짐` };
+  if (hash(rel) !== rec.sha) return { status: 'fail', reason: `${rel}이(가) 엔진이 만든 뒤 바뀜` };
+  if (!rec.validated) return { status: 'fail', reason: `${rel} 구조 검증 실패 (한컴오피스에서 안 열릴 수 있음)` };
+  let found = '';
+  if (typeof check.text === 'string' && check.text) {
+    const back = rec.readback;
+    if (!back || !existsSync(path.join(cwd, back.path)) || hash(back.path) !== back.sha) return { status: 'invalid', reason: '문서를 다시 읽은 기록이 없거나 바뀜' };
+    const shown = check.text.length > 60 ? `${check.text.slice(0, 60)}…` : check.text;
+    if (!readFileSync(path.join(cwd, back.path), 'utf8').includes(check.text)) return { status: 'fail', reason: `${rel}에 “${shown}” 없음` };
+    found = ` · 문서에 “${shown}” 있음`;
+  }
+  const lint = rec.lint ? ` · 표기법 검수 오류 ${rec.lint.errors}·경고 ${rec.lint.warnings}` : '';
+  return { status: 'pass', proof: `엔진 확인 · ${rel} (${rec.preset} 서식, ${rec.from}에서 엔진이 만듦) 구조 검증 통과${found}${lint}` };
 }
 
 function insideWorkspace(p, cwd) {

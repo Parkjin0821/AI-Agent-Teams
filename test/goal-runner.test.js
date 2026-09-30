@@ -222,4 +222,13 @@ test('원문 저장: the web team lists its pages, the engine saves allowed orig
   assert.equal(result.claims[0].check, 'pass', 'proven against the original saved in the same step');
   const saved = events.find(e => e.type === 'sources.saved');
   assert.deepEqual([saved.saved.length, saved.skipped[0].reason], [1, '대장이 아직 허용하지 않은 사이트']);
+  // the next step lists the same page: the saved original is reused, nothing is fetched again
+  records = [{ id: 'r1', status: 'finished', team: 'research', sources: result.sources }, { id: 'r2', status: 'running', team: 'research', executor: 'claude-code' }];
+  webSources.fetcher = async () => { throw new Error('fetched again'); };
+  events.length = 0;
+  const second = await runner.run({ ...goal, kind: 'team', completionCriteria: criteria, team: { step: 'research', task: '조사', feedback: '', cycle: 1 } },
+    { executor: 'claude-code', team: 'research', access: 'write' });
+  const again = events.find(e => e.type === 'sources.saved');
+  assert.deepEqual([again.saved.length, again.reused.map(r => r.url)], [0, ['https://nodejs.org/en/download']]);
+  assert.equal(second.claims[0].check, 'pass', 'still proven against the first saved original');
 });

@@ -480,6 +480,7 @@ export class GoalScheduler {
       tools: Array.isArray(result.tools) ? result.tools.slice(0, 12) : [],
       // Web originals the engine saved this step (their fingerprints back source_contains checks later).
       ...(Array.isArray(result.sources) ? { sources: result.sources.slice(0, 10) } : {}),
+      ...(Array.isArray(result.documents) ? { documents: result.documents.slice(0, 3) } : {}),
       plan: result.plan ? { nextTask: result.plan.nextTask, team: result.plan.team ?? 'dev', reviews: result.plan.reviews ?? [] } : null,
       review: result.review ? { verdict: result.review.verdict, issues: result.review.issues, blocking: result.review.blocking } : null });
     if (goal.status !== GoalStatus.RUNNING) return;

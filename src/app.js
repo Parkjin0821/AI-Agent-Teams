@@ -107,7 +107,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       }, catalog: () => registry.catalog(),
       // 감시 에이전트: checks every Claude tool call before it runs (see src/sentinel.js).
       sentinel: { script: path.join(root, 'scripts', 'sentinel-hook.mjs'), log: sentinelLog, grants: approvals.grantsFile },
-      approvals, memory }) });
+      approvals, memory,
+      // 문서 만들기: kordoc in the sandbox (no network, no model call), the same tool that converts attachments.
+      docMaker: () => { const d = docs(); return d.available ? d : null; } }) });
   const teamsView = () => {
     const settings = store.getSettings();
     const tools = toolkitView(monitor?.snapshot ?? null, settings, environmentView(monitor?.snapshot ?? null, settings));

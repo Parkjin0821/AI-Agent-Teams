@@ -1,5 +1,5 @@
 import { boundaryCheck, listWorkspaceFiles, parseReport, reportInstructions, verifyReport, workspaceFingerprint } from './evidence.js';
-import { parsePlan, parseReview, qaFindings, REVIEWS, TEAMS, teamPrompt } from './teams.js';
+import { parsePlan, parseReview, qaFindings, REVIEWS, TEAMS, teamPrompt, WORKERS } from './teams.js';
 import { runTeamTools, toolReport } from './toolkit.js';
 import { normalizeRequests, requiredReviews } from './team-governance.js';
 import { createHash } from 'node:crypto';
@@ -20,7 +20,7 @@ const PROVIDER = { 'claude-code': 'claude', codex: 'codex' };
 
 // toolsFor(team) → { connectors, knownConnectors }: which claude.ai connectors 대장 opened for that team.
 export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, settings = () => ({}),
-  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {} }) {
+  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, docMaker = null }) {
   const simulated = adapter.enabled === false;
   return {
     async run(goal, run) {
@@ -141,15 +141,34 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       // 원문 저장: pages a web team read are fetched again by the engine and saved under sources/ (web-sources.js).
       let sources = null;
       if (team && TEAMS[team]?.web && Array.isArray(report?.sources) && report.sources.length && sentinel && !simulated) {
-        sources = await saveSources({ urls: report.sources, cwd, project: goal.projectId,
+        // A page already saved for this goal is not fetched again (its original stays the one checks compare with).
+        const before = Object.values(sourceRecords(records));
+        const listed = report.sources.map(u => typeof u === 'string' ? u : u?.url).filter(u => typeof u === 'string');
+        const reused = before.filter(s => listed.includes(s.url));
+        sources = await saveSources({ urls: listed.filter(u => !reused.some(s => s.url === u)), cwd, project: goal.projectId,
           grants: stepGrants, webMode: settings()['sentinel.web'] === 'open' ? 'open' : 'ask', ...webSources });
         await store.emit({ type: 'sources.saved', goalId: goal.id, team, saved: sources.saved.map(s => ({ path: s.path, url: s.url, bytes: s.bytes })),
-          skipped: sources.skipped });
+          reused: reused.map(s => ({ path: s.path, url: s.url, fetchedAt: s.fetchedAt })), skipped: sources.skipped });
+      }
+      // 문서 만들기: a work team's Markdown becomes a 한글 document made and checked by the engine (doc-convert.js make).
+      let documents = null;
+      const maker = typeof docMaker === 'function' ? docMaker() : docMaker;
+      if (team && WORKERS.includes(team) && Array.isArray(report?.documents) && report.documents.length && maker && !simulated) {
+        const known = new Set(Object.keys(documentRecords(records)));
+        documents = { made: [], failed: [] };
+        for (const d of report.documents.slice(0, 3)) {
+          const r = await maker.make(cwd, { from: d?.from, to: d?.to, preset: d?.preset }, known);
+          if (r.ok) documents.made.push(r); else documents.failed.push({ from: String(d?.from ?? '').slice(0, 120), error: r.error });
+        }
+        await store.emit({ type: 'documents.made', goalId: goal.id, team,
+          made: documents.made.map(m => ({ path: m.path, from: m.from, preset: m.preset, validated: m.validated, lint: m.lint, previews: m.previews })),
+          failed: documents.failed });
       }
       const { evidence, claims } = verifyReport(report, goal.completionCriteria, cwd, { verifying: team === 'qa', test, originals: attachmentOriginals(goal, records),
+        documents: { ...documentRecords(records), ...documentRecords([{ documents: documents?.made ?? [] }]) },
         sources: { ...sourceRecords(records), ...sourceRecords([{ sources: sources?.saved ?? [] }]) },
         boundary: () => boundaryCheck({ runs: store.listRuns?.(goal.id) ?? [], sentinelLog: sentinel?.log ?? null, project: goal.projectId, cwd }) });
-      return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd), ...(sources ? { sources: sources.saved } : {}),
+      return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd), ...(sources ? { sources: sources.saved } : {}), ...(documents ? { documents: documents.made } : {}),
         requests: normalizeRequests(report?.requests, team), requiredReviews: requiredReviews(team),
         ...(team === 'qa' ? { findings: { ...qaFindings(report), blocking } } : {}) };
     },
@@ -195,6 +214,13 @@ export function inlineTextFiles(cwd, files, { perFile = 12_000, total = 40_000 }
 
 // Fingerprints of 대장's attachments that the engine itself recorded: at upload (message attachments), or else in
 // the checkpoint taken before the earliest run that saw the file. Used by the "file_unchanged" check.
+// The engine's record of the 한글 documents it made for a goal (newest wins), from its run records.
+export function documentRecords(records = []) {
+  const map = {};
+  for (const r of records) for (const d of r.documents ?? []) map[d.path] = d;
+  return map;
+}
+
 export function attachmentOriginals(goal, records = []) {
   const originals = {};
   for (const m of goal.messages ?? []) for (const a of m.attachments ?? []) {
