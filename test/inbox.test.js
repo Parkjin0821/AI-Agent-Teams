@@ -7,10 +7,12 @@ import { createApp } from '../src/app.js';
 import { teamPrompt } from '../src/teams.js';
 
 const root = path.resolve('.');
-async function start(adapterRun) {
+async function start(adapterRun, mode = 'careful') {
   const dataDir = mkdtempSync(path.join(tmpdir(), 'hq-inbox-'));
   const adapter = { enabled: true, run: adapterRun };
   const app = createApp({ root, dataDir, projectsDir: mkdtempSync(path.join(tmpdir(), 'hq-inbox-p-')), adapter });
+  // These tests are about the asks of 꼼꼼히 mode; 알아서 mode (the default) has its own test below.
+  if (mode) app.store.setSetting('permissions.mode', mode);
   await new Promise(r => app.server.listen(0, '127.0.0.1', r));
   const port = app.server.address().port;
   const call = async (method, url, body) => {
@@ -148,5 +150,33 @@ test('기억: 대장 adds, edits and forgets; team suggestions wait for approval
     assert.match((await call('POST', '/api/memory/reset', {})).body.error, /confirm/);
     await call('POST', '/api/memory/reset', { confirm: true });
     assert.deepEqual((await call('GET', '/api/memory')).body.items, []);
+  } finally { await app.close(); }
+});
+
+test('권한 모드: 알아서 (the default) skips 신뢰 쌓기 and opens public sites; a project can choose 꼼꼼히 for itself', async () => {
+  const seen = [];
+  const { app, call } = await start(async (provider, prompt, onEvent, opts) => {
+    const team = /^You are (\S+)/.exec(prompt)[1];
+    seen.push([team, opts.sentinel?.webMode]);
+    return { outcome: 'completed', answer: answer(team === '기획팀' ? 'plan' : 'x') };
+  }, null);
+  try {
+    assert.equal(app.store.getSettings()['permissions.mode'], undefined, 'nothing set: 알아서');
+    const g = (await call('POST', '/api/projects', { objective: '경쟁 가계부 앱 조사', completionCriteria: ['research/a.md 있음'] })).body;
+    await app.scheduler.runGoal(g.id); // plan
+    await app.scheduler.runGoal(g.id); // research
+    assert.equal(seen[1][1], 'open', 'public sites open without asking');
+    assert.notEqual(app.store.getGoal(g.id).reason, 'trust_review', 'no first-results review');
+    assert.equal((await call('GET', '/api/engine')).body.limits.permissionMode, 'auto');
+    // this project only: 꼼꼼히
+    assert.equal((await call('PUT', `/api/projects/${g.projectId}/model-policy`, { permissionMode: 'careful' })).status, 200);
+    assert.equal(app.registry.getPolicy(`project:${g.projectId}`).permissionMode, 'careful');
+    app.scheduler.update(app.store.getGoal(g.id), { status: 'scheduled', reason: null, nextRunAt: new Date().toISOString(), team: { ...app.store.getGoal(g.id).team, step: 'research' } });
+    await app.scheduler.runGoal(g.id);
+    assert.equal(seen.at(-1)[1], 'ask');
+    assert.equal(app.store.getGoal(g.id).reason, 'trust_review');
+    assert.match((await call('PUT', `/api/projects/${g.projectId}/model-policy`, { permissionMode: 'everything' })).body.error, /auto or careful/);
+    assert.equal((await call('PUT', `/api/projects/${g.projectId}/model-policy`, { permissionMode: '' })).status, 200);
+    assert.equal(app.registry.getPolicy(`project:${g.projectId}`).permissionMode, undefined, 'back to the default');
   } finally { await app.close(); }
 });

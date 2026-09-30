@@ -50,6 +50,10 @@ export const SETTINGS = Object.freeze({
   'reports.auto': { type: 'boolean', default: true },
   // 병렬 작업: planning may start one independent lane beside the main work (its own folder).
   'parallel.enabled': { type: 'boolean', default: true },
+  // 권한 모드: 'auto' (알아서) — no 신뢰 쌓기 reviews and public https sites open without asking; 'careful' (꼼꼼히) —
+  // sentinel.web and trust.required below apply. Either way the fixed safety rules, 대장 규칙, criteria approval and
+  // delete/share/publish/send/payment tool actions still stop for 대장. A project can override it (model policy).
+  'permissions.mode': { type: 'string', default: 'auto', values: ['auto', 'careful'] },
   // 감시 에이전트: 'ask' — a public site needs 대장's approval before a team opens it; 'open' — any public https site.
   'sentinel.web': { type: 'string', default: 'ask', values: ['ask', 'open'] },
   // 신뢰 쌓기: how many results of each kind of work 대장 reviews before it runs on its own (0 = off).

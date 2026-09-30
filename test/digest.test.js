@@ -34,6 +34,7 @@ test('the engine writes summaries from its own records, once per scheduled time,
     return { status: res.status, body: await res.json() };
   };
   try {
+    app.store.setSetting('permissions.mode', 'careful');
     app.store.setSetting('trust.required', 1);
     const g = (await call('POST', '/api/projects', { title: '가계부', objective: '가계부 앱', completionCriteria: ['c'] })).body;
     await app.scheduler.runGoal(g.id); await app.scheduler.runGoal(g.id); // plan, dev → waits for a result check

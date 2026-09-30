@@ -21,7 +21,8 @@ const PROVIDER = { 'claude-code': 'claude', codex: 'codex' };
 
 // toolsFor(team) → { connectors, knownConnectors }: which claude.ai connectors 대장 opened for that team.
 export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, settings = () => ({}),
-  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, docMaker = null, onActivity = () => {}, heldDir = null }) {
+  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, docMaker = null, onActivity = () => {}, heldDir = null,
+  webModeFor = () => (settings()['sentinel.web'] === 'open' ? 'open' : 'ask') }) {
   const simulated = adapter.enabled === false;
   return {
     async run(goal, run) {
@@ -102,7 +103,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const result = await adapter.run(PROVIDER[run.executor], prompt, onEvent, { cwd, model: run.model, effort: run.effort, access: run.access ?? 'write', ...tools,
         ...(PROVIDER[run.executor] === 'codex' ? { images: attachedImages(goal, cwd) } : {}),
         ...(sentinel ? { sentinel: { ...sentinel, project: goal.projectId, team: team ?? 'task', lane: goal.lane ?? null, laneDeny,
-          webMode: settings()['sentinel.web'] === 'open' ? 'open' : 'ask' } } : {}) });
+          webMode: webModeFor(goal.projectId) } } : {}) });
       // 승인 대기: what the Sentinel held back this round becomes approval requests; "once" grants are spent.
       let approvalRequests = [];
       // The grants as they stood during this step: a "once" grant also covers the engine saving that step's pages.
@@ -191,7 +192,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
         const listed = report.sources.map(u => typeof u === 'string' ? u : u?.url).filter(u => typeof u === 'string');
         const reused = before.filter(s => listed.includes(s.url));
         sources = await saveSources({ urls: listed.filter(u => !reused.some(s => s.url === u)), cwd, project: goal.projectId,
-          grants: stepGrants, webMode: settings()['sentinel.web'] === 'open' ? 'open' : 'ask', ...webSources });
+          grants: stepGrants, webMode: webModeFor(goal.projectId), ...webSources });
         await store.emit({ type: 'sources.saved', goalId: goal.id, team, saved: sources.saved.map(s => ({ path: s.path, url: s.url, bytes: s.bytes })),
           reused: reused.map(s => ({ path: s.path, url: s.url, fetchedAt: s.fetchedAt })), skipped: sources.skipped });
       }

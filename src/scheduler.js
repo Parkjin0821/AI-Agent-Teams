@@ -592,7 +592,7 @@ export class GoalScheduler {
         noProgressRounds: progressed ? 0 : goal.noProgressRounds + 1 };
       if (extra.noProgressRounds >= this.policy.maxNoProgress) return review('no_progress', extra);
       // 신뢰 쌓기: the first results of each kind of work wait for 대장 before the rotation moves on.
-      const required = this.trust?.required() ?? 0, seen = this.trust?.count(step) ?? 0;
+      const required = this.trust?.required(goal.projectId) ?? 0, seen = this.trust?.count(step) ?? 0;
       if (!result.simulated && seen < required) {
         return { ...advance(extra), status: GoalStatus.REVIEW_REQUIRED, reason: 'trust_review', nextRunAt: null,
           trustReview: { team: step, number: seen + 1, required },

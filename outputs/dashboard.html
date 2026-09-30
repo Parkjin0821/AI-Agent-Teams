@@ -842,7 +842,13 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
         <sc-if value="{{w.hasLanes}}"><div class="card">
           <div class="lbl">병렬 작업</div>
           <sc-for list="{{w.lanes}}" as="l"><div class="{{l.cls}}"><div class="row-f" style="justify-content: space-between"><b class="small">{{l.team}}</b><span class="{{l.pillCls}}"><i></i>{{l.stL}}</span></div>
-            <div class="small muted">{{l.folder}} · 조건 {{l.proven}}/{{l.total}}</div><div class="small">{{l.task}}</div></div></sc-for>
+            <div class="small muted">{{l.folder}} · 조건 {{l.proven}}/{{l.total}}</div><div class="small">{{l.task}}</div>
+            <sc-if value="{{l.held}}"><p class="hint" style="margin-top: 6px">{{l.held}}</p></sc-if>
+            <sc-if value="{{l.hasQ}}"><div class="q small" style="margin-top: 8px; white-space: pre-wrap">{{l.question}}</div>
+              <div class="judge"><sc-for list="{{l.judge}}" as="j"><div class="judge-row"><span>{{j.l}}</span><button class="btn pri sm" onClick="{{j.go}}">완료로 확인</button></div></sc-for></div>
+              <label class="hint" for="{{l.inputId}}">답변</label>
+              <textarea class="ta" id="{{l.inputId}}" placeholder="예: 메뉴 12종이 맞으니 그대로 진행해" value="{{l.draft}}" onChange="{{l.onDraft}}"></textarea>
+              <div class="row-f" style="margin-top: 6px"><button class="btn pri sm" onClick="{{l.send}}">답변 보내고 계속</button></div></sc-if></div></sc-for>
           <p class="hint" style="margin-top: 8px">병렬 작업은 자기 폴더에만 쓰고, 원래 작업은 그 폴더에 쓰지 않습니다. 두 작업이 이 프로젝트의 하루 단계 한도를 함께 씁니다.</p>
         </div></sc-if>
         <div class="card">
@@ -959,6 +965,9 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
         <div class="lbl">한도</div>
         <div class="field" style="margin-bottom: 12px"><label for="cap-in">하루 최대 단계 · 모든 프로젝트 공통 (기본 {{limits.dayDefault}})</label>
           <div class="row-f"><input class="input" id="cap-in" type="number" min="1" max="100" step="1" style="max-width: 110px" value="{{capDraft}}" onChange="{{onCap}}"><button class="btn sm" onClick="{{saveCap}}">저장</button><span class="hint">지금 {{limits.day}}단계 · 넘으면 다음 날 이어서. 사용량 기준(5시간 20%·주간 10%)은 따로 계속 적용됩니다.</span></div></div>
+        <div class="field" style="margin-bottom: 12px"><label>권한 모드 · 이 프로젝트</label>
+          <div class="seg" role="group" aria-label="이 프로젝트 권한 모드"><sc-for list="{{projModeOpts}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div>
+          <p class="hint">알아서: 신뢰 쌓기 없이 진행하고 공개 사이트는 묻지 않고 엽니다. 꼼꼼히: 승인함의 웹 접근·신뢰 쌓기 설정대로 묻습니다. 완료 조건 승인, 대장 규칙, 삭제·게시·결제 성격의 동작은 어느 쪽이든 그대로입니다.</p></div>
         <div class="field" style="margin-bottom: 12px"><label>병렬 작업 · 모든 프로젝트 공통</label>
           <div class="seg" role="group" aria-label="병렬 작업"><sc-for list="{{parallelOpts}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div>
           <p class="hint">기획팀이 서로 상관없는 일을 찾으면, 한 가지를 다른 팀이 자기 폴더에서 동시에 진행합니다. 프로젝트마다 한 번에 하나만, 사용량은 그동안 두 배로 듭니다.</p></div>
@@ -1096,11 +1105,16 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
     </section>
     <section class="card">
       <div class="lbl">설정</div>
+      <div class="field"><label>권한 모드 · 모든 프로젝트 기본</label>
+        <div class="seg" role="group" aria-label="권한 모드"><sc-for list="{{ib.modeOpts}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div>
+        <p class="hint">{{ib.modeHint}} 어느 모드든 완료 조건 승인, 대장 규칙, 삭제·공유·게시·전송·결제 성격의 도구 동작, 내부 주소·비밀정보 차단은 그대로 대장에게 묻거나 막습니다.</p></div>
+      <sc-if value="{{ib.careful}}">
       <div class="field"><label>웹 접근</label>
         <div class="seg" role="group" aria-label="웹 접근"><button class="{{ib.webAskCls}}" aria-pressed="{{ib.webAsk}}" onClick="{{ib.setWebAsk}}">처음 여는 사이트는 승인 받기</button><button class="{{ib.webOpenCls}}" aria-pressed="{{ib.webOpen}}" onClick="{{ib.setWebOpen}}">공개 사이트는 모두 허용</button></div>
         <p class="hint">어느 쪽이든 내부·로컬 주소, 비밀정보가 담긴 주소, 유출 의심 주소는 막습니다.</p></div>
       <div class="field"><label for="trust-in">신뢰 쌓기 · 작업 종류마다 대장이 먼저 확인할 결과 수 (0이면 끔)</label>
         <div class="row-f"><input class="input" id="trust-in" type="number" min="0" max="10" step="1" style="max-width: 90px" value="{{ib.trustDraft}}" onChange="{{ib.onTrust}}"><button class="btn sm" onClick="{{ib.saveTrust}}">저장</button></div></div>
+      </sc-if>
     </section>
   </div>
 </sc-if>
@@ -1575,7 +1589,7 @@ class Component extends DCLogic {
   isReal() { return !!(this.state.eng && this.state.eng.mode === 'execution'); }
   limits() {
     const l = (this.state.eng && this.state.eng.limits) || {};
-    return { parallel: l.parallel !== false, autoSwitch: l.autoSwitch !== false, day: l.maxRoundsPerDay || 10, dayDefault: l.maxRoundsPerDayDefault || 10, all: l.maxConcurrent || 2, claude: (l.providerConcurrent || {}).claude || 2, codex: (l.providerConcurrent || {}).codex || 1 };
+    return { parallel: l.parallel !== false, autoSwitch: l.autoSwitch !== false, permissionMode: l.permissionMode === 'careful' ? 'careful' : 'auto', day: l.maxRoundsPerDay || 10, dayDefault: l.maxRoundsPerDayDefault || 10, all: l.maxConcurrent || 2, claude: (l.providerConcurrent || {}).claude || 2, codex: (l.providerConcurrent || {}).codex || 1 };
   }
   async confirmStart(name) {
     if (!this.isReal()) return true;
@@ -1627,7 +1641,7 @@ class Component extends DCLogic {
       ago: ago(p.last), flow: flowOf(p), open: () => this.openProject(p.id) });
 
     // ── 대장 결정: 승인 요청·결과 확인은 홈·프로젝트·승인함 어디서나 같은 버튼으로 바로 처리한다 ──
-    const ibd = Object.assign({ approvals: [], reviews: [], memoryProposals: [], skillCandidates: [], skillsHeld: 0, grants: [], decided: [], trust: { required: 3, teams: [] }, scopes: {}, webMode: 'ask' }, s.inbox || {});
+    const ibd = Object.assign({ approvals: [], reviews: [], memoryProposals: [], skillCandidates: [], skillsHeld: 0, grants: [], decided: [], trust: { required: 3, teams: [] }, scopes: {}, webMode: 'ask', permissionMode: 'auto' }, s.inbox || {});
     const grantAct = (a, scope, anySite) => async () => {
       if (scope === 'always' && !await ask(a.target + '을(를) 모든 프로젝트에서 계속 허용할까요?')) return;
       if (anySite && !await ask('이 프로젝트에서 모든 공개 사이트를 허용할까요? 내부 주소·유출 의심 주소는 계속 막습니다.')) return;
@@ -1673,8 +1687,9 @@ class Component extends DCLogic {
 
     // 확인 필요 (실제 엔진 상태에서만 만든다)
     const inbox = [];
-    P.forEach((p) => {
-      const g = p.goal, open = () => this.openProject(p.id);
+    P.forEach((pr) => [pr.goal].concat(pr.lanes || []).forEach((g) => {
+      // a 병렬 작업 lane is asked about under its project's name, with its folder
+      const p = g.lane ? Object.assign({}, pr, { name: pr.name + ' · 병렬 작업 ' + g.lane }) : pr, open = () => this.openProject(p.id);
       const restart = { l: '다시 시작', cls: 'btn pri sm', go: async () => { if (await this.confirmStart(p.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '다시 시작했습니다'); } };
       const see = { l: '프로젝트 보기', cls: 'btn ghost sm', go: open };
       const held = g.status === 'review_required' ? heldView(g, p.id) : null;
@@ -1701,7 +1716,7 @@ class Component extends DCLogic {
         inbox.push({ icon: ICON.model, icoCls: 'ico', title: '모델 대기', project: p.name, body: reasonText(g.reason), isIssue: true,
           actions: [{ l: '모델 설정', cls: 'btn pri sm', go: () => this.openProject(p.id, 'settings') }, see] });
       }
-    });
+    }));
 
     if (ibd.skillCandidates.length) inbox.push({ icon: ICON.proposal, icoCls: 'ico', title: '스킬 후보 ' + ibd.skillCandidates.length + '건', project: '모든 프로젝트',
       body: '엔진 검사를 통과한 스킬 후보입니다 · 예: ' + ibd.skillCandidates[0].name + ' · 켜야 팀 지시에 들어갑니다', isIssue: true, held: true,
@@ -1942,7 +1957,11 @@ class Component extends DCLogic {
       // 병렬 작업 lanes of this project's current work
       w.lanes = (wp.lanes || []).map((l) => { const st = stateOf(l); return { team: TEAM_NAME[l.team && l.team.worker] || '팀', cls: 'lane-row' + teamTone(l.team && l.team.worker),
         folder: l.lane, task: clip((l.team && l.team.task) || l.objective, 90), stL: st.l, pillCls: pillCls(st.tone),
-        proven: l.completionCriteria.filter((c) => (l.evidence || []).some((e) => e.criterion === c)).length, total: l.completionCriteria.length }; });
+        proven: l.completionCriteria.filter((c) => (l.evidence || []).some((e) => e.criterion === c)).length, total: l.completionCriteria.length,
+        hasQ: l.status === 'review_required' && ['needs_decision', 'rule_violation'].includes(l.reason), question: stripAsker(l.question || ''),
+        judge: this.judgeRows(l), inputId: 'ans-' + l.id, draft: s.drafts[l.id] || '', send: () => this.sendAnswer(l.id),
+        onDraft: (e) => { const d = Object.assign({}, this.state.drafts); d[l.id] = e.target.value; this.setState({ drafts: d }); },
+        held: l.status === 'review_required' && !['needs_decision', 'rule_violation'].includes(l.reason) ? reasonText(l.reason) : '' }; });
       w.hasLanes = w.lanes.length > 0;
       // 실시간 진행: what the running step has done so far (sent live by the server, newest last).
       const runStart = (wp.runs.filter((r) => r.goal.id === g.id && r.status === 'running').map((r) => r.startedAt).sort().pop()) || '';
@@ -2104,6 +2123,12 @@ class Component extends DCLogic {
       grants: ibd.grants.map((g) => ({ kindL: KIND_L[g.kind] || g.kind, target: g.target === '*' ? '모든 공개 사이트' : g.target, scope: ibd.scopes[g.scope] || g.scope,
         project: g.projectTitle, when: ago(g.grantedAt) + (g.expiresAt ? ' · ' + fmt(g.expiresAt) + '까지' : ''),
         revoke: async () => { if (await ask('이 허용을 취소할까요? 다음에 필요하면 다시 승인 요청이 옵니다.')) this.inboxAct(this.api('DELETE', '/api/grants/' + g.id, {}), '허용을 취소했습니다'); } })),
+      // 권한 모드: 알아서 = 신뢰 쌓기 없음 + 공개 사이트 자동 허용, 꼼꼼히 = 아래 두 설정대로.
+      careful: ibd.permissionMode === 'careful',
+      modeHint: ibd.permissionMode === 'careful' ? '꼼꼼히: 아래 웹 접근과 신뢰 쌓기 설정대로 대장에게 묻습니다.'
+        : '알아서: 팀별 첫 결과 확인(신뢰 쌓기) 없이 진행하고, 공개 https 사이트는 묻지 않고 엽니다.',
+      modeOpts: [['auto', '알아서 (추천)'], ['careful', '꼼꼼히']].map(([v, l]) => ({ l: l, cls: ibd.permissionMode === v ? 'on' : '', pressed: ibd.permissionMode === v ? 'true' : 'false',
+        pick: () => { if (ibd.permissionMode !== v) this.inboxAct(this.api('PUT', '/api/settings', { key: 'permissions.mode', value: v }), v === 'auto' ? '알아서 모드 · 위험하지 않은 확인은 넘깁니다' : '꼼꼼히 모드 · 웹 접근과 신뢰 쌓기 설정대로 묻습니다'); } })),
       webAsk: ibd.webMode !== 'open' ? 'true' : 'false', webOpen: ibd.webMode === 'open' ? 'true' : 'false',
       webAskCls: ibd.webMode !== 'open' ? 'on' : '', webOpenCls: ibd.webMode === 'open' ? 'on' : '',
       setWebAsk: () => this.inboxAct(this.api('PUT', '/api/settings', { key: 'sentinel.web', value: 'ask' }), '처음 여는 사이트는 승인을 받습니다'),
@@ -2416,6 +2441,11 @@ class Component extends DCLogic {
       rt: this.routineView(wp), ru: this.rulesView(P),
       parallelOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: lim.parallel === v ? 'on' : '', pressed: lim.parallel === v ? 'true' : 'false',
         pick: () => { if (lim.parallel === v) return; this.act(this.api('PUT', '/api/settings', { key: 'parallel.enabled', value: v }), v ? '병렬 작업을 켰습니다' : '병렬 작업을 껐습니다 · 진행 중인 병렬 작업은 끝까지 갑니다'); } })),
+      projModeOpts: (() => {
+        const own = (wp.policy && wp.policy.permissionMode) || '', globalL = lim.permissionMode === 'careful' ? '꼼꼼히' : '알아서';
+        return [['', '기본 따름 (' + globalL + ')'], ['auto', '알아서'], ['careful', '꼼꼼히']].map(([v, l]) => ({ l: l, cls: own === v ? 'on' : '', pressed: own === v ? 'true' : 'false',
+          pick: () => { if (own !== v) this.act(this.api('PUT', '/api/projects/' + wp.id + '/model-policy', { permissionMode: v, reason: 'permission mode' }), v ? '이 프로젝트는 ' + l + ' 모드로 진행합니다 · 다음 단계부터' : '이 프로젝트는 기본 권한 모드를 따릅니다'); } }));
+      })(),
       switchOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: lim.autoSwitch === v ? 'on' : '', pressed: lim.autoSwitch === v ? 'true' : 'false',
         pick: () => { if (lim.autoSwitch === v) return; this.act(this.api('PUT', '/api/settings', { key: 'limits.autoSwitch', value: v }), v ? '한도 자동 전환을 켰습니다' : '한도 자동 전환을 껐습니다 · 한도에 닿으면 그 AI가 풀릴 때까지 기다립니다'); } })),
       capDraft: s.capDraft == null ? String(lim.day) : s.capDraft, onCap: (e) => this.setState({ capDraft: e.target.value }),

@@ -83,6 +83,7 @@ export class ModelRegistry {
 
 function validatePolicy(policy) {
   if (policy.strategy && !['adaptive','legacy'].includes(policy.strategy)) throw new Error('unknown strategy');
+  if (policy.permissionMode != null && !['auto', 'careful'].includes(policy.permissionMode)) throw new Error('permission mode must be auto or careful');
   if (!['auto', 'pinned'].includes(policy.mode)) throw new Error('policy mode must be auto or pinned');
   if (policy.mode === 'pinned' && !policy.model) throw new Error('pinned policy requires a model');
   for (const executor of Object.keys(policy.autoDefaults || {})) validateExecutor(executor);
@@ -96,5 +97,7 @@ function validatePolicy(policy) {
     if (pick.model || pick.effort) teamModels[team] = { executor: pick.executor, model: pick.model || null, effort: pick.effort || null };
   }
   return { mode: policy.mode, model: policy.mode === 'pinned' ? policy.model : null, teamModels,
-    allowFallback: Boolean(policy.allowFallback), ...(policy.allowProviderSwitch !== undefined ? { allowProviderSwitch: policy.allowProviderSwitch === true } : {}), autoDefaults: { ...policy.autoDefaults }, ...(policy.strategy ? { strategy: policy.strategy } : {}) };
+    allowFallback: Boolean(policy.allowFallback), ...(policy.allowProviderSwitch !== undefined ? { allowProviderSwitch: policy.allowProviderSwitch === true } : {}), autoDefaults: { ...policy.autoDefaults }, ...(policy.strategy ? { strategy: policy.strategy } : {}),
+    // 권한 모드 for this project only (null = the global setting).
+    ...(policy.permissionMode ? { permissionMode: policy.permissionMode } : {}) };
 }

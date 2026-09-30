@@ -48,8 +48,10 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   const rules = new Rules({ file: path.join(dataDir, 'sentinel-rules.json'), clock });
   const memory = new Memory({ store, clock });
   const setting = (key, fallback) => store.getSettings()[key] ?? fallback;
-  // 신뢰 쌓기 counters: how many results of each work team 대장 has accepted (all projects).
-  const trust = { required: () => setting('trust.required', 3), count: team => setting(`trust.count.${team}`, 0),
+  // 권한 모드 (environments.js): the project's own choice, else the global one.
+  const permissionMode = project => (project && registry.getPolicy(`project:${project}`).permissionMode) || setting('permissions.mode', 'auto');
+  // 신뢰 쌓기 counters: how many results of each work team 대장 has accepted (all projects). 알아서 mode skips the reviews.
+  const trust = { required: (project) => (project && permissionMode(project) === 'auto' ? 0 : setting('trust.required', 3)), count: team => setting(`trust.count.${team}`, 0),
     add: team => store.setSetting(`trust.count.${team}`, setting(`trust.count.${team}`, 0) + 1),
     // 대장 decides this kind of work has earned trust: later results continue without a review.
     complete: team => store.setSetting(`trust.count.${team}`, Math.max(setting(`trust.count.${team}`, 0) + 1, setting('trust.required', 3))) };
@@ -121,6 +123,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       approvals, memory,
       // 금지 경로 되돌리기: what a team wrote under a 금지 path is kept here, outside the work folder (rules.js).
       heldDir: path.join(dataDir, 'held'),
+      // 알아서 mode: public https sites open without asking (the fixed rules and 대장 규칙 still apply).
+      webModeFor: project => (permissionMode(project) === 'auto' || setting('sentinel.web', 'ask') === 'open' ? 'open' : 'ask'),
       // 실시간 진행: the last few things each running step did, in memory only, sent live to open pages.
       onActivity: (goalId, team, text) => {
         const list = [...(liveActivity.get(goalId) ?? []), { at: new Date(clock.now()).toISOString(), team, text }].slice(-8);
@@ -148,7 +152,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     }
     return {
       mode: executing ? 'execution' : 'simulation', autoTick, autoScope, now: iso(clock.now()),
-      limits: { attachMaxMB: setting('attach.maxMB', DEFAULT_MAX_MB), maxRoundsPerDay: scheduler.dailyLimit(), autoSwitch: store.getSettings()['limits.autoSwitch'] !== false, autoLevels: store.getSettings()['models.auto'] !== false, parallel: store.getSettings()['parallel.enabled'] !== false, maxRoundsPerDayDefault: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
+      limits: { attachMaxMB: setting('attach.maxMB', DEFAULT_MAX_MB), maxRoundsPerDay: scheduler.dailyLimit(), autoSwitch: store.getSettings()['limits.autoSwitch'] !== false, autoLevels: store.getSettings()['models.auto'] !== false, parallel: store.getSettings()['parallel.enabled'] !== false, permissionMode: setting('permissions.mode', 'auto'), maxRoundsPerDayDefault: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
       projects: [...byProject].map(([id, goals]) => ({ id, policy: registry.getPolicy(`project:${id}`), goals, autoSave: autoSave.view(id), routine: routines.view(id) })),
       catalog: registry.catalog(), events: store.recentEvents(200), live: Object.fromEntries(liveActivity),
       limitStorageFailed: store.getSettings()['safety.limitStorageFailed'] === true,
@@ -329,7 +333,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       const goals = store.listGoals();
       const title = id => { const g = goals.find(x => x.projectId === id); return g ? (g.title || g.objective.slice(0, 40)) : id; };
       return {
-        scopes: SCOPES, webMode: setting('sentinel.web', 'ask'),
+        scopes: SCOPES, webMode: setting('sentinel.web', 'ask'), permissionMode: setting('permissions.mode', 'auto'),
         approvals: approvals.pending().map(r => ({ ...r, projectTitle: title(r.project) })),
         decided: approvals.list().filter(r => r.status !== 'pending').slice(0, 20).map(r => ({ ...r, projectTitle: title(r.project) })),
         grants: approvals.grants().map(g => ({ ...g, projectTitle: g.project ? title(g.project) : '모든 프로젝트' })),
@@ -390,6 +394,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       if (body.model !== undefined) changes.model = typeof body.model === 'string' ? body.model.trim() : body.model;
       if (body.allowFallback !== undefined) changes.allowFallback = body.allowFallback === true;
       if (body.allowProviderSwitch !== undefined) changes.allowProviderSwitch = body.allowProviderSwitch === true;
+      if (body.permissionMode !== undefined) changes.permissionMode = body.permissionMode || null;
       return registry.setPolicy(scope, changes, { by: '대장', reason: String(body.reason || 'dashboard') });
     }],
   ];
