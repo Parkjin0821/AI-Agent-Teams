@@ -320,6 +320,8 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .seg button{border:0;background:none;height:28px;padding:0 12px;border-radius:6px;color:var(--text-3);font-weight:500;font-size:13px;transition:background .15s,color .15s}
 .seg button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .row-f{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.side .cap-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.side .cap-actions .btn:last-child{grid-column:1 / -1}
 .seg.wrap{display:flex;flex-wrap:wrap;gap:4px}
 /* 승인함·기억 */
 .ib-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
@@ -342,8 +344,16 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .msg details{margin-top:6px}
 .msg.me{align-self:flex-end;background:#EEF2FF;border-color:#DCE3FF}
 .msg.me .meta b{color:#2E5BFF}
-.msg.team{align-self:flex-start}
-.msg.team.err{border-color:#F2C6B4;background:#FFF7F4}
+.msg.team{align-self:flex-start;border-left:3px solid var(--team-accent,var(--line-strong));background:var(--team-tint,var(--subtle))}
+.msg.team .meta b,.msg.action[class*="team-"] .meta b{color:var(--team-accent,var(--text))}
+.msg.team.err{border-color:#F2C6B4;border-left-color:var(--team-accent,#F2C6B4);background:#FFF7F4}
+.team-plan{--team-accent:#5947A8;--team-tint:#F6F4FC}
+.team-research{--team-accent:#0B746B;--team-tint:#F1FAF8}
+.team-dev{--team-accent:#245EB5;--team-tint:#F2F7FF}
+.team-design{--team-accent:#A33C80;--team-tint:#FFF3F9}
+.team-security{--team-accent:#A73E3A;--team-tint:#FFF5F3}
+.team-policy{--team-accent:#865A10;--team-tint:#FFF9EA}
+.team-qa{--team-accent:#25764B;--team-tint:#F1FAF4}
 .msg.sys{align-self:center;max-width:94%;background:none;border:1px dashed var(--line-strong);font-size:13px}
 .msg.sys.stop{border-color:#F2B8A0;color:#9A3412;background:#FFF7F4}
 .msg.action{align-self:stretch;max-width:none;background:var(--surface);border:1px solid var(--line-strong);box-shadow:0 1px 2px rgba(0,0,0,.04)}
@@ -393,6 +403,8 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .judge{display:flex;flex-direction:column;gap:6px;margin:10px 0 4px;max-width:72ch}
 .judge-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
 .judge-row>span{flex:1;min-width:0;font-size:13px}
+.proj-group{margin:18px 0 8px}
+.proj-done>summary{cursor:pointer}
 .team-recent{margin-top:16px}
 .team-recent[open]>summary{margin-bottom:10px}
 .skill-description{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin:8px 0;color:var(--text-2);font-size:13px;line-height:1.55}
@@ -557,16 +569,37 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     <div><h1>프로젝트</h1><p class="lede">각 프로젝트는 기획 → 개발 → 검증을 돌며 진행됩니다. 행을 누르면 상세로 이동합니다.</p></div>
     <button class="link create small" onClick="{{openNew}}">새 프로젝트</button>
   </div>
+  <sc-if value="{{hasActiveProjects}}">
+    <div class="lbl proj-group">진행 중 · {{activeProjects.length}}</div>
+    <div class="list">
+      <sc-for list="{{activeProjects}}" as="p">
+        <button class="prow" onClick="{{p.open}}">
+          <span style="min-width: 0"><span class="name">{{p.name}}<sc-if value="{{p.single}}"><span class="kind">단일 실행</span></sc-if></span><span class="sub">{{p.sub}}</span></span>
+          <span class="flow" aria-label="팀 흐름"><sc-for list="{{p.flow}}" as="f"><sc-if value="{{f.sep}}"><span class="sep"></span></sc-if><span class="{{f.cls}}"><b></b>{{f.l}}</span></sc-for></span>
+          <span class="{{p.pillCls}}"><i></i>{{p.stL}}</span>
+          <span class="c">{{p.proven}}<small>/{{p.total}} 조건</small></span>
+          <span class="when">{{p.ago}}</span>
+        </button>
+      </sc-for>
+    </div>
+  </sc-if>
+  <sc-if value="{{hasDoneProjects}}">
+    <details class="proj-done" open="{{doneOpen}}" onToggle="{{onDoneToggle}}">
+      <summary class="lbl proj-group">완료 · {{doneProjects.length}}</summary>
+      <div class="list">
+        <sc-for list="{{doneProjects}}" as="p">
+          <button class="prow" onClick="{{p.open}}">
+            <span style="min-width: 0"><span class="name">{{p.name}}<sc-if value="{{p.single}}"><span class="kind">단일 실행</span></sc-if></span><span class="sub">{{p.sub}}</span></span>
+            <span class="flow" aria-label="팀 흐름"><sc-for list="{{p.flow}}" as="f"><sc-if value="{{f.sep}}"><span class="sep"></span></sc-if><span class="{{f.cls}}"><b></b>{{f.l}}</span></sc-for></span>
+            <span class="{{p.pillCls}}"><i></i>{{p.stL}}</span>
+            <span class="c">{{p.proven}}<small>/{{p.total}} 조건</small></span>
+            <span class="when">{{p.ago}}</span>
+          </button>
+        </sc-for>
+      </div>
+    </details>
+  </sc-if>
   <div class="list">
-    <sc-for list="{{allProjects}}" as="p">
-      <button class="prow" onClick="{{p.open}}">
-        <span style="min-width: 0"><span class="name">{{p.name}}<sc-if value="{{p.single}}"><span class="kind">단일 실행</span></sc-if></span><span class="sub">{{p.sub}}</span></span>
-        <span class="flow" aria-label="팀 흐름"><sc-for list="{{p.flow}}" as="f"><sc-if value="{{f.sep}}"><span class="sep"></span></sc-if><span class="{{f.cls}}"><b></b>{{f.l}}</span></sc-for></span>
-        <span class="{{p.pillCls}}"><i></i>{{p.stL}}</span>
-        <span class="c">{{p.proven}}<small>/{{p.total}} 조건</small></span>
-        <span class="when">{{p.ago}}</span>
-      </button>
-    </sc-for>
     <sc-if value="{{noProjects}}"><div class="empty"><div class="h">아직 프로젝트가 없습니다</div><p>새 프로젝트를 만들면 여기에 나타납니다.</p><button class="link create small" onClick="{{openNew}}">새 프로젝트</button></div></sc-if>
   </div>
 </sc-if>
@@ -605,7 +638,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
           </sc-for>
           <sc-if value="{{w.working}}"><div class="msg sys working"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>{{w.workingL}}</div></sc-if>
           <sc-if value="{{w.hasQuestion}}">
-            <div class="msg action attn">
+            <div class="{{w.questionCls}}">
               <div class="meta"><b>{{w.askedBy}}</b><span class="small muted">대장의 답이 필요합니다</span></div>
               <div class="body big">{{w.question}}</div>
               <sc-if value="{{w.hasJudge}}"><div class="judge"><sc-for list="{{w.judge}}" as="j"><div class="judge-row"><span>{{j.l}}</span><button class="btn pri sm" onClick="{{j.go}}">완료로 확인</button></div></sc-for></div></sc-if>
@@ -631,7 +664,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
             <div class="msg action attn">
               <div class="meta"><b>엔진</b><span class="small muted">오늘 단계 한도</span></div>
               <div class="body">{{w.capText}}</div>
-              <div class="row-f"><sc-for list="{{w.extendActs}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for></div>
+              <div class="row-f cap-actions"><sc-for list="{{w.extendActs}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for></div>
             </div>
           </sc-if>
           <sc-if value="{{w.hasIssue}}">
@@ -665,7 +698,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
           <div class="lbl">할 일</div>
           <ol class="next"><sc-for list="{{w.upcoming}}" as="u"><li class="{{u.cls}}"><div class="row-f"><b class="small">{{u.team}}</b><span class="kind">{{u.state}}</span></div><div class="small muted">{{u.what}}</div></li></sc-for></ol>
           <sc-if value="{{w.hasWaitNote}}"><p class="hint" style="margin-top: 8px">{{w.waitNote}}</p></sc-if>
-          <sc-if value="{{w.atDailyCap}}"><div class="row-f" style="margin-top: 8px"><sc-for list="{{w.extendActs}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for></div></sc-if>
+          <sc-if value="{{w.atDailyCap}}"><div class="row-f cap-actions" style="margin-top: 8px"><sc-for list="{{w.extendActs}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for></div></sc-if>
         </div>
         <div class="card">
           <div class="lbl">감시 에이전트</div>
@@ -1154,6 +1187,7 @@ const LIMIT_ST = { allowed: ['정상', 'done'], allowed_warning: ['한도 근접
 const LIMIT_WIN = { five_hour: '5시간', seven_day: '주간', seven_day_opus: '주간 (Opus)', seven_day_sonnet: '주간 (Sonnet)' };
 const TOOL_ST = { pass: ['통과', 'done'], found: ['발견', 'attn'], fail: ['실패', 'stop'], timeout: ['시간 초과', 'stop'], skipped: ['건너뜀', 'idle'], unavailable: ['실행 못 함', 'attn'] };
 const TEAM_NAME = { plan: '기획팀', research: '조사팀', dev: '개발팀', design: '디자인팀', security: '보안팀', policy: '정책팀', qa: '검증팀' };
+const teamTone = (team) => { const id = Object.keys(TEAM_NAME).find((key) => key === team || TEAM_NAME[key] === team); return id ? ' team-' + id : ''; };
 // 이번 순환에서 거치는 팀: 기획 → 작업팀 → [요청된 검토] → 검증
 // 검토팀 질문은 "[정책팀] …" 형태로 온다. 접두어가 없으면 기획팀 질문이다.
 const askedBy = (q) => { const m = /^\[([^\]]+)\]/.exec(q || ''); return m ? m[1] : '기획팀'; };
@@ -1392,8 +1426,15 @@ class Component extends DCLogic {
     };
     const flowOf = (p) => (p.isTeam ? cyclePath(p) : ['plan', 'dev', 'qa']).map((k, i) => ({ l: TEAM_NAME[k].replace('팀', ''), sep: i > 0,
       cls: 's' + (p.isTeam && p.goal.team && p.goal.team.step === k && RUNNING_LIKE.includes(p.goal.status) && p.goal.autoRun ? ' on' : '') }));
+    // 완료된 프로젝트는 아래 '완료' 묶음으로, 진행 중은 대장 확인이 필요한 것 → 실행 중 → 대기 순으로 위에.
+    const isDone = (p) => p.goal.status === 'verified';
+    const RANK = { review_required: 0, blocked: 0, recovery_required: 0, running: 1, model_wait: 2, retry_wait: 2, scheduled: 3, paused: 4 };
+    const recent = (a, b) => String(b.last || '').localeCompare(String(a.last || ''));
+    const activeP = P.filter((p) => !isDone(p)).sort((a, b) => (RANK[a.goal.status] ?? 3) - (RANK[b.goal.status] ?? 3) || recent(a, b));
+    const doneP = P.filter(isDone).sort(recent);
     const rowOf = (p) => ({ name: p.name, single: !p.isTeam, stL: p.st.l, pillCls: pillCls(p.st.tone), proven: p.proven, total: p.total,
-      sub: p.isTeam && p.goal.team && p.goal.team.task ? '지금 작업 · ' + clip(p.goal.team.task, 90) : clip(p.goal.objective, 90),
+      sub: isDone(p) ? '완료 · ' + clip(p.goal.objective, 90)
+        : p.isTeam && p.goal.team && p.goal.team.task ? '지금 작업 · ' + clip(p.goal.team.task, 90) : clip(p.goal.objective, 90),
       ago: ago(p.last), flow: flowOf(p), open: () => this.openProject(p.id) });
 
     // ── 대장 결정: 승인 요청·결과 확인은 홈·프로젝트·승인함 어디서나 같은 버튼으로 바로 처리한다 ──
@@ -1656,14 +1697,14 @@ class Component extends DCLogic {
       const items = [];
       wp.goals.forEach((goal) => {
         const msgs = goal.messages && goal.messages.length ? goal.messages : [{ role: 'user', text: goal.objective, at: goal.createdAt }];
-        msgs.forEach((mm) => items.push({ at: mm.at, cls: mm.role === 'user' ? 'msg me' : 'msg team',
+        msgs.forEach((mm) => items.push({ at: mm.at, cls: mm.role === 'user' ? 'msg me' : 'msg team' + teamTone(askedBy(mm.text)),
           who: mm.role === 'user' ? '대장' : askedBy(mm.text), sub: ({ answer: '답변', approval: '승인', question: '질문', control: '조작', review: '결과 확인' })[mm.kind] || '',
           text: mm.role === 'user' ? (mm.text || (mm.attachments && mm.attachments.length ? '첨부 ' + mm.attachments.length + '개' : '')) : stripAsker(mm.text),
           hasAtt: !!(mm.attachments && mm.attachments.length), atts: (mm.attachments || []).map((a) => attView(wp.id, a)) }));
       });
       runsDesc.filter((r) => r.status !== 'running').forEach((r) => {
         const a = byRunId[r.id];
-        items.push({ at: r.finishedAt || r.startedAt, cls: 'msg team' + (a.pillCls.indexOf('stop') >= 0 ? ' err' : ''), who: a.who, sub: a.tool,
+        items.push({ at: r.finishedAt || r.startedAt, cls: 'msg team' + teamTone(r.team) + (a.pillCls.indexOf('stop') >= 0 ? ' err' : ''), who: a.who, sub: a.tool,
           text: a.res, hasTools: a.hasTools, tools: a.tools, hasAnswer: a.hasAnswer, answer: a.answer });
       });
       ((s.eng && s.eng.events) || []).filter((e) => e.type === 'skill.applied' && wp.goals.some((x) => x.id === e.goalId)).forEach((e) => {
@@ -1678,6 +1719,7 @@ class Component extends DCLogic {
       w.thread = items.map((x) => Object.assign({ hasTools: false, tools: [], hasAnswer: false, answer: '', hasAtt: false, atts: [] }, x, { when: fmt(x.at) }));
       w.working = g.status === 'running';
       w.workingL = (TEAM_NAME[team.step] || '팀') + ' 작업 중…';
+      w.questionCls = 'msg action attn' + teamTone(askedBy(g.question));
       w.pendingCriteria = g.criteriaApprovalPending ? g.completionCriteria : [];
       w.issueMsgCls = 'msg action ' + (g.status === 'review_required' || g.status === 'model_wait' ? 'attn' : 'stop');
       w.noCriteria = g.completionCriteria.length === 0;
@@ -2112,7 +2154,9 @@ class Component extends DCLogic {
       hasProjects: P.length > 0, noProjects: P.length === 0 && !!s.eng,
       st: { active: activeN, inbox: pendingTotal, today: P.reduce((n, p) => n + p.today, 0), done: P.filter((p) => p.goal.status === 'verified').length, attnCls: 'stat' + (pendingTotal ? ' attn' : '') },
       inbox: inbox, inboxEmpty: inbox.length === 0,
-      homeProjects: P.slice(0, 6).map(rowOf), allProjects: P.map(rowOf), teams: teams, control: control,
+      homeProjects: activeP.concat(doneP).slice(0, 6).map(rowOf), allProjects: P.map(rowOf),
+      activeProjects: activeP.map(rowOf), hasActiveProjects: activeP.length > 0, doneProjects: doneP.map(rowOf), hasDoneProjects: doneP.length > 0,
+      doneOpen: s.doneOpen !== false, onDoneToggle: (e) => { const open = e.target.open; if (open !== (s.doneOpen !== false)) this.setState({ doneOpen: open }); }, teams: teams, control: control,
       recentActivity: P.flatMap(p => (p.runs || []).map(r => ({ project:p.name, team:TEAM_NAME[r.team] || r.team || '팀', when:ago(r.startedAt), result:r.simulated ? '모의 실행' : r.outcome === 'completed' ? '완료' : r.status === 'running' ? '실행 중' : '종료', at:r.startedAt || '' }))).sort((a,b) => b.at.localeCompare(a.at)).slice(0,3),
       noRecentActivity: !P.some(p => (p.runs || []).length),
       projectTeams: wp ? TEAMS.map(t => {
