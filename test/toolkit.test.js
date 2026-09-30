@@ -88,7 +88,7 @@ test('verification runs the project tests in the sandbox; failing tests block', 
   const dir = folder({ 'package.json': '{"scripts":{"test":"node --test"}}', 'index.html': '<html lang="ko"><title>x</title></html>' });
   const pass = sandboxReturning({ status: 'pass', code: 0, output: 'ℹ pass 3\nℹ fail 0' });
   const ok = await runTeamTools('qa', dir, { sandbox: pass });
-  assert.deepEqual(ok.map(r => [r.id, r.status]), [['tests', 'pass'], ['secrets', 'pass'], ['html', 'found']]);
+  assert.deepEqual(ok.map(r => [r.id, r.status]), [['tests', 'pass'], ['secrets', 'pass'], ['html', 'found'], ['visual', 'unavailable']]);
   assert.deepEqual(ok[0].test, { label: 'npm test', passed: true });
   assert.equal(pass.calls[0].opts, undefined, 'tests never get network');
   const failed = await runTeamTools('qa', dir, { sandbox: sandboxReturning({ status: 'fail', code: 1, output: 'not ok 1 - adds' }) });

@@ -70,6 +70,7 @@ export function decide(input, { workspace, grants = [], project = null, webMode 
     const blocked = rel.split(/[\\/]/).find(part => FORBIDDEN_NAMES.test(part));
     if (blocked) return { decision: 'deny', reason: `설정·지시·비밀 파일은 만들 수 없음 (${blocked})`, target: rel };
     if (/^sources([\\/]|$)/.test(rel)) return { decision: 'deny', reason: '웹 원문 폴더(sources/)는 엔진만 씀', target: rel };
+    if (/^\.hq-screens([\\/]|$)/.test(rel)) return { decision: 'deny', reason: '화면 캡처 폴더(.hq-screens/)는 엔진만 씀', target: rel };
     const content = [args.content, args.file_text, args.new_string, args.new_source, ...(Array.isArray(args.edits) ? args.edits.map(e => e?.new_string) : [])];
     if (content.some(hasSecret)) return { decision: 'deny', reason: '비밀정보 형식을 파일에 쓰려 함', target: rel };
     const relPath = rel.split(path.sep).join('/');

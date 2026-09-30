@@ -607,6 +607,10 @@ export class GoalScheduler {
     team.feedback = [...gate, findings.feedback, ...team.reviewNotes].filter(Boolean).join('\n');
     team.reviewNotes = [];
     if (proven && !gate.length) {
+      if (findings.visualReviewRequired) {
+        team.awaitingJudgement = [...goal.completionCriteria];
+        return review('needs_decision', { question: '실제 브라우저 화면 검증을 실행하지 못했습니다. HTML 기본 검사만으로 디자인 완료 처리하지 않습니다.\n대장이 화면을 직접 확인한 뒤 조건의 ‘완료로 확인’을 누르거나, 고칠 점을 답해 주세요.' });
+      }
       // The main work is never finished while its lane runs: it waits, then planning sees the lane's result.
       const open = this.openLanes(goal);
       return open.length ? this.waitForLane(team, open[0], evidence) : finish(findings.improvements ?? []);

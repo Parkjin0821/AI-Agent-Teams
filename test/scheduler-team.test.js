@@ -35,6 +35,19 @@ function setup(respond, policy = {}) {
   return { store, clock, calls, scheduler, add };
 }
 const ev = (...idx) => idx.map(i => ({ criterion: C[i], proof: '엔진 확인' }));
+
+test('unavailable visual verification asks the owner instead of automatically finishing', async () => {
+  const {store,scheduler,add} = setup(() => ({outcome:'completed',evidence:ev(0,1),findings:{blocking:[],visualReviewRequired:true}}));
+  try {
+    const goal=add(); goal.team.step='qa'; store.saveGoal(goal);
+    await ticks(scheduler,1);
+    const saved=store.getGoal(goal.id);
+    assert.equal(saved.status,'review_required');
+    assert.match(saved.question,/브라우저 화면 검증/);
+    scheduler.confirmCriterion(goal.id,C[0],'직접 화면을 확인함');
+    assert.equal(store.getGoal(goal.id).status,'verified');
+  } finally {store.close();}
+});
 test('development routing escalates complexity and never downgrades high-risk work for quota', () => {
   const { store, scheduler, add } = setup(() => ({}));
   try {

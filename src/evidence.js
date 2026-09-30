@@ -36,6 +36,9 @@ export function reportInstructions(criteria) {
     '   (the engine parses the JSON itself; kinds: string, one_line, number, integer, positive_integer, boolean, array,',
     '   string_array, date; count, fields and unique are each optional)',
     '  {"type":"folder_only","path":"folder/","files":["a.json","README.md"]}  (the folder holds exactly these files)',
+    '  {"type":"screen_ok","path":"index.html"}  (in verification: the engine opened this page in an isolated browser at',
+    '   PC 1440px and phone 390px just before this step and found no horizontal overflow, broken image or script error;',
+    '   it does not judge whether the page looks good)',
     '  {"type":"document_made","path":"x.hwpx","text":"optional exact text"}  (the engine itself made this 한글 document',
     '   from your Markdown, it passed the structure check and is unchanged since; with "text", the document contains it)',
     'To get a 한글 document (HWPX), write the text as Markdown and add "documents":[{"from":"x.md","to":"x.hwpx",',
@@ -116,6 +119,7 @@ function relatesTo(check, criterion) {
   }
   if (check.type === 'file_unchanged') return UNCHANGED_WORDS.test(c);
   if (check.type === 'file_exists') return words(String(check.path).replace(/\\/g, '/')).some(w => mentions(c, w));
+  if (check.type === 'screen_ok') return /화면|모바일|레이아웃|넘침|깨진|screen|layout/.test(c);
   // a data check speaks to a criterion that names the file (or JSON) and does not claim an absence
   if (check.type === 'json_shape') return (namesFile(c, check.path) || /json/.test(c)) && !/없[다고음]$/.test(c.trim());
   // "only these files": every listed file (or the folder) is named in the criterion
@@ -174,6 +178,7 @@ function runCheck(check, cwd, ctx = {}) {
     return readFileSync(target, 'utf8').includes(check.text)
       ? { status: 'pass', proof: `엔진 확인 · ${rel}에 “${shown}” 포함` } : { status: 'fail', reason: `${rel}에 “${shown}” 없음` };
   }
+  if (check.type === 'screen_ok') return checkScreen(rel, ctx.visual);
   if (check.type === 'json_shape') return checkJsonShape(check, target, rel);
   if (check.type === 'folder_only') return checkFolderOnly(check, target, rel);
   return { status: 'invalid', reason: '지원하지 않는 확인 방식' };
@@ -226,6 +231,18 @@ function checkJsonShape(check, target, rel) {
   }
   return { status: 'pass', proof: `엔진 확인 · ${where}: ${done.join(', ')}` };
 }
+
+// screen_ok: the engine's own 화면 검사 of this step (visual-check.js) captured the page at both widths and found
+// nothing plainly broken. Only the engine's run counts; a capture a team made or described does not.
+function checkScreen(rel, visual) {
+  if (!visual || !['pass', 'found'].includes(visual.status)) return { status: 'fail', reason: '이번 단계에 엔진 화면 검사가 실행되지 않음' };
+  const shots = (visual.screenshots ?? []).filter(s => s.file === rel);
+  if (!shots.some(s => s.width >= 1000) || !shots.some(s => s.width < 600)) return { status: 'fail', reason: `${rel}의 PC·모바일 캡처가 없음` };
+  const broken = (visual.details ?? []).filter(d => d.startsWith(`${rel} (`) && SCREEN_BROKEN.test(d));
+  return broken.length ? { status: 'fail', reason: `화면 검사: ${broken.slice(0, 3).join(' · ')}` }
+    : { status: 'pass', proof: `엔진 확인 · ${rel} 화면 검사 (PC ${shots.find(s => s.width >= 1000).width}px · 모바일 ${shots.find(s => s.width < 600).width}px) 깨진 곳 없음` };
+}
+const SCREEN_BROKEN = /가로 넘침|깨진 이미지|JavaScript 실행 오류|보이는 글이 없음/;
 
 // folder_only: the folder holds exactly these files (at any depth), nothing more and nothing missing.
 function checkFolderOnly(check, target, rel) {
@@ -347,7 +364,7 @@ export function listWorkspaceFiles(cwd, max = 50) {
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       if (found.length >= max) return;
-      if (['.git', 'node_modules'].includes(entry.name) || entry.isSymbolicLink()) continue;
+      if (['.git', 'node_modules', '.hq-screens'].includes(entry.name) || entry.isSymbolicLink()) continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
       else if (entry.isFile()) found.push(path.relative(cwd, full).replace(/\\/g, '/'));
@@ -363,7 +380,7 @@ export function workspaceFingerprint(cwd, { maxFiles = 2000 } = {}) {
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       if (files.length >= maxFiles) return;
-      if (['.git', 'node_modules'].includes(entry.name) || entry.isSymbolicLink()) continue;
+      if (['.git', 'node_modules', '.hq-screens'].includes(entry.name) || entry.isSymbolicLink()) continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
       else if (entry.isFile()) files.push(full);

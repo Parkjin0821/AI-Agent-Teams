@@ -10,6 +10,7 @@ import { Orchestrator } from './orchestrator.js';
 import { PersistentStore } from './persistent-store.js';
 import { GoalScheduler } from './scheduler.js';
 import { SandboxRunner } from './sandbox.js';
+import { VisualChecker } from './visual-check.js';
 import { TEAMS } from './teams.js';
 import { Digests } from './digest.js';
 import { checkAttachments, DEFAULT_MAX_MB, saveAttachment } from './attachments.js';
@@ -76,6 +77,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     : {});
   // Project tests run in the Codex sandbox (no model call, no network); only used in real execution.
   const sandbox = injectedSandbox ?? (executing ? new SandboxRunner({ codex: resolveBins().codex }) : null);
+  const visualChecker = new VisualChecker({ root, sandbox });
   // 문서 변환 (kordoc in the sandbox, no model call): also in simulation mode, since it spends no usage.
   let converter = docConverter;
   const docs = () => converter ??= new DocConverter({ root, sandbox: sandbox ?? new SandboxRunner({ codex: resolveBins().codex }) });
@@ -109,7 +111,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     trust,
     capabilities: team => ({ 'claude-code': ['text','code', ...(TEAMS[team]?.web ? ['web'] : []),
       ...(toolsFor(team).connectors?.length ? ['connectors'] : [])], codex: ['text','code'] }),
-    runner: createGoalRunner({ adapter, workspaces, store, toolsFor, sandbox, settings: () => store.getSettings(),
+    runner: createGoalRunner({ adapter, workspaces, store, toolsFor, sandbox, visualChecker, settings: () => store.getSettings(),
       onRateLimits: async limits => {
         try { await recordRateLimits(dataDir, limits); }
         catch (error) {

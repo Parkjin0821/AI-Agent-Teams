@@ -4,6 +4,15 @@ import { nextStep, parsePlan, parseReview, qaFindings, TEAMS, teamPrompt } from 
 
 const goal = { objective: '가계부 웹앱을 만든다', completionCriteria: ['index.html 파일이 있다', '합계 계산 테스트 통과'] };
 
+test('UI prompts establish a brief, hand it to developers, and distinguish visual verification', () => {
+  const input = {goal,files:[],team:{task:'화면 제작'}};
+  assert.match(teamPrompt('plan',input), /design\/brief\.md/);
+  assert.match(teamPrompt('design',input), /1440px·모바일 390px/);
+  assert.match(teamPrompt('design',input), /구체적인 값/);
+  assert.match(teamPrompt('dev',input), /design\/brief\.md 와 design\/acceptance\.md/);
+  assert.match(teamPrompt('qa',input), /시각 검증 완료를 주장하지 않는다/);
+});
+
 test('seven teams, each with its own tool and access; only research gets the web', () => {
   assert.deepEqual(Object.values(TEAMS).map(t => [t.id, t.executor, t.access, Boolean(t.web)]), [
     ['plan', 'claude-code', 'read', false], ['research', 'claude-code', 'write', true], ['dev', 'claude-code', 'write', false],

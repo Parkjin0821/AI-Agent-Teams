@@ -20,7 +20,7 @@ import { guardDenied, pathViolations, readRules, restoreDenied, rulesPrompt } fr
 const PROVIDER = { 'claude-code': 'claude', codex: 'codex' };
 
 // toolsFor(team) → { connectors, knownConnectors }: which claude.ai connectors 대장 opened for that team.
-export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, settings = () => ({}),
+export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, visualChecker = null, settings = () => ({}),
   onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, docMaker = null, onActivity = () => {}, heldDir = null,
   webModeFor = () => (settings()['sentinel.web'] === 'open' ? 'open' : 'ask') }) {
   const simulated = adapter.enabled === false;
@@ -46,7 +46,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const team = goal.kind === 'team' ? run.team : null;
       const extra = team ? toolsFor(team) : {};
       const tools = { web: Boolean(team && TEAMS[team]?.web), connectors: extra.connectors ?? [], knownConnectors: extra.knownConnectors ?? [] };
-      const engineTools = team && !simulated ? await runTeamTools(team, cwd, { sandbox, settings: settings() }) : [];
+      const engineTools = team && !simulated ? await runTeamTools(team, cwd, { sandbox, visualChecker, settings: settings() }) : [];
       let prompt = team
         ? teamPrompt(team, { goal, team: goal.team, files: listWorkspaceFiles(cwd), connectors: tools.connectors, toolText: toolReport(engineTools),
           memory: memory?.forTeam(team) ?? null,
@@ -101,7 +101,9 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const deniedCopies = simulated || !heldDir ? new Map() : guardDenied(cwd, stepRules, goal.projectId, before.files);
       const roundStart = new Date().toISOString();
       const result = await adapter.run(PROVIDER[run.executor], prompt, onEvent, { cwd, model: run.model, effort: run.effort, access: run.access ?? 'write', ...tools,
-        ...(PROVIDER[run.executor] === 'codex' ? { images: attachedImages(goal, cwd) } : {}),
+        // Codex sees the engine's screen captures (PC first) through its own --image option, after 대장's images.
+        ...(PROVIDER[run.executor] === 'codex' ? { images: [...attachedImages(goal, cwd),
+          ...engineTools.flatMap(t => t.screenshots ?? []).sort((a, b) => b.width - a.width).map(s => path.join(cwd, s.path))].slice(0, 5) } : {}),
         ...(sentinel ? { sentinel: { ...sentinel, project: goal.projectId, team: team ?? 'task', lane: goal.lane ?? null, laneDeny,
           webMode: webModeFor(goal.projectId) } } : {}) });
       // 승인 대기: what the Sentinel held back this round becomes approval requests; "once" grants are spent.
@@ -211,13 +213,16 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           failed: documents.failed });
       }
       const { evidence, claims } = verifyReport(report, goal.completionCriteria, cwd, { verifying: team === 'qa', test, originals: attachmentOriginals(goal, records),
+        // 화면 검사 of this verification step (screen_ok); a design step's captures are for looking, not proof
+        visual: team === 'qa' ? engineTools.find(t => t.id === 'visual') ?? null : null,
         documents: { ...documentRecords(records), ...documentRecords([{ documents: documents?.made ?? [] }]) },
         baseline: goal.routine?.baseline ?? null,
         sources: { ...sourceRecords(records), ...sourceRecords([{ sources: sources?.saved ?? [] }]) },
         boundary: () => boundaryCheck({ runs: store.listRuns?.(goal.id) ?? [], sentinelLog: sentinel?.log ?? null, project: goal.projectId, cwd }) });
       return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd), ...(sources ? { sources: sources.saved } : {}), ...(documents ? { documents: documents.made } : {}),
         requests: normalizeRequests(report?.requests, team), requiredReviews: requiredReviews(team),
-        ...(team === 'qa' ? { findings: { ...qaFindings(report), blocking } } : {}) };
+        ...(team === 'qa' ? { findings: { ...qaFindings(report), blocking,
+          ...(engineTools.some(t => t.id === 'visual' && ['unavailable','timeout'].includes(t.status)) ? { visualReviewRequired: true } : {}) } } : {}) };
     },
   };
 }
