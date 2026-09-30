@@ -11,7 +11,7 @@ export const connectorTool = (name) => `mcp__claude_ai_${name.replace(/[^A-Za-z0
 // access: 'write' (default) lets the tool change files in the workspace; 'read' only lets it look.
 // web: adds Claude Code's built-in WebSearch/WebFetch. connectors: claude.ai connectors this team may use;
 // every other connector in knownConnectors is denied. Without connectors, all MCP is switched off.
-export function buildCommand(provider, { cwd, model = null, effort = null, bins, access = 'write', web = false, connectors = [], knownConnectors = [], sentinel = null }) {
+export function buildCommand(provider, { cwd, model = null, effort = null, bins, access = 'write', web = false, connectors = [], knownConnectors = [], sentinel = null, images = [] }) {
   if (connectors.some(c => /higgsfield/i.test(c))) throw new Error('subscription-only: paid image credits are blocked');
   if (effort && !['low','medium','high','xhigh','max','ultra'].includes(effort)) throw new Error('invalid reasoning effort');
   if (provider === 'claude' && effort === 'ultra') throw new Error('unsupported Claude reasoning effort');
@@ -52,6 +52,9 @@ export function buildCommand(provider, { cwd, model = null, effort = null, bins,
     if (bins.codex.windowsSandbox) args.push('-c', `windows.sandbox="${bins.codex.windowsSandbox}"`);
     if (model) args.push('-m', model);
     if (effort) args.push('-c', `model_reasoning_effort="${effort}"`);
+    // 대장's attached images go in through Codex's own --image option, so Codex sees them without having to find and
+    // open the files itself (the "=" form keeps the option from swallowing the stdin marker).
+    for (const image of images.slice(0, 5)) args.push(`--image=${image}`);
     args.push('-');
     return { file: bins.codex.file, args: [...bins.codex.prefix, ...args], cwd, env };
   }
@@ -176,14 +179,14 @@ export class CliAgentAdapter {
     Object.assign(this, { enabled, cwd, bins, timeoutMs });
   }
 
-  async run(provider, prompt, onEvent, { cwd, model = null, effort = null, access = 'write', web = false, connectors = [], knownConnectors = [], sentinel = null } = {}) {
+  async run(provider, prompt, onEvent, { cwd, model = null, effort = null, access = 'write', web = false, connectors = [], knownConnectors = [], sentinel = null, images = [] } = {}) {
     if (!this.enabled) {
       onEvent({ type: 'provider.notice', provider, message: 'Safe mode: CLI execution is disabled' });
       return { outcome: 'simulated', summary: `${provider} dry-run only; no work executed`, model: null };
     }
     if (!cwd) throw new Error('Project workspace is required for CLI execution');
     assertWorkspaceConfigurationSafe(cwd);
-    const command = buildCommand(provider, { cwd, model, effort, access, web, connectors, knownConnectors, sentinel, bins: this.bins ?? resolveBins() });
+    const command = buildCommand(provider, { cwd, model, effort, access, web, connectors, knownConnectors, sentinel, images, bins: this.bins ?? resolveBins() });
     return new Promise((resolve) => {
       const child = spawn(command.file, command.args, { cwd: command.cwd, shell: false, windowsHide: true, env: command.env });
       let head = '', partial = '', model = null, answer = null, stderr = '', timedOut = false, settled = false;

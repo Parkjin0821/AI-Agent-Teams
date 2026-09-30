@@ -45,18 +45,16 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           memory: memory?.forTeam(team) ?? null,
           candidates: catalog().filter(e => e.usable).map(e => ({ id: e.id, executor: e.executor, capabilities: e.capabilities ?? [] })) })
         : [`Goal: ${goal.objective}`, '', reportInstructions(goal.completionCriteria)].join('\n');
+      let selectedSkills = [];
       if (team && store.getSettings) {
         const library = new SkillLibrary({store});
-        const selected = library.select(team, goal.team?.task || goal.objective);
-        if (selected.length) {
+        selectedSkills = library.select(team, goal.team?.task, goal.objective);
+        if (selectedSkills.length) {
           const block = '\n[승인된 지침형 스킬 · 기존 안전 경계와 출력 계약이 우선]\n'
-            + selected.map(s => `${s.name} (${s.id})\n${s.body}`).join('\n\n') + '\n';
+            + selectedSkills.map(s => `${s.name} (${s.id})\n${s.body}`).join('\n\n') + '\n';
           // Skills go before the output format, so the engine's JSON contract stays the last instruction.
           const at = prompt.lastIndexOf('\n[출력 형식]');
           prompt = at >= 0 ? prompt.slice(0, at) + block + prompt.slice(at) : prompt + block;
-          // Real runs count toward "처음 3번 적용" so 대장 sees a newly enabled skill at work.
-          const applied = simulated ? selected.map(s => ({ id: s.id, name: s.name, n: 0, notice: false })) : library.markApplied(selected);
-          await store.emit({type:'skill.applied',goalId:goal.id,team,skills:applied});
         }
       }
       // Codex reads files through Windows PowerShell, whose restricted mode garbled every Korean line in a real run.
@@ -79,6 +77,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const onEvent = event => { if (event.type === 'provider.notice') void store.emit({ ...event, goalId: goal.id }); };
       const roundStart = new Date().toISOString();
       const result = await adapter.run(PROVIDER[run.executor], prompt, onEvent, { cwd, model: run.model, effort: run.effort, access: run.access ?? 'write', ...tools,
+        ...(PROVIDER[run.executor] === 'codex' ? { images: attachedImages(goal, cwd) } : {}),
         ...(sentinel ? { sentinel: { ...sentinel, project: goal.projectId, team: team ?? 'task',
           webMode: settings()['sentinel.web'] === 'open' ? 'open' : 'ask' } } : {}) });
       // 승인 대기: what the Sentinel held back this round becomes approval requests; "once" grants are spent.
@@ -111,6 +110,10 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const base = { model: result.model ?? null, answer: result.answer ?? null, tools: toolsSaved, approvalRequests: approvalRequests.map(r => r.id) };
       if (result.outcome === 'limited') return { ...base, outcome: 'error', errorKind: 'limit' };
       if (result.outcome !== 'completed') return { ...base, outcome: 'error', errorKind: result.errorKind ?? 'unclassified' };
+      if (selectedSkills.length) {
+        const applied = new SkillLibrary({store}).markApplied(selectedSkills);
+        await store.emit({type:'skill.applied',goalId:goal.id,team,skills:applied});
+      }
       if (team === 'plan') {
         const plan = parsePlan(result.answer);
         if (plan && store.getSettings) new SkillLibrary({store}).requestNeeds(plan.skill_needs, {team, project: goal.projectId});
@@ -137,6 +140,20 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
 }
 
 // A program's hard finding (a secret in a file, a GPL dependency) counts even if the reviewer missed it.
+// 대장's attached images still in the work folder (newest first, at most 5, small enough for the AI to read whole),
+// as absolute paths for Codex's --image option.
+export function attachedImages(goal, cwd, { max = 5, maxBytes = Math.floor(10 * 1024 * 1024 * 3 / 4) } = {}) {
+  const seen = new Set(), out = [];
+  for (const m of [...(goal.messages ?? [])].reverse()) for (const a of m.attachments ?? []) {
+    if (a?.kind !== 'image' || typeof a.path !== 'string' || !a.path.startsWith('attachments/') || seen.has(a.path)) continue;
+    seen.add(a.path);
+    const full = path.join(cwd, a.path);
+    try { const st = statSync(full); if (st.isFile() && st.size <= maxBytes) out.push(full); } catch { /* removed since */ }
+    if (out.length >= max) return out;
+  }
+  return out;
+}
+
 const TEXT_EXT = new Set(['.md', '.txt', '.json', '.csv', '.html', '.htm', '.css', '.js', '.mjs', '.cjs', '.ts', '.py', '.yml', '.yaml', '.xml']);
 // The work folder's small text files as the engine read them (UTF-8), for a team that cannot read Korean reliably
 // itself. Material only: file names and contents, never instructions. Secret-looking files are left out.

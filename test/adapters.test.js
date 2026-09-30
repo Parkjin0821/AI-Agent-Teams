@@ -165,3 +165,22 @@ test('Codex on Windows is told to read UTF-8 files with Get-Content -Encoding UT
   assert.equal(promptFor('codex', 'TASK', 'linux'), 'TASK');
   assert.equal(promptFor('claude', 'TASK', 'win32'), 'TASK', 'Claude Code reads files with its own tool');
 });
+
+test('Codex gets 대장\'s attached images through its own --image option', async () => {
+  const { attachedImages } = await import('../src/goal-runner.js');
+  const { mkdtempSync: mk, writeFileSync: wf, mkdirSync: md } = await import('node:fs');
+  const { tmpdir: td } = await import('node:os');
+  const path = (await import('node:path')).default;
+  const cwd = mk(path.join(td(), 'hq-img-'));
+  md(path.join(cwd, 'attachments'));
+  for (const n of ['a.png', 'b.png', 'doc.hwpx']) wf(path.join(cwd, 'attachments', n), 'x');
+  const goal = { messages: [
+    { role: 'user', attachments: [{ path: 'attachments/a.png', kind: 'image' }, { path: 'attachments/doc.hwpx', kind: 'document' }] },
+    { role: 'user', attachments: [{ path: 'attachments/b.png', kind: 'image' }, { path: 'attachments/gone.png', kind: 'image' }, { path: '../x.png', kind: 'image' }] }] };
+  const images = attachedImages(goal, cwd);
+  assert.deepEqual(images.map(p => path.basename(p)), ['b.png', 'a.png'], 'newest first, only images that still exist inside attachments/');
+  const bins = { claude: { file: 'claude', prefix: [] }, codex: { file: 'codex', prefix: [], windowsSandbox: null } };
+  const cmd = buildCommand('codex', { cwd, bins, access: 'read', images });
+  const at = cmd.args.indexOf('-');
+  assert.deepEqual(cmd.args.slice(at - 2), [`--image=${images[0]}`, `--image=${images[1]}`, '-'], 'the = form keeps stdin (-) as the prompt');
+});
