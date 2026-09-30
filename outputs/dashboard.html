@@ -33,17 +33,15 @@ button{cursor:pointer}
 
 /* 상단 바 */
 .top{position:sticky;top:0;z-index:20;background:rgba(250,250,250,.86);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
-.top-in{max-width:1840px;margin:0 auto;padding:12px 32px;min-height:72px;display:grid;grid-template-columns:minmax(140px,1fr) auto minmax(480px,1fr);align-items:center;gap:20px}
+.top-in{max-width:1840px;margin:0 auto;padding:12px 32px;min-height:72px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:20px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em;font-size:14.5px;flex:none;border:0;background:none;padding:0}
 .mark{width:24px;height:24px;border-radius:7px;background:var(--text);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700;font-family:var(--mono)}
-.tabs-top{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none}
-.tabs-top::-webkit-scrollbar{display:none}
+.tabs-top{display:flex;align-items:center;justify-content:center;gap:10px;min-width:0;overflow:visible}
 .top-more{position:relative;flex:none}
-.top-more>summary{border:0;background:none;padding:6px 10px;color:var(--text-3);font-weight:500}
-.top-more>summary::before{display:none}
-.top-more>summary::after{content:'⌄';margin-left:4px}
-.top-more[open]>summary{color:var(--text);background:var(--subtle)}
-.top-more-menu{position:absolute;right:0;top:calc(100% + 12px);min-width:150px;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:var(--shadow);display:grid;gap:2px;z-index:30}
+.top-more-trigger{border:0;background:none;padding:6px 10px;border-radius:var(--r-sm);color:var(--text-3);font-weight:500;white-space:nowrap}
+.top-more-trigger::after{content:'⌄';margin-left:6px}
+.top-more-trigger:hover,.top-more-trigger[aria-expanded="true"]{color:var(--text);background:var(--subtle)}
+.top-more-menu{position:absolute;right:0;top:calc(100% + 8px);min-width:160px;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:0 12px 32px rgba(0,0,0,.14);display:grid;gap:2px;z-index:30}
 .top-more-menu button{border:0;background:none;text-align:left;padding:9px 10px;border-radius:6px;color:var(--text-2)}
 .top-more-menu button:hover,.top-more-menu button.on{background:var(--subtle);color:var(--text)}
 .tt{border:0;background:none;padding:6px 10px;border-radius:var(--r-sm);color:var(--text-3);font-weight:500;white-space:nowrap;transition:color .15s,background .15s}
@@ -71,8 +69,8 @@ button{cursor:pointer}
 .brand-group{display:flex;align-items:center;gap:12px;justify-self:start;white-space:nowrap}
 .brand-group .mode{font-size:12px;padding:6px 9px;gap:6px;line-height:normal}
 .brand-group .mode i{width:6px;height:6px}
-@media(max-width:1500px){.top-in{grid-template-columns:auto minmax(0,1fr);gap:12px 24px}.top-r{grid-column:2;grid-row:1}.tabs-top{grid-column:1 / -1;grid-row:2;justify-content:center;min-width:0;max-width:100%;padding-top:8px;border-top:1px solid var(--line)}}
-@media(max-width:760px){.top-in{padding:12px 16px!important;gap:12px}.top-r{flex-wrap:wrap;justify-content:flex-end}.top-r .meter{display:none}.tabs-top{justify-content:flex-start}.notification-status,.brand-group .mode{font-size:11px;padding:4px 6px}}
+@media(max-width:1100px){.top-in{grid-template-columns:auto minmax(0,1fr);gap:12px 24px}.top-r{grid-column:2;grid-row:1}.tabs-top{grid-column:1 / -1;grid-row:2;justify-content:center;max-width:100%;padding-top:8px;border-top:1px solid var(--line)}}
+@media(max-width:760px){.top-in{padding:12px 16px!important;gap:12px}.top-r{flex-wrap:wrap;justify-content:flex-end}.tabs-top{justify-content:flex-start;flex-wrap:wrap;gap:4px}.notification-status,.brand-group .mode{font-size:11px;padding:4px 6px}}
 .mode{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:var(--text-2);padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);white-space:nowrap}
 .mode i{width:7px;height:7px;border-radius:50%;background:var(--idle)}
 .mode.real{color:var(--stop);border-color:#F5C9B5;background:var(--stop-soft)}
@@ -454,12 +452,11 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     <div class="brand-group"><button class="brand" onClick="{{goHome}}" aria-label="홈으로"><span class="mark">HQ</span><span class="word">AGENT HQ</span></button><span class="{{modeCls}}" title="{{modeTitle}}"><i></i><span>{{modeL}}</span></span></div>
     <nav class="tabs-top" aria-label="주 메뉴">
       <sc-for list="{{nav}}" as="n"><button class="{{n.cls}}" aria-current="{{n.cur}}" onClick="{{n.go}}">{{n.l}}<sc-if value="{{n.hasN}}"><span class="n">{{n.n}}</span></sc-if></button></sc-for>
-      <details class="top-more"><summary>더 보기</summary><div class="top-more-menu"><sc-for list="{{navMore}}" as="n"><button class="{{n.cls}}" aria-current="{{n.cur}}" onClick="{{n.go}}">{{n.l}}</button></sc-for></div></details>
+      <div class="top-more"><button class="top-more-trigger" aria-expanded="{{moreExpanded}}" aria-controls="top-more-menu" onClick="{{toggleMore}}">더 보기</button><sc-if value="{{moreOpen}}"><div class="top-more-menu" id="top-more-menu"><sc-for list="{{navMore}}" as="n"><button class="{{n.cls}}" aria-current="{{n.cur}}" onClick="{{n.go}}">{{n.l}}</button></sc-for></div></sc-if></div>
     </nav>
     <div class="top-r">
       <sc-if value="{{notif.canAsk}}"><button class="btn ghost sm" onClick="{{notif.enable}}" title="질문·승인·완료·멈춤이 생기면 이 창을 보고 있지 않아도 알려 줍니다">알림 켜기</button></sc-if>
       <sc-if value="{{notif.on}}"><span class="notification-status" role="status" title="이 브라우저 창이 열려 있는 동안 알려 줍니다">알림 켜짐</span></sc-if>
-      <button class="btn pri sm" onClick="{{openNew}}">새 프로젝트</button>
     </div>
   </div>
 </header>
@@ -509,7 +506,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     </section>
 
     <section class="sec" aria-labelledby="proj-h">
-      <div class="sec-h"><h2 id="proj-h">프로젝트</h2><button class="link small" onClick="{{goProjects}}">모두 보기</button></div>
+      <div class="sec-h"><h2 id="proj-h">프로젝트</h2><div class="row-f"><button class="link small" onClick="{{goProjects}}">모두 보기</button><button class="link small" onClick="{{openNew}}">새 프로젝트</button></div></div>
       <div class="list">
         <sc-for list="{{homeProjects}}" as="p">
           <button class="prow" onClick="{{p.open}}">
@@ -547,7 +544,6 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
     <div class="panel empty">
       <div class="h">첫 프로젝트를 만들어 보세요</div>
       <p>대화로 시작하세요. 팀이 검증 조건을 도출하고 작업·수정·검증을 이어갑니다.</p>
-      <button class="btn pri" onClick="{{openNew}}">새 프로젝트</button>
     </div>
   </sc-if>
 </sc-if>
@@ -773,7 +769,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
         </div>
         <div class="field" style="margin-top: 16px"><label>제어팀 · 작업 난이도에 따라 모델 자동 선택 · 모든 프로젝트 공통</label>
           <div class="seg" role="group" aria-label="모델 자동 선택"><sc-for list="{{autoLevelOpts}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div>
-          <p class="hint">켜 두면 모델을 고르지 않은 팀은 간단한 일에 가벼운 모델(Claude Sonnet 5.5 · Codex GPT-6-Luna), 보통 일에 Sonnet 5.5 · GPT-6-Sol, 복잡하거나 위험한 일에 무거운 모델(Opus 5.5 · Sol 높음)을 씁니다. Codex Astra는 자동으로 쓰지 않습니다. 끄면 고르지 않은 팀은 목록의 기본 모델로 돕니다.</p></div>
+          <p class="hint">켜 두면 모델을 고르지 않은 팀은 간단한 일과 보통 일에 가벼운 모델(Claude Sonnet 5.5 · Codex GPT-6-Luna 중간~높음), 복잡하거나 위험한 일에 무거운 모델(Opus 5.5 · GPT-6-Sol 낮음~중간)을 씁니다. Codex Astra는 자동으로 쓰지 않습니다. 끄면 고르지 않은 팀은 목록의 기본 모델로 돕니다.</p></div>
         <dl class="facts" style="margin-top: 16px"><dt>최근 실제 모델</dt><dd class="mono small">{{m.actual}}</dd></dl>
       </div>
       <div class="card">
@@ -1241,7 +1237,7 @@ class Component extends DCLogic {
   }
   constructor(props) {
     super(props);
-    this.state = { view: 'home', pid: null, ptab: 'over', eng: null, offline: false, toast: '', sideOpen: true,
+    this.state = { view: 'home', pid: null, ptab: 'over', eng: null, offline: false, toast: '', sideOpen: true, moreOpen: false,
       showNew: false, np: { title: '', goal: '', crit: '', error: '' }, drafts: {}, pinOpen: {}, pinDraft: '',
       envs: null, envErr: '', envBusy: false };
   }
@@ -1485,10 +1481,10 @@ class Component extends DCLogic {
     const allRuns = [].concat.apply([], P.map((p) => p.runs.map((r) => Object.assign({}, r, { project: p }))));
     const autoOn = !(s.eng && s.eng.limits && s.eng.limits.autoLevels === false);
     const control = { stL: autoOn ? '켜짐' : '꺼짐', pillCls: pillCls(autoOn ? 'done' : 'idle'), rows: [
-      { l: '가벼움', d: 'Claude Sonnet 5.5 · 낮음 / Codex GPT-6-Luna · 낮음 — 간단하고 위험이 낮은 작업' },
-      { l: '보통', d: 'Claude Sonnet 5.5 · 중간 / Codex GPT-6-Sol · 중간 — 보통 작업. 기획·보안·정책·검증팀은 이보다 낮게 가지 않음' },
-      { l: '깊게', d: 'Claude Opus 5.5 · 높음 / Codex GPT-6-Sol · 높음 — 복잡한 작업, 위험도가 높은 작업' },
-      { l: '최고', d: 'Claude Fable 5.1 · 높음 / Codex GPT-6-Sol · 매우 높음 — 복잡한 작업이 진전 없이 2번 이상 막힐 때만' },
+      { l: '가벼움', d: 'Claude Sonnet 5.5 · 낮음 / Codex GPT-6-Luna · 중간 — 간단하고 위험이 낮은 작업' },
+      { l: '보통', d: 'Claude Sonnet 5.5 · 중간 / Codex GPT-6-Luna · 높음 — 보통 작업. 기획·보안·정책·검증팀은 이보다 낮게 가지 않음' },
+      { l: '깊게', d: 'Claude Opus 5.5 · 높음 / Codex GPT-6-Sol · 낮음 — 복잡한 작업, 위험도가 높은 작업' },
+      { l: '최고', d: 'Claude Fable 5.1 · 높음 / Codex GPT-6-Sol · 중간 — 복잡한 작업이 진전 없이 2번 이상 막힐 때만' },
       { l: '올림 규칙', d: '진전 없음·테스트 실패가 2번 이어지면 한 단계 올립니다. 쓴 단계와 이유는 활동 기록에 남습니다.' },
       { l: 'Codex Astra', d: '자동으로는 쓰지 않습니다 (Plus 요금제에서 주간 사용량을 빨리 씀). 필요하면 프로젝트 설정에서 팀에 직접 고르세요.' }] };
     const teams = TEAMS.map((t) => {
@@ -1958,7 +1954,8 @@ class Component extends DCLogic {
     return {
       accent: '#2E5BFF',
       nav: navDefs.map((x) => ({ l: x[1], n: x[2], hasN: x[2] > 0, cls: 'tt' + (cur === x[0] ? ' on' : ''), cur: cur === x[0] ? 'page' : 'false', go: () => this.go(x[0]) })),
-      navMore: navMoreDefs.map((x) => ({ l: x[1], cls: cur === x[0] ? 'on' : '', cur: cur === x[0] ? 'page' : 'false', go: () => { document.querySelector('.top-more')?.removeAttribute('open'); this.go(x[0]); } })),
+      navMore: navMoreDefs.map((x) => ({ l: x[1], cls: cur === x[0] ? 'on' : '', cur: cur === x[0] ? 'page' : 'false', go: () => { this.setState({moreOpen:false}); this.go(x[0]); } })),
+      moreOpen: s.moreOpen, moreExpanded: s.moreOpen ? 'true' : 'false', toggleMore: () => this.setState({moreOpen:!this.state.moreOpen}),
       goHome: () => this.go('home'), goProjects: () => this.go('projects'), goTeams: () => this.go('teams'),
       sideOpen: s.sideOpen, onSideToggle: (e) => { if (this.state.sideOpen !== e.target.open) this.setState({sideOpen:e.target.open}); },
       notif: (() => { const p = s.notifPerm || (('Notification' in window) ? Notification.permission : 'unsupported');
