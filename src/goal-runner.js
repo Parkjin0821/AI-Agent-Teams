@@ -115,9 +115,19 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       // 대장 규칙 after the step: files it added or changed that a 금지 / 승인 필요 path rule covers. The Sentinel stops
       // Claude's writes one by one; Codex's cannot be stopped, so this is where they are caught (and 금지 ones put back).
       const afterRules = snapshot();
-      const addedFiles = afterRules.files.filter(f => !before.files.includes(f));
-      const modifiedFiles = afterRules.files.filter(f => before.signatures[f] && before.signatures[f] !== afterRules.signatures[f]);
-      const removedFiles = before.files.filter(f => !afterRules.files.includes(f));
+      // 병렬 작업: a lane and its parent share one work folder, so a change the other one made while this step ran is
+      // not this step's (seen in a real run: a read-only review was stopped for the lane's new files). A read-only step
+      // changes nothing itself. Claude's writes stay held by the Sentinel either way; a Codex lane writing outside its
+      // folder while its parent also ran cannot be told apart and is not flagged.
+      const stepEnd = new Date().toISOString();
+      const busy = g => (store.listRuns?.(g.id) ?? []).some(r => r.startedAt && r.startedAt < stepEnd && (!r.finishedAt || r.finishedAt > roundStart));
+      const projectGoals = store.listGoals?.() ?? [];
+      const busyLanes = projectGoals.filter(g => g.parentGoalId === goal.id && g.lane && busy(g)).map(g => g.lane);
+      const parentBusy = Boolean(goal.lane) && projectGoals.some(g => g.id === goal.parentGoalId && busy(g));
+      const mine = f => (run.access ?? 'write') !== 'read' && !busyLanes.some(p => f.startsWith(p)) && !(parentBusy && !f.startsWith(goal.lane));
+      const addedFiles = afterRules.files.filter(f => !before.files.includes(f)).filter(mine);
+      const modifiedFiles = afterRules.files.filter(f => before.signatures[f] && before.signatures[f] !== afterRules.signatures[f]).filter(mine);
+      const removedFiles = before.files.filter(f => !afterRules.files.includes(f)).filter(mine);
       const changedFiles = [...addedFiles, ...modifiedFiles];
       // 금지 경로 되돌리기: files under a 금지 path rule go back to how they were before the step (rules.js).
       const restored = simulated || !heldDir ? [] : restoreDenied(cwd, deniedCopies, stepRules, goal.projectId,

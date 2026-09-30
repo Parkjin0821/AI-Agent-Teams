@@ -282,3 +282,28 @@ test('금지 경로 되돌리기: what a Codex step did under a 금지 path is p
   assert.equal(readFileSync(memo.held, 'utf8'), '새 메모', 'what the team wrote is kept outside the work folder');
   assert.ok(!memo.held.startsWith(cwd));
 });
+
+test('병렬 작업: files the lane wrote while the parent step ran are not the parent step\'s (seen in a real run)', async () => {
+  const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(), 'hq-overlap-')));
+  const laneGoal = { id: 'lane1', parentGoalId: goal.id, lane: 'menu/', status: 'running', projectId: goal.projectId };
+  const check = async (laneRuns, access = 'write') => {
+    let records = [{ id: 'r1', status: 'running', team: 'dev', executor: 'codex' }];
+    const s = { emit: async () => {}, listRuns: id => id === 'lane1' ? laneRuns : records,
+      saveRun: r => { records = records.map(o => o.id === r.id ? r : o); }, listGoals: () => [laneGoal] };
+    const adapter = { enabled: true, run: async (provider, p, e, opts) => {
+      const { mkdirSync } = await import('node:fs');
+      mkdirSync(path.join(opts.cwd, 'menu'), { recursive: true });
+      writeFileSync(path.join(opts.cwd, 'menu', `menu-${laneRuns.length}-${access}.json`), '[]');
+      return { outcome: 'completed', answer: 'AGENT_HQ_REPORT {"criteria":[]}' };
+    } };
+    const result = await createGoalRunner({ adapter, workspaces, store: s }).run({ ...goal, kind: 'team', team: { step: 'dev', task: 'x', feedback: '', cycle: 1 } },
+      { executor: 'codex', team: 'dev', access });
+    return (result.ruleViolations ?? []).map(v => v.rule.note);
+  };
+  // the lane had a step running the whole time → its folder's changes are its own
+  assert.deepEqual(await check([{ id: 'l1', startedAt: '2000-01-01T00:00:00.000Z' }]), []);
+  // no lane step overlapped → the parent wrote there itself
+  assert.deepEqual(await check([]), ['진행 중인 병렬 작업의 폴더']);
+  // a read-only step changes nothing itself
+  assert.deepEqual(await check([], 'read'), []);
+});
