@@ -1954,7 +1954,8 @@ class Component extends DCLogic {
           const reviewRows = KINDS.map(([kind, label]) => {
             const r = k.reviews && k.reviews[kind];
             const decide = (pass) => async () => {
-              const note = await askText(label + ' 검토 메모 (' + (pass ? '통과' : '보류') + ')', suggest[kind] || '');
+              const note = await askText(k.name + ' · ' + label + ' 검토 (' + (pass ? '통과' : '보류') + ')\n검토 기록에 남길 메모입니다. 엔진 자동 검사 결과를 기본으로 넣어 두었습니다.', suggest[kind] || '',
+                { okL: pass ? '통과로 기록' : '보류로 기록' });
               if (!note || !note.trim()) return;
               act(this.api('POST', '/api/skills/' + k.id + '/review', { kind: kind, pass: pass, note: note.trim() }), label + ' 검토를 ' + (pass ? '통과' : '보류') + '로 기록했습니다');
             };
