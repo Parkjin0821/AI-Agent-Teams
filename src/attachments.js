@@ -1,4 +1,5 @@
-import { existsSync, lstatSync, mkdirSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { hasSecret } from './sentinel.js';
 
@@ -62,7 +63,8 @@ export function saveAttachment(cwd, name, bytes, now = Date.now(), { maxMB = DEF
   for (let n = 2; existsSync(path.join(dir, target)); n++) target = `${stamp(now)}-${n}-${file}`;
   writeFileSync(path.join(dir, target), bytes, { flag: 'wx' });
   const warning = tooBigForAI(kind, bytes.length);
-  return { path: `${ATTACH_DIR}/${target}`, name: file, kind, size: bytes.length, ...(warning ? { warning } : {}) };
+  // sha256: the engine's own record of the file as 대장 gave it (the "file_unchanged" check compares against it)
+  return { path: `${ATTACH_DIR}/${target}`, name: file, kind, size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), ...(warning ? { warning } : {}) };
 }
 
 // Paths sent with a message must be attachments already saved in this project.
@@ -80,7 +82,8 @@ export function checkAttachments(cwd, list) {
     const size = lstatSync(full).size, warning = tooBigForAI(kind, size);
     // a converted document keeps its Markdown next to it
     const converted = kind === 'document' && existsSync(`${full}.md`) ? `${rel}.md` : null;
-    return { path: rel, name: String(item?.name ?? m[1]).slice(0, 80), kind, size, ...(warning ? { warning } : {}), ...(converted ? { converted } : {}) };
+    const sha256 = createHash('sha256').update(readFileSync(full)).digest('hex');
+    return { path: rel, name: String(item?.name ?? m[1]).slice(0, 80), kind, size, sha256, ...(warning ? { warning } : {}), ...(converted ? { converted } : {}) };
   });
 }
 

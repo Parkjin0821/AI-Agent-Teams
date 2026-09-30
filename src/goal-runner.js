@@ -122,7 +122,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       // A team may suggest something to remember; it waits for 대장 in the approval inbox.
       memory?.propose(report?.remember, { team, project: goal.projectId });
       const test = engineTools.find(t => t.test)?.test ?? null;
-      const { evidence, claims } = verifyReport(report, goal.completionCriteria, cwd, { verifying: team === 'qa', test });
+      const { evidence, claims } = verifyReport(report, goal.completionCriteria, cwd, { verifying: team === 'qa', test, originals: attachmentOriginals(goal, records) });
       return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd),
         requests: normalizeRequests(report?.requests, team), requiredReviews: requiredReviews(team),
         ...(team === 'qa' ? { findings: { ...qaFindings(report), blocking } } : {}) };
@@ -131,6 +131,21 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
 }
 
 // A program's hard finding (a secret in a file, a GPL dependency) counts even if the reviewer missed it.
+// Fingerprints of 대장's attachments that the engine itself recorded: at upload (message attachments), or else in
+// the checkpoint taken before the earliest run that saw the file. Used by the "file_unchanged" check.
+export function attachmentOriginals(goal, records = []) {
+  const originals = {};
+  for (const m of goal.messages ?? []) for (const a of m.attachments ?? []) {
+    if (a?.sha256 && !originals[a.path]) originals[a.path] = { sha: a.sha256, from: '첨부할 때 기록한 지문' };
+  }
+  for (const r of records) {
+    for (const [file, sha] of Object.entries(r.checkpoint?.before?.signatures ?? {})) {
+      if (file.startsWith('attachments/') && !originals[file] && /^[a-f0-9]{64}$/.test(sha)) originals[file] = { sha, from: `${r.round}번째 단계 시작 전 기록` };
+    }
+  }
+  return originals;
+}
+
 function withToolFindings(review, blocking, decision) {
   if (!blocking.length && !decision) return review;
   return {

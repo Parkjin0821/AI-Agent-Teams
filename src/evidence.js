@@ -20,6 +20,8 @@ export function reportInstructions(criteria) {
     '  {"type":"file_contains","path":"relative/path","text":"exact text that must appear"}',
     '  {"type":"tests_pass"}  (the engine itself runs the project tests in a sandbox during verification:',
     '   npm test if package.json has a test script, otherwise node --test, otherwise python -m unittest)',
+    '  {"type":"file_unchanged","paths":["attachments/…"]}  (files 대장 attached are unchanged: the engine compares each',
+    '   file with the fingerprint it recorded when the file was attached)',
     'Do not claim done without doing the work. Put anything a person must judge in "note".',
     'You may add "requests":[{"team":"dev|design|research","task":"specific follow-up within this project","criteria":["verifiable criterion"],"risk":"low|normal|high","complexity":"simple|normal|complex","effects":[]}] to propose collaboration. Requests are proposals, not permissions. Never expand the user scope.',
     'You may add "remember":[{"scope":"all"|"<team id>","text":"..."}] (at most 3) for lasting preferences or rules 대장 stated; they apply only after 대장 approves them.',
@@ -66,6 +68,7 @@ function runCheck(check, cwd, ctx = {}) {
     return ctx.test.passed ? { status: 'pass', proof: `엔진 확인 · 샌드박스에서 ${ctx.test.label} 통과` }
       : { status: 'fail', reason: `${ctx.test.label} 실패` };
   }
+  if (check?.type === 'file_unchanged') return checkUnchanged(check, cwd, ctx.originals ?? {});
   const target = insideWorkspace(check.path, cwd);
   if (!target) return { status: 'invalid', reason: '작업 폴더 밖이거나 잘못된 경로' };
   const rel = path.relative(cwd, target).replace(/\\/g, '/');
@@ -82,6 +85,27 @@ function runCheck(check, cwd, ctx = {}) {
       ? { status: 'pass', proof: `엔진 확인 · ${rel}에 “${shown}” 포함` } : { status: 'fail', reason: `${rel}에 “${shown}” 없음` };
   }
   return { status: 'invalid', reason: '지원하지 않는 확인 방식' };
+}
+
+// originals: { "attachments/x": { sha, from } } — fingerprints the engine itself recorded (at upload, or in the
+// checkpoint taken before the first run that saw the file). Only files with such a record can be checked.
+function checkUnchanged(check, cwd, originals) {
+  const list = Array.isArray(check.paths) ? check.paths : check.path ? [check.path] : [];
+  if (!list.length || list.length > 20) return { status: 'invalid', reason: '확인할 파일 목록이 없음' };
+  const done = [];
+  for (const p of list) {
+    const target = insideWorkspace(p, cwd);
+    if (!target) return { status: 'invalid', reason: '작업 폴더 밖이거나 잘못된 경로' };
+    const rel = path.relative(cwd, target).replace(/\\/g, '/');
+    const orig = originals[rel];
+    if (!orig) return { status: 'invalid', reason: `${rel}의 원래 지문 기록이 없음 (대장이 첨부한 파일만 확인 가능)` };
+    if (!existsSync(target) || !statSync(target).isFile()) return { status: 'fail', reason: `${rel} 없어짐` };
+    if (statSync(target).size > MAX_READ) return { status: 'invalid', reason: `${rel}이(가) 너무 커서 비교하지 않음` };
+    const now = createHash('sha256').update(readFileSync(target)).digest('hex');
+    if (now !== orig.sha) return { status: 'fail', reason: `${rel} 내용이 ${orig.from}과 다름 (바뀜)` };
+    done.push(`${rel} (${orig.from})`);
+  }
+  return { status: 'pass', proof: `엔진 확인 · 지문이 원래 기록과 같음 · ${done.join(', ')}` };
 }
 
 function insideWorkspace(p, cwd) {

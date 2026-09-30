@@ -1508,7 +1508,12 @@ class Component extends DCLogic {
           this.act(this.api('PUT', '/api/goals/' + g.id + '/autonomy', { enabled: enabled, remaining: enabled ? 2 : 0 }), '자율 후속 작업 정책을 변경했습니다');
         },
         sendMessage: () => this.api('POST', '/api/goals/' + g.id + '/messages', { text: this.state.drafts[g.id] || '', attachments: this.pendingAttach(g.id) })
-          .then(() => { const d = Object.assign({}, this.state.drafts); d[g.id] = ''; this.setState({ drafts: d }); this.clearAttach(g.id); return this.refresh(); })
+          .then((saved) => { const d = Object.assign({}, this.state.drafts); d[g.id] = ''; this.setState({ drafts: d }); this.clearAttach(g.id);
+            // A paused project keeps the message but does not run: offer to resume right away instead of silence.
+            if (saved && saved.status === 'paused' && window.confirm('이 프로젝트는 멈춰 있어서 메시지만 저장됐습니다. 지금 이어서 시작할까요? 기획팀이 이 메시지를 보고 다시 계획합니다.'))
+              return this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '이어서 시작했습니다 · 기획팀이 메시지를 보고 다시 계획합니다');
+            if (saved && saved.status === 'paused') this.say('메시지를 저장했습니다 · 프로젝트가 멈춰 있어 위의 "이어서 시작"을 눌러야 팀이 읽습니다');
+            return this.refresh(); })
           .catch(e => this.say(korErr(e.message))),
         hasProposal: !!(g.proposal && g.proposal.status === 'pending'), proposal: g.proposal ? g.proposal.items : [],
         accept: () => { if (this.confirmStart(wp.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/accept', {}), '개선을 시작했습니다'); },
@@ -1614,7 +1619,7 @@ class Component extends DCLogic {
       w.composerLabel = w.hasQuestion ? '답변' : '추가 요청';
       w.composerPh = w.hasQuestion ? '답을 적어 주세요' : (isTeam ? '추가 요청이나 바꿀 점을 적어 주세요' : '이 목표는 대화를 받지 않습니다');
       w.composerHint = busy ? '지금 단계가 끝나면 보낼 수 있습니다' : w.hasQuestion ? '보내면 기획팀이 이어서 계획합니다'
-        : g.criteriaApprovalPending ? '보내면 완료 조건을 다시 도출합니다' : '보내면 기획팀이 다시 계획합니다 · 멈춘 프로젝트는 자동 시작하지 않습니다';
+        : g.criteriaApprovalPending ? '보내면 완료 조건을 다시 도출합니다' : g.status === 'paused' ? '이 프로젝트는 멈춰 있습니다 · 보내면 이어서 시작할지 물어봅니다' : '보내면 기획팀이 다시 계획합니다 · 멈춘 프로젝트는 자동 시작하지 않습니다';
       w.sendL = w.hasQuestion ? '답변 보내기' : '보내기';
       w.sendDisabled = busy || (!isTeam && !w.hasQuestion);
       w.send = w.hasQuestion ? w.sendAnswer : w.sendMessage;

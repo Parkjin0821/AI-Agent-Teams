@@ -87,3 +87,28 @@ test('workspace fingerprint changes with content and is null for an empty folder
   writeFileSync(path.join(cwd, 'a.txt'), '2');
   assert.notEqual(workspaceFingerprint(cwd), first);
 });
+
+test('file_unchanged: attachments are proven unchanged against the fingerprint the engine recorded', async () => {
+  const { createHash } = await import('node:crypto');
+  const { mkdtempSync: mk, mkdirSync: md, writeFileSync: wf } = await import('node:fs');
+  const { tmpdir: td } = await import('node:os');
+  const { attachmentOriginals } = await import('../src/goal-runner.js');
+  const cwd = mk(path.join(td(), 'hq-unchanged-'));
+  md(path.join(cwd, 'attachments'));
+  wf(path.join(cwd, 'attachments', 'a.png'), 'A'); wf(path.join(cwd, 'attachments', 'b.hwpx'), 'B'); wf(path.join(cwd, 'attachments', 'b.hwpx.md'), 'B-md');
+  const sha = t => createHash('sha256').update(t).digest('hex');
+  // a.png: recorded at upload; b.hwpx(.md): only in an older run checkpoint (attachments sent before fingerprints existed)
+  const goal = { messages: [{ role: 'user', attachments: [{ path: 'attachments/a.png', sha256: sha('A') }, { path: 'attachments/b.hwpx' }] }] };
+  const records = [{ round: 3, checkpoint: { before: { signatures: { 'attachments/b.hwpx': sha('B'), 'attachments/b.hwpx.md': sha('B-md'), 'result.md': sha('x') } } } }];
+  const originals = attachmentOriginals(goal, records);
+  assert.deepEqual(Object.keys(originals).sort(), ['attachments/a.png', 'attachments/b.hwpx', 'attachments/b.hwpx.md'], 'only attachments, never other files');
+  const C = ['첨부 파일은 바뀌지 않았다'];
+  const check = paths => verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'file_unchanged', paths } }] }, C, cwd, { originals });
+  const ok = check(['attachments/a.png', 'attachments/b.hwpx', 'attachments/b.hwpx.md']);
+  assert.equal(ok.evidence.length, 1);
+  assert.match(ok.evidence[0].proof, /첨부할 때 기록한 지문.*3번째 단계 시작 전 기록/);
+  wf(path.join(cwd, 'attachments', 'a.png'), 'changed');
+  assert.match(check(['attachments/a.png']).claims[0].detail, /바뀜/);
+  assert.match(check(['result.md']).claims[0].detail, /원래 지문 기록이 없음/, 'a file 대장 did not attach cannot be proven unchanged');
+  assert.equal(check(['../outside']).claims[0].check, 'invalid');
+});
