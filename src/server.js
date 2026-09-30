@@ -1,3 +1,4 @@
+import { appendFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
@@ -31,6 +32,20 @@ const app = createApp({
 });
 
 const port = Number(process.env.PORT || 4311);
+
+// 서버 기록: start and every way this process ends, so a stop can be explained afterwards. Windows sends SIGHUP when
+// the server window is closed, SIGINT for Ctrl+C and SIGBREAK for Ctrl+Break; a crash is logged with its stack.
+// A process killed from outside (Task Manager, taskkill) leaves a start line with no end line.
+const logFile = path.join(dataDir, 'server.log');
+mkdirSync(dataDir, { recursive: true });
+const log = (line) => { try { appendFileSync(logFile, `${new Date().toISOString()} [pid ${process.pid}] ${line}\n`); } catch { /* the log never stops the server */ } };
+log(`시작 · port ${port} · ${executing ? '실제 실행' : '모의 실행'} · node ${process.version}`);
+for (const [signal, why] of [['SIGHUP', '서버 창이 닫힘'], ['SIGINT', 'Ctrl+C로 멈춤'], ['SIGBREAK', 'Ctrl+Break로 멈춤'], ['SIGTERM', '종료 요청을 받음']]) {
+  process.on(signal, () => { log(`종료 · ${why} (${signal})`); process.exit(0); });
+}
+process.on('uncaughtException', (error) => { log(`종료 · 처리되지 않은 오류: ${String(error?.stack ?? error).slice(0, 2000)}`); process.exit(1); });
+process.on('unhandledRejection', (error) => { log(`처리되지 않은 비동기 오류 (계속 동작): ${String(error?.stack ?? error).slice(0, 2000)}`); });
+process.on('exit', (code) => log(`끝 · 종료 코드 ${code}`));
 app.server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
     console.error(`포트 ${port}를 이미 다른 프로그램이 쓰고 있습니다. AGENT HQ가 이미 켜져 있다면 http://localhost:${port} 를 여세요.`);
