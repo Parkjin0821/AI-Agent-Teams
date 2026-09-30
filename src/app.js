@@ -227,6 +227,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       scheduler.update(g, { criteriaApprovalPending: false, messages: [...(g.messages ?? []),
         { role: 'user', kind: 'approval', text: `완료 조건 ${g.completionCriteria.length}개를 승인했습니다.`, at }].slice(-100) });
       void store.emit({ type: 'goal.criteria_approved', goalId: g.id, by: '대장' });
+      scheduler.startPendingLane(g.id);
       return scheduler.resume(g.id);
     }],
     ['GET', /^\/api\/usage$/, refreshUsage],

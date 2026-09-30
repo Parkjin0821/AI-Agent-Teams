@@ -532,6 +532,8 @@ export class GoalScheduler {
       const plan = result.plan;
       if (!plan) return review('unclear_plan');
       if (plan.needsDecision) return review('needs_decision', { question: plan.needsDecision });
+      // A 병렬 작업 proposed together with criteria that still need 대장 starts once they are approved (startPendingLane).
+      team.pendingParallel = plan.parallel ?? null;
       if (!goal.completionCriteria.length) {
         if (!plan.completionCriteria?.length) return review('criteria_not_derived');
         this.update(goal, { completionCriteria: validateCriteria(plan.completionCriteria), criteriaApprovalPending: true });
@@ -547,6 +549,7 @@ export class GoalScheduler {
         }
       }
       // 병렬 작업: an independent piece of work runs at the same time as a lane in its own folder.
+      team.pendingParallel = null;
       if (plan.parallel && plan.parallel.team) this.spawnLane(goal, plan.parallel);
       // next_task needs the running lane's result: wait without spending steps, plan again when it is done.
       if (plan.waitParallel && this.openLanes(goal).length) return this.waitForLane(team, this.openLanes(goal)[0], evidence);
@@ -750,6 +753,14 @@ export class GoalScheduler {
       messages: this.withControl(child, `병렬 작업 시작 · ${TEAMS[p.team].name} · ${p.folder}`) });
     void this.store.emit({ type: 'goal.lane_started', goalId: goal.id, laneGoalId: child.id, team: p.team, folder: p.folder });
     return child;
+  }
+  // 대장 approved the criteria of a plan that also proposed a lane: the lane starts now, so the next plan knows it runs.
+  startPendingLane(goalId) {
+    const goal = this.store.getGoal(goalId);
+    const p = goal?.team?.pendingParallel;
+    if (!p || goal.criteriaApprovalPending) return null;
+    this.update(goal, { team: { ...goal.team, pendingParallel: null } });
+    return this.spawnLane(goal, p);
   }
   waitForLane(team, lane, evidence) {
     return { evidence, team: { ...team, step: 'plan', waitingLane: lane.id }, status: GoalStatus.SCHEDULED, reason: 'lane_wait',

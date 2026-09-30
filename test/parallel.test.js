@@ -106,3 +106,20 @@ test('the plan prompt tells planning about a finished lane, and wait_parallel is
   assert.match(text, /병렬 작업 끝남: 조사팀이 research\/ 에서 마침/);
   assert.equal(parsePlan('AGENT_HQ_PLAN ' + JSON.stringify({ next_task: 't', team: 'design', wait_parallel: true })).waitParallel, true);
 });
+
+test('a lane proposed with criteria that still need 대장 starts once they are approved (seen in a real run)', async () => {
+  const { store, scheduler } = setup(team => team === 'plan'
+    ? { outcome: 'completed', plan: { nextTask: '화면 만들기', team: 'dev', reviews: [], completionCriteria: ['index.html이 있다'], parallel: parallelOf(lane) } }
+    : { outcome: 'completed' });
+  try {
+    const parent = scheduler.addGoal({ projectId: 'p1', kind: 'team', autoRun: true, title: '가게', objective: '홈페이지', conversation: true, completionCriteria: [] });
+    await scheduler.runGoal(parent.id);
+    assert.equal(store.getGoal(parent.id).reason, 'criteria_approval_required');
+    assert.equal(store.listGoals().filter(g => g.lane).length, 0, 'nothing runs before 대장 approves');
+    assert.equal(scheduler.startPendingLane(parent.id), null, 'not while the criteria still wait');
+    scheduler.update(store.getGoal(parent.id), { criteriaApprovalPending: false });
+    const child = scheduler.startPendingLane(parent.id);
+    assert.equal(child.lane, 'research/');
+    assert.equal(store.getGoal(parent.id).team.pendingParallel, null);
+  } finally { store.close(); }
+});
