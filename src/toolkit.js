@@ -83,9 +83,13 @@ export async function runTeamTools(step, cwd, { sandbox = null, settings = {}, v
   };
 
   // 화면 검사 (visual-check.js): captures at PC and phone width for the team to look at, plus what a program can see.
-  const screens = async (html) => add(visualChecker ? { id: 'visual', name: '실제 화면 검증', ...await visualChecker.check(cwd, html.map(p => p.file)) }
+  // Only the teams' own pages: the engine's document previews (x.hwpx.html) and saved web originals are not their work
+  // (seen in a real run: a report preview's phone-width overflow was reported at every step).
+  const engineMade = f => /\.hwpx\.html?$/i.test(f) || /^(sources|\.hq-screens)\//.test(f);
+  const screens = async (all) => { const html = all.filter(p => !engineMade(p.file)); if (!html.length) return;
+    add(visualChecker ? { id: 'visual', name: '실제 화면 검증', ...await visualChecker.check(cwd, html.map(p => p.file)) }
     : { id: 'visual', name: '실제 화면 검증', status: 'unavailable', summary: '브라우저 시각 검사 미연결 · HTML 기본 검사 통과는 디자인 검증 완료가 아님',
-      details: ['데스크톱·모바일 렌더링, 넘침·정렬·버튼 동작을 실제 확인해야 함. 팀이 작성한 체크리스트는 실행 증거가 아님.'], screenshots: [] });
+      details: ['데스크톱·모바일 렌더링, 넘침·정렬·버튼 동작을 실제 확인해야 함. 팀이 작성한 체크리스트는 실행 증거가 아님.'], screenshots: [] }); };
 
   // The design team sees how its pages look now before it changes them (the captures of the last version).
   if (step === 'design') {

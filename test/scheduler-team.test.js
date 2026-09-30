@@ -587,3 +587,21 @@ test('대장\'s controls (extra steps, stop, start) show in the project conversa
       ['user', '멈춤'], ['user', '다시 시작']]);
   } finally { store.close(); }
 });
+
+test('the same review blocking twice for the same problem goes back to planning, not to the same work team (seen in a real run)', async () => {
+  const blocked = n => ({ outcome: 'completed', review: { verdict: 'issues', blocking: true, needsDecision: null,
+    issues: [n === 1 ? 'test/browser.test.js: os.tmpdir()에 브라우저 프로필을 만들고 재귀 삭제합니다. 작업 폴더 안에서만 쓰도록 조정해야 합니다.'
+      : 'test/browser.test.js: 브라우저 프로필을 OS 임시 폴더에 생성하고 재귀 삭제함. 작업 폴더 안에서만 쓰고 지우도록 수정 필요.'] } });
+  let securityRuns = 0;
+  const { store, calls, scheduler, add } = setup(team => team === 'security' ? blocked(++securityRuns)
+    : team === 'plan' ? { outcome: 'completed', plan: { nextTask: '테스트 파일 고치기', team: 'dev', reviews: ['security'] } }
+    : { outcome: 'completed', evidence: [], diffHash: `d${Math.random()}` });
+  try {
+    const goal = add();
+    scheduler.update(goal, { team: { ...goal.team, step: 'design', worker: 'design', task: '화면 다듬기', reviews: ['security'] } });
+    await ticks(scheduler, 5);
+    assert.deepEqual(calls.slice(0, 5).map(c => c.team), ['design', 'security', 'design', 'security', 'plan'], 'after the second same block, planning');
+    assert.match(calls[4].feedback, /같은 문제로 두 번 연속 막았는데 디자인팀이 고치지 않았습니다/);
+    assert.equal(store.getGoal(goal.id).team.worker, 'dev', 'planning chose the team that should fix it');
+  } finally { store.close(); }
+});

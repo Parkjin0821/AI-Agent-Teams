@@ -144,7 +144,8 @@ function relatesTo(check, criterion) {
   }
   if (check.type === 'file_unchanged') return UNCHANGED_WORDS.test(c);
   if (check.type === 'file_exists') return words(String(check.path).replace(/\\/g, '/')).some(w => mentions(c, w));
-  if (check.type === 'screen_ok') return /화면|모바일|레이아웃|넘침|깨진|screen|layout/.test(c);
+  // (also "a check that opens the page in a real browser": the engine's own check is exactly that)
+  if (check.type === 'screen_ok') return /화면|모바일|레이아웃|넘침|깨진|브라우저|렌더링|헤드리스|screen|layout|browser|render|headless/.test(c);
   if (check.type === 'file_excludes') {
     return ABSENCE.test(c) && ((check.texts ?? []).some(t => words(t).some(w => mentions(c, w)) || c.includes(String(t).toLowerCase())) || namesFile(c, check.path));
   }

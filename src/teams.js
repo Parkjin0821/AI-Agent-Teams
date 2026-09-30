@@ -96,6 +96,11 @@ function currentWork({ team = {} }, empty) {
 
 const section = (title, lines) => [`[${title}]`, ...lines.map(l => (l.startsWith('-') ? l : `- ${l}`))].join('\n');
 
+// Seen in a real run: the design team took a security finding about a test file as outside its work and left it,
+// four rounds in a row; and a team wrote its own browser-launching test, which the security team kept stopping.
+const REVIEW_BLOCKERS = '최근 피드백에 보안·정책팀이 막은 문제가 있으면 내 작업 범위 밖 파일이어도 먼저 처리한다: 직접 고치거나(작업 폴더 안 파일), 못 고치면 이유와 맞는 팀을 note 와 requests 에 적는다. 막힌 문제를 그대로 두고 "내 작업은 끝났다"고 하지 않는다.';
+const BROWSER_BY_ENGINE = '브라우저로 페이지를 여는 검사는 엔진이 한다 (PC·모바일 캡처와 넘침·오류 검사, screen_ok). 브라우저를 직접 띄우는 테스트는 만들지 않는다. 테스트는 파일 내용·계산·데이터 비교처럼 node:test 로 끝나는 것만 만든다.';
+
 // What each team is responsible for and how it works. Kept as data so the dashboard can show it too.
 export const TEAM_BRIEFS = Object.freeze({
   plan: {
@@ -140,7 +145,8 @@ export const TEAM_BRIEFS = Object.freeze({
       '코드에는 자동 테스트를 함께 만든다 (package.json 의 "test" 스크립트, test/*.test.js, test_*.py 중 하나). 검증 단계에서 엔진이 네트워크 없는 샌드박스에서 돌리고, 실패하면 완료되지 않는다.',
       '외부 패키지 추가는 설치가 필요하므로 하지 않는다. 필요하면 needs_decision 으로 묻는다.',
       '이전 시도가 중단됐다는 기록이 있으면 기존 파일을 먼저 읽고 이어서 한다. 되돌려졌다고 가정하지 않는다.',
-      '끝내기 전에 만든 파일을 다시 열어 작업 지시·완료 조건과 대조한다. 빠진 경우(빈 값·잘못된 입력·긴 글·0건)와 어색한 곳을 한 번 더 다듬고 넘긴다. 작업 범위는 넓히지 않는다.'],
+      '끝내기 전에 만든 파일을 다시 열어 작업 지시·완료 조건과 대조한다. 빠진 경우(빈 값·잘못된 입력·긴 글·0건)와 어색한 곳을 한 번 더 다듬고 넘긴다. 작업 범위는 넓히지 않는다.',
+      REVIEW_BLOCKERS, BROWSER_BY_ENGINE],
     collaborate: ['디자인·조사가 더 필요하면 보고서의 requests 에 제안한다.'],
     boundary: ['명령을 실행할 수 없다. 있는 척하지 않는다.',
       '키·토큰·비밀번호를 파일에 쓰지 않고 환경변수에서 읽는다. .env 는 만들지 않는다 (.env.example 은 가능). 개인정보 예시는 가짜 값을 쓴다.'],
@@ -156,6 +162,7 @@ export const TEAM_BRIEFS = Object.freeze({
       '엔진이 이 단계 전에 지금 화면을 PC 1440px·모바일 390px 로 찍어 .hq-screens/ 에 둔다 (아래 엔진 결과에 파일 이름). 작업 전에 캡처를 Read 로 직접 열어 보고, 잘림·넘침·어색한 줄바꿈·위계·여백·정렬 문제부터 고친다. 캡처가 없으면(첫 화면이거나 검사 미실시) 시각 확인 미실시라고 보고한다. 체크리스트나 캡처 파일 존재만으로 검증 통과라 하지 않는다.',
       '끝내기 전에 바꾼 화면 코드를 다시 열어 brief 기준(글자 위계·간격·정렬·모바일 배치)과 대조하고 한 번 더 다듬는다. 이번에 바꾼 부분의 캡처는 다음 검증 단계에서 엔진이 새로 찍으니, 확인할 곳을 note 에 적는다.',
       '화면이 데이터나 다른 파일과 똑같아야 하는 조건(예: 표가 menu.json 과 같다)이 있으면 그 비교를 하는 자동 테스트(test/*.test.js, node:test, 외부 패키지 없이)를 함께 만든다. 검증 단계에서 엔진이 샌드박스에서 돌리고, 그 결과가 증거가 된다.',
+      REVIEW_BLOCKERS, BROWSER_BY_ENGINE,
       'HTML 페이지마다 <title>, <html lang>, 모바일 viewport, 이미지 alt 를 넣는다. 엔진이 확인한다.',
       '외부 스크립트는 넣지 않는다. 꼭 필요하면 note 에 이유를 적는다.'],
     collaborate: ['구현·연결은 개발팀에 requests 로 제안한다.'],

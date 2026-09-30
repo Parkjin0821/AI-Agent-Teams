@@ -83,3 +83,15 @@ test('real sandbox captures PC and phone widths and finds overflow', { skip: pro
   assert.ok(result.details.every(s => !s.includes('1440px') || !s.includes('가로 넘침')), 'no overflow at PC width');
   for (const s of result.screenshots) assert.ok(existsSync(path.join(cwd, s.path)), s.path);
 });
+
+test('the engine\'s own document previews are not screen-checked as the team\'s pages (seen in a real run)', async () => {
+  const { mkdirSync } = await import('node:fs');
+  const cwd = mkdtempSync(path.join(tmpdir(), 'hq-vis-engine-'));
+  mkdirSync(path.join(cwd, 'reports'));
+  writeFileSync(path.join(cwd, 'index.html'), '<html lang="ko"><title>t</title><body>x</body></html>');
+  writeFileSync(path.join(cwd, 'reports', '완료보고서-1.hwpx.html'), '<html><body>preview</body></html>');
+  let asked = null;
+  const sandbox = { available: true, run: async (c, command) => { asked = JSON.parse(command[3]); return { status: 'pass', output: 'AGENT_HQ_VISUAL ' + JSON.stringify(report()) }; } };
+  await runTeamTools('design', cwd, { visualChecker: new VisualChecker({ sandbox, browserPath: 'edge' }) });
+  assert.deepEqual(asked, ['index.html']);
+});

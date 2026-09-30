@@ -20,6 +20,17 @@ const NON_RETRYABLE = ['auth', 'limit', 'permission'];
 // Waits only 대장's own answer may end: "start"/"resume" never skip them.
 const HELD_FOR_DAEJANG = ['needs_decision', 'trust_review', 'approval_required', 'criteria_approval_required'];
 const iso = ms => new Date(ms).toISOString();
+// Two review findings are the same problem when they name the same file, or share most of their words (a reviewer
+// words the same finding a little differently each time).
+const problemWords = list => new Set((list ?? []).join(' ').toLowerCase().match(/[a-z0-9_./-]+\.[a-z0-9]{1,5}\b|[가-힣a-z0-9]{2,}/g) ?? []);
+export function sameProblem(a, b) {
+  const x = problemWords(a), y = problemWords(b);
+  if (!x.size || !y.size) return false;
+  const isFile = w => /[a-z0-9_-]\.[a-z0-9]{1,5}$/.test(w) && /[/_-]|\.(js|ts|py|html|css|json|md)$/.test(w);
+  if ([...x].some(w => isFile(w) && y.has(w))) return true;
+  const shared = [...x].filter(w => y.has(w)).length;
+  return shared / new Set([...x, ...y]).size >= 0.4;
+}
 const nextMidnight = ms => { const d = new Date(ms); d.setHours(24, 0, 0, 0); return d.getTime(); };
 const sameLocalDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
 // A Claude round never runs on an unnamed default: an older Claude Code maps its default to an older
@@ -576,8 +587,19 @@ export class GoalScheduler {
         team.reviewNotes = [];
         team.cycle = (team.cycle ?? 1) + 1;
         team.reviews = [...new Set(pendingReviews)];
+        // The same review stopping the work twice in a row for the same problem: the team it went back to did not fix
+        // it (seen in a real run: a test file the design team took as outside its work, 4 rounds). Planning then picks
+        // the team that should fix it.
+        const again = team.lastBlock?.step === step && sameProblem(team.lastBlock.issues, verdict.issues);
+        team.lastBlock = again ? null : { step, issues: verdict.issues.slice(0, 5) };
+        if (again) {
+          team.feedback = `[엔진] ${name}이 같은 문제로 두 번 연속 막았는데 ${TEAMS[team.worker]?.name ?? '작업팀'}이 고치지 않았습니다. `
+            + `이 문제를 고칠 팀을 다시 정하세요.\n${team.feedback}`;
+          return goTo('plan');
+        }
         return goTo(team.worker);
       }
+      team.lastBlock = null;
       team.reviewNotes = [...team.reviewNotes, ...verdict.issues.map(i => `[${name}] ${i}`)];
       return advance();
     }
