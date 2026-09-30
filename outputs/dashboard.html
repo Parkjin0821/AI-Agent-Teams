@@ -350,6 +350,24 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .msg.team .meta b,.msg.action[class*="team-"] .meta b{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;background:var(--team-tint,var(--subtle));color:var(--team-accent,var(--text));font-size:12px;font-weight:600;white-space:nowrap}
 .msg.team .meta b::before,.msg.action[class*="team-"] .meta b::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--team-accent,var(--text));flex:none}
 .msg.team .meta .when{color:var(--text-4)}
+/* 팀 구분: 팀 색 글자 타일 + 왼쪽 색 줄 + 팀 이름 색. 도구·모델은 이름 아래 한 줄로. 같은 팀이 이어지면 타일은 첫 줄에만. */
+.msg.team{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:12px;border-left:3px solid var(--team-accent,var(--line-strong));padding-left:13px}
+.msg.team>.mono-tile{grid-row:1 / span 20;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:13px;font-weight:700;line-height:1;padding-top:1px;
+  color:var(--team-accent,var(--text-2));background:color-mix(in srgb,var(--team-accent,#71717A) 12%,#fff);border:1px solid color-mix(in srgb,var(--team-accent,#71717A) 22%,#fff)}
+.msg.team>:not(.mono-tile){grid-column:2}
+.msg.team .meta b,.msg.team .meta b::before{background:none;padding:0}
+.msg.team .meta b{font-size:13.5px;font-weight:650;color:var(--team-accent,var(--text))}
+.msg.team .meta b::before{display:none}
+.msg.team .meta .sub{order:3;flex-basis:100%;color:var(--text-3);font-size:12px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msg.team .meta .when{order:2}
+.msg.team.cont{margin-top:-6px}
+.msg.team.cont>.mono-tile{visibility:hidden;height:0}
+.msg.action[class*="team-"]{border-left:3px solid var(--team-accent)}
+.msg.me.ctl{background:none;border:0;padding:0 2px;max-width:70%;color:var(--text-3);font-size:12px;display:flex;gap:6px;align-items:baseline;justify-content:flex-end}
+.msg.me.ctl .meta{margin:0;gap:6px}
+.msg.me.ctl .meta b{color:var(--text-3);font-weight:500}
+.msg.me.ctl .meta .when{margin-left:0}
+.msg.me.ctl .body{font-size:12px;color:var(--text-2)}
 .msg.team .body{font-size:13.5px;line-height:1.65}
 .msg.team .tchecks{padding-top:9px;margin-top:11px;border-top:1px solid var(--line)}
 .msg.team.err{border-color:#E8C8C4;background:#FFFBFA}
@@ -640,7 +658,8 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
         <div class="thread" role="log" aria-live="polite">
           <sc-for list="{{w.thread}}" as="x">
             <div class="{{x.cls}}">
-              <div class="meta"><b>{{x.who}}</b><span class="small muted">{{x.sub}}</span><span class="small muted when">{{x.when}}</span></div>
+              <sc-if value="{{x.hasMono}}"><span class="mono-tile" aria-hidden="true">{{x.mono}}</span></sc-if>
+              <div class="meta"><b>{{x.who}}</b><span class="small muted sub" title="{{x.sub}}">{{x.sub}}</span><span class="small muted when">{{x.when}}</span></div>
               <div class="body">{{x.text}}</div>
               <sc-if value="{{x.hasAtt}}"><div class="att-list"><sc-for list="{{x.atts}}" as="a"><sc-if value="{{a.isImage}}"><button class="att-img" onClick="{{a.open}}" title="{{a.name}} · 새 창에서 크게 보기"><img src="{{a.src}}" alt="{{a.name}}" loading="lazy"></button></sc-if><sc-if value="{{a.isText}}"><button class="att" onClick="{{a.open}}" title="새 창에서 보기"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></button></sc-if><sc-if value="{{a.isPdf}}"><span class="att"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></span></sc-if><sc-if value="{{a.hasConv}}"><button class="att" onClick="{{a.openConv}}" title="엔진이 바꾼 Markdown · 팀은 이것을 읽습니다"><span class="small">변환본 보기</span></button></sc-if></sc-for></div></sc-if>
               <sc-if value="{{x.hasTools}}"><div class="tchecks"><sc-for list="{{x.tools}}" as="k"><div class="tcheck"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><span class="small"><b>{{k.name}}</b> · {{k.summary}}</span><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
@@ -1529,8 +1548,8 @@ class Component extends DCLogic {
     const allRuns = [].concat.apply([], P.map((p) => p.runs.map((r) => Object.assign({}, r, { project: p }))));
     const autoOn = !(s.eng && s.eng.limits && s.eng.limits.autoLevels === false);
     const control = { stL: autoOn ? '켜짐' : '꺼짐', pillCls: pillCls(autoOn ? 'done' : 'idle'), rows: [
-      { l: '가벼움', d: 'Claude Sonnet 5.5 · 낮음 / Codex GPT-6-Luna · 중간 — 간단하고 위험이 낮은 작업' },
-      { l: '보통', d: 'Claude Sonnet 5.5 · 중간 / Codex GPT-6-Luna · 높음 — 보통 작업. 기획·보안·정책·검증팀은 이보다 낮게 가지 않음' },
+      { l: '가벼움', d: 'Claude Sonnet 5.5 · 높음 / Codex GPT-6-Luna · 중간 — 간단하고 위험이 낮은 작업' },
+      { l: '보통', d: 'Claude Sonnet 5.5 · 매우 높음 / Codex GPT-6-Luna · 높음 — 보통 작업. 기획·보안·정책·검증팀은 이보다 낮게 가지 않음' },
       { l: '깊게', d: 'Claude Opus 5.5 · 높음 / Codex GPT-6-Sol · 낮음 — 복잡한 작업, 위험도가 높은 작업' },
       { l: '최고', d: 'Claude Fable 5.1 · 높음 / Codex GPT-6-Sol · 중간 — 복잡한 작업이 진전 없이 2번 이상 막힐 때만' },
       { l: '올림 규칙', d: '진전 없음·테스트 실패가 2번 이어지면 한 단계 올립니다. 쓴 단계와 이유는 활동 기록에 남습니다.' },
@@ -1701,7 +1720,7 @@ class Component extends DCLogic {
       const items = [];
       wp.goals.forEach((goal) => {
         const msgs = goal.messages && goal.messages.length ? goal.messages : [{ role: 'user', text: goal.objective, at: goal.createdAt }];
-        msgs.forEach((mm) => items.push({ at: mm.at, cls: mm.role === 'user' ? 'msg me' : 'msg team' + teamTone(askedBy(mm.text)),
+        msgs.forEach((mm) => items.push({ at: mm.at, cls: mm.role === 'user' ? 'msg me' + (mm.kind === 'control' ? ' ctl' : '') : 'msg team' + teamTone(askedBy(mm.text)),
           who: mm.role === 'user' ? '대장' : askedBy(mm.text), sub: ({ answer: '답변', approval: '승인', question: '질문', control: '조작', review: '결과 확인' })[mm.kind] || '',
           text: mm.role === 'user' ? (mm.text || (mm.attachments && mm.attachments.length ? '첨부 ' + mm.attachments.length + '개' : '')) : stripAsker(mm.text),
           hasAtt: !!(mm.attachments && mm.attachments.length), atts: (mm.attachments || []).map((a) => attView(wp.id, a)) }));
@@ -1720,7 +1739,13 @@ class Component extends DCLogic {
       ((sen && sen.entries) || []).filter((e) => e.decision === 'deny').forEach((e) => items.push({ at: e.at, cls: 'msg sys stop', who: '감시 에이전트',
         sub: TEAM_NAME[e.team] || '', text: '막음 · ' + e.reason + (e.target ? ' · ' + e.target : '') }));
       items.sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
-      w.thread = items.map((x) => Object.assign({ hasTools: false, tools: [], hasAnswer: false, answer: '', hasAtt: false, atts: [] }, x, { when: fmt(x.at) }));
+      // 같은 팀 메시지가 이어지면 한 묶음으로 (타일은 첫 메시지에만).
+      w.thread = items.map((x, i) => {
+        const team = /msg team/.test(x.cls), prev = items[i - 1];
+        const cont = team && prev && /msg team/.test(prev.cls) && prev.who === x.who;
+        return Object.assign({ hasTools: false, tools: [], hasAnswer: false, answer: '', hasAtt: false, atts: [] }, x,
+          { when: fmt(x.at), hasMono: team, mono: team ? String(x.who || '·').charAt(0) : '', cls: x.cls + (cont ? ' cont' : '') });
+      });
       w.working = g.status === 'running';
       w.workingL = (TEAM_NAME[team.step] || '팀') + ' 작업 중…';
       w.questionCls = 'msg action attn' + teamTone(askedBy(g.question));
