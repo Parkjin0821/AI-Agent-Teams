@@ -355,15 +355,8 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .digest-settings .field{margin-top:16px}
 .digest-settings .field label{margin-bottom:8px}
 .digest-settings>.btn{margin-top:16px}
-.program-toggle{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--text-2);font-size:12.5px;font-weight:500;cursor:pointer;list-style:none}
-.program-toggle::-webkit-details-marker{display:none}
-.program-toggle::before{display:none}
-.program-toggle::after{content:'⌄';font-size:14px;line-height:1}
-details[open]>.program-toggle::after{content:'⌃'}
-.program-toggle:hover{background:var(--subtle);color:var(--text)}
-.program-toggle:focus-visible{outline:2px solid var(--text);outline-offset:3px}
 .team-recent{margin-top:16px}
-.team-recent[open]>.program-toggle{margin-bottom:10px}
+.team-recent[open]>summary{margin-bottom:10px}
 .skill-description{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin:8px 0;color:var(--text-2);font-size:13px;line-height:1.55}
 .skill-details{margin-top:14px}
 .skill-details>summary{font-size:12px}
@@ -960,7 +953,7 @@ details[open]>.program-toggle::after{content:'⌃'}
         <div class="row-f" style="justify-content: space-between"><div class="row-f"><h2>{{t.name}}</h2><span class="kind">{{t.kind}}</span></div><span class="{{t.pillCls}}"><i></i>{{t.stL}}</span></div>
         <p class="hint" style="margin: 4px 0 14px">{{t.role}}</p>
         <dl class="facts"><dt>AI</dt><dd>{{t.ai}}</dd><dt>할 수 있는 일</dt><dd>{{t.access}}</dd><dt>최근 실제 실행</dt><dd>{{t.model}}</dd><dt>오늘</dt><dd class="num">{{t.today}}회</dd><dt>지금</dt><dd>{{t.now}}</dd></dl>
-        <details style="margin-top: 16px"><summary class="program-toggle">{{t.progsL}}</summary>
+        <details style="margin-top: 16px"><summary>{{t.progsL}}</summary>
         <div class="progs" style="margin-top: 8px"><sc-for list="{{t.tools}}" as="p"><div class="prog">
           <div style="min-width: 0"><div class="row-f"><b class="small">{{p.name}}</b><span class="kind">{{p.howL}}</span></div>
             <div class="small muted">{{p.what}}</div>
@@ -969,7 +962,7 @@ details[open]>.program-toggle::after{content:'⌃'}
           <sc-if value="{{t.noTools}}"><div class="small muted">프로그램 상태를 불러오는 중입니다.</div></sc-if></div></details>
         <sc-if value="{{t.hasRecent}}">
           <details class="team-recent">
-            <summary class="program-toggle">최근 작업 {{t.recentCount}}건</summary>
+            <summary>최근 작업 {{t.recentCount}}건</summary>
             <div class="crit"><sc-for list="{{t.recent}}" as="r"><div class="cr" style="grid-template-columns: 84px minmax(0,1fr) auto"><span class="small muted num">{{r.when}}</span><span class="small">{{r.project}} · {{r.res}}</span><span></span></div></sc-for></div>
           </details>
         </sc-if>
@@ -1565,7 +1558,6 @@ class Component extends DCLogic {
         goActivity: () => this.setState({ ptab: 'activity' }), goVerify: () => this.setState({ ptab: 'verify' }),
         noRuns: wp.runs.length === 0,
         proven: wp.proven, total: wp.total, pct: wp.total ? Math.round(wp.proven / wp.total * 100) : 0,
-          else if (claim && claim.check === 'partial') e = '엔진이 일부만 확인 · ' + claim.detail;
         crit: g.completionCriteria.map((c) => {
           const ev = (g.evidence || []).find((e) => e.criterion === c);
           const claim = lastRun && (lastRun.claims || []).find((x) => x.criterion === c);
@@ -1573,6 +1565,7 @@ class Component extends DCLogic {
           if (ev) e = ev.proof;
           else if (claim && claim.check === 'fail') e = '확인 실패 · ' + claim.detail;
           else if (claim && claim.check === 'invalid') e = '확인 방법이 잘못됨 · ' + claim.detail;
+          else if (claim && claim.check === 'partial') e = '엔진이 일부만 확인 · ' + claim.detail;
           else if (claim && claim.check === 'unrelated') e = '조건과 관련 없는 검사 · ' + claim.detail + (claim.note ? ' · AI 보고: ' + clip(claim.note, 160) : '');
           else if (claim) e = (claim.claimed ? 'AI 보고: 완료 · 엔진이 확인할 방법 없음' : 'AI 보고: 미완료') + (claim.note ? ' · ' + clip(claim.note, 200) : '');
           return { t: c, ok: !!ev, ckCls: 'ck' + (ev ? ' ok' : (claim && claim.check === 'fail' ? ' no' : '')), e: e, eCls: 'e' + (ev ? ' ok' : ''),
