@@ -1,4 +1,4 @@
-import { listWorkspaceFiles, parseReport, reportInstructions, verifyReport, workspaceFingerprint } from './evidence.js';
+import { boundaryCheck, listWorkspaceFiles, parseReport, reportInstructions, verifyReport, workspaceFingerprint } from './evidence.js';
 import { parsePlan, parseReview, qaFindings, REVIEWS, TEAMS, teamPrompt } from './teams.js';
 import { runTeamTools, toolReport } from './toolkit.js';
 import { normalizeRequests, requiredReviews } from './team-governance.js';
@@ -35,7 +35,10 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
         return { fingerprint: workspaceFingerprint(cwd), files, signatures };
       };
       const before = snapshot();
-      if (runRecord) store.saveRun({ ...runRecord, checkpoint: { before, state: 'started' } });
+      // The write limits this step runs under, recorded before it starts (stayed_inside reads them back).
+      const guard = PROVIDER[run.executor] === 'codex' ? { by: (run.access ?? 'write') === 'read' ? 'codex-read-only' : 'codex-workspace-write' }
+        : { by: sentinel ? 'sentinel' : 'none' };
+      if (runRecord) store.saveRun({ ...runRecord, checkpoint: { before, state: 'started', guard } });
       const team = goal.kind === 'team' ? run.team : null;
       const extra = team ? toolsFor(team) : {};
       const tools = { web: Boolean(team && TEAMS[team]?.web), connectors: extra.connectors ?? [], knownConnectors: extra.knownConnectors ?? [] };
@@ -89,7 +92,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       }
       if (runRecord) {
         const after = snapshot();
-        store.saveRun({ ...store.listRuns(goal.id).find(r => r.id === runRecord.id), checkpoint: { before, after,
+        store.saveRun({ ...store.listRuns(goal.id).find(r => r.id === runRecord.id), checkpoint: { before, after, guard,
           state: result.outcome, added: after.files.filter(f => !before.files.includes(f)), removed: before.files.filter(f => !after.files.includes(f)),
           modified: after.files.filter(f => before.signatures[f] && before.signatures[f] !== after.signatures[f]),
           workspaceChanged: before.fingerprint !== after.fingerprint, truncated: before.files.length >= 2000 || after.files.length >= 2000 } });
@@ -131,7 +134,8 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       // A team may suggest something to remember; it waits for 대장 in the approval inbox.
       memory?.propose(report?.remember, { team, project: goal.projectId });
       const test = engineTools.find(t => t.test)?.test ?? null;
-      const { evidence, claims } = verifyReport(report, goal.completionCriteria, cwd, { verifying: team === 'qa', test, originals: attachmentOriginals(goal, records) });
+      const { evidence, claims } = verifyReport(report, goal.completionCriteria, cwd, { verifying: team === 'qa', test, originals: attachmentOriginals(goal, records),
+        boundary: () => boundaryCheck({ runs: store.listRuns?.(goal.id) ?? [], sentinelLog: sentinel?.log ?? null, project: goal.projectId, cwd }) });
       return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd),
         requests: normalizeRequests(report?.requests, team), requiredReviews: requiredReviews(team),
         ...(team === 'qa' ? { findings: { ...qaFindings(report), blocking } } : {}) };

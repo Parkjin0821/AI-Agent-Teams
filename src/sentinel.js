@@ -15,9 +15,9 @@ const SECRET = [
   /\bAIza[0-9A-Za-z_-]{35}\b/,
 ];
 export const hasSecret = text => typeof text === 'string' && SECRET.some(re => re.test(text));
-const FORBIDDEN_NAMES = /^(\.claude|\.codex|\.mcp\.json|CLAUDE(\.local)?\.md|AGENTS(\.override)?\.md|\.env(\..+)?|\.git)$/i;
+export const FORBIDDEN_NAMES = /^(\.claude|\.codex|\.mcp\.json|CLAUDE(\.local)?\.md|AGENTS(\.override)?\.md|\.env(\..+)?|\.git)$/i;
 const RISKY_CONNECTOR = /(delete|remove|trash|share|publish|send|invite|transfer|purchase|payment|pay_|checkout|upload_to|post_)/i;
-const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
+export const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
 
 function privateHost(host) {
   const h = host.replace(/^\[|\]$/g, '').toLowerCase();

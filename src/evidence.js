@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { FORBIDDEN_NAMES, WRITE_TOOLS, hasSecret } from './sentinel.js';
 
 // The tool may claim a criterion is done, but only a check this engine runs itself counts as evidence.
 // Allowed checks are deliberately tiny and read-only, and confined to the project workspace.
@@ -22,7 +23,12 @@ export function reportInstructions(criteria) {
     '   npm test if package.json has a test script, otherwise node --test, otherwise python -m unittest)',
     '  {"type":"file_unchanged","paths":["attachments/…"]}  (files 대장 attached are unchanged: the engine compares each',
     '   file with the fingerprint it recorded when the file was attached)',
+    '  {"type":"stayed_inside"}  (the engine checks its own records: every step of this project ran under its write',
+    '   limits, and the folder has no forbidden settings file (.claude, .codex, .mcp.json, CLAUDE.md, AGENTS.md, .env, .git),',
+    '   no link and no secret-looking text; it proves only that part of a criterion, not what was read or guessed)',
     'Do not claim done without doing the work. Put anything a person must judge in "note".',
+    'Add "person": true to a criterion (or the part of it) that no file and no engine check can prove, so only 대장 can',
+    'judge it. Never use it for work that is still missing.',
     'You may add "requests":[{"team":"dev|design|research","task":"specific follow-up within this project","criteria":["verifiable criterion"],"risk":"low|normal|high","complexity":"simple|normal|complex","effects":[]}] to propose collaboration. Requests are proposals, not permissions. Never expand the user scope.',
     'You may add "remember":[{"scope":"all"|"<team id>","text":"..."}] (at most 3) for lasting preferences or rules 대장 stated; they apply only after 대장 approves them.',
     'A check must prove the criterion itself (the requested file or content). A status note you wrote that says',
@@ -60,9 +66,15 @@ export function verifyReport(report, criteria, cwd, ctx = {}) {
     if (result.status === 'pass' && item?.done === true && !relatesTo(item.check, criterion)) {
       result = { status: 'unrelated', reason: `${result.proof.replace(/^엔진 확인 · /, '')} — 이 조건과 관련 없는 검사라 근거로 치지 않음` };
     }
+    // stayed_inside proves only the work-folder part of a criterion; the rest (e.g. "nothing guessed") stays with 대장.
+    if (result.status === 'pass' && item?.done === true && item.check.type === 'stayed_inside') {
+      const rest = beyondBoundary(criterion);
+      if (rest.length) result = { status: 'partial', reason: `${result.proof.replace(/^엔진 확인 · /, '')} — 엔진은 이 부분만 확인함 · “${rest.join(' ')}” 부분은 대장 판단` };
+    }
     // A check only counts for a criterion the tool itself reports as done.
     if (result.status === 'pass' && item?.done === true) evidence.push({ criterion, proof: result.proof });
-    claims.push({ criterion, claimed: item?.done === true, check: result.status, note, detail: result.proof ?? result.reason ?? '' });
+    claims.push({ criterion, claimed: item?.done === true, check: result.status, note, detail: result.proof ?? result.reason ?? '',
+      ...(item?.person === true && result.status !== 'pass' ? { person: true } : {}) });
   });
   return { evidence, claims };
 }
@@ -77,13 +89,22 @@ const UNCHANGED_WORDS = /원본|첨부|바뀌|바꾸|변경|수정하지|그대�
 function relatesTo(check, criterion) {
   const c = String(criterion).toLowerCase();
   if (check.type === 'tests_pass') return true;
+  if (check.type === 'stayed_inside') return BOUNDARY_TOPIC.test(c);
   if (check.type === 'file_unchanged') return UNCHANGED_WORDS.test(c);
   if (check.type === 'file_exists') return words(String(check.path).replace(/\\/g, '/')).some(w => mentions(c, w));
   if (check.type === 'file_contains') return words(check.text).some(w => mentions(c, w));
   return false;
 }
 
+const BOUNDARY_TOPIC = /폴더\s*밖|바깥|금지된?\s*설정|설정\s*파일|비밀\s*정보|outside|secret/;
+// Words of a criterion that stayed_inside does not speak to (reading, guessing, accuracy, …).
+const BOUNDARY_STEMS = ['작업', '폴더', '밖', '바깥', '파일', '비밀', '정보', '기록', '금지', '설정', '생성', '건드', '수정', '쓰', '만들', '없', '않', '바꾸', '변경'];
+const GLUE = new Set(['및', '또는', '그리고', '전혀', '하나도', '모두', '어떤', '아무']);
+const beyondBoundary = criterion => (String(criterion).match(/[가-힣]+|[a-zA-Z0-9]+/g) ?? [])
+  .filter(w => !GLUE.has(w) && !BOUNDARY_STEMS.some(stem => w.startsWith(stem)) && !/^(outside|secrets?|files?|no|none)$/i.test(w));
+
 function runCheck(check, cwd, ctx = {}) {
+  if (check?.type === 'stayed_inside') return ctx.boundary ? ctx.boundary() : { status: 'invalid', reason: '엔진 기록을 볼 수 없음' };
   if (check?.type === 'tests_pass') {
     if (!ctx.test) return ctx.verifying ? { status: 'fail', reason: '실행된 테스트 없음 (테스트 파일이 없거나 샌드박스를 쓸 수 없음)' }
       : { status: 'later', reason: '테스트는 검증 단계에서 엔진이 실행' };
@@ -180,4 +201,48 @@ export function workspaceFingerprint(cwd, { maxFiles = 2000 } = {}) {
     hash.update(size <= MAX_READ ? createHash('sha256').update(readFileSync(file)).digest('hex') : String(statSync(file).mtimeMs));
   }
   return hash.digest('hex');
+}
+
+// stayed_inside, from the engine's own records only (never the tool's word):
+// - every step of the goal ran under a write guard the engine set: Claude with the Sentinel hook and file tools only
+//   (no shell), Codex in its own sandbox (read-only or workspace-write);
+// - the Sentinel log for these steps: writes it allowed (all inside the folder) and attempts it blocked;
+// - the folder now holds no forbidden settings file, no link, and no secret-looking text.
+// runs: this goal's run records (checkpoint.guard is saved when a step starts).
+export function boundaryCheck({ runs = [], sentinelLog = null, project = null, cwd }) {
+  const steps = runs.filter(r => r.checkpoint && !r.simulated);
+  if (!steps.length) return { status: 'invalid', reason: '확인할 실행 기록이 없음' };
+  const unguarded = steps.filter(r => !r.checkpoint.guard);
+  if (unguarded.length) return { status: 'invalid', reason: `${unguarded.map(r => r.round).join(', ')}번째 단계는 쓰기 제한 기록이 없음 (이 확인 방식이 생기기 전 실행)` };
+  const open = steps.filter(r => r.checkpoint.guard.by === 'none');
+  if (open.length) return { status: 'fail', reason: `${open.map(r => r.round).join(', ')}번째 단계는 감시 에이전트 없이 실행됨` };
+  const since = steps.map(r => r.startedAt).filter(Boolean).sort()[0] ?? '';
+  let log = [];
+  if (steps.some(r => r.checkpoint.guard.by === 'sentinel')) {
+    try { log = readFileSync(sentinelLog, 'utf8').split('\n').flatMap(l => { try { return [JSON.parse(l)]; } catch { return []; } }); }
+    catch { return { status: 'invalid', reason: '감시 에이전트 기록을 읽을 수 없음' }; }
+    log = log.filter(e => e.project === project && e.at >= since && WRITE_TOOLS.includes(e.tool));
+  }
+  const written = log.filter(e => e.decision === 'allow').length, blocked = log.filter(e => e.decision !== 'allow').length;
+  const found = { forbidden: [], links: [], secrets: [] };
+  const walk = dir => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name), rel = path.relative(cwd, full).replace(/\\/g, '/');
+      if (FORBIDDEN_NAMES.test(entry.name)) { found.forbidden.push(rel); continue; }
+      if (entry.isSymbolicLink()) { found.links.push(rel); continue; }
+      if (entry.name === 'node_modules') continue;
+      if (entry.isDirectory()) walk(full);
+      else if (entry.isFile() && statSync(full).size <= MAX_READ && hasSecret(readFileSync(full, 'utf8'))) found.secrets.push(rel);
+    }
+  };
+  walk(cwd);
+  if (found.forbidden.length) return { status: 'fail', reason: `금지된 설정 파일이 있음 · ${found.forbidden.slice(0, 5).join(', ')}` };
+  if (found.links.length) return { status: 'fail', reason: `작업 폴더 안에 바로가기(링크)가 있음 · ${found.links.slice(0, 5).join(', ')}` };
+  if (found.secrets.length) return { status: 'fail', reason: `비밀정보 형식이 있는 파일 · ${found.secrets.slice(0, 5).join(', ')}` };
+  const by = kind => steps.filter(r => r.checkpoint.guard.by === kind).length;
+  const parts = [];
+  if (by('sentinel')) parts.push(`Claude ${by('sentinel')}단계: 파일 도구만 쓰고 셸 없음, 감시 에이전트가 쓰기 ${written}번 모두 작업 폴더 안으로 확인${blocked ? ` · 막은 쓰기 ${blocked}번` : ''}`);
+  const codex = by('codex-read-only') + by('codex-workspace-write');
+  if (codex) parts.push(`Codex ${codex}단계: Codex 자체 샌드박스 (읽기 전용 ${by('codex-read-only')} · 작업 폴더·임시 폴더 쓰기 ${by('codex-workspace-write')})`);
+  return { status: 'pass', proof: `엔진 확인 · ${steps.length}단계 모두 엔진이 정한 쓰기 제한 아래 실행됨 (${parts.join(' / ')}) · 금지된 설정 파일·링크·비밀정보 형식 없음 · 읽기는 확인 범위 밖` };
 }

@@ -136,3 +136,37 @@ test('a passing check about something else is not proof for the criterion (real 
     [C[2]], cwd, { originals: {} });
   assert.equal(U.evidence.length, 0);
 });
+
+test('stayed_inside is proven from the engine records: write guards, the Sentinel log, and the folder itself', async () => {
+  const { boundaryCheck } = await import('../src/evidence.js');
+  const cwd = ws(), log = path.join(ws(), 'sentinel.jsonl');
+  writeFileSync(path.join(cwd, 'divide.js'), 'module.exports = {}');
+  writeFileSync(log, [
+    { at: '2026-09-30T01:00:05Z', project: 'p1', tool: 'Write', target: 'divide.js', decision: 'allow' },
+    { at: '2026-09-30T01:00:06Z', project: 'p1', tool: 'Write', target: 'x', decision: 'deny', reason: '작업 폴더 밖에 쓰려 함' },
+    { at: '2026-09-30T01:00:07Z', project: 'other', tool: 'Write', target: 'y', decision: 'allow' },
+  ].map(e => JSON.stringify(e)).join('\n'));
+  const runs = [
+    { round: 1, startedAt: '2026-09-30T01:00:00Z', checkpoint: { guard: { by: 'sentinel' } } },
+    { round: 2, startedAt: '2026-09-30T01:01:00Z', checkpoint: { guard: { by: 'codex-read-only' } } },
+    { round: 3, startedAt: '2026-09-30T01:02:00Z', simulated: true, checkpoint: {} },
+  ];
+  const ok = boundaryCheck({ runs, sentinelLog: log, project: 'p1', cwd });
+  assert.equal(ok.status, 'pass');
+  assert.match(ok.proof, /쓰기 1번 모두 작업 폴더 안.*막은 쓰기 1번.*읽기 전용 1/);
+  assert.equal(boundaryCheck({ runs: [...runs, { round: 4, checkpoint: {} }], sentinelLog: log, project: 'p1', cwd }).status, 'invalid', 'a step without a recorded guard cannot be vouched for');
+  assert.equal(boundaryCheck({ runs: [{ round: 1, checkpoint: { guard: { by: 'none' } } }], cwd }).status, 'fail');
+  mkdirSync(path.join(cwd, '.claude'));
+  assert.match(boundaryCheck({ runs, sentinelLog: log, project: 'p1', cwd }).reason, /금지된 설정 파일.*\.claude/);
+
+  // In a report: full proof only when the criterion is just about the work folder; otherwise only that part.
+  const clean = ws();
+  const C = ['작업 폴더 밖의 파일을 건드리지 않았다', '설명에 추측이 없고, 작업 폴더 밖의 파일을 건드리지 않았다', 'README에 소개가 있다'];
+  const boundary = () => boundaryCheck({ runs: runs.slice(0, 2), sentinelLog: log, project: 'p1', cwd: clean });
+  const { evidence, claims } = verifyReport({ criteria: C.map((_, i) => ({ index: i + 1, done: true, check: { type: 'stayed_inside' }, person: i === 1 })) }, C, clean, { boundary });
+  assert.deepEqual(evidence.map(e => e.criterion), [C[0]]);
+  assert.deepEqual(claims.map(c => c.check), ['pass', 'partial', 'unrelated']);
+  assert.match(claims[1].detail, /“설명에 추측이” 부분은 대장 판단/);
+  assert.equal(claims[1].person, true);
+  assert.equal(verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'stayed_inside' } }] }, [C[0]], clean).claims[0].check, 'invalid');
+});

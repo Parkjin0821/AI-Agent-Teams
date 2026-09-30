@@ -395,3 +395,38 @@ test('reviews keep the proven evidence, and an unprovable criterion stops for �
     assert.match(g.question, /두 번 연속 그대로.*\n- 합계 테스트 통과/s);
   } finally { store.close(); }
 });
+test('when only criteria 대장 alone can judge are left, the first verification asks 대장 (no extra round)', async () => {
+  // seen in a real run: a whole plan → review → verify round was spent before the stall rule asked
+  let plans = 0;
+  const { store, scheduler, add, calls } = setup(team => {
+    if (team === 'plan') return plans++ === 0 ? { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } }
+      : { outcome: 'completed', plan: { allDone: true } };
+    if (team === 'dev') return { outcome: 'completed', diffHash: 'd1', evidence: ev(0) };
+    if (team === 'qa') return { outcome: 'completed', evidence: ev(0), findings: { feedback: '', improvements: [] },
+      claims: [{ criterion: C[0], check: 'pass' }, { criterion: C[1], check: 'none', person: true }] };
+    return { outcome: 'completed', review: { blocking: false, issues: [] } };
+  });
+  try {
+    const goal = add();
+    for (let i = 0; i < 12 && store.getGoal(goal.id).status !== 'review_required'; i++) await scheduler.runGoal(goal.id);
+    assert.deepEqual(calls.map(c => c.team), ['plan', 'dev', 'qa']);
+    const g = store.getGoal(goal.id);
+    assert.deepEqual([g.status, g.reason], ['review_required', 'needs_decision']);
+    assert.match(g.question, /대장 판단이 필요합니다:\n- 합계 테스트 통과/);
+  } finally { store.close(); }
+});
+test('a criterion the verifier did not mark as 대장-only keeps the normal rotation', async () => {
+  const { store, scheduler, add, calls } = setup(team => {
+    if (team === 'plan') return { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } };
+    if (team === 'dev') return { outcome: 'completed', diffHash: String(Math.random()), evidence: ev(0) };
+    if (team === 'qa') return { outcome: 'completed', evidence: ev(0), findings: { feedback: '2번 미완료', improvements: [] },
+      claims: [{ criterion: C[0], check: 'pass' }, { criterion: C[1], check: 'none' }] };
+    return { outcome: 'completed', review: { blocking: false, issues: [] } };
+  });
+  try {
+    const goal = add();
+    for (let i = 0; i < 4; i++) await scheduler.runGoal(goal.id);
+    assert.deepEqual(calls.map(c => c.team), ['plan', 'dev', 'qa', 'plan']);
+    assert.notEqual(store.getGoal(goal.id).status, 'review_required');
+  } finally { store.close(); }
+});

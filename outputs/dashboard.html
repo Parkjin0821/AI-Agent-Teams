@@ -1565,6 +1565,7 @@ class Component extends DCLogic {
         goActivity: () => this.setState({ ptab: 'activity' }), goVerify: () => this.setState({ ptab: 'verify' }),
         noRuns: wp.runs.length === 0,
         proven: wp.proven, total: wp.total, pct: wp.total ? Math.round(wp.proven / wp.total * 100) : 0,
+          else if (claim && claim.check === 'partial') e = '엔진이 일부만 확인 · ' + claim.detail;
         crit: g.completionCriteria.map((c) => {
           const ev = (g.evidence || []).find((e) => e.criterion === c);
           const claim = lastRun && (lastRun.claims || []).find((x) => x.criterion === c);

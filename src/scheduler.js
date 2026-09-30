@@ -556,6 +556,15 @@ export class GoalScheduler {
       && team.lastUnproven.length === unproven.length && unproven.every(c => team.lastUnproven.includes(c));
     team.lastUnproven = unproven;
     team.workSinceQa = false;
+    // Only criteria that no file or engine check can prove are left (the verifier said so, or the engine proved just the
+    // work-folder part): another round cannot prove them either, so 대장 is asked right after this first verification.
+    const claimFor = c => (result.claims ?? []).find(k => k.criterion === c);
+    const personOnly = !gate.length && unproven.length > 0 && unproven.every(c => claimFor(c)?.person === true || claimFor(c)?.check === 'partial');
+    if (personOnly) {
+      return review('needs_decision', { question: `[검증팀] 남은 조건은 파일이나 엔진 검사로 증명할 수 없어 대장 판단이 필요합니다:\n`
+        + unproven.map(c => `- ${c}${claimFor(c)?.check === 'partial' ? ` (${claimFor(c).detail})` : ''}`).join('\n')
+        + '\n검증 탭에서 직접 확인하거나, 조건을 고치거나, 확인할 방법을 알려 주세요.' });
+    }
     if (stalled) {
       return review('needs_decision', { question: `[검증팀] 엔진이 확인하지 못한 완료 조건이 두 번 연속 그대로입니다 (그 사이 작업 없음):\n- ${unproven.join('\n- ')}\n`
         + '검증 탭에서 대장이 직접 확인하거나, 조건을 고치거나, 확인할 방법을 알려 주세요.' });
