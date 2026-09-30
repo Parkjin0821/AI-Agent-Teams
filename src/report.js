@@ -33,7 +33,8 @@ export function buildReport({ goal, runs = [], files = [], now = new Date().toIS
   lines.push(`> ${objective}${/[.…!?]$/.test(objective) ? '' : '.'} 완료 조건 ${criteria.length}개를 모두 확인했다 (엔진 확인 ${criteria.length - byHuman.length}개, 대장 확인 ${byHuman.length}개).`, '');
 
   lines.push('## 완료 조건과 근거', '');
-  for (const c of criteria) lines.push(`- ${clip(c, 120)}: ${clip(proofOf(c).replace(/^엔진 확인 · /, '엔진 확인, '), 220)}`);
+  // A criterion that ends in a full stop would read "…이다.: 엔진 확인" (seen in a real report).
+  for (const c of criteria) lines.push(`- ${clip(c, 120).replace(/[.。]$/, '')}: ${clip(proofOf(c).replace(/^엔진 확인 · /, '엔진 확인, '), 220)}`);
   lines.push('');
 
   lines.push('## 진행 요약', '');

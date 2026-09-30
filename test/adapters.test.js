@@ -222,5 +222,9 @@ test('실시간 진행: Codex commands as seen in a real Windows run read as pla
   assert.equal(activityFrom(ps("New-Item -ItemType Directory -Force -Path notes | Out-Null; [System.IO.File]::WriteAllText((Join-Path (Get-Location) 'notes/hello.md'), 'x')")), '파일 쓰는 중 · notes/hello.md');
   assert.equal(activityFrom(ps('cmd /c type docs\\plan.md')), '파일 읽는 중 · docs/plan.md');
   assert.equal(activityFrom(ps('npm test')), '명령 실행 중 · npm test');
+  // a Claude file in the work folder is named by its path there, not by the project folder
+  const read = { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read', input: { file_path: 'C:\\hq\\projects\\p-abc\\index.html' } }] } };
+  assert.equal(activityFrom(read, 'C:\\hq\\projects\\p-abc'), '파일 읽는 중 · index.html');
+  assert.equal(activityFrom(read), '파일 읽는 중 · p-abc/index.html');
   assert.equal(activityFrom({ type: 'item.completed', item: { type: 'agent_message', text: 'notes/hello.md를 작성하겠습니다.\n둘째 줄' } }), 'notes/hello.md를 작성하겠습니다.');
 });

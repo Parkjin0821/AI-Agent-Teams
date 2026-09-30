@@ -76,6 +76,11 @@ function modelFrom(event) {
 // Only names, file names, hosts and short queries are shown; secret-looking text is never shown.
 const shortPath = p => String(p ?? '').replace(/\\/g, '/').split('/').filter(Boolean).slice(-2).join('/');
 const cut = (s, n) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n)}…` : t; };
+// A file inside the work folder is shown by its path there (a real run showed "p-abc/index.html" for a root file).
+const inWork = (p, cwd) => {
+  const file = String(p ?? '').replace(/\\/g, '/'), root = cwd ? String(cwd).replace(/\\/g, '/').replace(/\/+$/, '') : '';
+  return root && file.toLowerCase().startsWith(`${root.toLowerCase()}/`) ? cut(file.slice(root.length + 1), 60) : shortPath(file);
+};
 // Seen in a real run (codex-cli 0.158, Windows): every command arrives wrapped as
 // "C:\\...\\powershell.exe" -Command '<inner>', and files are written through PowerShell, not file_change items.
 // The wrapper is dropped and a few common reads and writes are named by their file.
@@ -93,16 +98,16 @@ export function commandActivity(command) {
   if (/^(rg|Select-String|findstr|grep)\b/i.test(inner)) return `찾는 중 · ${cut(inner, 60)}`;
   return `명령 실행 중 · ${cut(inner, 70)}`;
 }
-export function activityFrom(event) {
+export function activityFrom(event, cwd = null) {
   const say = text => (hasSecretText(text) ? null : text);
   if (event?.type === 'assistant' && Array.isArray(event.message?.content)) {
     const use = event.message.content.find(c => c?.type === 'tool_use');
     if (!use) return null;
     const input = use.input ?? {};
     switch (use.name) {
-      case 'Read': return say(`파일 읽는 중 · ${shortPath(input.file_path)}`);
-      case 'Write': return say(`파일 쓰는 중 · ${shortPath(input.file_path)}`);
-      case 'Edit': case 'MultiEdit': return say(`파일 고치는 중 · ${shortPath(input.file_path)}`);
+      case 'Read': return say(`파일 읽는 중 · ${inWork(input.file_path, cwd)}`);
+      case 'Write': return say(`파일 쓰는 중 · ${inWork(input.file_path, cwd)}`);
+      case 'Edit': case 'MultiEdit': return say(`파일 고치는 중 · ${inWork(input.file_path, cwd)}`);
       case 'WebFetch': { try { const u = new URL(String(input.url)); return say(`웹 페이지 읽는 중 · ${cut(u.hostname + u.pathname, 70)}`); } catch { return '웹 페이지 읽는 중'; } }
       case 'WebSearch': return say(`웹 검색 중 · ${cut(input.query, 50)}`);
       default: return String(use.name).startsWith('mcp__') ? say(`연결 도구 사용 중 · ${cut(String(use.name).split('__').slice(1).join('.'), 50)}`) : say(`${cut(use.name, 30)} 사용 중`);
@@ -256,7 +261,7 @@ export class CliAgentAdapter {
         if (limit) limits.set(limit.window, limit);
         const text = answerFrom(event);
         if (text !== null) answer = text;
-        const doing = activityFrom(event);
+        const doing = activityFrom(event, cwd);
         if (doing) onEvent({ type: 'step.activity', provider, text: doing });
       };
       child.stdout.setEncoding('utf8');
