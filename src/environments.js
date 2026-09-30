@@ -46,6 +46,8 @@ export const SETTINGS = Object.freeze({
   'limits.autoSwitch': { type: 'boolean', default: true },
   // 제어팀: teams with no model pick get a model and reasoning level sized to the work.
   'models.auto': { type: 'boolean', default: true },
+  // 완료 보고서: the engine writes a report (and 한글 document) when a team project finishes.
+  'reports.auto': { type: 'boolean', default: true },
   // 감시 에이전트: 'ask' — a public site needs 대장's approval before a team opens it; 'open' — any public https site.
   'sentinel.web': { type: 'string', default: 'ask', values: ['ask', 'open'] },
   // 신뢰 쌓기: how many results of each kind of work 대장 reviews before it runs on its own (0 = off).

@@ -220,6 +220,7 @@ $env:PORT='4314'; $env:AGENT_HQ_DATA_DIR='data\real-test'   # 포트·데이터 
 | `src/evidence.js` | 완료 근거 확인(파일 존재·문구·엔진이 돌린 테스트 통과), 작업 폴더 지문 |
 | `src/toolkit.js`, `src/checks.js`, `src/sandbox.js` | 팀별 프로그램 목록, 엔진 내장 검사, Codex 샌드박스 실행 |
 | `src/adapters.js` | Claude Code / Codex CLI 실행(셸 미사용, 프롬프트는 stdin) |
+| `src/report.js` | 완료 보고서: 팀 프로젝트가 끝나면 엔진이 실행 기록만으로 보고서(조건별 근거·팀별 단계·사용 모델·한도 전환·결과물·대조한 원문)를 `reports/`에 쓰고 한글 문서로 만듦 (AI 호출 없음, 설정 `reports.auto`) |
 | `src/doc-convert.js` (make) | 문서 만들기: 팀이 쓴 Markdown을 엔진이 kordoc으로 한글 문서(HWPX, 공문서 서식)로 만들고 구조 검증·표기법 검수·다시 읽기·SVG/HTML 미리보기까지 (격리 실행, 인터넷·AI 사용 없음, `document_made` 검사) |
 | `src/web-sources.js` | 원문 저장: 조사팀이 읽은 웹 페이지를 엔진이 허용된 사이트에서만 다시 받아 `sources/`에 글로 저장하고 지문을 기록 (`source_contains` 검사로 대조) |
 | `src/model-levels.js` | 제어팀: 기획팀이 적은 난이도·위험도로, 모델을 고르지 않은 팀의 모델·추론 수준을 자동으로 정함 (AI 호출 없음) |

@@ -1760,6 +1760,13 @@ class Component extends DCLogic {
           text: (saved.length ? 'sources/에 저장 ' + saved.length + '개: ' + saved.join(', ') : reused.length ? '새로 받은 원문 없음' : '저장한 원문 없음')
             + (reused.length ? '\n이전에 저장한 원문 사용: ' + reused.join(', ') : '') + (skipped.length ? '\n건너뜀: ' + skipped.join(' / ') : '') });
       });
+      // 완료 보고서: written by the engine from its records when the project finished.
+      ((s.eng && s.eng.events) || []).filter((e) => e.type === 'report.made' && wp.goals.some((x) => x.id === e.goalId)).forEach((e) => {
+        items.push({ at: e.at, cls: 'msg sys' + (e.error ? ' stop' : ''), who: '엔진 · 완료 보고서', sub: '',
+          text: e.error ? '보고서를 만들지 못함 · ' + e.error
+            : (e.hwpx ? e.hwpx + ' (' + (e.validated ? '구조 검증 통과' : '구조 검증 실패') + ') · 원고 ' + e.md : e.md + ' · 한글 문서는 만들지 못함 (' + e.docError + ')')
+              + '\n결과물 탭에서 내려받거나 미리 볼 수 있습니다.' });
+      });
       // 문서 만들기: 한글 documents the engine made from a team's Markdown (previews are in 결과물).
       ((s.eng && s.eng.events) || []).filter((e) => e.type === 'documents.made' && wp.goals.some((x) => x.id === e.goalId)).forEach((e) => {
         const made = (e.made || []).map((d) => d.path + ' (' + d.preset + ' 서식 · ' + (d.validated ? '구조 검증 통과' : '구조 검증 실패')

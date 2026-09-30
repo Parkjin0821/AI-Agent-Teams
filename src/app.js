@@ -27,6 +27,10 @@ import { HIDDEN_CODEX_MODELS, ModelChoices } from './model-choices.js';
 import { kindOf, quickApprovable, SkillLibrary } from './skills.js';
 import { Approvals, SCOPES } from './approvals.js';
 import { Memory } from './memory.js';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { buildReport, REPORTS_DIR } from './report.js';
+import { listWorkspaceFiles } from './evidence.js';
+import { hasSecret } from './sentinel.js';
 
 const MAX_BODY = 1_000_000;
 const iso = ms => new Date(ms).toISOString();
@@ -351,6 +355,29 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     }],
   ];
 
+  // 완료 보고서: when a team project finishes, the engine writes a report from its own records (report.js, no model
+  // call) into reports/ and makes it a 한글 document with the document maker. Only projects with real runs get one.
+  const makeReport = async (goalId) => {
+    const goal = store.getGoal(goalId);
+    if (!goal || goal.kind !== 'team' || store.getSettings()['reports.auto'] === false) return null;
+    const runs = store.listRuns(goalId);
+    if (!runs.some(r => !r.simulated && r.status === 'finished')) return null;
+    const cwd = workspaces.resolve(goal.projectId);
+    const report = buildReport({ goal, runs, files: listWorkspaceFiles(cwd, 2000), now: new Date(clock.now()).toISOString() });
+    if (hasSecret(report.markdown)) { await store.emit({ type: 'report.made', goalId, error: '비밀정보 형식이 있어 보고서를 만들지 않음' }); return null; }
+    mkdirSync(path.join(cwd, REPORTS_DIR), { recursive: true });
+    writeFileSync(path.join(cwd, report.md), report.markdown, 'utf8');
+    const maker = docs();
+    const doc = maker.available ? await maker.make(cwd, { from: report.md, to: report.hwpx, preset: '보고서' }) : { ok: false, error: '문서 도구(kordoc) 없음' };
+    await store.emit({ type: 'report.made', goalId, md: report.md,
+      ...(doc.ok ? { hwpx: doc.path, validated: doc.validated, previews: doc.previews } : { docError: doc.error }) });
+    return { report, doc };
+  };
+  store.subscribe(event => {
+    if (event.type !== 'goal.verified') return;
+    void makeReport(event.goalId).catch(error => store.emit({ type: 'report.made', goalId: event.goalId, error: String(error?.message ?? error).slice(0, 200) }));
+  });
+
   const server = createServer(async (request, response) => {
     try {
       const host = request.headers.host?.toLowerCase();
@@ -418,7 +445,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   }, tickMs) : null;
   timer?.unref();
   return {
-    server, store, scheduler, registry, orchestrator, workspaces, autoSave, digests,
+    server, store, scheduler, registry, orchestrator, workspaces, autoSave, digests, makeReport,
     close: () => new Promise(resolve => { if (timer) clearInterval(timer); server.close(() => { store.close(); resolve(); }); }),
   };
 }
