@@ -158,6 +158,15 @@ function newestCodexApp(localAppData) {
   } catch { return null; }
 }
 
+// Seen in a real run: Codex reads files through Windows PowerShell 5.1, whose Get-Content decodes UTF-8 files
+// (no BOM) as the ANSI code page, so every Korean line looked garbled and the reviewers could not check it.
+export const WINDOWS_ENCODING_NOTE = '[실행 환경 · Windows] 작업 폴더의 글 파일(.md·.txt·.json·코드)은 모두 UTF-8(BOM 없음)입니다. '
+  + 'Windows PowerShell의 Get-Content는 기본값으로 읽으면 한글이 깨지므로 반드시 `Get-Content -Raw -Encoding UTF8 <파일>`로 읽으세요. '
+  + '한글이 깨져 보이면 파일이 아니라 읽는 방법의 문제입니다. 다시 읽은 뒤에 판단하세요.';
+export function promptFor(provider, prompt, platform = process.platform) {
+  return provider === 'codex' && platform === 'win32' ? `${WINDOWS_ENCODING_NOTE}\n\n${prompt}` : prompt;
+}
+
 export class CliAgentAdapter {
   constructor({ enabled = false, cwd = process.cwd(), bins = null, timeoutMs = 15 * 60_000 } = {}) {
     Object.assign(this, { enabled, cwd, bins, timeoutMs });
@@ -207,7 +216,7 @@ export class CliAgentAdapter {
         finish({ outcome: errorKind === 'limit' ? 'limited' : 'failed', errorKind, summary: stderr.trim() || `${provider} exited ${code}`, model });
       });
       child.stdin.on('error', () => { /* tool exited before reading the prompt */ });
-      child.stdin.end(prompt);
+      child.stdin.end(promptFor(provider, prompt));
     });
   }
 }
