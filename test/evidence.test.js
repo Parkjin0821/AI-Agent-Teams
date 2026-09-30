@@ -170,3 +170,19 @@ test('stayed_inside is proven from the engine records: write guards, the Sentine
   assert.equal(claims[1].person, true);
   assert.equal(verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'stayed_inside' } }] }, [C[0]], clean).claims[0].check, 'invalid');
 });
+
+test('a found value (e.g. a version) counts when the criterion names the file, but never for an absence claim', () => {
+  // real case: the research team proved the LTS version with its number, which the criterion could not contain
+  const cwd = ws();
+  writeFileSync(path.join(cwd, 'research.md'), '- 현재 LTS 버전: v24.21.0\n- 출처: https://nodejs.org/en/download\n');
+  writeFileSync(path.join(cwd, 'index.html'), '<p>현재 LTS: v24.21.0</p>');
+  const C = ['research.md에 Node.js의 현재 LTS 버전과 공식 출처(nodejs.org) 주소가 적혀 있다',
+    'index.html이 있고 research.md와 같은 LTS 버전이 적혀 있다',
+    'research.md에 추측한 내용이 없다'];
+  const { claims } = verifyReport({ criteria: [
+    { index: 1, done: true, check: { type: 'file_contains', path: 'research.md', text: 'v24.21.0' } },
+    { index: 2, done: true, check: { type: 'file_contains', path: 'index.html', text: 'v24.21.0' } },
+    { index: 3, done: true, check: { type: 'file_contains', path: 'research.md', text: 'v24.21.0' } },
+  ] }, C, cwd);
+  assert.deepEqual(claims.map(c => c.check), ['pass', 'pass', 'unrelated']);
+});

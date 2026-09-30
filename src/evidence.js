@@ -92,9 +92,20 @@ function relatesTo(check, criterion) {
   if (check.type === 'stayed_inside') return BOUNDARY_TOPIC.test(c);
   if (check.type === 'file_unchanged') return UNCHANGED_WORDS.test(c);
   if (check.type === 'file_exists') return words(String(check.path).replace(/\\/g, '/')).some(w => mentions(c, w));
-  if (check.type === 'file_contains') return words(check.text).some(w => mentions(c, w));
+  if (check.type === 'file_contains') {
+    if (words(check.text).some(w => mentions(c, w))) return true;
+    // A value the work had to find (a version, a total) cannot appear in the criterion itself: a check still counts
+    // when the criterion names the file it reads — unless the criterion claims an absence ("추측이 없다"), which text
+    // that is present can never prove.
+    return namesFile(c, check.path) && !CLAIMS_ABSENCE.test(c);
+  }
   return false;
 }
+const CLAIMS_ABSENCE = /없[다고으음이는었]|않[았는다고음]|아니[다고]|금지|no |never|without/;
+const namesFile = (criterion, file) => {
+  const base = path.basename(String(file ?? '').replace(/\\/g, '/')).toLowerCase();
+  return base.length >= 3 && criterion.includes(base);
+};
 
 const BOUNDARY_TOPIC = /폴더\s*밖|바깥|금지된?\s*설정|설정\s*파일|비밀\s*정보|outside|secret/;
 // Words of a criterion that stayed_inside does not speak to (reading, guessing, accuracy, …).
