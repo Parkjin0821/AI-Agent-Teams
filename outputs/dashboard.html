@@ -1706,8 +1706,8 @@ class Component extends DCLogic {
           else if (r.team === 'security' || r.team === 'policy') res = !r.review ? '검토 결과 형식을 읽지 못했습니다.'
             : r.review.verdict === 'pass' ? '문제 없음' : (r.review.blocking ? '막아야 할 문제 ' : '참고할 점 ') + r.review.issues.length + '건 · ' + clip(r.review.issues.join(' / '), 160);
           else res = '엔진 확인 ' + (r.evidence || []).length + '/' + r.goal.completionCriteria.length + ' 조건';
-          return { when: fmt(r.startedAt), who: r.team ? TEAM_NAME[r.team] : '실행 ' + r.round + '회', tool: TOOL[r.executor || 'claude-code'] + ' · ' + (r.actualModel || '모델 확인 필요')
-              + (r.level ? ' · 자동 ' + r.level.label + (r.requestedEffort ? ' ' + (EFFORT_L[r.requestedEffort] || r.requestedEffort) : '') + ' (' + r.level.why + ')' : '')
+          return { when: fmt(r.startedAt), who: r.team ? TEAM_NAME[r.team] : '실행 ' + r.round + '회', tool: TOOL[r.executor || 'claude-code'] + ' · ' + (r.actualModel || (r.requestedModel ? r.requestedModel + ' 요청' : '모델 확인 필요'))
+              + (r.level ? ' · 제어팀 ' + r.level.label + (r.requestedEffort ? ' · 추론 ' + (EFFORT_L[r.requestedEffort] || r.requestedEffort) : '') + ' (' + r.level.why + ')' : '')
               + (r.switchedFrom ? ' · ' + TOOL[r.switchedFrom] + ' 한도로 대신 실행' + (r.sameAsWorker ? ' (작업팀과 같은 AI · 독립 검토 아님)' : '') : ''),
             resL: resL, pillCls: pillCls(tone), res: res, hasAnswer: !!r.answer, answer: r.answer ? cleanAnswer(r.answer) : '',
             hasTools: (r.tools || []).length > 0, tools: (r.tools || []).map((k) => ({ name: k.name, summary: k.summary,
