@@ -16,7 +16,7 @@ export class Templates {
   get(id) { return this.list().find(t => t.id === id) ?? null; }
 
   save({ projectId, name }) {
-    const goals = this.store.listGoals().filter(g => g.projectId === projectId && g.kind === 'team')
+    const goals = this.store.listGoals().filter(g => g.projectId === projectId && g.kind === 'team' && !g.lane)
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     const goal = goals.find(g => g.status === 'verified') ?? goals[0];
     if (!goal) throw new Error('project not found');

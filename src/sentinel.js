@@ -30,7 +30,7 @@ function privateHost(host) {
 // Returns { decision: 'allow' | 'ask' | 'deny' | 'ignore', reason, target, ask? } for one tool call.
 // 'ask' = not allowed yet, becomes an approval request for 대장 (see src/approvals.js).
 // webMode 'ask': a public site needs a grant first; 'open': any public https site passes the fixed rules.
-export function decide(input, { workspace, grants = [], project = null, webMode = 'open', now = Date.now(), rules = [] } = {}) {
+export function decide(input, { workspace, grants = [], project = null, webMode = 'open', now = Date.now(), rules = [], lane = null, laneDeny = [] } = {}) {
   const tool = String(input?.tool_name ?? '');
   const args = input?.tool_input ?? {};
   if (tool === 'WebFetch') {
@@ -73,6 +73,9 @@ export function decide(input, { workspace, grants = [], project = null, webMode 
     const content = [args.content, args.file_text, args.new_string, args.new_source, ...(Array.isArray(args.edits) ? args.edits.map(e => e?.new_string) : [])];
     if (content.some(hasSecret)) return { decision: 'deny', reason: '비밀정보 형식을 파일에 쓰려 함', target: rel };
     const relPath = rel.split(path.sep).join('/');
+    // 병렬 작업: a lane writes only in its own folder; its parent never writes into an open lane's folder.
+    if (lane && !relPath.startsWith(lane)) return { decision: 'deny', reason: `병렬 작업은 자기 폴더(${lane})에만 씀`, target: relPath };
+    if ((laneDeny ?? []).some(p => relPath.startsWith(p))) return { decision: 'deny', reason: '진행 중인 병렬 작업의 폴더라 쓸 수 없음', target: relPath };
     const rule = ruleFor(rules, { kind: 'path', target: relPath, project });
     if (rule?.action === 'deny') return { decision: 'deny', reason: `대장 규칙으로 금지된 경로${rule.note ? ` (${rule.note})` : ''}`, target: relPath };
     if (rule?.action === 'ask' && !granted(grants, { kind: 'path', target: relPath, project }, now)) {

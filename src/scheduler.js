@@ -37,8 +37,8 @@ const mergeEvidence = (list, confirmed = []) => [
 // checkpoint) is saved; a policy change during a round therefore takes effect from the next round.
 export class GoalScheduler {
   constructor({ store, runner, clock = { now: () => Date.now() }, policy = DEFAULT_POLICY, registry = null, capacity = null, capabilities = null, dailyCap = null,
-    trust = null, autoSwitch = () => true, autoLevels = () => true, codexModels = () => [] }) {
-    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities, dailyCap, trust, autoSwitch, autoLevels, codexModels });
+    trust = null, autoSwitch = () => true, autoLevels = () => true, codexModels = () => [], parallelOn = () => true }) {
+    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities, dailyCap, trust, autoSwitch, autoLevels, codexModels, parallelOn });
     for (const goal of store.listGoals().filter(g => g.status === GoalStatus.RUNNING)) {
       for (const run of store.listRuns(goal.id).filter(r => r.status === 'running')) store.saveRun({ ...run, status: 'interrupted' });
       this.update(goal, { status: GoalStatus.RECOVERY_REQUIRED, reason: 'interrupted_by_restart', nextRunAt: null });
@@ -304,17 +304,18 @@ export class GoalScheduler {
     const goals = this.store.listGoals();
     const running = goals.filter(g => g.status === GoalStatus.RUNNING);
     const cap = { 'claude-code': this.policy.providerConcurrent?.claude ?? 2, codex: this.policy.providerConcurrent?.codex ?? 1 };
-    const busy = { total: running.length, 'claude-code': 0, codex: 0, projects: new Set(running.map(g => g.projectId)) };
+    const busy = { total: running.length, 'claude-code': 0, codex: 0, goals: [...running] };
     running.forEach(g => { busy[this.stepExecutor(g)]++; });
     const claimed = [];
     for (const goal of goals) {
       if (!DUE.includes(goal.status) || Date.parse(goal.nextRunAt) > now || (autoOnly && !goal.autoRun)) continue;
       const executor = this.stepExecutor(goal);
-      if (busy.total >= (this.policy.maxConcurrent ?? 2) || busy[executor] >= cap[executor] || busy.projects.has(goal.projectId)) continue;
+      if (busy.total >= (this.policy.maxConcurrent ?? 2) || busy[executor] >= cap[executor]
+        || busy.goals.some(g => g.projectId === goal.projectId && !this.sameProjectOk(g, goal))) continue;
       const run = this.claim(goal.id, now);
       if (!run) continue;
       claimed.push(run);
-      busy.total++; busy[executor]++; busy.projects.add(goal.projectId);
+      busy.total++; busy[executor]++; busy.goals.push(goal);
     }
     await Promise.all(claimed.map(run => this.execute(run)));
   }
@@ -406,7 +407,7 @@ export class GoalScheduler {
         const executor = this.stepExecutor(goal);
         const running = this.store.listGoals().filter(g => g.status === GoalStatus.RUNNING);
         const providerCap = executor === 'codex' ? this.policy.providerConcurrent?.codex ?? 1 : this.policy.providerConcurrent?.claude ?? 2;
-        if (running.length >= (this.policy.maxConcurrent ?? 2) || running.some(g => g.projectId === goal.projectId)
+        if (running.length >= (this.policy.maxConcurrent ?? 2) || running.some(g => g.projectId === goal.projectId && !this.sameProjectOk(g, goal))
           || running.filter(g => this.store.listRuns(g.id).at(-1)?.executor === executor).length >= providerCap) return null;
         // Team projects that used up today's rounds continue tomorrow (the daily token guard).
         if (goal.kind === 'team' && this.roundsToday(goal.projectId, now) >= this.projectLimit(goal, now)) {
@@ -541,6 +542,8 @@ export class GoalScheduler {
           return review('criteria_approval_required', { evidence: [], question: '대장 메시지에 맞춰 완료 조건을 바꾸자고 제안했습니다. 확인하고 승인해 주세요.' });
         }
       }
+      // 병렬 작업: an independent piece of work runs at the same time as a lane in its own folder.
+      if (plan.parallel && plan.parallel.team) this.spawnLane(goal, plan.parallel);
       team.worker = WORKERS.includes(plan.team) ? plan.team : 'dev';
       team.profile = taskProfile(plan.profile);
       if (team.profile.effects.length) return review('needs_decision', { question: `승인 범위가 필요한 작업: ${team.profile.effects.join(', ')}. 해당 외부 작업은 아직 실행하지 않았습니다.` });
@@ -719,6 +722,28 @@ export class GoalScheduler {
     if (!choice) return null;
     return { state: 'ready', model: choice.model, effort: choice.effort, source: 'auto_level', reason: 'auto_level',
       level: { id: level.id, label: level.label, why: level.why }, policyVersion: project.version };
+  }
+
+  // 병렬 작업 (lane): a child goal of the same project that works only in its own folder, running beside its parent.
+  // One open lane per goal, none inside a lane, and 대장 can turn it off (parallel.enabled). Both share the project's
+  // daily step limit and the usage stops; the parent may not write into the lane's folder while it is open.
+  openLanes(goal) {
+    return this.store.listGoals().filter(g => g.parentGoalId === goal.id && g.lane && !['verified'].includes(g.status));
+  }
+  spawnLane(goal, p) {
+    if (goal.kind !== 'team' || goal.lane || this.parallelOn?.() === false || this.openLanes(goal).length) return null;
+    const child = this.addGoal({ projectId: goal.projectId, kind: 'team', autoRun: goal.autoRun === true,
+      title: `${goal.title ?? '프로젝트'} · 병렬 ${TEAMS[p.team].name}`,
+      objective: `기존 프로젝트 안 병렬 작업 (작업 폴더의 ${p.folder} 안에서만 작업): ${p.task}`, completionCriteria: p.criteria });
+    this.update(child, { parentGoalId: goal.id, lane: p.folder,
+      team: { ...child.team, step: p.team, worker: p.team, task: p.task, profile: goal.team?.profile ?? taskProfile({}), reviews: ['security', 'policy'] },
+      messages: this.withControl(child, `병렬 작업 시작 · ${TEAMS[p.team].name} · ${p.folder}`) });
+    void this.store.emit({ type: 'goal.lane_started', goalId: goal.id, laneGoalId: child.id, team: p.team, folder: p.folder });
+    return child;
+  }
+  // Two goals of one project may run at once only as a lane and its parent.
+  sameProjectOk(a, b) {
+    return a.projectId === b.projectId && ((a.lane && a.parentGoalId === b.id) || (b.lane && b.parentGoalId === a.id));
   }
 
   // Recorded on a run that another subscription took over; a review on the worker's own tool is not independent.

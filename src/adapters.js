@@ -39,7 +39,8 @@ export function buildCommand(provider, { cwd, model = null, effort = null, bins,
       args.push('--settings', JSON.stringify(sentinelSettings(sentinel.script)));
       Object.assign(env, { AGENT_HQ_WORKSPACE: cwd, AGENT_HQ_SENTINEL_LOG: sentinel.log,
         AGENT_HQ_PROJECT: sentinel.project ?? '', AGENT_HQ_TEAM: sentinel.team ?? '',
-        AGENT_HQ_SENTINEL_GRANTS: sentinel.grants ?? '', AGENT_HQ_SENTINEL_RULES: sentinel.rules ?? '', AGENT_HQ_SENTINEL_WEB: sentinel.webMode === 'open' ? 'open' : 'ask' });
+        AGENT_HQ_SENTINEL_GRANTS: sentinel.grants ?? '', AGENT_HQ_SENTINEL_RULES: sentinel.rules ?? '',
+        AGENT_HQ_LANE: sentinel.lane ?? '', AGENT_HQ_LANE_DENY: (sentinel.laneDeny ?? []).join('|'), AGENT_HQ_SENTINEL_WEB: sentinel.webMode === 'open' ? 'open' : 'ask' });
     }
     return { file: bins.claude.file, args: [...bins.claude.prefix, ...args], cwd, env };
   }

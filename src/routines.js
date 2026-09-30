@@ -29,7 +29,7 @@ export class Routines {
 
   // The goal a round copies: the project's newest goal.
   source(projectId) {
-    return this.store.listGoals().filter(g => g.projectId === projectId && g.kind === 'team')
+    return this.store.listGoals().filter(g => g.projectId === projectId && g.kind === 'team' && !g.lane)
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0] ?? null;
   }
 

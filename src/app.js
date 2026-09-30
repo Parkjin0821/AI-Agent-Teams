@@ -101,6 +101,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     dailyCap: () => store.getSettings()['limits.maxRoundsPerDay'],
     autoSwitch: () => store.getSettings()['limits.autoSwitch'] !== false,
     autoLevels: () => store.getSettings()['models.auto'] !== false,
+    parallelOn: () => store.getSettings()['parallel.enabled'] !== false,
     // This account's Codex list, as last read (a real server refreshes it in the background every 10 minutes).
     codexModels: () => { if (executing) void modelChoices.get().catch(() => {}); return (modelChoices.codex ?? []).filter(m => !HIDDEN_CODEX_MODELS.some(re => re.test(m.id))); },
     trust,
@@ -145,7 +146,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     }
     return {
       mode: executing ? 'execution' : 'simulation', autoTick, autoScope, now: iso(clock.now()),
-      limits: { attachMaxMB: setting('attach.maxMB', DEFAULT_MAX_MB), maxRoundsPerDay: scheduler.dailyLimit(), autoSwitch: store.getSettings()['limits.autoSwitch'] !== false, autoLevels: store.getSettings()['models.auto'] !== false, maxRoundsPerDayDefault: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
+      limits: { attachMaxMB: setting('attach.maxMB', DEFAULT_MAX_MB), maxRoundsPerDay: scheduler.dailyLimit(), autoSwitch: store.getSettings()['limits.autoSwitch'] !== false, autoLevels: store.getSettings()['models.auto'] !== false, parallel: store.getSettings()['parallel.enabled'] !== false, maxRoundsPerDayDefault: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
       projects: [...byProject].map(([id, goals]) => ({ id, policy: registry.getPolicy(`project:${id}`), goals, autoSave: autoSave.view(id), routine: routines.view(id) })),
       catalog: registry.catalog(), events: store.recentEvents(200), live: Object.fromEntries(liveActivity),
       limitStorageFailed: store.getSettings()['safety.limitStorageFailed'] === true,
@@ -394,7 +395,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   // call) into reports/ and makes it a 한글 document with the document maker. Only projects with real runs get one.
   const makeReport = async (goalId) => {
     const goal = store.getGoal(goalId);
-    if (!goal || goal.kind !== 'team' || store.getSettings()['reports.auto'] === false) return null;
+    if (!goal || goal.kind !== 'team' || goal.lane || store.getSettings()['reports.auto'] === false) return null;
     const runs = store.listRuns(goalId);
     if (!runs.some(r => !r.simulated && r.status === 'finished')) return null;
     const cwd = workspaces.resolve(goal.projectId);

@@ -232,3 +232,20 @@ test('원문 저장: the web team lists its pages, the engine saves allowed orig
   assert.deepEqual([again.saved.length, again.reused.map(r => r.url)], [0, ['https://nodejs.org/en/download']]);
   assert.equal(second.claims[0].check, 'pass', 'still proven against the first saved original');
 });
+
+test('병렬 작업: a lane step that wrote outside its folder is caught after the step (how Codex is held to it)', async () => {
+  const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(), 'hq-lane-')));
+  let records = [{ id: 'r1', status: 'running', team: 'research', executor: 'codex' }];
+  const laneStore = { emit: async () => {}, listRuns: () => records, saveRun: r => { records = records.map(o => o.id === r.id ? r : o); }, listGoals: () => [] };
+  const adapter = { enabled: true, run: async (provider, p, e, opts) => {
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(path.join(opts.cwd, 'research'), { recursive: true });
+    writeFileSync(path.join(opts.cwd, 'research', 'prices.md'), 'ok');
+    writeFileSync(path.join(opts.cwd, 'index.html'), 'outside the lane');
+    return { outcome: 'completed', answer: 'AGENT_HQ_REPORT {"criteria":[]}' };
+  } };
+  const runner = createGoalRunner({ adapter, workspaces, store: laneStore });
+  const result = await runner.run({ ...goal, kind: 'team', lane: 'research/', team: { step: 'research', task: '조사', feedback: '', cycle: 1 } },
+    { executor: 'codex', team: 'research', access: 'write' });
+  assert.deepEqual(result.ruleViolations.map(v => [v.file, v.rule.note]), [['index.html', '병렬 작업은 자기 폴더에만 씀']]);
+});

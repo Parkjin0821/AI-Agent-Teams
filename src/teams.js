@@ -203,6 +203,10 @@ const planBlock = [
   '{"next_task":"...","team":"dev","reviews":[],"completion_criteria":["..."],"complexity":"normal","risk":"normal","effects":[],',
   '"task_type":"coding","required_capabilities":["text","code"],"proposed_model":null,"proposal_reason":"","needs_decision":null,"all_done":false}',
   'completion_criteria: when the criteria above are empty, or when 대장\'s newest message or answer changes what counts as done (then give the complete new list) — concrete and verifiable, derived from 대장\'s conversation. Otherwise leave it out: a request to continue or clarify keeps the current criteria.',
+  'Optional "parallel": ONE piece of work another team can do AT THE SAME TIME, fully independent of next_task, written only',
+  'into its own new top-level folder: {"team":"research|dev|design","task":"...","folder":"research","criteria":["verifiable',
+  'criterion about files in that folder"]}. The main task must not write into that folder. Leave it out when the work depends',
+  'on next_task or on each other, or when one team is enough. It doubles usage while both run.',
   'Optional "remember": up to 3 lasting preferences or rules 대장 stated that should apply to future projects, as',
   '[{"scope":"all"|"plan"|"research"|"dev"|"design"|"security"|"policy"|"qa","text":"..."}]. They take effect only after 대장 approves them.',
   'Write your reply in Korean.',
@@ -251,6 +255,16 @@ function jsonAfter(answer, mark) {
 }
 const question = (v) => (typeof v === 'string' && v.trim() ? clip(v, 500).trim() : null);
 
+// 병렬 작업: one independent piece of work another team does at the same time in its own top-level folder.
+export function parallelOf(p) {
+  if (!p || typeof p !== 'object' || !WORKERS.includes(p.team) || typeof p.task !== 'string' || !p.task.trim()) return null;
+  const folder = String(p.folder ?? '').trim().replace(/\\/g, '/').replace(/^\.?\//, '').replace(/\/+$/, '');
+  if (!/^[A-Za-z0-9가-힣_-]{1,40}$/.test(folder) || /^(attachments|sources|reports|node_modules)$/i.test(folder)) return null;
+  const criteria = (Array.isArray(p.criteria) ? p.criteria : []).filter(c => typeof c === 'string' && c.trim()).map(c => clip(c, 300).trim()).slice(0, 5);
+  if (!criteria.length) return null;
+  return { team: p.team, task: clip(p.task, 1000).trim(), folder: `${folder}/`, criteria };
+}
+
 export function parsePlan(answer) {
   const raw = jsonAfter(answer, PLAN_MARK);
   if (!raw) return null;
@@ -265,6 +279,7 @@ export function parsePlan(answer) {
       requiredCapabilities: raw.required_capabilities, proposedModel: raw.proposed_model, proposalReason: raw.proposal_reason,
       evalTaskId: raw.evalTaskId, conditionsKey: raw.conditionsKey } } : {}),
     ...(Array.isArray(raw.completion_criteria) ? { completionCriteria: raw.completion_criteria.filter(c => typeof c === 'string' && c.trim()).slice(0,20) } : {}),
+    ...(parallelOf(raw.parallel) ? { parallel: parallelOf(raw.parallel) } : {}),
     ...(Array.isArray(raw.remember) ? { remember: raw.remember.slice(0, 3) } : {}),
     ...(Array.isArray(raw.skill_needs) ? { skill_needs: raw.skill_needs.slice(0, 2) } : {}),
   };

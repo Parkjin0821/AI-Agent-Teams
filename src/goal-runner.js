@@ -67,6 +67,13 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       // For Codex the engine reads the small text files itself (UTF-8) and hands them over as material.
       // 대장 규칙, told up front so teams do not spend steps on what is forbidden.
       const stepRules = sentinel?.rules ? readRules(sentinel.rules) : [];
+      // 병렬 작업: folders of this goal's open lanes (the parent must stay out of them).
+      const laneDeny = (store.listGoals?.() ?? []).filter(g => g.parentGoalId === goal.id && g.lane && g.status !== 'verified').map(g => g.lane);
+      if (goal.lane || laneDeny.length) {
+        const note = goal.lane ? `\n[병렬 작업] 이 작업은 작업 폴더의 ${goal.lane} 안에서만 파일을 만들고 고친다. 다른 곳에 쓰면 엔진이 멈춘다.\n`
+          : `\n[병렬 작업 진행 중] ${laneDeny.join(', ')} 폴더는 다른 팀이 동시에 작업 중이다. 그 안에는 쓰지 않는다.\n`;
+        const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + note + prompt.slice(at) : prompt + note;
+      }
       const rulesBlock = team ? rulesPrompt(stepRules, goal.projectId) : '';
       if (rulesBlock) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + rulesBlock + prompt.slice(at) : prompt + rulesBlock; }
       if (team && PROVIDER[run.executor] === 'codex') {
@@ -92,7 +99,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const roundStart = new Date().toISOString();
       const result = await adapter.run(PROVIDER[run.executor], prompt, onEvent, { cwd, model: run.model, effort: run.effort, access: run.access ?? 'write', ...tools,
         ...(PROVIDER[run.executor] === 'codex' ? { images: attachedImages(goal, cwd) } : {}),
-        ...(sentinel ? { sentinel: { ...sentinel, project: goal.projectId, team: team ?? 'task',
+        ...(sentinel ? { sentinel: { ...sentinel, project: goal.projectId, team: team ?? 'task', lane: goal.lane ?? null, laneDeny,
           webMode: settings()['sentinel.web'] === 'open' ? 'open' : 'ask' } } : {}) });
       // 승인 대기: what the Sentinel held back this round becomes approval requests; "once" grants are spent.
       let approvalRequests = [];
@@ -108,7 +115,11 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const afterRules = snapshot();
       const changedFiles = [...afterRules.files.filter(f => !before.files.includes(f)),
         ...afterRules.files.filter(f => before.signatures[f] && before.signatures[f] !== afterRules.signatures[f])];
-      const ruleViolations = simulated ? [] : pathViolations(stepRules, goal.projectId, changedFiles);
+      const ruleViolations = simulated ? [] : [...pathViolations(stepRules, goal.projectId, changedFiles),
+        // 병렬 작업 folders, the same check (this is what catches Codex; Claude's writes were stopped by the Sentinel)
+        ...changedFiles.filter(f => (goal.lane && !f.startsWith(goal.lane)) || laneDeny.some(p => f.startsWith(p)))
+          .map(f => ({ file: f, rule: { id: 'lane', target: goal.lane ?? laneDeny.find(p => f.startsWith(p)), action: 'deny',
+            note: goal.lane ? '병렬 작업은 자기 폴더에만 씀' : '진행 중인 병렬 작업의 폴더' } }))];
       if (runRecord) {
         const after = afterRules;
         store.saveRun({ ...store.listRuns(goal.id).find(r => r.id === runRecord.id), checkpoint: { before, after, guard,

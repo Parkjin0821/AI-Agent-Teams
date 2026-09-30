@@ -11,6 +11,7 @@ try {
   const verdict = decide(call, { workspace: process.env.AGENT_HQ_WORKSPACE, project,
     grants: process.env.AGENT_HQ_SENTINEL_GRANTS ? readGrants(process.env.AGENT_HQ_SENTINEL_GRANTS) : [],
     rules: process.env.AGENT_HQ_SENTINEL_RULES ? readRules(process.env.AGENT_HQ_SENTINEL_RULES) : [],
+    lane: process.env.AGENT_HQ_LANE || null, laneDeny: (process.env.AGENT_HQ_LANE_DENY || '').split('|').filter(Boolean),
     webMode: process.env.AGENT_HQ_SENTINEL_WEB === 'open' ? 'open' : 'ask' });
   if (verdict.decision !== 'ignore') {
     try {

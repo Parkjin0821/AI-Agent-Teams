@@ -439,6 +439,8 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .digest-settings .field{margin-top:16px}
 .digest-settings .field label{margin-bottom:8px}
 .digest-settings>.btn{margin-top:16px}
+.lane-row{padding:8px 0 8px 10px;border-left:3px solid var(--team-accent,var(--line-strong));margin-top:8px}
+.lane-row b{color:var(--team-accent,var(--text))}
 .live-list{list-style:none;margin:-4px 0 0;padding:8px 12px;align-self:center;max-width:94%;width:560px;border-left:2px solid var(--line-strong);display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--text-3)}
 .live-list li{display:flex;gap:10px;min-width:0}
 .live-list li>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -837,6 +839,12 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
           <sc-if value="{{w.hasWaitNote}}"><p class="hint" style="margin-top: 8px">{{w.waitNote}}</p></sc-if>
           <sc-if value="{{w.atDailyCap}}"><div class="row-f cap-actions" style="margin-top: 8px"><sc-for list="{{w.extendActs}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for></div></sc-if>
         </div>
+        <sc-if value="{{w.hasLanes}}"><div class="card">
+          <div class="lbl">병렬 작업</div>
+          <sc-for list="{{w.lanes}}" as="l"><div class="{{l.cls}}"><div class="row-f" style="justify-content: space-between"><b class="small">{{l.team}}</b><span class="{{l.pillCls}}"><i></i>{{l.stL}}</span></div>
+            <div class="small muted">{{l.folder}} · 조건 {{l.proven}}/{{l.total}}</div><div class="small">{{l.task}}</div></div></sc-for>
+          <p class="hint" style="margin-top: 8px">병렬 작업은 자기 폴더에만 쓰고, 원래 작업은 그 폴더에 쓰지 않습니다. 두 작업이 이 프로젝트의 하루 단계 한도를 함께 씁니다.</p>
+        </div></sc-if>
         <div class="card">
           <div class="lbl">감시 에이전트</div>
           <p class="small">{{w.sentinelL}}</p>
@@ -930,7 +938,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
         </div>
         <div class="field" style="margin-top: 16px"><label>제어팀 · 작업 난이도에 따라 모델 자동 선택 · 모든 프로젝트 공통</label>
           <div class="seg" role="group" aria-label="모델 자동 선택"><sc-for list="{{autoLevelOpts}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div>
-          <p class="hint">켜 두면 모델을 고르지 않은 팀은 간단한 일과 보통 일에 가벼운 모델(Claude Sonnet 5.5 · Codex GPT-6-Luna 중간~높음), 복잡하거나 위험한 일에 무거운 모델(Opus 5.5 · GPT-6-Sol 낮음~중간)을 씁니다. Codex Astra는 자동으로 쓰지 않습니다. 끄면 고르지 않은 팀은 목록의 기본 모델로 돕니다.</p></div>
+          <p class="hint">켜 두면 모델을 고르지 않은 팀은 간단한 일과 보통 일에 가벼운 모델(Claude Sonnet 5.5 · Codex GPT-6-Luna 중간~높음), 복잡하거나 위험한 일에 무거운 모델(Opus 5.5 · GPT-6.1-Sol 낮음~중간)을 씁니다. Codex Astra는 자동으로 쓰지 않습니다. 끄면 고르지 않은 팀은 목록의 기본 모델로 돕니다.</p></div>
         <dl class="facts" style="margin-top: 16px"><dt>최근 실제 모델</dt><dd class="mono small">{{m.actual}}</dd></dl>
       </div>
       <sc-if value="{{rt.show}}"><div class="card">
@@ -951,6 +959,9 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
         <div class="lbl">한도</div>
         <div class="field" style="margin-bottom: 12px"><label for="cap-in">하루 최대 단계 · 모든 프로젝트 공통 (기본 {{limits.dayDefault}})</label>
           <div class="row-f"><input class="input" id="cap-in" type="number" min="1" max="100" step="1" style="max-width: 110px" value="{{capDraft}}" onChange="{{onCap}}"><button class="btn sm" onClick="{{saveCap}}">저장</button><span class="hint">지금 {{limits.day}}단계 · 넘으면 다음 날 이어서. 사용량 기준(5시간 20%·주간 10%)은 따로 계속 적용됩니다.</span></div></div>
+        <div class="field" style="margin-bottom: 12px"><label>병렬 작업 · 모든 프로젝트 공통</label>
+          <div class="seg" role="group" aria-label="병렬 작업"><sc-for list="{{parallelOpts}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div>
+          <p class="hint">기획팀이 서로 상관없는 일을 찾으면, 한 가지를 다른 팀이 자기 폴더에서 동시에 진행합니다. 프로젝트마다 한 번에 하나만, 사용량은 그동안 두 배로 듭니다.</p></div>
         <div class="field" style="margin-bottom: 12px"><label>한도 자동 전환 · 모든 프로젝트 공통</label>
           <div class="seg" role="group" aria-label="한도 자동 전환"><sc-for list="{{switchOpts}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div>
           <p class="hint">한쪽 AI가 사용량 멈춤선(5시간 20% · 주간 10% 남음)에 닿으면 그 단계를 다른 AI로 돌립니다. 위험도가 높은 작업, 웹 검색이 필요한 작업은 옮기지 않고 기다립니다. 작업팀과 같은 AI가 검토하게 되면 기록에 “독립 검토 아님”으로 남습니다.</p></div>
@@ -1563,7 +1574,7 @@ class Component extends DCLogic {
   isReal() { return !!(this.state.eng && this.state.eng.mode === 'execution'); }
   limits() {
     const l = (this.state.eng && this.state.eng.limits) || {};
-    return { autoSwitch: l.autoSwitch !== false, day: l.maxRoundsPerDay || 10, dayDefault: l.maxRoundsPerDayDefault || 10, all: l.maxConcurrent || 2, claude: (l.providerConcurrent || {}).claude || 2, codex: (l.providerConcurrent || {}).codex || 1 };
+    return { parallel: l.parallel !== false, autoSwitch: l.autoSwitch !== false, day: l.maxRoundsPerDay || 10, dayDefault: l.maxRoundsPerDayDefault || 10, all: l.maxConcurrent || 2, claude: (l.providerConcurrent || {}).claude || 2, codex: (l.providerConcurrent || {}).codex || 1 };
   }
   async confirmStart(name) {
     if (!this.isReal()) return true;
@@ -1575,14 +1586,17 @@ class Component extends DCLogic {
     if (!eng) return [];
     return eng.projects.map((pr) => {
       const goals = pr.goals;
-      const g = goals[goals.length - 1];
+      // The project's own work is its newest goal that is not a 병렬 작업 lane; lanes are shown beside it.
+      const mains = goals.filter((x) => !x.lane);
+      const g = mains[mains.length - 1] || goals[goals.length - 1];
+      const lanes = goals.filter((x) => x.lane && x.parentGoalId === g.id);
       const runs = [].concat.apply([], goals.map((x) => x.runs.map((r) => Object.assign({}, r, { goal: x }))));
       const st = stateOf(g);
       const proven = g.completionCriteria.filter((c) => (g.evidence || []).some((e) => e.criterion === c)).length;
       const last = runs.map((r) => r.finishedAt || r.startedAt).concat([g.updatedAt]).sort().pop();
       const name = (goals.find((x) => x.title) || {}).title || clip(g.objective, 40);
       return { id: pr.id, name: name, goal: g, goals: goals, runs: runs, st: st, proven: proven, total: g.completionCriteria.length,
-        last: last, today: runs.filter((r) => sameDay(r.startedAt)).length, policy: pr.policy, isTeam: g.kind === 'team', routine: pr.routine || null };
+        last: last, today: runs.filter((r) => sameDay(r.startedAt)).length, policy: pr.policy, isTeam: g.kind === 'team', routine: pr.routine || null, lanes: lanes };
     }).sort((a, b) => (b.last || '').localeCompare(a.last || ''));
   }
 
@@ -1701,8 +1715,8 @@ class Component extends DCLogic {
     const control = { stL: autoOn ? '켜짐' : '꺼짐', pillCls: pillCls(autoOn ? 'done' : 'idle'), rows: [
       { l: '가벼움', d: 'Claude Sonnet 5.5 · 높음 / Codex GPT-6-Luna · 중간 — 간단하고 위험이 낮은 작업' },
       { l: '보통', d: 'Claude Sonnet 5.5 · 매우 높음 / Codex GPT-6-Luna · 높음 — 보통 작업. 기획·보안·정책·검증팀은 이보다 낮게 가지 않음' },
-      { l: '깊게', d: 'Claude Opus 5.5 · 높음 / Codex GPT-6-Sol · 낮음 — 복잡한 작업, 위험도가 높은 작업' },
-      { l: '최고', d: 'Claude Fable 5.1 · 높음 / Codex GPT-6-Sol · 중간 — 복잡한 작업이 진전 없이 2번 이상 막힐 때만' },
+      { l: '깊게', d: 'Claude Opus 5.5 · 높음 / Codex GPT-6.1-Sol · 낮음 — 복잡한 작업, 위험도가 높은 작업' },
+      { l: '최고', d: 'Claude Fable 5.1 · 높음 / Codex GPT-6.1-Sol · 중간 — 복잡한 작업이 진전 없이 2번 이상 막힐 때만' },
       { l: '올림 규칙', d: '진전 없음·테스트 실패가 2번 이어지면 한 단계 올립니다. 쓴 단계와 이유는 활동 기록에 남습니다.' },
       { l: 'Codex Astra', d: '자동으로는 쓰지 않습니다 (Plus 요금제에서 주간 사용량을 빨리 씀). 필요하면 프로젝트 설정에서 팀에 직접 고르세요.' }] };
     const teams = TEAMS.map((t) => {
@@ -1924,6 +1938,11 @@ class Component extends DCLogic {
           { when: fmt(x.at), hasMono: team, mono: team ? String(x.who || '·').charAt(0) : '', cls: x.cls + (cont ? ' cont' : '') });
       });
       w.working = g.status === 'running';
+      // 병렬 작업 lanes of this project's current work
+      w.lanes = (wp.lanes || []).map((l) => { const st = stateOf(l); return { team: TEAM_NAME[l.team && l.team.worker] || '팀', cls: 'lane-row' + teamTone(l.team && l.team.worker),
+        folder: l.lane, task: clip((l.team && l.team.task) || l.objective, 90), stL: st.l, pillCls: pillCls(st.tone),
+        proven: l.completionCriteria.filter((c) => (l.evidence || []).some((e) => e.criterion === c)).length, total: l.completionCriteria.length }; });
+      w.hasLanes = w.lanes.length > 0;
       // 실시간 진행: what the running step has done so far (sent live by the server, newest last).
       const runStart = (wp.runs.filter((r) => r.goal.id === g.id && r.status === 'running').map((r) => r.startedAt).sort().pop()) || '';
       const liveAll = ((s.live || {})[g.id] || ((s.eng && s.eng.live) || {})[g.id] || []).filter((x) => x.at >= runStart);
@@ -2394,6 +2413,8 @@ class Component extends DCLogic {
       autoLevelOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: autoOn === v ? 'on' : '', pressed: autoOn === v ? 'true' : 'false',
         pick: () => { if (autoOn === v) return; this.act(this.api('PUT', '/api/settings', { key: 'models.auto', value: v }), v ? '모델 자동 선택을 켰습니다 · 다음 단계부터' : '모델 자동 선택을 껐습니다 · 고르지 않은 팀은 기본 모델로'); } })),
       rt: this.routineView(wp), ru: this.rulesView(P),
+      parallelOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: lim.parallel === v ? 'on' : '', pressed: lim.parallel === v ? 'true' : 'false',
+        pick: () => { if (lim.parallel === v) return; this.act(this.api('PUT', '/api/settings', { key: 'parallel.enabled', value: v }), v ? '병렬 작업을 켰습니다' : '병렬 작업을 껐습니다 · 진행 중인 병렬 작업은 끝까지 갑니다'); } })),
       switchOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: lim.autoSwitch === v ? 'on' : '', pressed: lim.autoSwitch === v ? 'true' : 'false',
         pick: () => { if (lim.autoSwitch === v) return; this.act(this.api('PUT', '/api/settings', { key: 'limits.autoSwitch', value: v }), v ? '한도 자동 전환을 켰습니다' : '한도 자동 전환을 껐습니다 · 한도에 닿으면 그 AI가 풀릴 때까지 기다립니다'); } })),
       capDraft: s.capDraft == null ? String(lim.day) : s.capDraft, onCap: (e) => this.setState({ capDraft: e.target.value }),
