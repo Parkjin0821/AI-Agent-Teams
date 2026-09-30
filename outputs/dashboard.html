@@ -79,7 +79,7 @@ button{cursor:pointer}
 .mode.off{color:var(--text-3)}
 
 /* 버튼 */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:7px 14px;border-radius:9px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text-2);font-weight:500;font-size:13px;line-height:1.3;white-space:nowrap;transition:background .15s,border-color .15s,transform .08s,box-shadow .15s}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:8px 14px 6px;border-radius:9px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text-2);font-weight:500;font-size:13px;line-height:1.3;white-space:nowrap;transition:background .15s,border-color .15s,transform .08s,box-shadow .15s}
 .btn:hover{background:var(--subtle);border-color:var(--text-3);color:var(--text)}
 .btn:focus-visible,.link:focus-visible,.seg button:focus-visible,.tt:focus-visible,.pt:focus-visible,summary:focus-visible{outline:2px solid var(--text);outline-offset:3px}
 .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
@@ -90,7 +90,8 @@ button{cursor:pointer}
 .btn.danger:hover{background:var(--stop-soft)}
 .btn.ghost{border-color:var(--line);background:var(--surface);color:var(--text-2)}
 .btn.ghost:hover{background:var(--subtle);color:var(--text)}
-.btn.sm{min-height:32px;padding:6px 11px;font-size:12px}
+.btn.sm{min-height:32px;padding:7px 11px 5px;font-size:12px}
+/* Hangul sits about 1px high on the Latin font's baseline (Geist first in the stack): the padding is 1px lower on top to center it. */
 .link{border:1px solid var(--line);border-radius:7px;background:var(--surface);padding:4px 8px;color:var(--accent-ink);font-weight:500;line-height:1.4}
 .link:hover{background:var(--subtle);border-color:var(--line-strong)}
 .link.create{background:#18181B;border-color:#18181B;color:#fff}
@@ -317,7 +318,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 
 /* 설정 */
 .seg{display:inline-flex;gap:4px;padding:4px;border-radius:10px;background:var(--subtle);border:1px solid var(--line)}
-.seg button{border:0;background:none;height:28px;padding:0 12px;border-radius:6px;color:var(--text-3);font-weight:500;font-size:13px;transition:background .15s,color .15s}
+.seg button{border:0;background:none;height:28px;padding:1px 12px 0;border-radius:6px;color:var(--text-3);font-weight:500;font-size:13px;transition:background .15s,color .15s}
 .seg button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .row-f{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .side .cap-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
@@ -380,8 +381,6 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .next li.now{border-left-color:#2E5BFF}
 .next li.done{border-left-color:#16A34A}
 .sentinel-row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:baseline;margin-top:6px}
-.tools-card summary{cursor:pointer;list-style:none}
-.tools-card summary::-webkit-details-marker{display:none}
 .tm-list{display:grid;border-top:1px solid var(--line)}
 .tm-row{display:grid;grid-template-columns:180px minmax(0,1fr);gap:12px;padding:14px 0;border-bottom:1px solid var(--line);align-items:start}
 .tm-head{display:grid;gap:4px;align-content:start}
@@ -717,18 +716,6 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
           <p class="small">{{w.sentinelL}}</p>
           <sc-for list="{{w.sentinelBlocked}}" as="b"><div class="sentinel-row small"><span class="{{b.pillCls}}"><i></i>차단</span><span>{{b.text}}</span></div></sc-for>
         </div>
-        <details class="card tools-card">
-          <summary class="lbl">도구 · 결과물 · 기록</summary>
-          <div class="row-f" style="margin-top: 10px">
-            <button class="btn sm" onClick="{{showArtifacts}}">결과물 미리보기</button>
-            <button class="btn sm" onClick="{{runSandboxTests}}">격리 테스트 실행</button>
-            <button class="btn sm" onClick="{{w.toggleAutonomy}}">자율 후속 작업 · {{w.autonomyL}}</button>
-            <a class="btn sm" href="{{w.recordsUrl}}" target="_blank" rel="noopener noreferrer">GitHub·Notion 기록 초안</a>
-            <button class="btn sm" onClick="{{configureAutoSave}}">자동 저장 설정</button>
-            <button class="btn sm" onClick="{{inspectAutoSave}}">자동 저장 상태</button>
-          </div>
-          <p class="hint">미리보기는 외부 통신·스크립트 실행을 차단합니다. 격리 테스트는 고정 테스트 명령만 실행합니다.</p>
-        </details>
         <div class="card">
           <dl class="facts">
             <dt>진행 방식</dt><dd>{{w.kindL}}</dd>
@@ -828,6 +815,11 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
           <div class="seg" role="group" aria-label="한도 자동 전환"><sc-for list="{{switchOpts}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div>
           <p class="hint">한쪽 AI가 사용량 멈춤선(5시간 20% · 주간 10% 남음)에 닿으면 그 단계를 다른 AI로 돌립니다. 위험도가 높은 작업, 웹 검색이 필요한 작업은 옮기지 않고 기다립니다. 작업팀과 같은 AI가 검토하게 되면 기록에 “독립 검토 아님”으로 남습니다.</p></div>
         <dl class="facts"><dt>동시 실행</dt><dd>전체 {{limits.all}} · Claude Code {{limits.claude}} · Codex {{limits.codex}}</dd><dt>진전 없음</dt><dd>개발 단계 3번 연속이면 멈추고 알림</dd></dl>
+      </div>
+      <div class="card">
+        <div class="lbl">자동 진행 · 기록</div>
+        <p class="hint">프로젝트가 다음 작업을 이어갈지와 GitHub·Notion 기록 저장 상태를 관리합니다.</p>
+        <div class="row-f"><button class="btn sm" onClick="{{w.toggleAutonomy}}">자율 후속 작업 · {{w.autonomyL}}</button><a class="btn sm" href="{{w.recordsUrl}}" target="_blank" rel="noopener noreferrer">GitHub·Notion 기록 초안</a><button class="btn sm" onClick="{{configureAutoSave}}">자동 저장 설정</button><button class="btn sm" onClick="{{inspectAutoSave}}">자동 저장 상태</button></div>
       </div>
       <div class="card danger-zone">
         <div class="lbl">프로젝트 삭제</div>
