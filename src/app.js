@@ -33,6 +33,7 @@ import { listWorkspaceFiles } from './evidence.js';
 import { hasSecret } from './sentinel.js';
 import { Routines } from './routines.js';
 import { Templates } from './templates.js';
+import { Rules } from './rules.js';
 
 const MAX_BODY = 1_000_000;
 const iso = ms => new Date(ms).toISOString();
@@ -43,6 +44,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   const store = new PersistentStore({ dataDir });
   const skills = new SkillLibrary({ store });
   const approvals = new Approvals({ store, grantsFile: path.join(dataDir, 'sentinel-grants.json'), clock });
+  // 대장 규칙: allow / ask / deny for sites, paths and connectors (rules.js), read by the Sentinel hook too.
+  const rules = new Rules({ file: path.join(dataDir, 'sentinel-rules.json'), clock });
   const memory = new Memory({ store, clock });
   const setting = (key, fallback) => store.getSettings()[key] ?? fallback;
   // 신뢰 쌓기 counters: how many results of each work team 대장 has accepted (all projects).
@@ -113,7 +116,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
         }
       }, catalog: () => registry.catalog(),
       // 감시 에이전트: checks every Claude tool call before it runs (see src/sentinel.js).
-      sentinel: { script: path.join(root, 'scripts', 'sentinel-hook.mjs'), log: sentinelLog, grants: approvals.grantsFile },
+      sentinel: { script: path.join(root, 'scripts', 'sentinel-hook.mjs'), log: sentinelLog, grants: approvals.grantsFile, rules: rules.file },
       approvals, memory,
       // 실시간 진행: the last few things each running step did, in memory only, sent live to open pages.
       onActivity: (goalId, team, text) => {
@@ -272,6 +275,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       }
       return [201, store.getGoal(goal.id)];
     }],
+    ['GET', /^\/api\/rules$/, () => ({ items: rules.list() })],
+    ['POST', /^\/api\/rules$/, (m, body) => { if (body.project) existingWorkspace(String(body.project)); return [201, rules.add(body)]; }],
+    ['DELETE', /^\/api\/rules\/([0-9a-f-]{36})$/, m => rules.remove(m[1])],
     ['GET', /^\/api\/templates$/, () => ({ items: templates.list() })],
     ['POST', /^\/api\/templates$/, (m, body) => { existingWorkspace(String(body.projectId ?? '')); return [201, templates.save({ projectId: String(body.projectId), name: body.name })]; }],
     ['DELETE', /^\/api\/templates\/([0-9a-f-]{36})$/, m => templates.remove(m[1])],
@@ -474,7 +480,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   }, tickMs) : null;
   timer?.unref();
   return {
-    server, store, scheduler, registry, orchestrator, workspaces, autoSave, digests, makeReport, routines, templates,
+    server, store, scheduler, registry, orchestrator, workspaces, autoSave, digests, makeReport, routines, templates, rules,
     close: () => new Promise(resolve => { if (timer) clearInterval(timer); server.close(() => { store.close(); resolve(); }); }),
   };
 }

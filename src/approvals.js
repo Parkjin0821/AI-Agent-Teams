@@ -47,7 +47,7 @@ export class Approvals {
   request(asks, { goalId, project, team, task = '' }) {
     const created = [];
     for (const ask of asks) {
-      if (!['web', 'connector'].includes(ask?.kind) || typeof ask.target !== 'string' || !ask.target) continue;
+      if (!['web', 'connector', 'path'].includes(ask?.kind) || typeof ask.target !== 'string' || !ask.target) continue;
       const id = createHash('sha256').update(JSON.stringify([project, ask.kind, ask.target])).digest('hex').slice(0, 24);
       const existing = this.store.getSettings()[KEY + id];
       const example = typeof ask.detail === 'string' && ask.detail ? ask.detail.slice(0, 200) : null;

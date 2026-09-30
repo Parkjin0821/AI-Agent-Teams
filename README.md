@@ -220,6 +220,7 @@ $env:PORT='4314'; $env:AGENT_HQ_DATA_DIR='data\real-test'   # 포트·데이터 
 | `src/evidence.js` | 완료 근거 확인(파일 존재·문구·엔진이 돌린 테스트 통과), 작업 폴더 지문 |
 | `src/toolkit.js`, `src/checks.js`, `src/sandbox.js` | 팀별 프로그램 목록, 엔진 내장 검사, Codex 샌드박스 실행 |
 | `src/adapters.js` | Claude Code / Codex CLI 실행(셸 미사용, 프롬프트는 stdin) |
+| `src/rules.js` | 대장 규칙: 사이트·파일 경로·연결 도구마다 허용/승인 필요/금지 (모든 프로젝트 또는 한 프로젝트). 기본 안전 규칙이 먼저이고 규칙으로 열 수 없음. Claude는 감시 에이전트가 동작마다, Codex는 단계 뒤 바뀐 파일로 확인 |
 | `src/templates.js` | 템플릿: 끝난 프로젝트의 목표·완료 조건·팀별 모델 선택을 저장해 새 프로젝트에서 새 내용으로 다시 씀 (파일·대화는 옮기지 않음) |
 | `src/routines.js` | 반복 실행: 프로젝트를 매일·매주 정해진 시각에 새 회차로 다시 돌림. 이전 회차가 열려 있으면 건너뛰고, 꺼져 있던 동안 놓친 회차는 한 번만, 회차마다 `file_updated`로 결과 갱신 확인 |
 | `src/report.js` | 완료 보고서: 팀 프로젝트가 끝나면 엔진이 실행 기록만으로 보고서(조건별 근거·팀별 단계·사용 모델·한도 전환·결과물·대조한 원문)를 `reports/`에 쓰고 한글 문서로 만듦 (AI 호출 없음, 설정 `reports.auto`) |

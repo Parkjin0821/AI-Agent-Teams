@@ -141,7 +141,7 @@ export class GoalScheduler {
   answer(goalId, text, attachments = []) {
     const goal = this.store.getGoal(goalId);
     if (goal?.criteriaApprovalPending) throw new Error('completion criteria approval required');
-    if (!goal || goal.reason !== 'needs_decision') throw new Error('goal is not waiting for an answer');
+    if (!goal || !['needs_decision', 'rule_violation'].includes(goal.reason)) throw new Error('goal is not waiting for an answer');
     const typed = String(text || '').trim().slice(0, 1000);
     if (!typed && !attachments.length) throw new Error('answer is empty');
     const reply = (typed || '(첨부 파일 참고)') + attachmentNote(attachments);
@@ -484,8 +484,15 @@ export class GoalScheduler {
       plan: result.plan ? { nextTask: result.plan.nextTask, team: result.plan.team ?? 'dev', reviews: result.plan.reviews ?? [] } : null,
       review: result.review ? { verdict: result.review.verdict, issues: result.review.issues, blocking: result.review.blocking } : null });
     if (goal.status !== GoalStatus.RUNNING) return;
-    const decided = goal.kind === 'team' && result.outcome === 'completed'
-      ? this.decideTeam(goal, result, evidence, now) : this.decide(goal, result, evidence, now);
+    // 대장 규칙: a step that added or changed a file a 금지 / 승인 필요 path rule covers stops for 대장 (rules.js).
+    const violations = Array.isArray(result.ruleViolations) ? result.ruleViolations : [];
+    const decided = violations.length
+      ? { status: GoalStatus.REVIEW_REQUIRED, reason: 'rule_violation', nextRunAt: null,
+        question: `[엔진] ${TEAMS[run.team]?.name ?? '팀'}이 대장 규칙에 걸리는 파일을 바꿨습니다:\n${violations.slice(0, 10)
+          .map(v => `- ${v.file} · ${v.rule.action === 'deny' ? '금지' : '승인 필요'} 규칙 “${v.rule.target}”${v.rule.note ? ` (${v.rule.note})` : ''}`).join('\n')}\n`
+          + '파일을 확인한 뒤, 괜찮으면 다시 시작하고 아니면 고칠 점을 답으로 보내 주세요.' }
+      : goal.kind === 'team' && result.outcome === 'completed'
+        ? this.decideTeam(goal, result, evidence, now) : this.decide(goal, result, evidence, now);
     const next = { ...decided, activeModel: actualModel };
     if (next.status === GoalStatus.VERIFIED) next.autoRunBeforeFinish = goal.autoRun;
     if (!result.simulated && Array.isArray(result.requests)) next.collaboration = enqueueRequests(goal.collaboration, result.requests);

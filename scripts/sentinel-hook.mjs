@@ -5,10 +5,12 @@ try {
   for await (const chunk of process.stdin) { input += chunk; if (input.length > 5_000_000) throw new Error('input too large'); }
   const { decide, logDecision } = await import('../src/sentinel.js');
   const { readGrants } = await import('../src/approvals.js');
+  const { readRules } = await import('../src/rules.js');
   const call = JSON.parse(input);
   const project = process.env.AGENT_HQ_PROJECT || null;
   const verdict = decide(call, { workspace: process.env.AGENT_HQ_WORKSPACE, project,
     grants: process.env.AGENT_HQ_SENTINEL_GRANTS ? readGrants(process.env.AGENT_HQ_SENTINEL_GRANTS) : [],
+    rules: process.env.AGENT_HQ_SENTINEL_RULES ? readRules(process.env.AGENT_HQ_SENTINEL_RULES) : [],
     webMode: process.env.AGENT_HQ_SENTINEL_WEB === 'open' ? 'open' : 'ask' });
   if (verdict.decision !== 'ignore') {
     try {

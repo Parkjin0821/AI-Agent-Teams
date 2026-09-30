@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { isIP } from 'node:net';
 import path from 'node:path';
 import { granted } from './approvals.js';
+import { ruleFor } from './rules.js';
 
 // 감시 에이전트 (Sentinel): a separate program Claude Code calls before every tool use (official
 // PreToolUse hook). It decides from fixed rules, not from a model, so text on a web page or in a file
@@ -29,7 +30,7 @@ function privateHost(host) {
 // Returns { decision: 'allow' | 'ask' | 'deny' | 'ignore', reason, target, ask? } for one tool call.
 // 'ask' = not allowed yet, becomes an approval request for 대장 (see src/approvals.js).
 // webMode 'ask': a public site needs a grant first; 'open': any public https site passes the fixed rules.
-export function decide(input, { workspace, grants = [], project = null, webMode = 'open', now = Date.now() } = {}) {
+export function decide(input, { workspace, grants = [], project = null, webMode = 'open', now = Date.now(), rules = [] } = {}) {
   const tool = String(input?.tool_name ?? '');
   const args = input?.tool_input ?? {};
   if (tool === 'WebFetch') {
@@ -42,6 +43,14 @@ export function decide(input, { workspace, grants = [], project = null, webMode 
     if (hasSecret(url.href)) return { decision: 'deny', reason: '주소에 비밀정보 형식이 들어 있음 (유출 차단)', target };
     if (url.search.length > 300) return { decision: 'deny', reason: '주소 뒤에 붙은 데이터가 너무 김 (유출 의심)', target };
     const host = url.hostname.toLowerCase();
+    // 대장 규칙 (after the fixed rules above): 금지 always wins; 승인 필요 asks even in open web mode; 허용 skips the ask.
+    const rule = ruleFor(rules, { kind: 'site', target: host, project });
+    if (rule?.action === 'deny') return { decision: 'deny', reason: `대장 규칙으로 금지된 사이트${rule.note ? ` (${rule.note})` : ''}`, target };
+    if (rule?.action === 'allow') return { decision: 'allow', reason: '대장 규칙으로 허용된 사이트', target };
+    if (rule?.action === 'ask') {
+      if (granted(grants, { kind: 'web', target: host, project }, now)) return { decision: 'allow', reason: '대장 규칙 · 승인받은 사이트', target };
+      return { decision: 'ask', reason: `대장 규칙 · 이 사이트는 승인 필요${rule.note ? ` (${rule.note})` : ''}`, target, ask: { kind: 'web', target: host } };
+    }
     if (webMode === 'open' || granted(grants, { kind: 'web', target: host, project }, now)) return { decision: 'allow', reason: '공개 https 주소', target };
     return { decision: 'ask', reason: '처음 여는 사이트 · 대장 승인 필요', target, ask: { kind: 'web', target: host } };
   }
@@ -63,10 +72,19 @@ export function decide(input, { workspace, grants = [], project = null, webMode 
     if (/^sources([\\/]|$)/.test(rel)) return { decision: 'deny', reason: '웹 원문 폴더(sources/)는 엔진만 씀', target: rel };
     const content = [args.content, args.file_text, args.new_string, args.new_source, ...(Array.isArray(args.edits) ? args.edits.map(e => e?.new_string) : [])];
     if (content.some(hasSecret)) return { decision: 'deny', reason: '비밀정보 형식을 파일에 쓰려 함', target: rel };
+    const relPath = rel.split(path.sep).join('/');
+    const rule = ruleFor(rules, { kind: 'path', target: relPath, project });
+    if (rule?.action === 'deny') return { decision: 'deny', reason: `대장 규칙으로 금지된 경로${rule.note ? ` (${rule.note})` : ''}`, target: relPath };
+    if (rule?.action === 'ask' && !granted(grants, { kind: 'path', target: relPath, project }, now)) {
+      return { decision: 'ask', reason: `대장 규칙 · 이 경로는 승인 필요${rule.note ? ` (${rule.note})` : ''}`, target: relPath, ask: { kind: 'path', target: relPath } };
+    }
     return { decision: 'allow', reason: '작업 폴더 안 파일', target: rel };
   }
   if (tool.startsWith('mcp__')) {
-    if (RISKY_CONNECTOR.test(tool) && !granted(grants, { kind: 'connector', target: tool, project }, now)) {
+    const rule = ruleFor(rules, { kind: 'connector', target: tool, project });
+    if (rule?.action === 'deny') return { decision: 'deny', reason: `대장 규칙으로 금지된 연결 도구${rule.note ? ` (${rule.note})` : ''}`, target: tool };
+    if (rule?.action === 'allow') return { decision: 'allow', reason: '대장 규칙으로 허용된 연결 도구', target: tool };
+    if ((rule?.action === 'ask' || RISKY_CONNECTOR.test(tool)) && !granted(grants, { kind: 'connector', target: tool, project }, now)) {
       return { decision: 'ask', reason: '삭제·공유·게시·전송·결제 성격의 커넥터 동작 · 대장 승인 필요', target: tool, ask: { kind: 'connector', target: tool } };
     }
     return { decision: 'allow', reason: '연결된 도구', target: tool };

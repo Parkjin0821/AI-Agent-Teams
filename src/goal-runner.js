@@ -9,6 +9,7 @@ import { SkillLibrary } from './skills.js';
 import { hasSecret, readAsks } from './sentinel.js';
 import { readGrants } from './approvals.js';
 import { saveSources, sourceRecords } from './web-sources.js';
+import { pathViolations, readRules, rulesPrompt } from './rules.js';
 
 // Bridges the goal scheduler to the CLI adapter. After a real run the engine reads the tool's final
 // answer, runs the checks it proposed inside the workspace, and only passing checks become evidence.
@@ -64,6 +65,10 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       }
       // Codex reads files through Windows PowerShell, whose restricted mode garbled every Korean line in a real run.
       // For Codex the engine reads the small text files itself (UTF-8) and hands them over as material.
+      // 대장 규칙, told up front so teams do not spend steps on what is forbidden.
+      const stepRules = sentinel?.rules ? readRules(sentinel.rules) : [];
+      const rulesBlock = team ? rulesPrompt(stepRules, goal.projectId) : '';
+      if (rulesBlock) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + rulesBlock + prompt.slice(at) : prompt + rulesBlock; }
       if (team && PROVIDER[run.executor] === 'codex') {
         const block = inlineTextFiles(cwd, before.files);
         if (block) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + block + prompt.slice(at) : prompt + block; }
@@ -98,8 +103,14 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           { goalId: goal.id, project: goal.projectId, team: team ?? 'task', task: goal.team?.task ?? goal.objective });
         approvals.consumeOnce(goal.projectId);
       }
+      // 대장 규칙 after the step: files it added or changed that a 금지 / 승인 필요 path rule covers. The Sentinel stops
+      // Claude's writes one by one; Codex's cannot be stopped, so this is where they are caught.
+      const afterRules = snapshot();
+      const changedFiles = [...afterRules.files.filter(f => !before.files.includes(f)),
+        ...afterRules.files.filter(f => before.signatures[f] && before.signatures[f] !== afterRules.signatures[f])];
+      const ruleViolations = simulated ? [] : pathViolations(stepRules, goal.projectId, changedFiles);
       if (runRecord) {
-        const after = snapshot();
+        const after = afterRules;
         store.saveRun({ ...store.listRuns(goal.id).find(r => r.id === runRecord.id), checkpoint: { before, after, guard,
           state: result.outcome, added: after.files.filter(f => !before.files.includes(f)), removed: before.files.filter(f => !after.files.includes(f)),
           modified: after.files.filter(f => before.signatures[f] && before.signatures[f] !== after.signatures[f]),
@@ -118,7 +129,8 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           findings: team === 'qa' ? { feedback: '모의 실행이라 확인한 것이 없습니다', improvements: [], blocking: [] } : undefined };
       }
       const toolsSaved = engineTools.map(({ id, name, status, summary, details }) => ({ id, name, status, summary, details: details.slice(0, 10) }));
-      const base = { model: result.model ?? null, answer: result.answer ?? null, tools: toolsSaved, approvalRequests: approvalRequests.map(r => r.id) };
+      const base = { model: result.model ?? null, answer: result.answer ?? null, tools: toolsSaved, approvalRequests: approvalRequests.map(r => r.id),
+        ...(ruleViolations.length ? { ruleViolations } : {}) };
       if (result.outcome === 'limited') return { ...base, outcome: 'error', errorKind: 'limit' };
       if (result.outcome !== 'completed') return { ...base, outcome: 'error', errorKind: result.errorKind ?? 'unclassified' };
       if (selectedSkills.length) {

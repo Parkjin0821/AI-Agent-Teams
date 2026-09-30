@@ -1068,6 +1068,22 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
       <sc-if value="{{ib.noGrants}}"><p class="hint">허용해 둔 것이 없습니다.</p></sc-if>
     </section>
     <section class="card">
+      <div class="lbl">대장 규칙</div>
+      <p class="hint" style="margin: 0 0 12px">사이트·파일 경로·연결 도구마다 허용 / 승인 필요 / 금지를 정합니다. 기본 안전 규칙(작업 폴더 밖, 설정 파일, 비밀정보, 내부 주소)은 규칙과 상관없이 항상 막습니다. Claude 팀은 감시 에이전트가 동작마다 막고, Codex 팀은 단계가 끝난 뒤 바뀐 파일을 확인해 걸리면 멈춥니다.</p>
+      <sc-for list="{{ru.items}}" as="r">
+        <div class="ib-row"><div style="min-width: 0"><div class="row-f"><span class="{{r.pillCls}}"><i></i>{{r.actionL}}</span><b>{{r.kindL}}</b><span class="mono small">{{r.target}}</span></div><div class="small muted">{{r.scopeL}}{{r.noteL}}</div></div>
+          <div class="ib-acts"><button class="btn sm" onClick="{{r.remove}}">삭제</button></div></div>
+      </sc-for>
+      <sc-if value="{{ru.none}}"><p class="hint">정한 규칙이 없습니다.</p></sc-if>
+      <div class="field" style="margin-top: 12px"><label>새 규칙</label>
+        <div class="seg" role="group" aria-label="규칙 대상 종류"><sc-for list="{{ru.kinds}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div>
+        <input class="input" style="margin-top: 8px" placeholder="{{ru.placeholder}}" value="{{ru.target}}" onChange="{{ru.onTarget}}" aria-label="규칙 대상" autocomplete="off">
+        <div class="seg" role="group" aria-label="규칙 동작" style="margin-top: 8px"><sc-for list="{{ru.actions}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div>
+        <select class="input" style="margin-top: 8px" aria-label="적용 범위" onChange="{{ru.onScope}}"><sc-for list="{{ru.scopes}}" as="o"><option value="{{o.v}}" selected="{{o.sel}}">{{o.l}}</option></sc-for></select>
+        <input class="input" style="margin-top: 8px" placeholder="메모 (선택) · 예: 회사 보안 정책" value="{{ru.note}}" onChange="{{ru.onNote}}" aria-label="규칙 메모" autocomplete="off">
+        <div class="row-f" style="margin-top: 8px"><button class="btn pri sm" onClick="{{ru.add}}">규칙 추가</button></div></div>
+    </section>
+    <section class="card">
       <div class="lbl">설정</div>
       <div class="field"><label>웹 접근</label>
         <div class="seg" role="group" aria-label="웹 접근"><button class="{{ib.webAskCls}}" aria-pressed="{{ib.webAsk}}" onClick="{{ib.setWebAsk}}">처음 여는 사이트는 승인 받기</button><button class="{{ib.webOpenCls}}" aria-pressed="{{ib.webOpen}}" onClick="{{ib.setWebOpen}}">공개 사이트는 모두 허용</button></div>
@@ -1269,7 +1285,7 @@ class DCLogic {
   }
 }
 const HOLE = /\{\{\s*([\w.$]+)\s*\}\}/g;
-const BOOL_ATTRS = ['disabled', 'hidden', 'checked', 'required', 'open'];
+const BOOL_ATTRS = ['disabled', 'hidden', 'checked', 'required', 'open', 'selected'];
 function lookup(path, vals, scope) {
   const [head, ...rest] = path.split('.');
   let v = Object.hasOwn(scope, head) ? scope[head] : vals[head];
@@ -1349,7 +1365,7 @@ const REASON = {
   criteria_not_derived: '완료 조건 도출 실패 · 기획팀이 검증 가능한 조건을 제시하지 못했습니다. 요구사항을 보완해 주세요.',
   no_verified_capable_assignment: '모델 등록·계정 확인 또는 작업에 필요한 기능이 부족합니다. 연결 화면에서 확인하세요. 독립 검토용 다른 실행 도구도 필요할 수 있습니다.',
   usage_unavailable_or_limited: '구독 로그인 미확인, 초과 사용 감지, 최신 사용량 미확인 또는 중단 기준(5시간 20%·주간 10%)에 닿아 기다립니다',
-  unclear_review: '검토팀의 결과를 읽지 못해 멈췄습니다', needs_decision: '팀이 대장의 결정을 기다립니다', unclear_plan: '기획팀이 다음 작업을 정하지 못했습니다',
+  unclear_review: '검토팀의 결과를 읽지 못해 멈췄습니다', needs_decision: '팀이 대장의 결정을 기다립니다', rule_violation: '대장 규칙에 걸리는 변경이 있어 멈췄습니다', unclear_plan: '기획팀이 다음 작업을 정하지 못했습니다',
   no_progress: '개발 단계에서 3번 연속 진전이 없어 멈췄습니다', awaiting_review: '엔진이 확인하지 못한 조건이 남아 멈췄습니다',
   daily_cap: '오늘 실행 한도에 닿아 내일 이어서 합니다', pinned_model_unavailable: '고정한 모델을 쓸 수 없어 기다립니다',
   network_error: '네트워크 오류로 잠시 후 다시 시도합니다', network_retries_exhausted: '네트워크 오류가 계속되어 멈췄습니다',
@@ -1429,6 +1445,7 @@ class Component extends DCLogic {
   }
   componentDidMount() {
     this.loadModelChoices();
+    this.loadRules();
     this.loadUsage();
     this.refresh();
     this.loadEnvs();
@@ -1483,7 +1500,7 @@ class Component extends DCLogic {
       if (g.criteriaApprovalPending) body = '완료 조건 승인이 필요합니다';
       else if (g.reason === 'approval_required') body = '감시 에이전트 승인 요청이 있습니다 · 승인함에서 범위를 골라 주세요';
       else if (g.reason === 'trust_review') body = '결과 확인 요청 (신뢰 쌓기) · 승인함에서 확인해 주세요';
-      else if (g.status === 'review_required' && g.reason === 'needs_decision') body = askedBy(g.question) + ' 질문: ' + clip(stripAsker(g.question), 120);
+      else if (g.status === 'review_required' && ['needs_decision', 'rule_violation'].includes(g.reason)) body = askedBy(g.question) + ' 질문: ' + clip(stripAsker(g.question), 120);
       else if (g.status === 'verified') body = '완료됐습니다' + (g.proposal && g.proposal.status === 'pending' ? ' · 다음 개선안이 있습니다' : '');
       else if (['review_required', 'blocked', 'recovery_required'].includes(g.status)) body = '멈춤 · ' + reasonText(g.reason);
       if (!body) return;
@@ -1610,7 +1627,7 @@ class Component extends DCLogic {
       { l: '이 프로젝트에서 계속 허용', cls: 'btn sm', go: grantAct(a, 'project') }, { l: '거절', cls: 'btn danger sm', go: denyAct(a) }];
     const approvalMore = (a) => [{ l: '24시간 허용', cls: 'btn sm', go: grantAct(a, 'day') }, { l: '모든 프로젝트에서 허용', cls: 'btn sm', go: grantAct(a, 'always') }]
       .concat(a.kind === 'web' ? [{ l: '이 프로젝트의 모든 공개 사이트 허용', cls: 'btn ghost sm', go: grantAct(a, 'project', true) }] : []);
-    const approvalSentence = (a) => (TEAM_NAME[a.team] || a.team) + '이 ' + (a.kind === 'web' ? a.target + ' 사이트를 열려고 합니다' : '커넥터 동작 ' + a.target + '을(를) 하려고 합니다');
+    const approvalSentence = (a) => (TEAM_NAME[a.team] || a.team) + '이 ' + (a.kind === 'web' ? a.target + ' 사이트를 열려고 합니다' : a.kind === 'path' ? a.target + ' 파일에 쓰려고 합니다 (대장 규칙 · 승인 필요)' : '커넥터 동작 ' + a.target + '을(를) 하려고 합니다');
     const reviewFiles = (r) => { const cp = r.checkpoint; return cp ? '추가 ' + cp.added.length + ' · 수정 ' + cp.modified.length + ' · 삭제 ' + cp.removed.length + ' 파일' : '파일 변경 기록 없음'; };
     const reviewAccept = (r) => () => this.inboxAct(this.api('POST', '/api/goals/' + r.goalId + '/trust-review', { accept: true }), '확인했습니다 · 다음 단계로 이어갑니다');
     const reviewSendBack = (r) => async () => {
@@ -1649,7 +1666,7 @@ class Component extends DCLogic {
       if (held) {
         inbox.push({ icon: ICON.issue, icoCls: 'ico', title: g.reason === 'approval_required' ? '승인 요청' : (g.reason === 'trust_review' ? '결과 확인' : '확인 필요'), project: p.name,
           body: held.body, isIssue: true, held: ['approval_required', 'trust_review'].includes(g.reason), actions: held.actions });
-      } else if (g.status === 'review_required' && g.reason === 'needs_decision') {
+      } else if (g.status === 'review_required' && ['needs_decision', 'rule_violation'].includes(g.reason)) {
         const inputId = 'ans-' + g.id;
         const judge = this.judgeRows(g);
         inbox.push({ icon: ICON.question, icoCls: 'ico', title: askedBy(g.question) + ' 질문', project: p.name, question: stripAsker(g.question),
@@ -1750,7 +1767,7 @@ class Component extends DCLogic {
             d: on ? (g.status === 'running' ? '지금 작업 중' : '다음 차례') : (n ? n + '번 참여' : '아직 참여 전') };
         }),
         flowCols: 'grid-template-columns: repeat(' + cyclePath(wp).length + ', minmax(0, 1fr))',
-        hasQuestion: g.status === 'review_required' && g.reason === 'needs_decision', question: stripAsker(g.question), askedBy: askedBy(g.question),
+        hasQuestion: g.status === 'review_required' && ['needs_decision', 'rule_violation'].includes(g.reason), question: stripAsker(g.question), askedBy: askedBy(g.question),
         judge: this.judgeRows(g), hasJudge: this.judgeRows(g).length > 0,
         answerHint: this.judgeRows(g).length ? '남은 조건을 확인하면 추가 실행 없이 완료됩니다. 고칠 점이 있으면 아래 입력창에 적어 보내세요. 답으로 “승인”이라고 쓰는 것은 조건 확인이 아닙니다.'
           : '아래 입력창에 답을 적어 보내면 기획팀이 이어서 계획합니다.',
@@ -2009,7 +2026,7 @@ class Component extends DCLogic {
     const navDefs = [['home', '홈', 0], ['projects', '프로젝트', 0], ['inbox', '승인함', pendingTotal], ['teams', '팀', 0]];
     const navMoreDefs = [['memory', '기억'], ['skills', '스킬'], ['connect', '연결'], ['usage', '사용량 상세']];
     // ── 승인함 ──
-    const KIND_L = { web: '웹사이트 열기', connector: '커넥터 동작' };
+    const KIND_L = { web: '웹사이트 열기', connector: '커넥터 동작', path: '승인 필요 경로에 쓰기' };
     const ib = {
       reload: () => this.loadInbox(),
       others: inbox.filter((it) => !it.held).map((it) => Object.assign({}, it, { ibInputId: 'ib-' + (it.inputId || '') })), hasOthers: othersN > 0, othersN: othersN, total: pendingTotal,
@@ -2376,7 +2393,7 @@ class Component extends DCLogic {
       pinDraft: s.pinDraft, onPin: (e) => this.setState({ pinDraft: e.target.value }),
       autoLevelOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: autoOn === v ? 'on' : '', pressed: autoOn === v ? 'true' : 'false',
         pick: () => { if (autoOn === v) return; this.act(this.api('PUT', '/api/settings', { key: 'models.auto', value: v }), v ? '모델 자동 선택을 켰습니다 · 다음 단계부터' : '모델 자동 선택을 껐습니다 · 고르지 않은 팀은 기본 모델로'); } })),
-      rt: this.routineView(wp),
+      rt: this.routineView(wp), ru: this.rulesView(P),
       switchOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: lim.autoSwitch === v ? 'on' : '', pressed: lim.autoSwitch === v ? 'true' : 'false',
         pick: () => { if (lim.autoSwitch === v) return; this.act(this.api('PUT', '/api/settings', { key: 'limits.autoSwitch', value: v }), v ? '한도 자동 전환을 켰습니다' : '한도 자동 전환을 껐습니다 · 한도에 닿으면 그 AI가 풀릴 때까지 기다립니다'); } })),
       capDraft: s.capDraft == null ? String(lim.day) : s.capDraft, onCap: (e) => this.setState({ capDraft: e.target.value }),
@@ -2473,6 +2490,34 @@ class Component extends DCLogic {
     if (failed) this.say(failed.name + ' · Markdown 변환 실패 (' + failed.convertError + ') · 팀이 이 문서를 못 읽을 수 있습니다');
     else if (big) this.say(big.name + ' · ' + big.warning);
     else if (added.length) this.say('첨부했습니다 (' + added.length + '개) · 보내기를 누르면 팀에게 전달됩니다');
+  }
+  loadRules() {
+    return this.api('GET', '/api/rules').then((r) => this.setState({ rules: r.items || [] })).catch(() => {});
+  }
+  // 대장 규칙 card in 승인함: the saved rules and the new-rule form.
+  rulesView(P) {
+    const s = this.state, d = Object.assign({ kind: 'site', action: 'deny', target: '', project: '', note: '' }, s.ruleDraft || {});
+    const setD = (patch) => this.setState({ ruleDraft: Object.assign({}, d, patch) });
+    const chip = (on, l, pick) => ({ l: l, cls: on ? 'on' : '', pressed: on ? 'true' : 'false', pick: pick });
+    const KIND = { site: '사이트', path: '파일 경로', connector: '연결 도구' }, ACT = { allow: '허용', ask: '승인 필요', deny: '금지' };
+    const name = (id) => { const p = P.find((x) => x.id === id); return p ? p.name : id; };
+    const items = (s.rules || []).map((r) => ({ kindL: KIND[r.kind] || r.kind, target: r.target, actionL: ACT[r.action] || r.action,
+      pillCls: pillCls(r.action === 'deny' ? 'stop' : r.action === 'ask' ? 'attn' : 'done'),
+      scopeL: r.project ? '프로젝트 ' + name(r.project) : '모든 프로젝트', noteL: r.note ? ' · ' + r.note : '',
+      remove: async () => { if (!await ask('이 규칙을 삭제할까요?\n' + ACT[r.action] + ' · ' + KIND[r.kind] + ' ' + r.target)) return;
+        this.api('DELETE', '/api/rules/' + r.id).then(() => this.loadRules()).then(() => this.say('규칙을 삭제했습니다')).catch((e) => this.say(korErr(e.message))); } }));
+    return { items: items, none: !items.length, target: d.target, note: d.note,
+      placeholder: d.kind === 'site' ? '예: example.com (하위 주소 포함)' : d.kind === 'path' ? '예: secrets/ · *.env · docs/**/*.pdf' : '예: gmail · slack',
+      kinds: Object.keys(KIND).map((k) => chip(d.kind === k, KIND[k], () => setD({ kind: k }))),
+      actions: ['deny', 'ask', 'allow'].map((a) => chip(d.action === a, ACT[a], () => setD({ action: a }))),
+      scopes: [{ v: '', l: '모든 프로젝트', sel: !d.project }].concat(P.filter((p) => p.isTeam).map((p) => ({ v: p.id, l: '프로젝트 · ' + p.name, sel: d.project === p.id }))),
+      onTarget: (e) => setD({ target: e.target.value }), onNote: (e) => setD({ note: e.target.value }), onScope: (e) => setD({ project: e.target.value }),
+      add: () => {
+        if (!d.target.trim()) { this.say('대상을 적어 주세요'); return; }
+        this.api('POST', '/api/rules', { kind: d.kind, target: d.target.trim(), action: d.action, project: d.project || null, note: d.note })
+          .then(() => { this.setState({ ruleDraft: { kind: d.kind, action: d.action, target: '', project: d.project, note: '' } }); return this.loadRules(); })
+          .then(() => this.say('규칙을 추가했습니다 · 다음 동작부터 적용')).catch((e) => this.say(korErr(e.message)));
+      } };
   }
   loadTemplates() {
     return this.api('GET', '/api/templates').then((r) => this.setState({ templates: r.items || [] })).catch(() => {});
