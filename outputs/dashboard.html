@@ -613,6 +613,13 @@ details[open]>.program-toggle::after{content:'⌃'}
               <div class="row-f"><button class="btn pri sm" onClick="{{w.accept}}">승인하고 계속</button><button class="btn sm" onClick="{{w.dismiss}}">보류</button></div>
             </div>
           </sc-if>
+          <sc-if value="{{w.atDailyCap}}">
+            <div class="msg action attn">
+              <div class="meta"><b>엔진</b><span class="small muted">오늘 단계 한도</span></div>
+              <div class="body">{{w.capText}}</div>
+              <div class="row-f"><sc-for list="{{w.extendActs}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for></div>
+            </div>
+          </sc-if>
           <sc-if value="{{w.hasIssue}}">
             <div class="{{w.issueMsgCls}}">
               <div class="meta"><b>엔진</b><span class="small muted">{{w.issueTitle}}</span></div>
@@ -644,6 +651,7 @@ details[open]>.program-toggle::after{content:'⌃'}
           <div class="lbl">할 일</div>
           <ol class="next"><sc-for list="{{w.upcoming}}" as="u"><li class="{{u.cls}}"><div class="row-f"><b class="small">{{u.team}}</b><span class="kind">{{u.state}}</span></div><div class="small muted">{{u.what}}</div></li></sc-for></ol>
           <sc-if value="{{w.hasWaitNote}}"><p class="hint" style="margin-top: 8px">{{w.waitNote}}</p></sc-if>
+          <sc-if value="{{w.atDailyCap}}"><div class="row-f" style="margin-top: 8px"><sc-for list="{{w.extendActs}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for></div></sc-if>
         </div>
         <div class="card">
           <div class="lbl">감시 에이전트</div>
@@ -1521,6 +1529,8 @@ class Component extends DCLogic {
             // A paused project keeps the message but does not run: offer to resume right away instead of silence.
             if (saved && saved.status === 'paused' && await ask('이 프로젝트는 멈춰 있어서 메시지만 저장됐습니다. 지금 이어서 시작할까요? 기획팀이 이 메시지를 보고 다시 계획합니다.'))
               return this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '이어서 시작했습니다 · 기획팀이 메시지를 보고 다시 계획합니다');
+            if (saved && saved.reason === 'daily_cap' && await ask('오늘 단계 한도를 다 써서 팀이 자정에 이 메시지를 읽습니다. 오늘만 5단계 더 진행할까요?\n구독 사용량 중단 기준과 반복 감지는 그대로 지킵니다.', { okL: '오늘만 5단계 더', cancelL: '자정에 이어서' }))
+              return this.act(this.api('POST', '/api/goals/' + g.id + '/extend-today', { steps: 5 }), '오늘만 5단계 더 진행합니다');
             if (saved && saved.status === 'paused') this.say('메시지를 저장했습니다 · 프로젝트가 멈춰 있어 위의 "이어서 시작"을 눌러야 팀이 읽습니다');
             return this.refresh(); })
           .catch(e => this.say(korErr(e.message))),
@@ -1658,6 +1668,15 @@ class Component extends DCLogic {
         : seq.map((k, i) => ({ team: k === 'work' ? '작업팀' : TEAM_NAME[k], cls: i === 0 ? 'now' : '',
           state: i === 0 ? (busy ? '작업 중' : RUNNING_LIKE.includes(g.status) ? '다음' : '대기') : '예정',
           what: k === 'work' ? '기획팀이 정한 팀이 작업 · 이어서 보안·정책 검토' : (i === 0 && team.task && k !== 'plan' && k !== 'qa' ? clip(team.task, 90) : STEP_WHAT[k]) }));
+      // 오늘 단계 한도: "오늘만 N단계 더" (이 프로젝트만, 오늘만 · 사용량 중단 기준은 그대로)
+      const extraToday = g.dailyExtra && g.dailyExtra.day === new Date().toDateString() ? g.dailyExtra.steps : 0;
+      const extend = (n) => () => this.act(this.api('POST', '/api/goals/' + g.id + '/extend-today', { steps: n }),
+        '오늘만 ' + n + '단계 더 진행합니다' + (g.autoRun ? ' · 곧 이어집니다' : ' · 시작을 누르면 이어집니다'));
+      w.atDailyCap = isTeam && g.reason === 'daily_cap';
+      w.capText = '오늘 이 프로젝트의 단계 ' + (lim.day + extraToday) + '회를 다 썼습니다' + (extraToday ? ' (기본 ' + lim.day + ' + 오늘 추가 ' + extraToday + ')' : '')
+        + '. 그대로 두면 자정에 이어집니다. 더 진행하려면 오늘만 단계를 늘리세요 · 구독 사용량 중단 기준(5시간 20%·주간 10%)과 반복 감지는 그대로 지킵니다.';
+      w.extendActs = [{ l: '오늘만 5단계 더', cls: 'btn pri sm', go: extend(5) }, { l: '오늘만 10단계 더', cls: 'btn sm', go: extend(10) },
+        { l: '기본 한도 바꾸기', cls: 'btn ghost sm', go: () => this.setState({ ptab: 'settings' }) }];
       w.hasWaitNote = ['daily_cap', 'usage_unavailable_or_limited'].includes(g.reason) || g.status === 'paused' || (!g.autoRun && isTeam && g.status === 'scheduled');
       w.waitNote = g.reason === 'daily_cap' ? '오늘 단계 한도(' + lim.day + ')를 다 써서 자정에 이어집니다.' : g.status === 'paused' ? '멈춤 상태입니다. 시작을 누르면 이어집니다.'
         : g.reason ? reasonText(g.reason) : '아직 시작 전입니다.';

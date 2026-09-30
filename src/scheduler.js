@@ -153,10 +153,15 @@ export class GoalScheduler {
     const reply = (typed || '(첨부 파일 참고)') + attachmentNote(attachments);
     const messages = [...(goal.messages ?? []), { role: 'user', text: typed, ...(attachments.length ? { attachments } : {}), at: iso(this.clock.now()) }].slice(-100);
     const held = [GoalStatus.PAUSED, GoalStatus.RECOVERY_REQUIRED, GoalStatus.BLOCKED].includes(goal.status);
-    return this.update(goal, { conversation: true, messages, completionCriteria: [], criteriaApprovalPending: false, evidence: [], confirmed: [],
+    // Approved criteria and their evidence survive a message ("keep going" must not wipe them); planning proposes
+    // a new list only when the message changes what counts as done. A message while criteria still await approval
+    // means "derive them again".
+    const rederive = goal.criteriaApprovalPending || !goal.completionCriteria.length;
+    const criteria = rederive ? { completionCriteria: [], criteriaApprovalPending: false, evidence: [], confirmed: [] } : {};
+    return this.update(goal, { conversation: true, messages, ...criteria,
       objective: `${goal.objective}\n대장 추가 요청: ${reply}`.slice(-16000), status: held ? goal.status : GoalStatus.SCHEDULED, reason: held ? goal.reason : null,
       question: held ? goal.question : null, proposal: null, nextRunAt: held ? goal.nextRunAt : iso(this.clock.now()),
-      team: { ...goal.team, step: 'plan', feedback: reply } });
+      team: { ...goal.team, step: 'plan', feedback: reply, criteriaCheck: !rederive } });
   }
 
   // 승인 대기 is over for this goal (every request answered): the held step runs again, with any refusals noted.
@@ -322,6 +327,25 @@ export class GoalScheduler {
     return Number.isInteger(set) && set >= 1 ? set : (this.policy.maxRoundsPerDay ?? 10);
   }
 
+  // "오늘만 N단계 더": extra steps 대장 grants one project for today only (usage stop rules still apply).
+  projectLimit(goal, now = this.clock.now()) {
+    const extra = goal.dailyExtra && goal.dailyExtra.day === new Date(now).toDateString() ? goal.dailyExtra.steps : 0;
+    return this.dailyLimit() + extra;
+  }
+  extendToday(goalId, steps) {
+    const goal = this.store.getGoal(goalId);
+    if (!goal || goal.kind !== 'team') throw new Error('team project not found');
+    if (!Number.isInteger(steps) || steps < 1 || steps > 50) throw new Error('extra steps must be a whole number from 1 to 50');
+    const now = this.clock.now(), day = new Date(now).toDateString();
+    const already = goal.dailyExtra?.day === day ? goal.dailyExtra.steps : 0;
+    if (already + steps > 50) throw new Error('at most 50 extra steps per project per day');
+    const changes = { dailyExtra: { day, steps: already + steps } };
+    // A project held only by today's limit continues at the next tick.
+    if (goal.reason === 'daily_cap') Object.assign(changes, { reason: null, nextRunAt: iso(now) });
+    void this.store.emit({ type: 'goal.daily_extended', goalId, steps: already + steps });
+    return this.update(goal, changes);
+  }
+
   roundsToday(projectId, now) {
     return this.store.listGoals().filter(g => g.projectId === projectId)
       .reduce((n, g) => n + this.store.listRuns(g.id).filter(r => sameLocalDay(Date.parse(r.startedAt), now)).length, 0);
@@ -349,7 +373,7 @@ export class GoalScheduler {
         if (running.length >= (this.policy.maxConcurrent ?? 2) || running.some(g => g.projectId === goal.projectId)
           || running.filter(g => this.store.listRuns(g.id).at(-1)?.executor === executor).length >= providerCap) return null;
         // Team projects that used up today's rounds continue tomorrow (the daily token guard).
-        if (goal.kind === 'team' && this.roundsToday(goal.projectId, now) >= this.dailyLimit()) {
+        if (goal.kind === 'team' && this.roundsToday(goal.projectId, now) >= this.projectLimit(goal, now)) {
           if (goal.reason !== 'daily_cap') {
             this.update(goal, { reason: 'daily_cap', nextRunAt: iso(nextMidnight(now)) });
             void this.store.emit({ type: 'goal.daily_cap', goalId, projectId: goal.projectId });
@@ -461,6 +485,15 @@ export class GoalScheduler {
         if (!plan.completionCriteria?.length) return review('criteria_not_derived');
         this.update(goal, { completionCriteria: validateCriteria(plan.completionCriteria), criteriaApprovalPending: true });
         return review('criteria_approval_required', { question: '도출한 완료 조건을 확인하고 승인해 주세요.' });
+      }
+      // After 대장's message planning may propose a changed list; only a real change needs approval again.
+      if (team.criteriaCheck) {
+        team.criteriaCheck = false;
+        const next = plan.completionCriteria?.length ? validateCriteria(plan.completionCriteria) : null;
+        if (next && JSON.stringify(next) !== JSON.stringify(goal.completionCriteria)) {
+          this.update(goal, { completionCriteria: next, criteriaApprovalPending: true, confirmed: [] });
+          return review('criteria_approval_required', { evidence: [], question: '대장 메시지에 맞춰 완료 조건을 바꾸자고 제안했습니다. 확인하고 승인해 주세요.' });
+        }
       }
       team.worker = WORKERS.includes(plan.team) ? plan.team : 'dev';
       team.profile = taskProfile(plan.profile);

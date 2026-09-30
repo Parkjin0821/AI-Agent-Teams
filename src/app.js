@@ -238,6 +238,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     ['POST', /^\/api\/goals\/([^/]+)\/messages$/, (m, body) => scheduler.message(m[1], body.text, attachmentsFor(m[1], body.attachments))],
     ['PUT', /^\/api\/goals\/([^/]+)\/autonomy$/, (m, body) => scheduler.setAutonomy(m[1], body)],
     ['POST', /^\/api\/goals\/([^/]+)\/start$/, m => scheduler.start(m[1])],
+    ['POST', /^\/api\/goals\/([^/]+)\/extend-today$/, (m, body) => scheduler.extendToday(m[1], body.steps)],
     ['POST', /^\/api\/goals\/([^/]+)\/stop$/, m => scheduler.stop(m[1])],
     ['POST', /^\/api\/goals\/([^/]+)\/answer$/, (m, body) => scheduler.answer(m[1], body.text, attachmentsFor(m[1], body.attachments))],
     ['POST', /^\/api\/goals\/([^/]+)\/proposal\/accept$/, m => [201, scheduler.acceptProposal(m[1])]],

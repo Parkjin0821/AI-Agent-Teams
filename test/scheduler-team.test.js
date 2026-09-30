@@ -98,9 +98,46 @@ test('conversation derives criteria, invalidates old confirmations and preserves
     scheduler.message(g.id, '디자인도 변경해줘');
     const changed = store.getGoal(g.id);
     assert.equal(changed.autoRun, false);
+    // the criteria were still awaiting approval, so a message means "derive them again"
     assert.deepEqual(changed.confirmed, []);
     assert.deepEqual(changed.completionCriteria, []);
     assert.equal(changed.messages.length, 2);
+  } finally { store.close(); }
+});
+
+test('after a message, planning keeps the criteria unless it proposes a real change, which needs approval again', async () => {
+  let next = C;
+  const { store, scheduler, add } = setup(() => ({ outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [], completionCriteria: next } }));
+  try {
+    const g = add({ conversation: true, completionCriteria: C });
+    store.insertRun({ id: 'qa-seen', goalId: g.id, round: 99, attempt: 0, team: 'qa', status: 'finished', outcome: 'completed', simulated: false });
+    scheduler.confirmCriterion(g.id, C[0], 'checked');
+    scheduler.message(g.id, '일단 될 때까지 진행해줘');
+    await scheduler.runGoal(g.id); // same list back: keep going
+    let goal = store.getGoal(g.id);
+    assert.deepEqual([goal.status, goal.team.step, goal.completionCriteria, goal.confirmed.length], ['scheduled', 'dev', C, 1]);
+    scheduler.update(goal, { team: { ...goal.team, step: 'plan' } });
+    scheduler.message(g.id, '모바일 화면도 완료 조건에 넣어줘');
+    next = [...C, '모바일 화면에서 표가 넘치지 않는다'];
+    await scheduler.runGoal(g.id); // a changed list: 대장 approves it again, old confirmations no longer count
+    goal = store.getGoal(g.id);
+    assert.deepEqual([goal.reason, goal.criteriaApprovalPending, goal.completionCriteria.length, goal.confirmed.length], ['criteria_approval_required', true, 3, 0]);
+  } finally { store.close(); }
+});
+
+test('"오늘만 N단계 더": one project gets extra steps today; the daily limit is back tomorrow', async () => {
+  const { store, scheduler, clock, add } = setup(() => ({ outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } }), { maxRoundsPerDay: 2 });
+  try {
+    const g = add();
+    await scheduler.tick(); await scheduler.tick(); await scheduler.tick();
+    assert.equal(store.getGoal(g.id).reason, 'daily_cap');
+    assert.throws(() => scheduler.extendToday(g.id, 0), /1 to 50/);
+    const extended = scheduler.extendToday(g.id, 3);
+    assert.deepEqual([extended.reason, scheduler.projectLimit(extended)], [null, 5]);
+    await scheduler.tick();
+    assert.equal(store.listRuns(g.id).length, 3, 'runs again today');
+    clock.t += 24 * 3600_000;
+    assert.equal(scheduler.projectLimit(store.getGoal(g.id)), 2, 'the extra is for today only');
   } finally { store.close(); }
 });
 
