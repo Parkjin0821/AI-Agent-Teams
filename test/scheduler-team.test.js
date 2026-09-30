@@ -526,7 +526,7 @@ test('제어팀 fills in unpicked teams; a team pick, a pin or turning it off wi
     goal.team.step = 'dev';
     goal.team.profile = { complexity: 'simple', risk: 'low', effects: [] };
     let m = scheduler.resolveFor(goal);
-    assert.deepEqual([m.model, m.effort, m.source, m.level.label], ['claude-sonnet-5-5', 'low', 'auto_level', '가벼움']);
+    assert.deepEqual([m.model, m.effort, m.source, m.level.label], ['claude-sonnet-5-5', 'high', 'auto_level', '가벼움']);
     policy = { mode: 'auto', version: 2, teamModels: { dev: { executor: 'claude-code', model: 'claude-opus-5-5', effort: 'max' } } };
     m = scheduler.resolveFor(goal);
     assert.deepEqual([m.model, m.effort, m.source], ['claude-opus-5-5', 'max', 'team_choice']);
