@@ -7,6 +7,8 @@ import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { SkillLibrary } from './skills.js';
 import { hasSecret, readAsks } from './sentinel.js';
+import { readGrants } from './approvals.js';
+import { saveSources, sourceRecords } from './web-sources.js';
 
 // Bridges the goal scheduler to the CLI adapter. After a real run the engine reads the tool's final
 // answer, runs the checks it proposed inside the workspace, and only passing checks become evidence.
@@ -18,7 +20,7 @@ const PROVIDER = { 'claude-code': 'claude', codex: 'codex' };
 
 // toolsFor(team) → { connectors, knownConnectors }: which claude.ai connectors 대장 opened for that team.
 export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, settings = () => ({}),
-  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null }) {
+  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {} }) {
   const simulated = adapter.enabled === false;
   return {
     async run(goal, run) {
@@ -134,9 +136,18 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       // A team may suggest something to remember; it waits for 대장 in the approval inbox.
       memory?.propose(report?.remember, { team, project: goal.projectId });
       const test = engineTools.find(t => t.test)?.test ?? null;
+      // 원문 저장: pages a web team read are fetched again by the engine and saved under sources/ (web-sources.js).
+      let sources = null;
+      if (team && TEAMS[team]?.web && Array.isArray(report?.sources) && report.sources.length && sentinel && !simulated) {
+        sources = await saveSources({ urls: report.sources, cwd, project: goal.projectId,
+          grants: sentinel.grants ? readGrants(sentinel.grants) : [], webMode: settings()['sentinel.web'] === 'open' ? 'open' : 'ask', ...webSources });
+        await store.emit({ type: 'sources.saved', goalId: goal.id, team, saved: sources.saved.map(s => ({ path: s.path, url: s.url, bytes: s.bytes })),
+          skipped: sources.skipped });
+      }
       const { evidence, claims } = verifyReport(report, goal.completionCriteria, cwd, { verifying: team === 'qa', test, originals: attachmentOriginals(goal, records),
+        sources: { ...sourceRecords(records), ...sourceRecords([{ sources: sources?.saved ?? [] }]) },
         boundary: () => boundaryCheck({ runs: store.listRuns?.(goal.id) ?? [], sentinelLog: sentinel?.log ?? null, project: goal.projectId, cwd }) });
-      return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd),
+      return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd), ...(sources ? { sources: sources.saved } : {}),
         requests: normalizeRequests(report?.requests, team), requiredReviews: requiredReviews(team),
         ...(team === 'qa' ? { findings: { ...qaFindings(report), blocking } } : {}) };
     },

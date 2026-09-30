@@ -108,7 +108,7 @@ main{max-width:1520px;margin:0 auto;padding:36px 32px 96px}
 .home-side-toggle:hover,.home-side-toggle[aria-expanded="true"]{background:var(--subtle);border-color:var(--line-strong);color:var(--text)}
 .home-side-content{padding:16px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow)}
 .side-block{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
-.side-block:first-child{margin-top:0;border-top:0;padding-top:0}
+.home-side-content>.side-block:first-child{margin-top:0;border-top:0;padding-top:0}
 .home-side-content>.side-block:nth-child(2){border-top:0;padding-top:0}
 .side-block h2{font-size:13px;margin-bottom:10px}
 .side-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -117,6 +117,7 @@ main{max-width:1520px;margin:0 auto;padding:36px 32px 96px}
 .side-stat b{display:block;font-size:18px;margin-top:2px}
 .side-meter{display:grid;gap:7px}
 .side-meter .mi{display:flex;justify-content:space-between;gap:8px;font-size:12px}
+.side-meter .provider-label{font-weight:700}
 .side-meter .mi.claude .provider-label,.side-meter .mi.claude b{color:#A94F34}
 .side-meter .mi.codex .provider-label,.side-meter .mi.codex b{color:#171717}
 .side-meter .mi b{white-space:nowrap}
@@ -1747,6 +1748,14 @@ class Component extends DCLogic {
         const shown = (e.skills || []).filter((k) => k.notice);
         if (shown.length) items.push({ at: e.at, cls: 'msg sys', who: '스킬', sub: TEAM_NAME[e.team] || '',
           text: shown.map((k) => k.name + ' 스킬 적용 (' + k.n + '/3번째 · 처음 3번은 여기 표시)').join(' · ') });
+      });
+      // 원문 저장: pages a web team read, saved again by the engine under sources/ (or why not).
+      ((s.eng && s.eng.events) || []).filter((e) => e.type === 'sources.saved' && wp.goals.some((x) => x.id === e.goalId)).forEach((e) => {
+        const kb = (b) => (b >= 1024 ? Math.round(b / 1024) + 'KB' : b + 'B');
+        const saved = (e.saved || []).map((x) => x.url.replace(/^https:\/\//, '') + ' (' + kb(x.bytes) + ')');
+        const skipped = (e.skipped || []).map((x) => x.url.replace(/^https?:\/\//, '') + ' · ' + x.reason);
+        items.push({ at: e.at, cls: 'msg sys', who: '엔진 · 원문 저장', sub: TEAM_NAME[e.team] || '',
+          text: (saved.length ? 'sources/에 저장 ' + saved.length + '개: ' + saved.join(', ') : '저장한 원문 없음') + (skipped.length ? '\n건너뜀: ' + skipped.join(' / ') : '') });
       });
       const sen = (s.sentinel || {})[wp.id];
       ((sen && sen.entries) || []).filter((e) => e.decision === 'deny').forEach((e) => items.push({ at: e.at, cls: 'msg sys stop', who: '감시 에이전트',

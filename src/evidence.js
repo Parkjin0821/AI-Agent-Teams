@@ -26,6 +26,11 @@ export function reportInstructions(criteria) {
     '  {"type":"stayed_inside"}  (the engine checks its own records: every step of this project ran under its write',
     '   limits, and the folder has no forbidden settings file (.claude, .codex, .mcp.json, CLAUDE.md, AGENTS.md, .env, .git),',
     '   no link and no secret-looking text; it proves only that part of a criterion, not what was read or guessed)',
+    '  {"type":"source_contains","source":"sources/…","text":"exact text","path":"relative/path"}  (the text is in a web',
+    '   page original the engine itself saved under sources/, unchanged since; with "path", that file contains it too —',
+    '   e.g. a version in research.md that matches the official page)',
+    'If you read web pages, list them in "sources":[{"url":"https://…"}] (at most 5). After your step the engine fetches',
+    'each allowed page again and saves its original text under sources/ for comparison. Never write into sources/.',
     'Do not claim done without doing the work. Put anything a person must judge in "note".',
     'Add "person": true to a criterion (or the part of it) that no file and no engine check can prove, so only 대장 can',
     'judge it. Never use it for work that is still missing.',
@@ -90,6 +95,9 @@ function relatesTo(check, criterion) {
   const c = String(criterion).toLowerCase();
   if (check.type === 'tests_pass') return true;
   if (check.type === 'stayed_inside') return BOUNDARY_TOPIC.test(c);
+  if (check.type === 'source_contains') {
+    return words(check.text).some(w => mentions(c, w)) || (check.path ? namesFile(c, check.path) && !CLAIMS_ABSENCE.test(c) : SOURCE_TOPIC.test(c));
+  }
   if (check.type === 'file_unchanged') return UNCHANGED_WORDS.test(c);
   if (check.type === 'file_exists') return words(String(check.path).replace(/\\/g, '/')).some(w => mentions(c, w));
   if (check.type === 'file_contains') {
@@ -101,7 +109,8 @@ function relatesTo(check, criterion) {
   }
   return false;
 }
-const CLAIMS_ABSENCE = /없[다고으음이는었]|않[았는다고음]|아니[다고]|금지|no |never|without/;
+const SOURCE_TOPIC = /출처|원문|공식|source|official/;
+const CLAIMS_ABSENCE =/없[다고으음이는었]|않[았는다고음]|아니[다고]|금지|no |never|without/;
 const namesFile = (criterion, file) => {
   const base = path.basename(String(file ?? '').replace(/\\/g, '/')).toLowerCase();
   return base.length >= 3 && criterion.includes(base);
@@ -123,6 +132,7 @@ function runCheck(check, cwd, ctx = {}) {
       : { status: 'fail', reason: `${ctx.test.label} 실패` };
   }
   if (check?.type === 'file_unchanged') return checkUnchanged(check, cwd, ctx.originals ?? {});
+  if (check?.type === 'source_contains') return checkSource(check, cwd, ctx.sources ?? {});
   const target = insideWorkspace(check.path, cwd);
   if (!target) return { status: 'invalid', reason: '작업 폴더 밖이거나 잘못된 경로' };
   const rel = path.relative(cwd, target).replace(/\\/g, '/');
@@ -160,6 +170,28 @@ function checkUnchanged(check, cwd, originals) {
     done.push(`${rel} (${orig.from})`);
   }
   return { status: 'pass', proof: `엔진 확인 · 지문이 원래 기록과 같음 · ${done.join(', ')}` };
+}
+
+// sources: { "sources/x.txt": { url, sha, fetchedAt } } — originals the engine saved (web-sources.js). A file the engine
+// did not save, or one changed since, proves nothing.
+function checkSource(check, cwd, sources) {
+  if (typeof check.text !== 'string' || !check.text) return { status: 'invalid', reason: '확인할 문구가 없음' };
+  const target = insideWorkspace(check.source, cwd);
+  if (!target) return { status: 'invalid', reason: '작업 폴더 밖이거나 잘못된 원문 경로' };
+  const rel = path.relative(cwd, target).replace(/\\/g, '/');
+  const rec = sources[rel];
+  if (!rec) return { status: 'invalid', reason: `${rel}은(는) 엔진이 저장한 원문이 아님` };
+  if (!existsSync(target) || !statSync(target).isFile()) return { status: 'fail', reason: `원문 ${rel} 없어짐` };
+  const content = readFileSync(target);
+  if (createHash('sha256').update(content).digest('hex') !== rec.sha) return { status: 'fail', reason: `원문 ${rel}이(가) 저장 뒤 바뀜` };
+  const shown = check.text.length > 60 ? `${check.text.slice(0, 60)}…` : check.text;
+  if (!content.toString('utf8').includes(check.text)) return { status: 'fail', reason: `원문(${rec.url})에 “${shown}” 없음` };
+  if (check.path) {
+    const other = runCheck({ type: 'file_contains', path: check.path, text: check.text }, cwd);
+    if (other.status !== 'pass') return other;
+    return { status: 'pass', proof: `엔진 확인 · ${check.path}의 “${shown}”이(가) 원문(${rec.url}, ${rec.fetchedAt.slice(0, 10)} 저장)에도 있음` };
+  }
+  return { status: 'pass', proof: `엔진 확인 · 원문(${rec.url}, ${rec.fetchedAt.slice(0, 10)} 저장)에 “${shown}” 있음` };
 }
 
 function insideWorkspace(p, cwd) {

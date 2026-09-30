@@ -478,6 +478,8 @@ export class GoalScheduler {
       checkpoint: this.store.listRuns(goal.id).find(r => r.id === run.id)?.checkpoint ?? null,
       claims: Array.isArray(result.claims) ? result.claims.slice(0, 20) : [],
       tools: Array.isArray(result.tools) ? result.tools.slice(0, 12) : [],
+      // Web originals the engine saved this step (their fingerprints back source_contains checks later).
+      ...(Array.isArray(result.sources) ? { sources: result.sources.slice(0, 10) } : {}),
       plan: result.plan ? { nextTask: result.plan.nextTask, team: result.plan.team ?? 'dev', reviews: result.plan.reviews ?? [] } : null,
       review: result.review ? { verdict: result.review.verdict, issues: result.review.issues, blocking: result.review.blocking } : null });
     if (goal.status !== GoalStatus.RUNNING) return;

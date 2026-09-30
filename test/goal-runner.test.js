@@ -195,3 +195,29 @@ test('the limit state Claude Code reports during a run is handed to the usage re
   await runner.run(goal, { executor: 'codex', model: null });
   assert.deepEqual(seen, [limits]);
 });
+
+test('원문 저장: the web team lists its pages, the engine saves allowed originals, and a check can prove against them', async () => {
+  const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(), 'hq-src-run-')));
+  const grantsFile = path.join(mkdtempSync(path.join(tmpdir(), 'hq-grants-')), 'grants.json');
+  writeFileSync(grantsFile, JSON.stringify({ grants: [{ kind: 'web', target: 'nodejs.org', project: 'hello' }] }));
+  const events = [];
+  let records = [{ id: 'r1', status: 'running', team: 'research', executor: 'claude-code' }];
+  const srcStore = { emit: async e => { events.push(e); }, listRuns: () => records, saveRun: r => { records = records.map(o => o.id === r.id ? r : o); } };
+  const criteria = ['research.md의 LTS 버전이 공식 출처 원문과 같다'];
+  const report = { criteria: [{ index: 1, done: true, check: { type: 'source_contains', source: 'sources/nodejs.org-en-download.txt', text: 'v24.21.0', path: 'research.md' } }],
+    sources: [{ url: 'https://nodejs.org/en/download' }, { url: 'https://example.com/other' }] };
+  const adapter = { enabled: true, run: async (provider, p, e, opts) => {
+    writeFileSync(path.join(opts.cwd, 'research.md'), '- 현재 LTS: v24.21.0\n');
+    return { outcome: 'completed', answer: 'AGENT_HQ_REPORT ' + JSON.stringify(report) };
+  } };
+  const webSources = { fetcher: async () => ({ ok: true, status: 200, text: async () => '<p>Get Node.js v24.21.0 (LTS)</p>',
+    headers: { get: k => (k === 'content-type' ? 'text/html' : null) } }), resolve: async () => [{ address: '104.20.22.46', family: 4 }] };
+  const runner = createGoalRunner({ adapter, workspaces, store: srcStore, webSources,
+    sentinel: { script: 'x', log: path.join(path.dirname(grantsFile), 's.jsonl'), grants: grantsFile } });
+  const result = await runner.run({ ...goal, kind: 'team', completionCriteria: criteria, team: { step: 'research', task: '조사', feedback: '', cycle: 1 } },
+    { executor: 'claude-code', team: 'research', access: 'write' });
+  assert.deepEqual(result.sources.map(s => s.path), ['sources/nodejs.org-en-download.txt']);
+  assert.equal(result.claims[0].check, 'pass', 'proven against the original saved in the same step');
+  const saved = events.find(e => e.type === 'sources.saved');
+  assert.deepEqual([saved.saved.length, saved.skipped[0].reason], [1, '대장이 아직 허용하지 않은 사이트']);
+});
