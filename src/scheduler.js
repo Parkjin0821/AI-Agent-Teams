@@ -761,7 +761,9 @@ export class GoalScheduler {
     if (goal.kind !== 'team' || this.autoLevels?.() === false) return null;
     if (project.mode === 'pinned' || goal.modelOverride?.mode === 'pinned') return null;
     if (project.strategy === 'adaptive' && this.registry.catalog().some(e => e.executor === executor && isUsable(e))) return null;
-    const level = levelFor({ team: goal.team?.step ?? 'plan', profile: goal.team?.profile ?? null,
+    const firstDesign = goal.team?.step === 'design'
+      && !this.store.listRuns(goal.id).some(r => r.team === 'design' && r.outcome === 'completed' && !r.simulated);
+    const level = levelFor({ team: goal.team?.step ?? 'plan', profile: goal.team?.profile ?? null, firstDesign,
       failures: Math.max(goal.noProgressRounds ?? 0, goal.testFixAttempts ?? 0) });
     const choice = levelChoice(executor, level, { codexModels: this.codexModels?.() ?? [] });
     if (!choice) return null;

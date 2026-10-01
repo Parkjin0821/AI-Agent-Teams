@@ -70,6 +70,9 @@ function matchScore(skill, query) {
 }
 
 // Instruction-only candidates. No checkout, package installation, scripts or credentials.
+// Approved skills a team always gets, whatever the task text says (each still needs 대장's approval to be active).
+const BASELINE_SKILLS = Object.freeze({ design: ['frontend-design', 'agent-hq-screen-design'] });
+
 export class SkillLibrary {
   constructor({ store, fetcher = fetch }) { this.store = store; this.fetcher = fetcher; }
   list() { return Object.entries(this.store.getSettings()).filter(([k, v]) => k.startsWith('skill.entry.') && v).map(([,v]) => v); }
@@ -201,9 +204,10 @@ export class SkillLibrary {
       .filter(item => item.score > 0).sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name))
       .slice(0, 2).map(item => item.skill);
     const selected = ranked(task).length ? ranked(task) : ranked(objective);
-    // A vague design handoff must not silently omit the approved baseline.
-    const baseline = team === 'design' && eligible.find(s => s.name === 'frontend-design');
-    return baseline ? [baseline, ...selected.filter(s => s.id !== baseline.id)].slice(0, 2) : selected;
+    // A vague design handoff must not silently omit the approved baselines: the general frontend guidance and AGENT HQ's
+    // own screen principles (learned from a four-way design comparison, 2026-10-01). Only active (approved) ones count.
+    const baseline = (BASELINE_SKILLS[team] ?? []).map(n => eligible.find(s => s.name === n)).filter(Boolean);
+    return [...baseline, ...selected.filter(s => !baseline.some(b => b.id === s.id))].slice(0, Math.max(2, baseline.length + 1));
   }
   async github(endpoint) {
     const response = await this.fetcher('https://api.github.com' + endpoint,{redirect:'error',signal:AbortSignal.timeout(15000),headers:{Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2026-03-10'}});

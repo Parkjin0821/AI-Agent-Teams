@@ -172,3 +172,15 @@ test('policy: trusted sources are searched first and only matching skills are ta
  assert.deepEqual(lib.setTrustedSources(['anthropics/skills', 'owner/more', 'owner/more']), ['anthropics/skills', 'owner/more']);
  assert.throws(() => lib.setTrustedSources(['https://evil.example']), /owner\/repo/);
 });
+
+test('the design team always gets both approved baselines (frontend guidance and AGENT HQ screen principles)', () => {
+  const lib = setup();
+  const approve = s => { for (const kind of ['security', 'policy', 'compatibility']) lib.review(s.id, { kind, pass: true, note: '검토 완료' }); lib.activate(s.id, { confirm: true }); };
+  const fe = lib.register({ ...input, name: 'frontend-design', description: 'Create distinctive frontend interfaces', triggers: ['frontend'], teams: ['design'] });
+  const hq = lib.register({ ...input, name: 'agent-hq-screen-design', description: '화면 디자인 원칙', triggers: ['화면'], teams: ['design'] });
+  approve(fe);
+  assert.deepEqual(lib.select('design', '첫 시안 만들기').map(s => s.name), ['frontend-design'], 'not before 대장 approves it');
+  approve(hq);
+  assert.deepEqual(lib.select('design', '첫 시안 만들기').map(s => s.name), ['frontend-design', 'agent-hq-screen-design']);
+  assert.deepEqual(lib.select('dev', '자료 처리').map(s => s.name), []);
+});

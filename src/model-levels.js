@@ -18,7 +18,9 @@ export const LEVELS = Object.freeze([
 const REVIEWERS = ['plan', 'security', 'policy', 'qa'];
 
 // profile: the planning team's { complexity, risk } for this cycle (none before the first plan).
-export function levelFor({ team, profile = null, failures = 0 }) {
+// firstDesign: the design team's first step on this goal, where the page's direction is set. 대장 chose (2026-10-01,
+// after a four-way comparison) to run that one on the deep level (Opus) and the later fixes as usual.
+export function levelFor({ team, profile = null, failures = 0, firstDesign = false }) {
   const complexity = profile?.complexity ?? 'normal', risk = profile?.risk ?? 'normal';
   let n = complexity === 'simple' ? 0 : complexity === 'complex' ? 2 : 1;
   const why = [complexity === 'simple' ? '간단한 작업' : complexity === 'complex' ? '복잡한 작업' : '보통 작업'];
@@ -26,6 +28,7 @@ export function levelFor({ team, profile = null, failures = 0 }) {
   if (risk === 'high' && n < 2) { n = 2; why.push('위험도 높음'); }
   // Planning, reviews and verification judge other work: never below "보통".
   if (REVIEWERS.includes(team) && n < 1) { n = 1; why.push('판단하는 팀이라 보통 이상'); }
+  if (firstDesign && team === 'design' && n < 2) { n = 2; why.push('첫 디자인이라 방향을 잡는 단계 (깊게)'); }
   if (failures >= 2) { n = Math.min(3, n + 1); why.push(`진전 없음·실패 ${failures}번이라 한 단계 올림`); }
   return { ...LEVELS[n], why: why.join(' · ') };
 }

@@ -39,3 +39,14 @@ test('Codex: Luna (medium–high) for easy and normal work, Sol (low–medium) f
   assert.deepEqual(levelChoice('codex', levelFor({ team: 'dev', profile: { complexity: 'complex' }, failures: 3 }), { codexModels: [{ id: 'gpt-6.1-sol', efforts: ['low', 'high'] }] }), { model: 'gpt-6.1-sol', effort: 'low' });
   assert.equal(levelChoice('codex', levelFor({ team: 'qa' }), { codexModels: [] }), null, 'an unknown list gives no choice');
 });
+
+test('나눠 쓰기: the first design step of a goal sets the direction on the deep level; later fixes as usual', async () => {
+  const { levelFor } = await import('../src/model-levels.js');
+  const simple = { complexity: 'simple', risk: 'low' };
+  const first = levelFor({ team: 'design', profile: simple, firstDesign: true });
+  assert.deepEqual([first.id, first.claude.model], ['deep', 'claude-opus-5-5']);
+  assert.match(first.why, /첫 디자인/);
+  assert.equal(levelFor({ team: 'design', profile: simple }).id, 'light', 'a later design step');
+  assert.equal(levelFor({ team: 'dev', profile: simple, firstDesign: true }).id, 'light', 'only the design team');
+  assert.equal(levelFor({ team: 'design', profile: simple, firstDesign: true, failures: 3 }).id, 'max', 'failures still raise it');
+});

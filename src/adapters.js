@@ -238,7 +238,8 @@ export function promptFor(provider, prompt, platform = process.platform) {
 }
 
 export class CliAgentAdapter {
-  constructor({ enabled = false, cwd = process.cwd(), bins = null, timeoutMs = 15 * 60_000 } = {}) {
+  // The ceiling for one step. A first design step on Opus took 12 minutes in a real comparison, close to the old 15.
+  constructor({ enabled = false, cwd = process.cwd(), bins = null, timeoutMs = 25 * 60_000 } = {}) {
     Object.assign(this, { enabled, cwd, bins, timeoutMs });
   }
 
