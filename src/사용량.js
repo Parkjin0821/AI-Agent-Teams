@@ -8,6 +8,8 @@ import path from 'node:path';
 
 // Limit state Claude Code reported during team runs (status only, no percentages), kept per window.
 const LIMIT_FILE = 'claude-limit-status.json';
+// Usage percentages Claude Code reported during team runs (same shape as the status line's claude-usage.json).
+const RUN_USAGE_FILE = 'claude-usage-runs.json';
 const limitWrites = new Map();
 export function recordRateLimits(dataDir, limits, now = Date.now()) {
   const key = path.resolve(dataDir);
@@ -34,6 +36,13 @@ async function writeRateLimits(dataDir, limits, now) {
   const temp = `${dataDir}/${LIMIT_FILE}.${randomUUID()}.tmp`;
   await writeFile(temp, JSON.stringify(saved));
   await rename(temp, `${dataDir}/${LIMIT_FILE}`);
+  // Percentages from the run itself (newer Claude Code), saved like the status line snapshot.
+  const usage = [...limits].reverse().find(l => l?.usage)?.usage;
+  if (usage) {
+    const t = `${dataDir}/${RUN_USAGE_FILE}.${randomUUID()}.tmp`;
+    await writeFile(t, JSON.stringify({ observedAt: at, rate_limits: usage }));
+    await rename(t, `${dataDir}/${RUN_USAGE_FILE}`);
+  }
 }
 
 async function readLimitStatus(dataDir, now) {
@@ -104,14 +113,21 @@ export function readCodexUsage(timeoutMs = 15000) {
 export async function readClaudeUsage(dataDir, now = Date.now()) {
   const claude = { provider: 'claude', windows: [], tokens: null, source: 'Claude Code statusLine', stale: false,
     note: '터미널에서 Claude Code 응답을 한 번 받으면 표시됩니다 · 미수집' };
+  // The newer of the terminal status line's snapshot and the one team runs reported.
+  const snaps = [];
+  for (const [file, source] of [['claude-usage.json', 'Claude Code statusLine'], [RUN_USAGE_FILE, 'Claude Code 팀 실행 응답']]) {
+    try { const s = JSON.parse(await readFile(`${dataDir}/${file}`, 'utf8')); if (Number.isFinite(Date.parse(s.observedAt))) snaps.push({ s, source }); } catch { /* none yet */ }
+  }
+  const newest = snaps.sort((a, b) => Date.parse(b.s.observedAt) - Date.parse(a.s.observedAt))[0];
   try {
-    const saved = JSON.parse(await readFile(`${dataDir}/claude-usage.json`, 'utf8'));
+    if (!newest) throw new Error('none');
+    const saved = newest.s;
     const age = now - Date.parse(saved.observedAt);
     if (age >= 0) {
       const minutes = Math.floor(age / 60_000);
       const stale = age > 300_000;
-      Object.assign(claude, normalizeUsage('claude', saved, now), { observedAt: saved.observedAt, stale,
-        note: stale ? `${minutes < 60 ? `${minutes}분` : `${Math.floor(minutes / 60)}시간`} 전 값 · 참고용 (터미널 Claude Code 응답 때마다 갱신)` : '' });
+      Object.assign(claude, normalizeUsage('claude', saved, now), { observedAt: saved.observedAt, stale, source: newest.source,
+        note: stale ? `${minutes < 60 ? `${minutes}분` : `${Math.floor(minutes / 60)}시간`} 전 값 · 참고용 (Claude 팀 단계나 터미널 Claude Code 응답 때마다 갱신)` : '' });
       if (!claude.windows.length) claude.note = '마지막 수집값의 한도 기간이 초기화됨 · 새 응답 필요';
     }
   } catch { /* no official statusLine snapshot yet */ }

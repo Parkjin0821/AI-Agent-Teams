@@ -70,6 +70,32 @@ test('limit states from team runs are kept per window, and a window past its res
   assert.deepEqual(c.limitStatus.map(l => [l.window, l.status]), [['five_hour', 'allowed_warning']], 'latest state wins; the reset weekly window is gone');
   assert.equal(c.windows.length, 0, 'status never invents percentages');
 });
+test('newer Claude Code runs report percentages too; the newest of runs and the status line is shown', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const path = await import('node:path');
+  const { readClaudeUsage, recordRateLimits } = await import('../src/사용량.js');
+  const { rateLimitFrom } = await import('../src/실행어댑터.js');
+  const dir = mkdtempSync(path.join(tmpdir(), 'hq-runusage-'));
+  const now = Date.parse('2026-10-01T05:00:00Z'), r5 = now / 1000 + 3600, r7 = now / 1000 + 86400;
+  // The shape Claude Code 2.1.284 printed in a real run (2026-10-01).
+  const event = { type: 'rate_limit_event', rate_limit_info: { status: 'allowed', resetsAt: r5, rateLimitType: 'five_hour', isUsingOverage: false,
+    unifiedWindows: { five_hour: { utilization: 0.04, resetsAt: r5 }, seven_day: { utilization: 0.75, resetsAt: r7 } } } };
+  const limit = rateLimitFrom(event);
+  assert.deepEqual(limit.usage, { five_hour: { used_percentage: 4, resets_at: r5 }, seven_day: { used_percentage: 75, resets_at: r7 } });
+  assert.equal(rateLimitFrom({ ...event, rate_limit_info: { ...event.rate_limit_info, unifiedWindows: { five_hour: { utilization: 7, resetsAt: r5 } } } }).usage, undefined,
+    'a value outside 0–1 is not trusted');
+  // An old status line reading (two days before) loses to the run's.
+  writeFileSync(path.join(dir, 'claude-usage.json'), JSON.stringify({ observedAt: '2026-09-29T06:41:00Z',
+    rate_limits: { seven_day: { used_percentage: 37, resets_at: r7 } } }));
+  await recordRateLimits(dir, [limit], now - 60_000);
+  const c = await readClaudeUsage(dir, now);
+  assert.deepEqual([c.source, c.stale, c.windows.map(w => [w.period, w.remaining])], ['Claude Code 팀 실행 응답', false, [['five_hour', 96], ['weekly', 25]]]);
+  // A later terminal reading wins again.
+  writeFileSync(path.join(dir, 'claude-usage.json'), JSON.stringify({ observedAt: '2026-10-01T04:59:30Z',
+    rate_limits: { seven_day: { used_percentage: 76, resets_at: r7 } } }));
+  assert.deepEqual((await readClaudeUsage(dir, now)).windows.map(w => w.remaining), [24]);
+});
 test('rounds stop at 20% left in the 5-hour window and 10% left in the weekly window', async () => {
   const { normalizeUsage, STOP_AT_REMAINING } = await import('../src/사용량.js');
   assert.deepEqual({ ...STOP_AT_REMAINING }, { five_hour: 20, weekly: 10 });

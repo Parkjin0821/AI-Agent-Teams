@@ -139,14 +139,25 @@ function answerFrom(event) {
   return null;
 }
 
-// Claude Code stream-json reports the subscription limit state it saw (no percentages):
-// {"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1784283600,"rateLimitType":"five_hour",...}}
-// Undocumented shape (anthropics/claude-code#78476), so anything unexpected is ignored.
+// Claude Code stream-json reports the subscription limit state it saw:
+// {"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1784283600,"rateLimitType":"five_hour",...,
+//   "unifiedWindows":{"five_hour":{"utilization":0.04,"resetsAt":...},"seven_day":{"utilization":0.75,"resetsAt":...}}}}
+// unifiedWindows (how much of each window is used, 0–1) appeared by Claude Code 2.1.284 (seen 2026-10-01); before
+// that only the status came. It is the same numbers the terminal status line shows, from the CLI's own output, so the
+// usage page no longer depends on 대장 opening an interactive session. Undocumented shape (anthropics/claude-code#78476),
+// so anything unexpected is ignored.
 export function rateLimitFrom(event) {
   const info = event?.type === 'rate_limit_event' ? event.rate_limit_info : null;
   if (!info || typeof info.status !== 'string' || typeof info.rateLimitType !== 'string') return null;
   const resetsAt = Number.isFinite(info.resetsAt) && info.resetsAt > 0 ? new Date(info.resetsAt * 1000).toISOString() : null;
-  return { window: info.rateLimitType.slice(0, 40), status: info.status.slice(0, 40), resetsAt, usingOverage: info.isUsingOverage === true };
+  const usage = {};
+  for (const key of ['five_hour', 'seven_day']) {
+    const w = info.unifiedWindows?.[key];
+    if (Number.isFinite(w?.utilization) && w.utilization >= 0 && w.utilization <= 1 && Number.isFinite(w?.resetsAt) && w.resetsAt > 0)
+      usage[key] = { used_percentage: Math.round(w.utilization * 1000) / 10, resets_at: w.resetsAt };
+  }
+  return { window: info.rateLimitType.slice(0, 40), status: info.status.slice(0, 40), resetsAt, usingOverage: info.isUsingOverage === true,
+    ...(Object.keys(usage).length ? { usage } : {}) };
 }
 
 // Only a model name the tool itself printed counts; nothing is inferred from settings.

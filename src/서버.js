@@ -16,8 +16,10 @@ const dataDir = process.env.AGENT_HQ_DATA_DIR ? path.resolve(root, process.env.A
 const usageReader = dataDir === sharedData ? readUsage : async () => {
   const usage = await readUsage(sharedData);
   const own = await readClaudeUsage(dataDir);
-  const claude = usage.items.find(i => i.provider === 'claude');
-  if (claude) claude.limitStatus = own.limitStatus;
+  const i = usage.items.findIndex(x => x.provider === 'claude');
+  // This server's team runs also report Claude's percentages (claude-usage-runs.json); the newer value wins.
+  if (i >= 0) usage.items[i] = (own.observedAt && (!usage.items[i].observedAt || Date.parse(own.observedAt) > Date.parse(usage.items[i].observedAt)))
+    ? own : { ...usage.items[i], limitStatus: own.limitStatus };
   return usage;
 };
 const executing = process.env.AGENT_HQ_ENABLE_EXEC === '1';
