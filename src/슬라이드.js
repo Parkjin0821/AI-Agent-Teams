@@ -35,7 +35,9 @@ export class SlideMaker {
       const decks = JSON.parse(line.slice('AGENT_HQ_SLIDES '.length)).decks ?? [];
       const safe = p => typeof p === 'string' && !p.includes('..') && (p.startsWith('.hq-screens/') || p.startsWith(SLIDE_PDF_DIR + '/'));
       const clean = decks.filter(d => list.includes(d.id)).map(d => ({ id: d.id, pages: d.pages ?? 0, error: d.error ?? null, detail: d.detail ?? null,
-        pdf: safe(d.pdf) ? d.pdf : null, screenshots: (d.screenshots ?? []).filter(safe), overflowPages: d.overflowPages ?? [], scriptErrors: d.scriptErrors ?? 0 }));
+        pdf: safe(d.pdf) ? d.pdf : null, screenshots: (d.screenshots ?? []).filter(safe), overflowPages: d.overflowPages ?? [], scriptErrors: d.scriptErrors ?? 0,
+        sparsePages: (d.sparsePages ?? []).filter(Number.isInteger).slice(0, 40),
+        smallText: (d.smallText ?? []).filter(s => Number.isInteger(s?.page) && Number.isFinite(s?.px)).slice(0, 40) }));
       return { ok: clean.length > 0 && clean.every(d => !d.error && d.pdf), decks: clean };
     } catch { return { ok: false, decks: [], error: '슬라이드 결과를 읽지 못함' }; }
   }
@@ -48,9 +50,14 @@ export function slideTool(result) {
     : [...(d.overflowPages.length ? [`${d.id}: ${d.overflowPages.join('·')}쪽 내용이 1920×1080 밖으로 넘침`] : []),
       ...(d.scriptErrors ? [`${d.id}: 실행 오류 ${d.scriptErrors}건`] : [])]);
   const made = decks.filter(d => d.pdf);
+  // Notes, never blocking: a page whose content ends above 70% of its height, and text under 24px (about 12pt on a
+  // 1920×1080 slide, too small from the back of a room).
+  const notes = made.flatMap(d => [
+    ...((d.sparsePages ?? []).length ? [`참고: ${d.id} ${d.sparsePages.join('·')}쪽은 아래 30% 이상이 비어 있음 (내용을 키우거나 배치를 바꿈)`] : []),
+    ...((d.smallText ?? []).length ? [`참고: ${d.id} 글자가 24px 보다 작은 쪽: ${d.smallText.map(s => `${s.page}쪽 ${s.px}px`).join(', ')}`] : [])]);
   return { id: 'slides', name: '슬라이드 만들기', status: result.error || issues.length ? 'found' : 'pass',
-    summary: result.error ? result.error : made.map(d => `${d.pdf} (${d.pages}쪽)`).join(' · ') + (issues.length ? ` · 문제 ${issues.length}개` : ''),
-    details: [...issues, ...made.flatMap(d => d.screenshots.map(s => '캡처: ' + s))],
+    summary: result.error ? result.error : made.map(d => `${d.pdf} (${d.pages}쪽)`).join(' · ') + (issues.length ? ` · 문제 ${issues.length}개` : '') + (notes.length ? ` · 참고 ${notes.length}개` : ''),
+    details: [...issues, ...notes, ...made.flatMap(d => d.screenshots.map(s => '캡처: ' + s))],
     blocking: issues.length || result.error ? ['슬라이드: ' + (result.error ?? issues.slice(0, 3).join(' · '))] : [],
     screenshots: made.flatMap(d => d.screenshots.map(p => ({ file: d.id, path: p }))), decks };
 }

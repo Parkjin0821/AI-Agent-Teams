@@ -150,6 +150,25 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         for (const e of f.querySelectorAll('*')) { const b = e.getBoundingClientRect(); if (!b.width || !b.height) continue;
           if (b.right > r.right + 2 || b.bottom > r.bottom + 2 || b.left < r.left - 2 || b.top < r.top - 2) n++; }
         return n ? (i + 1) : 0; }).filter(Boolean)`);
+      // Notes for the team, not failures (대장 found the first deck's pages top-heavy with small captions, 2026-10-01):
+      // where the content ends on each page (a full-page background does not count) and the smallest text on it.
+      const layout = await ev(`[...document.querySelectorAll('#os-print-root .os-print-frame')].map((f, i) => {
+        const r = f.getBoundingClientRect(); let bottom = r.top, min = Infinity;
+        for (const e of f.querySelectorAll('*')) {
+          const b = e.getBoundingClientRect(), cs = getComputedStyle(e);
+          if (!b.width || !b.height || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0) continue;
+          if (b.width >= r.width * 0.95 && b.height >= r.height * 0.95) continue;
+          const own = [...e.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent.trim()).join('');
+          const isMedia = /^(IMG|SVG|CANVAS|VIDEO)$/i.test(e.tagName);
+          // A page number ("3 / 6", "03") sits at the bottom of every page and says nothing about how full it is.
+          const pageNo = /^\\d{1,3}(\\s*\\/\\s*\\d{1,3})?$/.test(own);
+          if ((own && !pageNo) || isMedia) bottom = Math.max(bottom, b.bottom);
+          if (own.length >= 4 && !pageNo) min = Math.min(min, parseFloat(cs.fontSize));
+        }
+        return { page: i + 1, filled: Math.round((bottom - r.top) / r.height * 100), minFont: Number.isFinite(min) ? Math.round(min) : null };
+      })`);
+      const sparsePages = layout.filter(p => p.filled < 70).map(p => p.page);
+      const smallText = layout.filter(p => p.minFont !== null && p.minFont < 24).map(p => ({ page: p.page, px: p.minFont }));
       // One capture per page first (open-slide clears its print root once printing is over): the print root shown on
       // screen, each frame clipped out.
       await ev(`(() => { const st = document.createElement('style'); st.id = 'hq-shot'; st.textContent = '@media screen{#os-print-root{position:static!important;left:0!important}body>*:not(#os-print-root){display:none!important}}'; document.head.appendChild(st); return true; })()`);
@@ -168,7 +187,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
       const { data } = await s('Page.printToPDF', { preferCSSPageSize: true, printBackground: true });
       const pdfFile = path.join(pdfDir, `${id}.pdf`);
       fs.writeFileSync(pdfFile, Buffer.from(data, 'base64'));
-      decks.push({ id, pages, pdf: path.relative(root, pdfFile).replace(/\\/g, '/'), screenshots: shots, overflowPages: overflow, scriptErrors: errors });
+      decks.push({ id, pages, pdf: path.relative(root, pdfFile).replace(/\\/g, '/'), screenshots: shots, overflowPages: overflow, scriptErrors: errors, sparsePages, smallText });
       await cdp.send('Target.closeTarget', { targetId }).catch(() => {});
     }
   } finally { child.kill(); }

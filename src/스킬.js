@@ -36,8 +36,9 @@ const RISKY = [[/(?:curl|wget)[^\n]*\|\s*(?:ba)?sh/i, '내려받은 스크립트
   [/(?:api[_ -]?key|access[_ -]?token|password|비밀번호|토큰)\S*\s*(?:입력|붙여|paste|enter|provide)/i, '키·토큰·비밀번호를 요구'],
   [/--dangerously|bypassPermissions|--no-verify/i, '안전장치를 끄는 옵션']];
 // The longest skill document accepted. 12,000 characters until 2026-10-01; open-slide's slide-authoring reference is
-// 24.7 KB, so 32,000 (a selected skill is only added to the steps whose task matches its triggers).
-export const SKILL_MAX = 32000;
+// 24.7 KB, so 32,000; design-taste-frontend (MIT) is 44.6 KB, so 50,000 (2026-10-01). A selected skill is only added to
+// the steps whose task matches its triggers.
+export const SKILL_MAX = 50000;
 export function skillChecks(body, license) {
   const doc = String(body ?? '');
   const licName = license?.content ? (LICENSES.find(([, re]) => re.test(license.content))?.[0] ?? '알 수 없음') : '없음';
