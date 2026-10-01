@@ -2673,7 +2673,7 @@ function openDialog({ message = '', title = '', input = false, value = '', okL =
     let field = null;
     if (input) { field = document.createElement('textarea'); field.className = 'dlg-in'; field.value = value || ''; field.setAttribute('aria-label', head || '입력'); b.appendChild(field); }
     const foot = document.createElement('div'); foot.className = 'dlg-f';
-    if (input) { const hint = document.createElement('span'); hint.className = 'hint'; hint.textContent = 'Ctrl+Enter로 확인'; foot.appendChild(hint); }
+    if (input) { const hint = document.createElement('span'); hint.className = 'hint'; hint.textContent = 'Enter로 확인 · Shift+Enter 줄바꿈'; foot.appendChild(hint); }
     const done = (v) => { document.removeEventListener('keydown', onKey, true); scrim.remove(); if (prev && prev.focus && document.contains(prev)) prev.focus({ preventScroll: true }); resolve(v); };
     const ok = document.createElement('button'); ok.className = 'btn sm ' + (danger ? 'danger' : 'pri'); ok.textContent = okL;
     ok.onclick = () => done(input ? field.value : true);
@@ -2683,7 +2683,9 @@ function openDialog({ message = '', title = '', input = false, value = '', okL =
     scrim.addEventListener('mousedown', (e) => { if (e.target === scrim && cancelL) done(input ? null : false); });
     const onKey = (e) => {
       if (e.key === 'Escape' && cancelL) { e.preventDefault(); done(input ? null : false); }
-      else if (e.key === 'Enter' && (!input || e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); ok.click(); }
+      // Enter confirms (Shift+Enter breaks the line in a text box); Enter on a focused 취소 stays 취소.
+      else if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229
+        && !(document.activeElement && document.activeElement.tagName === 'BUTTON' && document.activeElement !== ok)) { e.preventDefault(); ok.click(); }
       else if (e.key === 'Tab') { const f = [...box.querySelectorAll('button,textarea')]; const i = f.indexOf(document.activeElement);
         e.preventDefault(); f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus(); }
     };
@@ -2706,6 +2708,21 @@ document.addEventListener('compositionstart', () => { composing = true; }, true)
 document.addEventListener('compositionend', () => { composing = false; lastTyping = Date.now(); }, true);
 document.addEventListener('input', () => { lastTyping = Date.now(); }, true);
 document.addEventListener('keydown', () => { lastTyping = Date.now(); }, true);
+// 대장 (2026-10-01): in a message box Enter sends and Shift+Enter breaks the line. The send button is the primary
+// button in the row right after the box. The new project form keeps Enter as a line break (long goal and criteria).
+// A Hangul syllable still being composed is committed by its own Enter first (isComposing), so it is never lost.
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (e.key !== 'Enter' || e.shiftKey || e.isComposing || e.keyCode === 229 || !t || t.tagName !== 'TEXTAREA' || !root.contains(t) || /^np-/.test(t.id)) return;
+  let row = t.nextElementSibling;
+  while (row && !row.classList.contains('row-f')) row = row.nextElementSibling;
+  const send = row && row.querySelector('.btn.pri');
+  if (!send) return;
+  e.preventDefault();
+  if (!t.value.trim() || send.disabled) return;
+  t.dispatchEvent(new Event('input', { bubbles: true }));
+  send.click();
+});
 function typingNow() {
   const a = document.activeElement;
   const editable = !!a && root.contains(a) && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && /^(text|search|url|email|)$/i.test(a.type)));
