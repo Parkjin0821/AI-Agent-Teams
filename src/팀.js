@@ -126,6 +126,8 @@ export const TEAM_BRIEFS = Object.freeze({
       // The minutes re-test (2026-10-01): "no 담당자·기한 not in the meeting" was read as "no 담당/기한 column, no (미정)",
       // so the verifier failed the structured minutes and the team stripped them back to the bare manuscript.
       '문서(회의록·보고서·계획서) 조건은 그 종류의 필수 항목(회의록: 기본 정보·안건·결정·후속 조치·다음 회의)을 요구하고, "지어낸 사실이 없다" 조건에는 "(빈 칸은 (미정)으로 둔다)" 를 함께 적는다. 담당·기한 칸이나 "(미정)" 자체를 금지하는 조건은 만들지 않는다. 한글 문서가 한글 양식으로 보이는지는 "(대장이 미리보기에서 확인)" 조건으로 둔다.',
+      // Minutes test 3 (2026-10-01) stopped on "only 회의록.md and 회의록.hwpx are new": the engine's previews counted.
+      '"새로 생긴 파일은 ○○뿐" 같은 조건을 쓸 때 엔진이 만드는 파일(x.hwpx.md·x.hwpx.html·x.hwpx.svg 미리보기, 발표자료/ PDF, .hq-screens/ 캡처, sources/ 원문)은 빼고 센다고 조건에 적는다.',
       // 대장 (2026-10-01): a side-by-side test (team vs one direct build of the same request) showed criteria made only of
       // "있다·보인다" give a correct but still page, and "예시 표시" read as a badge on every item cluttered it.
       '사람이 보는 페이지의 완료 조건에는 살아 있는 요소 하나를 넣는다: 내용에서 나온 작은 기능(예: 이 PC 시계로 "지금 영업 중" 표시, 다음 행사까지 남은 날, 고르면 바뀌는 보기)이나 사용자 행동에 반응하는 장치. "있다·보인다" 조건만 있으면 맞지만 정적인 페이지가 된다.',
