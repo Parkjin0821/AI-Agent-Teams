@@ -2888,7 +2888,7 @@ let queued = false;
 // Every render replaces the whole page. If that happens while 대장 is typing — above all in the middle of a
 // Hangul syllable (IME composition) — the box is swapped out and the syllable breaks or vanishes. Background
 // updates (a running project refreshes every few seconds) therefore wait until typing pauses.
-let composing = false, lastTyping = 0;
+let composing = false, lastTyping = 0, lastPage = null;
 document.addEventListener('compositionstart', () => { composing = true; }, true);
 document.addEventListener('compositionend', () => { composing = false; lastTyping = Date.now(); }, true);
 document.addEventListener('input', () => { lastTyping = Date.now(); }, true);
@@ -2918,7 +2918,11 @@ function scheduleRender() { if (!queued) { queued = true; queueMicrotask(tryRend
 function render() {
   const active = document.activeElement, id = active && active.id;
   const range = id && typeof active.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null;
-  const opened = [...root.querySelectorAll('details[open]')].map((d) => d.dataset.key || [...root.querySelectorAll('details')].indexOf(d));
+  // Open folds are kept by position, so only within the same page: going from the project list (its "완료" fold
+  // open) to a project opened that project's first fold, "요청 내용 보기" (2026-10-01).
+  const page = [comp.state.view, comp.state.pid, comp.state.ptab].join('|');
+  const opened = page === lastPage ? [...root.querySelectorAll('details[open]')].map((d) => d.dataset.key || [...root.querySelectorAll('details')].indexOf(d)) : [];
+  lastPage = page;
   const frag = document.createDocumentFragment();
   build(tpl.childNodes, frag, comp.renderVals(), {});
   // A preview (결과물 iframe) rebuilt on every background refresh reloaded and jumped back to its top while 대장
