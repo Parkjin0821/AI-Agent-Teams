@@ -243,7 +243,12 @@ h2{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em}
 /* 프로젝트 상세 */
 .crumb{font-size:12.5px;color:var(--text-3);display:flex;gap:6px;align-items:center;margin-bottom:10px}
 .ws-h{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap}
-.ws-h .goal{margin:8px 0 0;color:var(--text-2);max-width:70ch}
+.ws-h .goal{margin:8px 0 0;color:var(--text-2);max-width:70ch;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.goal-full{margin-top:6px;max-width:70ch}
+.goal-full>summary{display:inline-flex;align-items:center;min-height:28px;font-size:12.5px;color:var(--text-2);cursor:pointer}
+.goal-parts{margin-top:6px;display:grid;gap:6px;font-size:13px;line-height:1.6;color:var(--text-2)}
+.goal-parts p{margin:0}
+.goal-parts b{margin-right:4px;font-weight:600;color:var(--text)}
 .ws-h .acts{display:flex;gap:8px;flex:none}
 .ptabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:28px 0 24px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
 .ptabs::-webkit-scrollbar{display:none}
@@ -297,8 +302,7 @@ details[open]>summary::before{transform:rotate(90deg)}
 .tchecks{display:grid;gap:6px;margin-top:8px}
 .tcheck{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;align-items:baseline}
 .tcheck details{grid-column:2}
-.tcheck.inspection{grid-template-columns:20px minmax(0,1fr);align-items:start;gap:6px 8px;padding:10px 0}
-.tcheck.inspection:has(>.pill:not(.done)){grid-template-columns:64px minmax(0,1fr)}
+.tcheck.inspection{grid-template-columns:64px minmax(0,1fr);align-items:start;gap:6px 8px;padding:10px 0}
 .tcheck.inspection+.tcheck.inspection{border-top:1px solid var(--line)}
 .inspection>.pill{justify-self:start;margin-top:1px}
 .inspection>.pill.done{min-width:20px;padding:0;background:transparent;color:var(--done);font-size:0}
@@ -366,6 +370,9 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .msg .body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
 .msg .tchecks{margin-top:8px}
 .msg details{margin-top:14px}
+.msg details.more>summary{font-weight:500}
+.msg .run-info{margin:0 0 10px;font-size:12.5px;line-height:1.6;color:var(--text-3);overflow-wrap:anywhere}
+.msg details.more .tchecks{margin:0 0 10px}
 .msg .tcheck.inspection details{margin-top:8px;margin-bottom:4px}
 .msg details>summary,.tcheck.inspection details>summary{min-height:36px;padding:8px 14px;gap:9px}
 .msg details[open]>summary,.tcheck.inspection details[open]>summary{margin-bottom:10px}
@@ -405,7 +412,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .msg.me.ctl .meta b{color:var(--text-3);font-weight:500}
 .msg.me.ctl .meta .when{margin-left:0}
 .msg.me.ctl .body{font-size:12px;color:var(--text-2)}
-.msg.team .body{font-size:14px;font-weight:500;line-height:1.7;color:var(--text)}
+.msg.team .body{font-size:14px;font-weight:400;line-height:1.7;color:var(--text)}
 .msg.team .body strong,.msg.team .body b{font-weight:700}
 .msg.team .inspection-head{font-size:12.5px;font-weight:700;color:var(--text)}
 .msg.team .inspection-copy b{font-size:13.5px;font-weight:700;color:var(--text)}
@@ -642,6 +649,22 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
 .to-top svg{display:block;width:16px;height:16px;flex:none;margin:0;transition:transform .2s ease}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.to-top.show:hover,.to-top.show:active,.to-top.show:hover svg{transform:none}}
 @media (max-width:760px){.to-top{right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:44px;height:44px;padding:0;justify-content:center}.to-top span{display:none}}
+/* Phone (dashboard review 2026-10-01): the project title gets the whole first row, status · progress · time the
+   second; the conversation drops the stacked side paddings that left a team reply only ~180px of text. */
+@media (max-width:760px){
+  .prow{grid-template-columns:auto auto minmax(0,1fr)!important;gap:8px 10px!important}
+  .prow>span:first-child{grid-column:1 / -1}
+  .prow .name{font-size:15px}
+  .prow .sub{-webkit-line-clamp:1}
+  .prow .c{display:inline!important;grid-column:auto}
+  .prow .when{display:block!important;grid-column:auto;text-align:right}
+  .thread{padding:12px}
+  .msg{max-width:100%}
+  .msg.me{max-width:92%}
+  .msg.team{grid-template-columns:minmax(0,1fr);padding:14px}
+  .msg.team>.mono-tile{display:none}
+  .msg.team>:not(.mono-tile){grid-column:1}
+}
 </style>
 </head>
 <body>
@@ -800,7 +823,8 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
   <div class="ws-h">
     <div style="min-width: 0">
       <div class="row-f"><h1>{{w.name}}</h1><span class="{{w.pillCls}}"><i></i>{{w.stL}}</span></div>
-      <p class="goal">{{w.objective}}</p>
+      <p class="goal">{{w.goalSummary}}</p>
+      <sc-if value="{{w.goalLong}}"><details class="goal-full"><summary>요청 내용 보기{{w.goalExtraL}}</summary><div class="goal-parts"><sc-for list="{{w.goalParts}}" as="gp"><p><b>{{gp.l}}</b> {{gp.t}}</p></sc-for></div></details></sc-if>
       <sc-if value="{{criteriaPending}}"><button class="btn pri criteria-approve" onClick="{{approveCriteria}}">완료 조건 확인·승인</button></sc-if>
     </div>
     <div class="acts">
@@ -820,11 +844,11 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
           <sc-for list="{{w.thread}}" as="x">
             <div class="{{x.cls}}">
               <sc-if value="{{x.hasMono}}"><span class="mono-tile" aria-hidden="true">{{x.mono}}</span></sc-if>
-              <div class="meta"><b>{{x.who}}</b><span class="small muted sub" title="{{x.sub}}">{{x.sub}}</span><span class="small muted when">{{x.when}}</span></div>
+              <div class="meta"><b>{{x.who}}</b><span class="small muted sub" title="{{x.metaSub}}">{{x.metaSub}}</span><span class="small muted when">{{x.when}}</span></div>
               <div class="body">{{x.text}}</div>
               <sc-if value="{{x.hasAtt}}"><div class="att-list"><sc-for list="{{x.atts}}" as="a"><sc-if value="{{a.isImage}}"><button class="att-img" onClick="{{a.open}}" title="{{a.name}} · 새 창에서 크게 보기"><img src="{{a.src}}" alt="{{a.name}}" loading="lazy"></button></sc-if><sc-if value="{{a.isText}}"><button class="att" onClick="{{a.open}}" title="새 창에서 보기"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></button></sc-if><sc-if value="{{a.isPdf}}"><span class="att"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></span></sc-if><sc-if value="{{a.hasConv}}"><button class="att" onClick="{{a.openConv}}" title="엔진이 바꾼 Markdown · 팀은 이것을 읽습니다"><span class="small">변환본 보기</span></button></sc-if></sc-for></div></sc-if>
-              <sc-if value="{{x.hasTools}}"><div class="tchecks"><div class="inspection-head"><span>검사 결과</span><sc-if value="{{x.allToolsPassed}}"><span class="inspection-all-pass">모두 통과</span></sc-if></div><sc-for list="{{x.tools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><div class="inspection-copy"><b>{{k.name}}</b><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
-              <sc-if value="{{x.hasAnswer}}"><details><summary>팀 답변 전체</summary><div class="answer">{{x.answer}}</div></details></sc-if>
+              <sc-if value="{{x.hasIssues}}"><div class="tchecks"><sc-for list="{{x.issues}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><div class="inspection-copy"><b>{{k.name}}</b><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
+              <sc-if value="{{x.hasMore}}"><details class="more"><summary>{{x.moreL}}</summary><sc-if value="{{x.runInfo}}"><p class="run-info">{{x.runInfo}}</p></sc-if><sc-if value="{{x.hasOkTools}}"><div class="tchecks"><sc-for list="{{x.okTools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><div class="inspection-copy"><b>{{k.name}}</b><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if><sc-if value="{{x.hasAnswer}}"><div class="answer">{{x.answer}}</div></sc-if></details></sc-if>
             </div>
           </sc-for>
           <sc-if value="{{w.working}}"><div class="msg sys working"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>{{w.workingL}}</div>
@@ -931,7 +955,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
           <div style="min-width: 0">
             <div class="who">{{a.who}}<span class="tool">{{a.tool}}</span><span class="{{a.pillCls}}"><i></i>{{a.resL}}</span></div>
             <div class="res">{{a.res}}</div>
-            <sc-if value="{{a.hasTools}}"><div class="tchecks"><div class="inspection-head"><span>검사 결과</span><sc-if value="{{a.allToolsPassed}}"><span class="inspection-all-pass">모두 통과</span></sc-if></div><sc-for list="{{a.tools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><div class="inspection-copy"><b>{{k.name}}</b><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
+            <sc-if value="{{a.hasTools}}"><div class="tchecks"><div class="inspection-head"><span>검사 결과</span><sc-if value="{{a.allToolsPassed}}"><span class="inspection-all-pass">실행한 검사 모두 통과</span></sc-if></div><sc-for list="{{a.tools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><div class="inspection-copy"><b>{{k.name}}</b><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
             <sc-if value="{{a.hasAnswer}}"><details><summary>답변 보기</summary><div class="answer">{{a.answer}}</div></details></sc-if>
           </div>
         </div>
@@ -1106,7 +1130,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
           <sc-if value="{{r.hasRemoved}}"><div class="small muted">{{r.removed}}</div></sc-if>
           <sc-if value="{{r.hasText}}"><pre class="answer" style="max-height: 50vh" aria-label="{{r.previewPath}} 내용">{{r.previewText}}</pre></sc-if>
           <sc-if value="{{r.hasFrame}}"><iframe title="바뀐 파일 내용" src="{{r.previewUrl}}" sandbox="" referrerpolicy="no-referrer" style="width:100%;height:50vh;border:1px solid var(--line);border-radius:10px;background:white"></iframe></sc-if>
-          <sc-if value="{{r.hasTools}}"><div class="tchecks"><div class="inspection-head"><span>검사 결과</span><sc-if value="{{r.allToolsPassed}}"><span class="inspection-all-pass">모두 통과</span></sc-if></div><sc-for list="{{r.tools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><div class="inspection-copy"><b>{{k.name}}</b><span>{{k.summary}}</span></div></div></sc-for></div></sc-if>
+          <sc-if value="{{r.hasTools}}"><div class="tchecks"><div class="inspection-head"><span>검사 결과</span><sc-if value="{{r.allToolsPassed}}"><span class="inspection-all-pass">실행한 검사 모두 통과</span></sc-if></div><sc-for list="{{r.tools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><div class="inspection-copy"><b>{{k.name}}</b><span>{{k.summary}}</span></div></div></sc-for></div></sc-if>
           <sc-if value="{{r.hasAnswer}}"><details><summary>팀 답변 전체</summary><div class="answer">{{r.answer}}</div></details></sc-if>
           <div class="row-f"><button class="btn pri sm" onClick="{{r.accept}}">확인하고 계속</button><button class="btn sm" onClick="{{r.acceptAll}}">{{r.trustAllL}}</button><button class="btn sm" onClick="{{r.sendBack}}">되돌려 보내기</button><button class="link small" onClick="{{r.open}}">프로젝트 열기</button></div>
         </div>
@@ -1223,7 +1247,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
         <div class="lbl" style="margin:12px 0 6px">적용 팀</div>
         <div class="seg wrap" role="group" aria-label="이 스킬을 적용할 팀"><sc-for list="{{k.teamOptions}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" disabled="{{o.disabled}}" onClick="{{o.toggle}}">{{o.label}}</button></sc-for></div>
         <p class="hint">팀을 바꾸면 호환성 검토를 다시 받아야 사용할 수 있습니다.</p>
-        <div class="skill-checks"><div class="inspection-head"><span>자동 검사 결과 · 참고</span><sc-if value="{{k.allChecksPassed}}"><span class="inspection-all-pass">모두 통과</span></sc-if></div>
+        <div class="skill-checks"><div class="inspection-head"><span>자동 검사 결과 · 참고</span><sc-if value="{{k.allChecksPassed}}"><span class="inspection-all-pass">실행한 검사 모두 통과</span></sc-if></div>
           <sc-for list="{{k.checkRows}}" as="c"><div class="tcheck inspection"><span class="{{c.pillCls}}"><i></i>{{c.stL}}</span><div class="inspection-copy"><b>{{c.name}}</b><span>{{c.text}}</span></div></div></sc-for></div>
         <div class="skill-review"><div class="lbl" style="margin:12px 0 6px">검토 상태 · {{k.gateL}}</div>
           <sc-for list="{{k.reviewRows}}" as="r"><div class="row-f small" style="margin-bottom:6px"><b style="min-width:84px">{{r.label}}</b><span class="muted" style="flex:1;min-width:160px">{{r.stateL}}</span><button class="btn sm" onClick="{{r.pass}}">통과</button><button class="btn ghost sm" onClick="{{r.hold}}">보류</button></div></sc-for>
@@ -1463,6 +1487,9 @@ const ago = (iso) => {
 };
 const sameDay = (iso) => iso && new Date(iso).toDateString() === new Date().toDateString();
 const clip = (t, n) => (t && t.length > n ? t.slice(0, n - 1) + '…' : (t || ''));
+// The first paragraph of a team's answer, without Markdown marks, for the one-line conclusion in the thread.
+const firstPara = (text) => clip(String(text || '').replace(/^\(답변 없음\)$/, '').trim().split(/\n\s*\n/)[0]
+  .replace(/\*\*|`|^#+\s*/gm, '').replace(/\s*\n\s*/g, ' ').trim(), 180);
 const cleanAnswer = (text) => {
   let t = text || '';
   for (const mark of ['AGENT_HQ_REPORT', 'AGENT_HQ_PLAN']) { const at = t.lastIndexOf(mark); if (at >= 0) t = t.slice(0, at); }
@@ -1839,8 +1866,24 @@ class Component extends DCLogic {
       const issue = ['review_required', 'blocked', 'recovery_required', 'model_wait'].includes(g.status) && g.reason !== 'needs_decision';
       const lastRun = runsDesc.find((r) => r.status === 'finished' && r.goal.id === g.id);
       const qaChecked = wp.runs.some((r) => r.goal.id === g.id && r.team === 'qa' && r.status === 'finished' && r.outcome === 'completed' && !r.simulated);
+      // The header shows a short goal; the full request (original + every accepted improvement, " — 개선: …") folds away,
+      // so on a phone the conversation is not pushed below the first screen (dashboard review, 2026-10-01).
+      const objText = g.objective.replace(/\[대장 첨부 · 작업 폴더 안 파일 · 직접 열어서 확인\] [^\n]*/g, '(첨부 파일)');
+      // Pieces: the first request, then " — 개선: …" (accepted improvements) and "\n대장 추가 요청: …" (messages).
+      const pieces = objText.split(/(\s+— 개선:\s+|\n대장 추가 요청:\s*)/);
+      const objParts = [{ l: '처음 요청', t: pieces[0].trim() }];
+      for (let i = 1, imp = 0, add = 0; i < pieces.length; i += 2) {
+        const isImp = /개선/.test(pieces[i]);
+        objParts.push({ l: isImp ? '개선 ' + (++imp) : '추가 요청' + (++add > 1 ? ' ' + add : ''), t: (pieces[i + 1] || '').trim() });
+      }
+      const firstSentence = (t) => { const m = /^[\s\S]*?(?:다\.|\.\s|$)/.exec(t.trim()); return clip((m ? m[0] : t).trim(), 110); };
+      const lastAsk = objParts[objParts.length - 1];
+      const goalSummary = firstSentence(objParts[0].t) + (objParts.length > 1 ? ' · 최근 ' + lastAsk.l + ': ' + clip(lastAsk.t, 70) : '');
       w = {
-        id: wp.id, workspacePath: wp.workspacePath, name: wp.name, objective: g.objective.replace(/\[대장 첨부 · 작업 폴더 안 파일 · 직접 열어서 확인\] [^\n]*/g, '(첨부 파일)'), stL: st.l, pillCls: pillCls(st.tone), isTeam: isTeam,
+        id: wp.id, workspacePath: wp.workspacePath, name: wp.name, objective: objText, goalSummary: goalSummary,
+        goalLong: objText.length > goalSummary.length + 10, goalExtraL: objParts.length > 1 ? ' · 요청 ' + objParts.length + '개' : '',
+        goalParts: objParts,
+        stL: st.l, pillCls: pillCls(st.tone), isTeam: isTeam,
         canStart: startable, startL: g.round ? '이어서 시작' : '시작',
         start: async () => { if (await this.confirmStart(wp.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '시작했습니다 · 기획팀부터 진행합니다'); },
         canStop: isTeam && g.autoRun && RUNNING_LIKE.includes(g.status),
@@ -1937,7 +1980,10 @@ class Component extends DCLogic {
             + (r.plan.reviews.length ? ' · 검토: ' + r.plan.reviews.map((x) => TEAM_NAME[x]).join(', ') : '') : '다음 작업을 정하지 못했습니다.';
           else if (r.team === 'security' || r.team === 'policy') res = !r.review ? '검토 결과 형식을 읽지 못했습니다.'
             : r.review.verdict === 'pass' ? '문제 없음' : (r.review.blocking ? '막아야 할 문제 ' : '참고할 점 ') + r.review.issues.length + '건 · ' + clip(r.review.issues.join(' / '), 160);
-          else res = '엔진 확인 ' + (r.evidence || []).length + '/' + r.goal.completionCriteria.length + ' 조건';
+          // Work teams: their own first paragraph is the conclusion ("두 가지를 수정했습니다 …"); a count of criteria a
+          // work step proved read like the project's progress. Verification states what it proved.
+          else if (r.team === 'qa') res = '완료 조건 ' + (r.evidence || []).length + '/' + r.goal.completionCriteria.length + '개 증명';
+          else res = firstPara(r.answer ? cleanAnswer(r.answer) : '') || '작업을 마쳤습니다.';
           return { when: fmt(r.startedAt), who: r.team ? TEAM_NAME[r.team] : '실행 ' + r.round + '회', tool: TOOL[r.executor || 'claude-code'] + ' · ' + (r.actualModel || (r.requestedModel ? r.requestedModel + ' 요청' : '모델 확인 필요'))
               + (r.level ? ' · 제어팀 ' + r.level.label + (r.requestedEffort ? ' · 추론 ' + (EFFORT_L[r.requestedEffort] || r.requestedEffort) : '') + ' (' + r.level.why + ')' : '')
               + (r.switchedFrom ? ' · ' + TOOL[r.switchedFrom] + ' 한도로 대신 실행' + (r.sameAsWorker ? ' (작업팀과 같은 AI · 독립 검토 아님)' : '') : ''),
@@ -2015,8 +2061,16 @@ class Component extends DCLogic {
       w.thread = items.map((x, i) => {
         const team = /msg team/.test(x.cls), prev = items[i - 1];
         const cont = team && prev && /msg team/.test(prev.cls) && prev.who === x.who;
+        // Team replies: conclusion and any failed or held check stay visible; passed checks, run details (tool, model,
+        // level) and the full answer fold into one "자세히" (dashboard review 2026-10-01: replies read like long reports).
+        const tools = x.tools || [];
+        const issues = tools.filter((k) => !['통과', '건너뜀'].includes(k.stL)), okTools = tools.filter((k) => ['통과', '건너뜀'].includes(k.stL));
+        const runInfo = team ? x.sub || '' : '';
+        const moreBits = [okTools.length ? '실행한 검사 ' + okTools.length + '개' + (okTools.every((k) => k.stL === '통과') ? ' 통과' : '') : '', x.hasAnswer ? '팀 답변 전체' : '', runInfo ? '실행 정보' : ''].filter(Boolean);
         return Object.assign({ hasTools: false, tools: [], hasAnswer: false, answer: '', hasAtt: false, atts: [] }, x,
-          { when: fmt(x.at), hasMono: team, mono: team ? String(x.who || '·').charAt(0) : '', cls: x.cls + (cont ? ' cont' : '') });
+          { when: fmt(x.at), hasMono: team, mono: team ? String(x.who || '·').charAt(0) : '', cls: x.cls + (cont ? ' cont' : ''),
+            metaSub: team ? '' : x.sub || '', issues: issues, hasIssues: issues.length > 0, okTools: okTools, hasOkTools: okTools.length > 0,
+            runInfo: runInfo, hasMore: moreBits.length > 0, moreL: '자세히 · ' + moreBits.join(' · ') });
       });
       w.working = g.status === 'running';
       // 병렬 작업 lanes of this project's current work
