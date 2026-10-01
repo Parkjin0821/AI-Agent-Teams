@@ -10,7 +10,20 @@ test('pages get one living element, and example marks stay one per section (team
   assert.match(teamPrompt('plan',input), /예시 내용이 든 구역마다 한 번/);
   assert.match(teamPrompt('design',input), /지금 영업 중/);
   assert.match(teamPrompt('design',input), /항목·카드마다 배지를 붙이면/);
-  assert.match(teamPrompt('qa',input), /예시 배지가 항목마다/);
+  assert.match(teamPrompt('qa',input), /예시 배지 과잉/);
+});
+test('GPT critique: first screen info, compact phone lists, motion with a purpose, criteria checked on screen', () => {
+  const input = {goal,files:[],team:{task:'화면 제작'}};
+  const design = teamPrompt('design',input);
+  assert.match(design, /390px 첫 화면에는 방문 여부를 판단할 정보/);
+  assert.match(design, /비교하며 훑어볼 수 있게 압축/);
+  assert.match(design, /가장 큰 글씨는 방문자가 먼저 알아야 할 정보/);
+  assert.match(design, /SVG 안 글자는 속성값이 아니라/);
+  assert.match(design, /개수를 채우려고 넣지 않는다/);
+  assert.doesNotMatch(design, /중 두 가지 이상/);
+  assert.match(teamPrompt('plan',input), /주요 행동마다 화면에서 확인할 완료 조건/);
+  assert.match(teamPrompt('plan',input), /식별 문자열까지 막지 않는다/);
+  assert.match(teamPrompt('qa',input), /그 조건은 통과가 아니다/);
 });
 test('UI prompts establish a 화면설계, hand it to developers, and distinguish visual verification', () => {
   const input = {goal,files:[],team:{task:'화면 제작'}};
