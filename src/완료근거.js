@@ -156,6 +156,9 @@ export function verifyReport(report, criteria, cwd, ctx = {}) {
     const engineOnly = list.some(c => ENGINE_OWNED.includes(c?.type)) && list.every(c => [...ENGINE_OWNED, 'file_exists'].includes(c?.type));
     const done = item?.done === true || engineOnly;
     let result = list.length ? runChecks(list, criterion, cwd, ctx, done) : { status: 'none' };
+    // A criterion 대장 judges by design ("… (대장이 화면에서 확인)") is never proven by a check: 자율 시험 2차 had "the page
+    // looks warm (대장이 확인)" proven by an unrelated test run. It waits for 대장, with what the verifier saw as a note.
+    if (PERSON_MARK.test(criterion)) result = { status: 'none', reason: result.proof ? `참고 · ${result.proof.replace(/^엔진 확인 · /, '')}` : '' };
     // stayed_inside proves only the work-folder part of a criterion; the rest (e.g. "nothing guessed") stays with 대장.
     if (result.status === 'pass' && done && list.length === 1 && list[0].type === 'stayed_inside') {
       const rest = beyondBoundary(criterion);
@@ -164,7 +167,7 @@ export function verifyReport(report, criteria, cwd, ctx = {}) {
     // A check only counts for a criterion the tool itself reports as done.
     if (result.status === 'pass' && done) evidence.push({ criterion, proof: result.proof });
     claims.push({ criterion, claimed: done, check: result.status, note, detail: result.proof ?? result.reason ?? '',
-      ...(item?.person === true && result.status !== 'pass' ? { person: true } : {}) });
+      ...((item?.person === true || PERSON_MARK.test(criterion)) && result.status !== 'pass' ? { person: true } : {}) });
   });
   return { evidence, claims };
 }
@@ -272,7 +275,10 @@ const namesFile = (criterion, file) => {
 
 const BOUNDARY_TOPIC = /폴더\s*밖|바깥|금지된?\s*설정|설정\s*파일|비밀\s*정보|outside|secret/;
 // Words of a criterion that stayed_inside does not speak to (reading, guessing, accuracy, …).
-const BOUNDARY_STEMS = ['작업', '폴더', '밖', '바깥', '파일', '비밀', '정보', '기록', '금지', '설정', '생성', '건드', '수정', '쓰', '만들', '없', '않', '바꾸', '변경'];
+// Composed syllables are their own stems: "쓴" does not start with "쓰" (자율 시험 2차, 2026-10-02: "작업 폴더 밖에 쓴 파일이
+// 없다" came out partial in four projects and stalled them).
+const BOUNDARY_STEMS = ['작업', '폴더', '밖', '바깥', '파일', '비밀', '정보', '기록', '금지', '설정', '생성', '건드', '수정', '쓰', '쓴', '썼', '쓸', '쓰인',
+  '저장', '생긴', '만들', '만든', '없', '않', '바꾸', '바뀐', '변경', '것'];
 const GLUE = new Set(['및', '또는', '그리고', '전혀', '하나도', '모두', '어떤', '아무']);
 const beyondBoundary = criterion => (String(criterion).match(/[가-힣]+|[a-zA-Z0-9]+/g) ?? [])
   .filter(w => !GLUE.has(w) && !BOUNDARY_STEMS.some(stem => w.startsWith(stem)) && !/^(outside|secrets?|files?|no|none)$/i.test(w));

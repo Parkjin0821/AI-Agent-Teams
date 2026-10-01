@@ -303,3 +303,17 @@ test('자율 시험: menu items counted in the page, engine-only proofs run by t
   assert.equal(issues.length, 2);
   assert.match(issues.join('\n'), /1번: 지어낸[\s\S]*2번: "새 파일은 ○○뿐" 은 증명할 기준 기록이 없다/);
 });
+
+test('자율 시험 2차: "밖에 쓴 파일이 없다" is fully proven by the engine record, and a 대장 criterion is never proven by a check', () => {
+  const cwd = ws();
+  const boundary = () => ({ status: 'pass', proof: '엔진 확인 · 모든 단계가 쓰기 제한 아래 실행됨' });
+  for (const c of ['작업 폴더 밖에 쓴 파일이 없다.', '작업 폴더 밖에 파일을 썼거나 만든 것이 없다']) {
+    const r = verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'stayed_inside' } }] }, [c], cwd, { boundary });
+    assert.deepEqual([r.claims[0].check, r.evidence.length], ['pass', 1], c);
+  }
+  assert.equal(verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'stayed_inside' } }] }, ['작업 폴더 밖을 읽지 않았다'], cwd, { boundary }).claims[0].check, 'partial');
+  const person = verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'tests_pass' } }] }, ['빵집다운 따뜻한 분위기다 (대장이 화면에서 확인)'], cwd,
+    { test: { label: 'node --test', passed: true }, verifying: true });
+  assert.deepEqual([person.evidence.length, person.claims[0].check, person.claims[0].person], [0, 'none', true]);
+  assert.match(person.claims[0].detail, /^참고 · /);
+});
