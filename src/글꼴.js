@@ -79,7 +79,8 @@ export function kitPrompt() {
     + KIT_FONTS.map(f => `- ${f.id}: font-family: '${f.family}' · ${f.feel} · ${f.use}`).join('\n')
     + `\n쓰려면 보고서 JSON 에 "fonts":["pretendard","do-hyeon"] 처럼 id 를 적는다 (최대 3개). 단계가 끝나면 엔진이 작업 폴더의 ${FONT_FOLDER}/ 에`
     + ` 글꼴 파일과 라이선스, ${FONT_FOLDER}/글꼴.css 를 넣는다. 페이지에는 <link rel="stylesheet" href="${FONT_FOLDER}/글꼴.css"> 를 넣고`
-    + ` (페이지 위치 기준 상대 경로), font-family 뒤에 대체 글꼴을 둔다. ${FONT_FOLDER}/ 안의 파일은 직접 만들거나 고치지 않는다.\n`;
+    + ` (페이지 위치 기준 상대 경로), font-family 뒤에 대체 글꼴을 둔다. ${FONT_FOLDER}/ 안의 파일은 직접 만들거나 고치지 않는다.`
+    + ' 묶음은 작업 폴더 안의 파일이라 인터넷 요청이 없다. "웹폰트·외부 글꼴 없음" 조건은 인터넷에서 불러오는 글꼴을 뜻하므로 묶음은 써도 된다.\n';
 }
 
 // Copies the chosen kit fonts (and their licenses) into the work folder and rewrites 글꼴/글꼴.css for every kit

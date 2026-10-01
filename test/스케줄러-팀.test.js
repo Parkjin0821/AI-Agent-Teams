@@ -551,6 +551,24 @@ test('제어팀 fills in unpicked teams; a team pick, a pin or turning it off wi
     assert.notEqual(scheduler.resolveFor(goal).source, 'auto_level');
   } finally { store.close(); }
 });
+test('제어팀 keeps the deep level for design until a design step has built the page (a 화면설계-only step does not count)', () => {
+  const { store, scheduler, add } = setup(() => ({}));
+  try {
+    scheduler.registry = { getPolicy: () => ({ mode: 'auto', version: 1 }), catalog: () => [] };
+    const goal = add();
+    goal.team.step = 'design';
+    goal.team.profile = { complexity: 'simple', risk: 'low', effects: [] };
+    let runs = [];
+    store.listRuns = () => runs;
+    assert.equal(scheduler.resolveFor(goal).level.label, '깊게', 'no design step yet');
+    runs = [{ team: 'design', outcome: 'completed', checkpoint: { added: ['design/화면설계.md'], modified: [] } }];
+    assert.equal(scheduler.resolveFor(goal).level.label, '깊게', 'only the design document so far');
+    runs.push({ team: 'design', outcome: 'completed', simulated: true, checkpoint: { added: ['index.html'], modified: [] } });
+    assert.equal(scheduler.resolveFor(goal).level.label, '깊게', 'a simulated step builds nothing');
+    runs.push({ team: 'design', outcome: 'completed', checkpoint: { added: [], modified: ['index.html'] } });
+    assert.equal(scheduler.resolveFor(goal).level.label, '가벼움', 'the page exists: later fixes as usual');
+  } finally { store.close(); }
+});
 test('a limit hit during a step waits, and the next step moves to the other subscription (no stop for 대장)', async () => {
   let limited = true;
   const { store, scheduler, add, calls } = setup(team => {
