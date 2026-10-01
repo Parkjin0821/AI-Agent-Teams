@@ -76,11 +76,11 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     ? { connectors: designConnectors(monitor?.snapshot, store.getSettings()), knownConnectors: (monitor?.snapshot?.connectors ?? []).map(c => c.name) }
     : {});
   // Project tests run in the Codex sandbox (no model call, no network); only used in real execution.
-  const sandbox = injectedSandbox ?? (executing ? new SandboxRunner({ codex: resolveBins().codex }) : null);
+  const sandbox = injectedSandbox ?? (executing ? new SandboxRunner({ codex: resolveBins().codex, resolve: () => resolveBins().codex }) : null);
   const visualChecker = new VisualChecker({ root, sandbox });
   // 문서 변환 (kordoc in the sandbox, no model call): also in simulation mode, since it spends no usage.
   let converter = docConverter;
-  const docs = () => converter ??= new DocConverter({ root, sandbox: sandbox ?? new SandboxRunner({ codex: resolveBins().codex }) });
+  const docs = () => converter ??= new DocConverter({ root, sandbox: sandbox ?? new SandboxRunner({ codex: resolveBins().codex, resolve: () => resolveBins().codex }) });
   let quota = [], quotaCheckedAt = 0;
   const refreshUsage = async () => {
     await monitor?.refreshAuthentication?.();

@@ -142,3 +142,18 @@ test('a failing test run passes the failure reason on, not only the counts', asy
   assert.match(tests.blocking[0], /AssertionError[\s\S]*actual: 2[\s\S]*expected: 3/);
   assert.ok(tests.details.some(l => /AssertionError/.test(l)) && tests.details.some(l => /ℹ fail 1/.test(l)));
 });
+
+test('the sandbox finds the Codex CLI again after the Codex app moved it (seen on this PC: an overnight update)', async () => {
+  const { SandboxRunner } = await import('../src/sandbox.js');
+  const { EventEmitter } = await import('node:events');
+  const spawned = [];
+  const spawnFn = (file) => { spawned.push(file); const child = new EventEmitter(); setImmediate(() => child.emit('close', 0)); return child; };
+  let lookups = 0;
+  const sb = new SandboxRunner({ codex: { file: 'C:/old/codex.exe', prefix: [] }, spawnFn,
+    resolve: () => { lookups++; return { file: 'C:/new/codex.exe', prefix: [] }; }, exists: f => f === 'C:/new/codex.exe' });
+  assert.equal(sb.available, true);
+  await sb.run('C:/w', ['node', '--test']);
+  assert.deepEqual(spawned, ['C:/new/codex.exe']);
+  await sb.run('C:/w', ['node', '--test']);
+  assert.equal(lookups, 1, 'looked up once; the new one is kept while it exists');
+});

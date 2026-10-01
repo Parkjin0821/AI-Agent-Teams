@@ -239,9 +239,12 @@ test('checks (all must pass) and file_excludes: what the verifier confirmed by r
   writeFileSync(path.join(cwd, 'index.html'), '<h2>메뉴 표</h2>');
   assert.equal(verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'file_excludes', path: 'index.html', texts: ['http://'] } }] },
     ['index.html에 메뉴 표가 있다'], cwd).claims[0].check, 'unrelated');
-  // an unrelated check inside checks spoils the set; stayed_inside is never bundled
+  // a technical extra (it must still pass) does not spoil a set that has a check about the criterion; a set with none does count for nothing
   assert.equal(verifyReport({ criteria: [{ index: 1, done: true, checks: [sections[3], { type: 'file_contains', path: 'index.html', text: 'h2' }] }] },
+    ['메뉴 표 구역이 있다'], cwd).claims[0].check, 'pass');
+  assert.equal(verifyReport({ criteria: [{ index: 1, done: true, checks: [{ type: 'file_contains', path: 'index.html', text: 'h2' }, { type: 'file_contains', path: 'index.html', text: '<h2>' }] }] },
     ['메뉴 표 구역이 있다'], cwd).claims[0].check, 'unrelated');
+  // stayed_inside is never bundled
   assert.equal(verifyReport({ criteria: [{ index: 1, done: true, checks: [sections[3], { type: 'stayed_inside' }] }] },
     ['index.html에 메뉴 표 구역이 있다'], cwd, { boundary: () => ({ status: 'pass', proof: 'x' }) }).claims[0].check, 'invalid');
 });

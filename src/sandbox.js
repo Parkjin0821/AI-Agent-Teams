@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 // Runs a program the engine chose (never one an agent typed) inside Codex's Windows sandbox:
@@ -23,11 +24,22 @@ export function npmCommand(args) {
 }
 
 export class SandboxRunner {
-  constructor({ codex, env = process.env, timeoutMs = 3 * 60_000, spawnFn = spawn } = {}) {
-    Object.assign(this, { codex, env, timeoutMs, spawnFn });
+  // resolve: finds the Codex CLI again. Seen on this PC: the Codex app updated itself overnight into a new versioned
+  // folder and removed the old one, so a path found at server start pointed at nothing and every sandbox run
+  // (tests, screen check, documents) failed with "실행 파일 없음" until a restart.
+  constructor({ codex, resolve = null, env = process.env, timeoutMs = 3 * 60_000, spawnFn = spawn, exists = existsSync } = {}) {
+    Object.assign(this, { codex, resolve, env, timeoutMs, spawnFn, exists });
   }
 
-  get available() { return Boolean(this.codex?.file); }
+  get available() { return Boolean(this.current()?.file); }
+  // The Codex CLI to use now: the known one while it still exists, otherwise looked up again.
+  current() {
+    const file = this.codex?.file;
+    if (this.resolve && (!file || (path.isAbsolute(file) && !this.exists(file)))) {
+      try { this.codex = this.resolve() ?? this.codex; } catch { /* keep the old one; the run reports it */ }
+    }
+    return this.codex;
+  }
 
   // command: [program, ...args] fixed by the engine. Resolves with the exit code and output tails.
   run(cwd, command, { timeoutMs = this.timeoutMs, network = false } = {}) {
@@ -36,7 +48,7 @@ export class SandboxRunner {
     const [file, args] = network
       // Only for engine-owned read-only lookups (npm audit): runs outside the sandbox, still with a clean environment.
       ? [command[0], command.slice(1)]
-      : [this.codex.file, [...this.codex.prefix, 'sandbox', '-P', ':workspace', '-C', cwd, '--', ...command]];
+      : [this.current().file, [...this.current().prefix, 'sandbox', '-P', ':workspace', '-C', cwd, '--', ...command]];
     return new Promise((resolve) => {
       let output = '', timedOut = false, done = false;
       const child = this.spawnFn(file, args, { cwd, env: sandboxEnv(this.env), shell: false, windowsHide: true });

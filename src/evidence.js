@@ -59,7 +59,7 @@ export function reportInstructions(criteria, { verifying = false } = {}) {
     'You may add "requests":[{"team":"dev|design|research","task":"specific follow-up within this project","criteria":["verifiable criterion"],"risk":"low|normal|high","complexity":"simple|normal|complex","effects":[]}] to propose collaboration. Requests are proposals, not permissions. Never expand the user scope.',
     'You may add "remember":[{"scope":"all"|"<team id>","text":"..."}] (at most 3) for lasting preferences or rules 대장 stated; they apply only after 대장 approves them.',
     'A criterion with several parts (four sections, three files, each field) may use "checks":[{...},{...}] instead of',
-    '"check" (at most 8); it counts only when every check passes and each is about the criterion. Use null only when no',
+    '"check" (at most 8); it counts only when every check passes and at least one is about the criterion. Use null only when no',
     'combination of these checks can prove it — reading a file yourself and saying so is not proof.',
     'A check must prove the criterion itself (the requested file or content). A status note you wrote that says',
     'the work is done is not proof: if nothing in the workspace can prove a criterion, use "check": null.',
@@ -118,9 +118,11 @@ function runChecks(list, criterion, cwd, ctx, claimed) {
     const at = list.length > 1 ? `${i + 1}번째 확인: ` : '';
     const r = check && typeof check === 'object' ? runCheck(check, cwd, ctx) : { status: 'invalid', reason: '잘못된 확인' };
     if (r.status !== 'pass') return { ...r, reason: `${at}${r.reason ?? ''}` };
-    if (claimed && !relatesTo(check, criterion)) return { status: 'unrelated', reason: `${at}${r.proof.replace(/^엔진 확인 · /, '')} — 이 조건과 관련 없는 검사라 근거로 치지 않음` };
     proofs.push(r.proof.replace(/^엔진 확인 · /, ''));
   }
+  // Every check must pass, so a set is at least as strong as the one about the criterion; a technical extra
+  // (an id, a class name) need not share its words (seen in a real run: id="total-ratio" spoiled a proven set).
+  if (claimed && !list.some(c => relatesTo(c, criterion))) return { status: 'unrelated', reason: `${proofs.join(' / ')} — 이 조건과 관련 없는 검사라 근거로 치지 않음` };
   return { status: 'pass', proof: `엔진 확인 · ${proofs.join(' / ')}` };
 }
 
