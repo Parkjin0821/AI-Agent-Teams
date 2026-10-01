@@ -24,7 +24,8 @@ test('renamed engine imports and entry points resolve', () => {
   // that tells a new PC how to set the status line is.
   const local = path.join(root, '.claude', 'settings.json');
   if (existsSync(local)) assert.match(readFileSync(local, 'utf8'), /클로드-상태표시\.mjs/);
-  assert.match(readFileSync(path.join(root, '사용안내.md'), 'utf8'), /scripts\/클로드-상태표시\.mjs/);
+  // README.md keeps its name: GitHub shows only a README on the repository page (it vanished there after the rename).
+  assert.match(readFileSync(path.join(root, 'README.md'), 'utf8'), /scripts\/클로드-상태표시\.mjs/);
 });
 
 test('every team gets Korean filename rules with fixed-name and legacy evidence exceptions', () => {

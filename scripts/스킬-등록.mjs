@@ -72,5 +72,5 @@ for (const s of MORE) {
   report(name, await api('POST', '/api/skills', { name, description, teams: s.teams, triggers: s.triggers, body, license,
     source: `https://github.com/${s.repo}/blob/${head.sha}/${s.path}` }));
 }
-console.log('이 PC의 Claude 스킬 폴더에만 있는 theme-factory·design-taste-frontend·document-typography-design 은 따로 등록합니다 (사용안내 참고).');
+console.log('이 PC의 Claude 스킬 폴더에만 있는 theme-factory·design-taste-frontend·document-typography-design 은 따로 등록합니다 (README 참고).');
 console.log('승인함에서 승인하면 팀이 쓰기 시작합니다.');

@@ -22,7 +22,7 @@ const names = {
   HANDOFF:'인수인계', 'TEAM-EVOLUTION':'팀-개선', 'TEAM-PROMPTS':'팀-지침', architecture:'구조안내',
   'usage-monitoring':'사용량-모니터링', validation:'검증기록', 'agent-hq-screen-design':'에이전트-화면설계',
   connections:'연결', home:'홈', projects:'프로젝트목록', project:'프로젝트', 'project-activity':'프로젝트-활동',
-  dashboard:'대시보드', 'dashboard-preview':'대시보드-미리보기', index:'시작화면', README:'사용안내',
+  dashboard:'대시보드', 'dashboard-preview':'대시보드-미리보기', index:'시작화면',
   'start-agent-hq':'에이전트-시작', 'stop-agent-hq':'에이전트-종료',
 };
 const files = execFileSync('git', ['ls-files', '-z'], { cwd: root }).toString().split('\0').filter(Boolean);
