@@ -218,7 +218,7 @@ test('deleting a project removes its goals, runs, logs and policy; files stay un
   await call('POST', '/api/goals', { ...goalInput, projectId: 'keep-me' });
   await call('POST', '/api/engine/tick', {});
   await call('PUT', '/api/projects/research-hub/model-policy', { mode: 'pinned', model: 'x' });
-  const folder = path.join(app.workspaces.root, 'research-hub');
+  const folder = app.workspaces.resolve('research-hub');
   writeFileSync(path.join(folder, 'result.md'), 'made by AI');
   assert.equal((await call('DELETE', '/api/projects/research-hub', {}, { 'content-type': 'text/plain' })).status, 415);
   const res = await call('DELETE', '/api/projects/research-hub', {});
@@ -242,7 +242,7 @@ test('deleting with deleteFiles also removes the workspace folder; a running pro
   await new Promise(resolve => setTimeout(resolve, 50));
   assert.equal((await call('DELETE', '/api/projects/research-hub', { deleteFiles: true })).status, 400);
   release(); await running;
-  const folder = path.join(app.workspaces.root, 'research-hub');
+  const folder = app.workspaces.resolve('research-hub');
   writeFileSync(path.join(folder, 'a.txt'), 'x');
   const res = await call('DELETE', '/api/projects/research-hub', { deleteFiles: true });
   assert.equal(res.body.filesDeleted, true);
@@ -257,6 +257,9 @@ test('a new project needs no ID: the engine makes one and the team starts only w
   t.after(() => app.close());
   const created = await call('POST', '/api/projects', { title: '가계부', objective: '가계부 앱', completionCriteria: ['index.html 파일이 있다'] });
   assert.equal(created.status, 201);
+  assert.equal(path.basename(app.workspaces.resolve(created.body.projectId)), '가계부');
+  const view = (await call('GET', '/api/engine')).body;
+  assert.equal(view.projects.find(p => p.id === created.body.projectId).workspacePath, 'projects/가계부');
   assert.match(created.body.projectId, /^p-[a-z0-9]+$/);
   assert.deepEqual([created.body.kind, created.body.autoRun], ['team', false]);
   await new Promise(resolve => setTimeout(resolve, 120));

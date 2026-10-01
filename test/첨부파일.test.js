@@ -54,7 +54,7 @@ test('대장 attaches a screenshot to a message: it is saved in the project, sho
     const shot = await upload(g.projectId, '캡처.png', PNG);
     assert.equal(shot.status, 201);
     assert.match(shot.body.path, /^attachments\/\d{8}-\d{6}-캡처\.png$/);
-    assert.ok(readFileSync(path.join(projectsDir, g.projectId, shot.body.path)).equals(PNG));
+    assert.ok(readFileSync(path.join(app.workspaces.resolve(g.projectId), shot.body.path)).equals(PNG));
     app.store.setSetting('attach.maxMB', 1);
     assert.match((await upload(g.projectId, 'big.png', Buffer.concat([PNG, Buffer.alloc(1024 * 1024)]))).body.error, /larger than 1MB/, "the size limit is 대장's setting");
     app.store.setSetting('attach.maxMB', 30);

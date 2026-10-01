@@ -882,7 +882,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
             <dt>진행 방식</dt><dd>{{w.kindL}}</dd>
             <dt>회차</dt><dd class="num">{{w.cycleL}}</dd>
             <dt>오늘</dt><dd class="num">{{w.today}} / {{limits.day}}단계</dd>
-            <dt>작업 폴더</dt><dd class="mono small">projects/{{w.id}}</dd>
+            <dt>작업 폴더</dt><dd class="small" style="overflow-wrap:anywhere">{{w.workspacePath}}</dd>
             <dt>만든 날</dt><dd class="num">{{w.created}}</dd>
           </dl>
         </div>
@@ -1632,7 +1632,7 @@ class Component extends DCLogic {
       const proven = g.completionCriteria.filter((c) => (g.evidence || []).some((e) => e.criterion === c)).length;
       const last = runs.map((r) => r.finishedAt || r.startedAt).concat([g.updatedAt]).sort().pop();
       const name = (goals.find((x) => x.title) || {}).title || clip(g.objective, 40);
-      return { id: pr.id, name: name, goal: g, goals: goals, runs: runs, st: st, proven: proven, total: g.completionCriteria.length,
+      return { id: pr.id, workspacePath: pr.workspacePath || 'projects/' + pr.id, name: name, goal: g, goals: goals, runs: runs, st: st, proven: proven, total: g.completionCriteria.length,
         last: last, today: runs.filter((r) => sameDay(r.startedAt)).length, policy: pr.policy, isTeam: g.kind === 'team', routine: pr.routine || null, lanes: lanes };
     }).sort((a, b) => (b.last || '').localeCompare(a.last || ''));
   }
@@ -1800,7 +1800,7 @@ class Component extends DCLogic {
       const lastRun = runsDesc.find((r) => r.status === 'finished' && r.goal.id === g.id);
       const qaChecked = wp.runs.some((r) => r.goal.id === g.id && r.team === 'qa' && r.status === 'finished' && r.outcome === 'completed' && !r.simulated);
       w = {
-        id: wp.id, name: wp.name, objective: g.objective.replace(/\[대장 첨부 · 작업 폴더 안 파일 · 직접 열어서 확인\] [^\n]*/g, '(첨부 파일)'), stL: st.l, pillCls: pillCls(st.tone), isTeam: isTeam,
+        id: wp.id, workspacePath: wp.workspacePath, name: wp.name, objective: g.objective.replace(/\[대장 첨부 · 작업 폴더 안 파일 · 직접 열어서 확인\] [^\n]*/g, '(첨부 파일)'), stL: st.l, pillCls: pillCls(st.tone), isTeam: isTeam,
         canStart: startable, startL: g.round ? '이어서 시작' : '시작',
         start: async () => { if (await this.confirmStart(wp.name)) this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '시작했습니다 · 기획팀부터 진행합니다'); },
         canStop: isTeam && g.autoRun && RUNNING_LIKE.includes(g.status),
@@ -2645,7 +2645,7 @@ class Component extends DCLogic {
   async removeProject(p) {
     if (p.goal.status === 'running') { this.say('실행 중인 단계가 끝난 뒤에 삭제할 수 있습니다.'); return; }
     if (!await ask('‘' + p.name + '’ 프로젝트를 삭제합니다.\n\n목표 ' + p.goals.length + '개, 실행 기록 ' + p.runs.length + '건, 로그, 모델 정책이 지워지며 되돌릴 수 없습니다.\n계속할까요?')) return;
-    const deleteFiles = await ask('작업 폴더(projects/' + p.id + ')의 파일도 지울까요?', { okL: '파일도 삭제', cancelL: '파일은 남김', danger: true });
+    const deleteFiles = await ask('작업 폴더(' + p.workspacePath + ')의 파일도 지울까요?', { okL: '파일도 삭제', cancelL: '파일은 남김', danger: true });
     this.api('DELETE', '/api/projects/' + p.id, { deleteFiles: deleteFiles })
       .then((r) => this.refresh().then(() => { this.go('projects'); this.say('‘' + p.name + '’을 삭제했습니다' + (r.filesDeleted ? ' · 작업 폴더도 삭제' : ' · 작업 폴더 파일은 남김')); }))
       .catch((e) => this.say(korErr(e.message)));

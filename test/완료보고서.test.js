@@ -52,7 +52,7 @@ test('a finished project with real runs gets a report and a 한글 document; sim
     for (let i = 0; i < 20 && !made.length; i++) await new Promise(r => setTimeout(r, 25));
     assert.equal(made.length, 1);
     assert.equal(made[0].preset, '보고서');
-    const md = path.join(root, 'projects', 'p1', made[0].from);
+    const md = path.join(app.workspaces.resolve('p1'), made[0].from);
     assert.ok(existsSync(md));
     assert.match(readFileSync(md, 'utf8'), /완료 보고/);
     const ev = app.store.recentEvents(10).find(e => e.type === 'report.made');

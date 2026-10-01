@@ -58,7 +58,14 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     complete: team => store.setSetting(`trust.count.${team}`, Math.max(setting(`trust.count.${team}`, 0) + 1, setting('trust.required', 3))) };
   const digests = new Digests({ store, approvals, clock, setting });
   const sentinelLog = path.join(dataDir, 'sentinel.jsonl');
-  const workspaces = new ProjectWorkspaces(projectsDir);
+  const workspaces = new ProjectWorkspaces(projectsDir, {
+    titleFor: id => {
+      const goals = store.listGoals().filter(g => g.projectId === id);
+      const goal = goals.find(g => !g.parentGoalId) ?? goals[0];
+      return goal?.title || goal?.objective?.slice(0, 60) || '';
+    },
+    canRename: id => !store.listGoals().some(g => g.projectId === id && g.status === 'running'),
+  });
   const autoSave = new AutoSave({ store, workspaces, transport: saveTransport, clock });
   const adapter = injectedAdapter ?? new CliAgentAdapter({ enabled: enableExec, cwd: root });
   // Real execution spends subscription usage: the timer then only advances projects 대장 started
@@ -147,6 +154,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   // 템플릿: finished projects saved as reusable recipes (템플릿.js).
   const templates = new Templates({ store, registry, clock });
   const engineView = () => {
+    const workspaceFolders = workspaces.readMap();
     const byProject = new Map();
     for (const goal of store.listGoals().sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
       if (!byProject.has(goal.projectId)) byProject.set(goal.projectId, []);
@@ -155,7 +163,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     return {
       mode: executing ? 'execution' : 'simulation', autoTick, autoScope, now: iso(clock.now()),
       limits: { attachMaxMB: setting('attach.maxMB', DEFAULT_MAX_MB), maxRoundsPerDay: scheduler.dailyLimit(), autoSwitch: store.getSettings()['limits.autoSwitch'] !== false, autoLevels: store.getSettings()['models.auto'] !== false, parallel: store.getSettings()['parallel.enabled'] !== false, permissionMode: setting('permissions.mode', 'auto'), maxRoundsPerDayDefault: scheduler.policy.maxRoundsPerDay, maxConcurrent: scheduler.policy.maxConcurrent, providerConcurrent: scheduler.policy.providerConcurrent },
-      projects: [...byProject].map(([id, goals]) => ({ id, policy: registry.getPolicy(`project:${id}`), goals, autoSave: autoSave.view(id), routine: routines.view(id) })),
+      projects: [...byProject].map(([id, goals]) => ({ id, workspacePath: path.relative(root, path.join(workspaces.root, workspaceFolders[id] ?? id)).replace(/\\/g, '/'), policy: registry.getPolicy(`project:${id}`), goals, autoSave: autoSave.view(id), routine: routines.view(id) })),
       catalog: registry.catalog(), events: store.recentEvents(200), live: Object.fromEntries(liveActivity),
       limitStorageFailed: store.getSettings()['safety.limitStorageFailed'] === true,
     };
@@ -276,6 +284,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       projectId: `p-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, kind: 'team',
       title: body.title || tpl?.name, objective: body.objective || tpl?.objective, conversation: body.conversation === true && !criteria?.length,
       completionCriteria: criteria, autoRun: body.start === true });
+      workspaces.resolve(goal.projectId);
       // New projects start on each app's default model (or 제어팀); a template brings 대장's per-team picks along.
       if (tpl) {
         if (Object.keys(tpl.teamModels ?? {}).length) registry.setPolicy(`project:${goal.projectId}`, { teamModels: tpl.teamModels }, { by: '대장', reason: `template ${tpl.name}` });

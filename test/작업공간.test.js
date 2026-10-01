@@ -1,9 +1,51 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, symlinkSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { ProjectWorkspaces } from '../src/작업공간.js';
+
+test('legacy ID folders migrate to project titles, keeping files and a stable persistent mapping', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'hq-named-'));
+  const old = new ProjectWorkspaces(root).resolve('p-one');
+  writeFileSync(path.join(old, '결과.md'), '원본 그대로');
+  const workspaces = new ProjectWorkspaces(root, { titleFor: () => '가계부 요약' });
+  const named = workspaces.resolve('p-one');
+  assert.equal(path.basename(named), '가계부 요약');
+  assert.equal(existsSync(old), false);
+  assert.equal(readFileSync(path.join(named, '결과.md'), 'utf8'), '원본 그대로');
+  assert.equal(new ProjectWorkspaces(root).resolve('p-one'), named);
+  assert.equal(workspaces.resolve('p-one'), named);
+  const second = workspaces.resolve('p-two');
+  assert.equal(path.basename(second), '가계부 요약 (2)');
+  assert.equal(workspaces.remove('p-one'), true);
+  assert.ok(existsSync(second));
+});
+
+test('busy legacy folders wait; mapped renames recover after interruption; invalid mappings fail closed', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'hq-named-'));
+  const old = new ProjectWorkspaces(root).resolve('p-one');
+  let busy = true;
+  const workspaces = new ProjectWorkspaces(root, { titleFor: () => '회의록', canRename: () => !busy });
+  assert.equal(workspaces.resolve('p-one'), old);
+  busy = false;
+  writeFileSync(path.join(root, '.프로젝트경로.json'), JSON.stringify({ 'p-one': '회의록' }));
+  assert.equal(path.basename(workspaces.resolve('p-one')), '회의록');
+  writeFileSync(path.join(root, '.프로젝트경로.json'), JSON.stringify({ 'p-one': '../외부' }));
+  assert.throws(() => workspaces.resolve('p-one'), /Invalid workspace folder/);
+  assert.throws(() => workspaces.remove('p-one'), /Invalid workspace folder/);
+});
+
+test('Windows-invalid titles, reserved names, prototype keys and unrelated folders stay safe', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'hq-named-'));
+  const workspaces = new ProjectWorkspaces(root, { titleFor: id => id === '__proto__' ? 'CON' : '../한글 : 문서/.' });
+  assert.match(path.basename(workspaces.resolve('p-one')), /한글/);
+  assert.equal(path.dirname(workspaces.resolve('p-one')), root);
+  assert.equal(path.basename(workspaces.resolve('__proto__')), '프로젝트-CON');
+  assert.equal(path.basename(new ProjectWorkspaces(root).resolve('__proto__')), '프로젝트-CON');
+  const other = new ProjectWorkspaces(root, { titleFor: () => '한글 문서' });
+  assert.equal(path.basename(other.resolve('p-two')), '한글 문서 (2)');
+});
 
 test('project workspaces are stable, distinct and cannot escape the root', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'hq-workspaces-'));
