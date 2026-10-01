@@ -4,6 +4,14 @@ import { nextStep, parsePlan, parseReview, qaFindings, TEAMS, teamPrompt } from 
 
 const goal = { objective: '가계부 웹앱을 만든다', completionCriteria: ['index.html 파일이 있다', '합계 계산 테스트 통과'] };
 
+test('pages get one living element, and example marks stay one per section (team vs direct build comparison)', () => {
+  const input = {goal,files:[],team:{task:'화면 제작'}};
+  assert.match(teamPrompt('plan',input), /살아 있는 요소 하나/);
+  assert.match(teamPrompt('plan',input), /예시 내용이 든 구역마다 한 번/);
+  assert.match(teamPrompt('design',input), /지금 영업 중/);
+  assert.match(teamPrompt('design',input), /항목·카드마다 배지를 붙이면/);
+  assert.match(teamPrompt('qa',input), /예시 배지가 항목마다/);
+});
 test('UI prompts establish a 화면설계, hand it to developers, and distinguish visual verification', () => {
   const input = {goal,files:[],team:{task:'화면 제작'}};
   assert.match(teamPrompt('plan',input), /design\/화면설계\.md/);
