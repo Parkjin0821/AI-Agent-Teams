@@ -677,7 +677,7 @@ test('a review that could not check part of its field holds completion for 대�
 test('완료 조건 사전 점검: planning rewrites a list that would stall once, and what is left goes to 대장 with it', async () => {
   const stalls = ['회의록.md에 대장이 준 회의 내용에 없는 발언자·담당자·기한·추가 안건이 없다', '발표 흐름이 설득력 있고 읽기 편하다',
     '작업 폴더에 새로 생긴 결과물은 회의록.md 와 회의록.hwpx 뿐이다'];
-  const fixed = ['회의록.md에 지어낸 담당·기한이 없다 (빈 칸은 (미정)으로 둔다)', '발표 흐름이 설득력 있다 (대장이 PDF에서 확인)'];
+  const fixed = ['회의록.md에 지어낸 담당·기한이 없다 (빈 칸은 (미정)으로 둔다) (대장이 확인)', '발표 흐름이 설득력 있다 (대장이 PDF에서 확인)'];
   let plans = 0;
   const { store, scheduler, add } = setup(team => team === 'plan'
     ? { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [], completionCriteria: ++plans === 1 ? stalls : [...fixed, stalls[2]] } }
@@ -693,5 +693,27 @@ test('완료 조건 사전 점검: planning rewrites a list that would stall onc
     assert.deepEqual([goal.reason, goal.criteriaApprovalPending, goal.completionCriteria.length], ['criteria_approval_required', true, 3]);
     assert.match(goal.question, /남은 점:\n- 3번: "새 파일은/);
     assert.equal(plans, 2, 'one rewrite only');
+  } finally { store.close(); }
+});
+test('only the proof failed: the verifier gets those criteria back once, no work team is called', async () => {
+  let qa = 0;
+  const unrelated = { criterion: C[1], claimed: true, check: 'unrelated', detail: 'x — 관련 없는 검사' };
+  const { store, scheduler, add, calls } = setup(team => {
+    if (team === 'plan') return { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } };
+    if (team === 'qa') { qa++; return { outcome: 'completed', evidence: ev(0), claims: [{ criterion: C[0], claimed: true, check: 'pass' }, unrelated], findings: { feedback: '' } }; }
+    return { outcome: 'completed', diffHash: 'd' + calls.length, evidence: ev(0) };
+  });
+  try {
+    const g = add();
+    await scheduler.runGoal(g.id); // plan
+    await scheduler.runGoal(g.id); // dev
+    await scheduler.runGoal(g.id); // qa: C[1] only failed as a proof
+    let goal = store.getGoal(g.id);
+    assert.deepEqual([goal.status, goal.team.step], ['scheduled', 'qa']);
+    assert.match(goal.team.feedback, /확인만 다시[\s\S]*합계 테스트 통과 → x — 관련 없는 검사/);
+    await scheduler.runGoal(g.id); // qa again, same answer: now 대장 is asked, still no work step
+    goal = store.getGoal(g.id);
+    assert.deepEqual([goal.status, goal.reason, qa], ['review_required', 'needs_decision', 2]);
+    assert.deepEqual(calls.map(c => c.team), ['plan', 'dev', 'qa', 'qa']);
   } finally { store.close(); }
 });

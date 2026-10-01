@@ -282,3 +282,24 @@ test('slides re-test: N items found in the deck prove "N개 이상", and the eng
   assert.equal(run(names, [{ type: 'file_exists', path: 'design/화면설계.md' }, { type: 'file_exists', path: deck }]), 'pass');
   assert.equal(run(names, [{ type: 'file_exists', path: 'design/화면설계.md' }, { type: 'file_exists', path: 'design/plan.md' }]), 'unrelated', 'an English name is not a Korean one');
 });
+
+test('자율 시험: menu items counted in the page, engine-only proofs run by the engine, and the new pre-check rules', async () => {
+  const { lintCriteria } = await import('../src/완료근거.js');
+  const { createHash } = await import('node:crypto');
+  const cwd = ws();
+  writeFileSync(path.join(cwd, '아침결소개.html'), '<li>결 크루아상 3,800원</li><li>통밀 캄파뉴 6,500원</li><li>쑥 앙버터 4,200원</li>');
+  const menu = ['결 크루아상', '통밀 캄파뉴', '쑥 앙버터'].map(t => ({ type: 'file_contains', path: '아침결소개.html', text: t }));
+  assert.equal(verifyReport({ criteria: [{ index: 1, done: true, checks: menu }] }, ['대표 메뉴가 3개 이상이고 메뉴마다 예시 가격이 있다'], cwd).claims[0].check, 'pass');
+  // no check at all for "the engine made 회의록.hwpx": in verification the engine runs document_made itself
+  writeFileSync(path.join(cwd, '회의록.hwpx'), 'HWPX');
+  const documents = { '회의록.hwpx': { path: '회의록.hwpx', from: '회의록.md', preset: '회의록', sha: createHash('sha256').update('HWPX').digest('hex'), validated: true } };
+  const made = verifyReport({ criteria: [{ index: 1, done: false, note: '엔진 기록 확인 못 함' }] }, ["엔진이 서식 '회의록'으로 회의록.hwpx 를 만들었다"], cwd, { verifying: true, documents });
+  assert.deepEqual([made.claims[0].check, made.evidence.length], ['pass', 1]);
+  const content = verifyReport({ criteria: [] }, ['회의록.hwpx 에 결정 사항 3건이 들어 있다'], cwd, { verifying: true, documents });
+  assert.equal(content.claims[0].check, 'none', 'content is never proven by the engine alone');
+  assert.equal(verifyReport({ criteria: [] }, ["엔진이 서식 '회의록'으로 회의록.hwpx 를 만들었다"], cwd, { documents }).claims[0].check, 'none', 'work steps are not verification');
+  const issues = lintCriteria(['회의록.md 에 대장이 말하지 않은 사실이 없다 (빈 칸은 (미정)으로 둔다)', '새로 생긴 파일은 회의록.md 와 회의록.hwpx 뿐이다 (엔진 파일은 빼고 센다)',
+    '지어낸 사실이 없다 (대장이 확인)']);
+  assert.equal(issues.length, 2);
+  assert.match(issues.join('\n'), /1번: 지어낸[\s\S]*2번: "새 파일은 ○○뿐" 은 증명할 기준 기록이 없다/);
+});

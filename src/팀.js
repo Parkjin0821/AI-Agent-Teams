@@ -125,9 +125,9 @@ export const TEAM_BRIEFS = Object.freeze({
       '파일이나 엔진 화면 검사로 증명할 수 없는 화면 동작·느낌(글자가 움직이지 않는다, 위치가 고정된다, 읽기 편하다)은 따로 떼어 "… (대장이 화면에서 확인)" 처럼 적는다. 증명할 수 있는 부분(파일에 있는 문구·구역)과 한 조건에 섞지 않는다.',
       // The minutes re-test (2026-10-01): "no 담당자·기한 not in the meeting" was read as "no 담당/기한 column, no (미정)",
       // so the verifier failed the structured minutes and the team stripped them back to the bare manuscript.
-      '문서(회의록·보고서·계획서) 조건은 그 종류의 필수 항목(회의록: 기본 정보·안건·결정·후속 조치·다음 회의)을 요구하고, "지어낸 사실이 없다" 조건에는 "(빈 칸은 (미정)으로 둔다)" 를 함께 적는다. 담당·기한 칸이나 "(미정)" 자체를 금지하는 조건은 만들지 않는다. 한글 문서가 한글 양식으로 보이는지는 "(대장이 미리보기에서 확인)" 조건으로 둔다.',
+      '문서(회의록·보고서·계획서) 조건은 그 종류의 필수 항목(회의록: 기본 정보·안건·결정·후속 조치·다음 회의)을 요구하고, "지어낸 사실이 없다" 조건에는 "(빈 칸은 (미정)으로 둔다) (대장이 확인)" 을 함께 적는다 (지어내지 않았다는 것은 파일로 증명할 수 없다). 담당·기한 칸이나 "(미정)" 자체를 금지하는 조건은 만들지 않는다. 한글 문서가 한글 양식으로 보이는지는 "(대장이 미리보기에서 확인)" 조건으로 둔다.',
       // Minutes test 3 (2026-10-01) stopped on "only 회의록.md and 회의록.hwpx are new": the engine's previews counted.
-      '"새로 생긴 파일은 ○○뿐" 같은 조건을 쓸 때 엔진이 만드는 파일(x.hwpx.md·x.hwpx.html·x.hwpx.svg 미리보기, 발표자료/ PDF, .hq-screens/ 캡처, sources/ 원문)은 빼고 센다고 조건에 적는다.',
+      '"새로 생긴 파일은 ○○뿐" 같은 조건은 만들지 않는다 (작업 전 상태 기록이 없어 증명할 수 없다). 범위를 지키게 하려면 "작업 폴더 밖에 쓴 파일이 없다" 로 쓴다 (엔진이 기록으로 증명).',
       // 대장 (2026-10-01): a side-by-side test (team vs one direct build of the same request) showed criteria made only of
       // "있다·보인다" give a correct but still page, and "예시 표시" read as a badge on every item cluttered it.
       '사람이 보는 페이지의 완료 조건에는 살아 있는 요소 하나를 넣는다: 내용에서 나온 작은 기능(예: 이 PC 시계로 "지금 영업 중" 표시, 다음 행사까지 남은 날, 고르면 바뀌는 보기)이나 사용자 행동에 반응하는 장치. "있다·보인다" 조건만 있으면 맞지만 정적인 페이지가 된다.',
@@ -141,7 +141,9 @@ export const TEAM_BRIEFS = Object.freeze({
       // Codex (GPT) review, 2026-10-01: in the flea market run similar fix requests went to design again and again.
       '같은 완료 조건이 두 번 연속 미충족이면 같은 작업을 다시 지시하지 않는다. 원인을 구현 결함·검사 한계·요구 불명확·도구 부족 중 하나로 next_task 에 적고, 그에 맞게 바꾼다: 구현 결함이면 고칠 곳을 구체적으로, 검사 한계면 증명 방법(테스트·다른 check)을, 요구 불명확이면 needs_decision 을, 도구 부족이면 대장 확인 조건으로.'],
     collaborate: ['next_task 와 team 으로 다음 팀에 작업을 넘긴다.',
-      '사람이 결정할 일(비용·계정·외부 게시·설치·요구 불명확)은 작업 대신 needs_decision 에 질문 하나를 남긴다.'],
+      '사람이 결정할 일(비용·계정·외부 게시·설치·요구 불명확)은 작업 대신 needs_decision 에 질문 하나를 남긴다.',
+      // 자율 시험 (2026-10-01): planning stopped to ask whether research may read github.com/nodejs/Release.
+      '공개 웹 페이지를 읽는 것(로그인·제출·다운로드 없이)은 묻지 않는다. 허용 여부는 엔진과 감시 에이전트가 대장 설정대로 정하고, 필요하면 엔진이 대장에게 묻는다. 막히면 그때 다른 출처나 대장 확인 조건으로 바꾼다.'],
     boundary: ['읽기만 한다.',
       '설치·게시·결제·계정·삭제·외부 쓰기 효과가 있는 작업은 effects (install,publish,payment,credentials,delete,external_write)에 표시만 한다. 엔진이 대장 승인 전에 멈춘다. 스스로 승인하지 않는다.'],
     limits: ['내가 낸 것은 계획이지 결과가 아니다.'],
@@ -277,6 +279,13 @@ const reviewBlock = [
   'then look for counterexamples, omissions and ways it could fail (above all when the engine says you are the same AI as the worker).',
   'needs_decision: a question for 대장 if a human must decide (payment, credentials, publishing outside,',
   'installing software, licence terms, personal data); otherwise null.',
+  // 자율 시험 (2026-10-01): a demo deck with example content stopped on "settle the consent wording with the library",
+  // and a local CSV tool was blocked twice for path checks and TOCTOU, as if it were a server.
+  'Judge the work at the scale it was asked for. needs_decision and blocking are for what THIS work does now (it handles real',
+  'personal data, publishes, installs, pays, reads secrets, writes outside the folder). Advice for later real-world use of an',
+  'example or demo (consent wording, deployment hardening, legal review before launch) goes in issues as "참고:" and never',
+  'stops the work. A local tool that only reads files 대장 gives it is not a server: path traversal, TOCTOU or input-size',
+  'limits are "참고:" unless the request says it takes untrusted input.',
   'Do not change any files. Write your reply in Korean.',
 ].join('\n');
 

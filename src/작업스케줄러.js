@@ -690,6 +690,19 @@ export class GoalScheduler {
         + unproven.map(c => `- ${c}${claimFor(c)?.check === 'partial' ? ` (${claimFor(c).detail})` : ''}`).join('\n')
         + '\n‘완료로 확인’을 누르거나, 고칠 점을 답으로 보내 주세요. 조건을 바꾸자고 답하면 기획팀이 새 조건을 제안합니다.' });
     }
+    // Only the proof failed (a check about something else, or a malformed one), not the work: the verifier gets those
+    // criteria back once with the engine's reason, and no work team is called. Seen in the 자율 시험 web page
+    // (2026-10-01): three right answers counted as unrelated sent design back to work, the edit voided four proofs,
+    // and the day's steps ran out before the next verification.
+    const proofOnly = c => ['unrelated', 'invalid'].includes(claimFor(c)?.check);
+    const judged = c => claimFor(c)?.person === true || claimFor(c)?.check === 'partial';
+    if (!gate.length && unproven.some(proofOnly) && unproven.every(c => proofOnly(c) || judged(c)) && !team.proofRetry) {
+      team.proofRetry = true;
+      team.feedback = `[엔진] 작업은 그대로 두고 아래 조건의 확인만 다시 내 주세요 (결과물이 아니라 확인이 근거로 인정되지 않음):\n`
+        + unproven.filter(proofOnly).map(c => `- ${c} → ${claimFor(c).detail}`).join('\n');
+      return goTo('qa');
+    }
+    team.proofRetry = false;
     if (stalled) {
       team.awaitingJudgement = unproven;
       return review('needs_decision', { question: `[검증팀] 엔진이 확인하지 못한 완료 조건이 두 번 연속 그대로입니다 (그 사이 작업 없음):\n- ${unproven.join('\n- ')}\n`

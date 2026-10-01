@@ -99,6 +99,21 @@ export function parseReport(answer) {
 // a verifier may rightly fail a page that has no overflow but does not meet the criterion.)
 const ENGINE_OWNED = ['document_made', 'stayed_inside'];
 
+// A criterion only the engine's records can prove, sent with no check at all ("엔진 기록을 확인하지 못함"; 자율 시험
+// minutes, 2026-10-01): the engine runs its own check in verification. Only for what such a check fully covers —
+// "the engine made x.hwpx" and "nothing written outside the folder" — never for a criterion about content.
+function engineCheckFor(criterion, ctx) {
+  const c = String(criterion).toLowerCase();
+  if (/들어\s*있|포함|내용|적혀|같다/.test(c)) return [];
+  const docs = Object.keys(ctx.documents ?? {});
+  const named = docs.filter(p => c.includes(path.basename(p).toLowerCase()));
+  if (/hwpx|한글 문서/.test(c) && /엔진|서식|만들|생성|만든/.test(c) && (named.length === 1 || docs.length === 1)) {
+    return [{ type: 'document_made', path: named[0] ?? docs[0] }];
+  }
+  if (BOUNDARY_TOPIC.test(c) && ctx.boundary) return [{ type: 'stayed_inside' }];
+  return [];
+}
+
 // 완료 조건 사전 점검: what stalled real runs on 2026-10-01, caught before 대장 approves the list.
 //   - a judgement word (설득력, 읽기 편한) with no "(대장이 … 확인)" mark: no file or engine check can ever prove it;
 //   - "no 담당/기한" with no word about (미정): the document rules leave unknown owners and dates as (미정), and the
@@ -112,7 +127,10 @@ export function lintCriteria(criteria) {
     const c = String(raw), at = `${i + 1}번`;
     if (JUDGEMENT.test(c) && !PERSON_MARK.test(c)) issues.push(`${at}: 사람만 판단할 수 있는 말("${JUDGEMENT.exec(c)[0]}")이 있다 · 그 부분을 따로 떼어 "… (대장이 화면에서 확인)" 조건으로`);
     if (/담당|기한/.test(c) && CLAIMS_ABSENCE.test(c) && !/미정/.test(c)) issues.push(`${at}: 담당·기한이 "없다"고 하면 (미정) 칸까지 금지로 읽힌다 · "지어낸 담당·기한이 없다 (빈 칸은 (미정)으로 둔다)" 로`);
-    if (/뿐이다|뿐이고|뿐$|만\s*(?:있|생긴|새로)/.test(c) && /파일|결과물/.test(c) && !/엔진/.test(c)) issues.push(`${at}: "새 파일은 ○○뿐" 에 엔진이 만드는 파일(미리보기·PDF·캡처·원문)은 빼고 센다고 적는다`);
+    // 자율 시험 minutes (2026-10-01): even with the engine's files left out, the verifier had no record of what was
+    // there before, so "only these files are new" stalled; and no file can show that nothing was made up.
+    if (/뿐이다|뿐이고|뿐$|만\s*(?:있|생긴|새로)/.test(c) && /파일|결과물/.test(c)) issues.push(`${at}: "새 파일은 ○○뿐" 은 증명할 기준 기록이 없다 · 빼거나 "작업 폴더 밖에 쓴 파일이 없다" 로`);
+    if (/지어낸|지어내|말하지 않은|추측|꾸며/.test(c) && !PERSON_MARK.test(c)) issues.push(`${at}: 지어낸 것이 "없다" 는 파일로 증명할 수 없다 · 끝에 "(대장이 확인)" 을 붙인다`);
   });
   return issues;
 }
@@ -130,7 +148,8 @@ export function verifyReport(report, criteria, cwd, ctx = {}) {
     // "checks": a criterion with several parts (four sections, three files) counts only when every check passes and
     // each is about it. Seen in a real run: the verifier confirmed such criteria by reading and left "check": null,
     // because one check could only look at one text.
-    const list = Array.isArray(item?.checks) && item.checks.length ? item.checks.slice(0, 8) : item?.check ? [item.check] : [];
+    const given = Array.isArray(item?.checks) && item.checks.length ? item.checks.slice(0, 8) : item?.check ? [item.check] : [];
+    const list = given.length ? given : ctx.verifying ? engineCheckFor(criterion, ctx) : [];
     // The verifier cannot see the engine's records, so it sent "not done · 확인 못 함" for a 한글 document the engine
     // made and for a confined run (minutes re-test, 2026-10-01: both stayed unmet for ten steps). When every check is
     // one only the engine can run (a file_exists beside it is fine), the engine's result decides, not that guess.
@@ -223,7 +242,8 @@ function countsFor(list, criterion) {
   const n = Number(/(\d+)\s*(?:개|가지|장|건|곳|명|팀)\s*이상/.exec(c)?.[1]);
   if (!n || CLAIMS_ABSENCE.test(c)) return false;
   const paths = new Set(list.map(k => k?.path));
-  return list.every(k => k?.type === 'file_contains') && paths.size === 1 && list.length >= n && artifactOf(c, [...paths][0]);
+  const only = String([...paths][0] ?? '').toLowerCase();
+  return list.every(k => k?.type === 'file_contains') && paths.size === 1 && list.length >= n && (artifactOf(c, only) || /\.(html?|tsx|md)$/.test(only));
 }
 const artifactOf = (c, file) => {
   const p = String(file ?? '').replace(/\\/g, '/').toLowerCase();
