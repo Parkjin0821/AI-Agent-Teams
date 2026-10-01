@@ -151,3 +151,8 @@ test('reviews say whether they checked their field; guidance for tests, repeated
   assert.match(teamPrompt('research', input), /주장과 근거가 이어진/);
   assert.match(teamPrompt('design', input), /적용하지 않은 부분/);
 });
+test('planning writes the design document once; later remarks are checked on the built result (slide test loop)', () => {
+  const input = { goal, files: [], team: { task: '작업' } };
+  assert.match(teamPrompt('plan', input), /설계 문서만 고치는 단계를 두 번 연속 지시하지 않는다/);
+  assert.match(teamPrompt('qa', input), /설계 문서만 있으면 설계의 세부 수치를 따지지 않는다/);
+});
