@@ -1524,6 +1524,14 @@ const REASON = {
   interrupted_by_restart: '서버가 다시 켜지면서 진행 중이던 단계가 끊겼습니다', test_fix_exhausted: '테스트 수정 2번에도 실패했습니다'
 };
 const reasonText = (r) => REASON[r] || r || '';
+// 모델 대기: the engine's own reason per tool (waitWhy), not the list of every possible cause (2026-10-02).
+const usageWaitText = (eng) => {
+  const w = (eng && eng.waitWhy) || null;
+  if (!w) return reasonText('usage_unavailable_or_limited');
+  const parts = [['Claude', w.claude], ['Codex', w.codex]].filter((x) => x[1]).map((x) => x[0] + ' · ' + x[1]);
+  return parts.length ? parts.join(' / ') : '사용량 여유 있음 · 앞 단계가 끝나는 대로 이어서 진행합니다';
+};
+const waitText = (eng, g) => g.status === 'model_wait' && g.reason === 'usage_unavailable_or_limited' ? usageWaitText(eng) : reasonText(g.reason);
 const pad = (n) => String(n).padStart(2, '0');
 const fmt = (iso) => { if (!iso) return '—'; const d = new Date(iso); return pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
 const ago = (iso) => {
@@ -1858,7 +1866,7 @@ class Component extends DCLogic {
         inbox.push({ icon: ICON.issue, icoCls: 'ico' + (g.status === 'review_required' ? '' : ' stop'), title: g.status === 'review_required' ? '확인 필요' : '멈춤', project: p.name,
           body: reasonText(g.reason), isIssue: true, actions: [restart, { l: '활동 보기', cls: 'btn sm', go: () => this.openProject(p.id, 'activity') }] });
       } else if (g.status === 'model_wait') {
-        inbox.push({ icon: ICON.model, icoCls: 'ico', title: '모델 대기', project: p.name, body: reasonText(g.reason), isIssue: true,
+        inbox.push({ icon: ICON.model, icoCls: 'ico', title: '모델 대기', project: p.name, body: waitText(s.eng, g), isIssue: true,
           actions: [{ l: '모델 설정', cls: 'btn pri sm', go: () => this.openProject(p.id, 'settings') }, see] });
       }
     }));
@@ -1996,7 +2004,7 @@ class Component extends DCLogic {
         dismiss: () => this.act(this.api('POST', '/api/goals/' + g.id + '/proposal/dismiss', {}), '개선안을 보류했습니다'),
         hasIssue: issue, issueCls: 'card ' + (g.status === 'review_required' || g.status === 'model_wait' ? 'attn' : 'stop'),
         issueTitle: g.status === 'model_wait' ? '모델 대기' : (g.reason === 'approval_required' ? '승인 요청' : g.reason === 'trust_review' ? '결과 확인' : (g.status === 'review_required' ? '확인 필요' : '멈춤')),
-        issueText: heldW ? heldW.body : reasonText(g.reason),
+        issueText: heldW ? heldW.body : waitText(s.eng, g),
         issueActions: heldW ? heldW.actions
           : g.status === 'model_wait' ? [{ l: '모델 설정', cls: 'btn pri sm', go: () => this.setState({ ptab: 'settings' }) }]
           : [{ l: isTeam ? '다시 시작' : '다시 실행', cls: 'btn pri sm', go: async () => {

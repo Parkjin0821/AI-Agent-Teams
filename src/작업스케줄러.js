@@ -319,6 +319,14 @@ export class GoalScheduler {
     const cap = { 'claude-code': this.policy.providerConcurrent?.claude ?? 2, codex: this.policy.providerConcurrent?.codex ?? 1 };
     const busy = { total: running.length, 'claude-code': 0, codex: 0, goals: [...running] };
     running.forEach(g => { busy[this.stepExecutor(g)]++; });
+    // A goal held for usage goes back to its queue as soon as its tool has room again, even while every slot is busy:
+    // it then shows as waiting for its turn, not as "모델 대기" (2026-10-02: three projects kept the usage message for
+    // minutes after the reset, only because two others held the slots).
+    if (this.capacity) for (const goal of goals) {
+      if (goal.status === GoalStatus.MODEL_WAIT && goal.reason === 'usage_unavailable_or_limited' && this.capacity(this.stepExecutor(goal))) {
+        this.update(goal, { status: goal.waitingFrom ?? GoalStatus.SCHEDULED, waitingFrom: null, reason: null });
+      }
+    }
     const claimed = [];
     for (const goal of goals) {
       if (!DUE.includes(goal.status) || Date.parse(goal.nextRunAt) > now || (autoOnly && !goal.autoRun)) continue;
