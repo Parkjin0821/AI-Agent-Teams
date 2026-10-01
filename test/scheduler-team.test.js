@@ -379,7 +379,8 @@ test('failing tests found by the engine keep the goal open, and planning cannot 
   });
   const g = add();
   await ticks(scheduler, 9);
-  assert.deepEqual(calls.map(c => c.team), ['plan', 'security', 'policy', 'qa', 'plan', 'security', 'policy', 'qa']);
+  // nothing changed between the two verifications, so the reviews do not run again on the same files
+  assert.deepEqual(calls.map(c => c.team), ['plan', 'security', 'policy', 'qa', 'plan', 'qa']);
   assert.match(calls[4].feedback, /^\[엔진 검사\] 테스트 실패/);
   const saved = store.getGoal(g.id);
   assert.deepEqual([saved.status, saved.team.blockers], ['verified', []]);
@@ -389,7 +390,7 @@ test('reviews keep the proven evidence, and an unprovable criterion stops for �
   // seen in a real run: planning said "all done", reviews and verification repeated with no work in between
   let plans = 0;
   const { store, scheduler, add, calls } = setup(team => {
-    if (team === 'plan') return plans++ === 0 ? { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } }
+    if (team === 'plan') return plans++ === 0 ? { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: ['security'] } }
       : { outcome: 'completed', plan: { allDone: true } };
     if (team === 'dev') return { outcome: 'completed', diffHash: 'd1', evidence: ev(0) };
     if (team === 'qa') return { outcome: 'completed', evidence: ev(0), findings: { feedback: '2번은 확인할 방법이 없음', improvements: [] } };
@@ -402,7 +403,7 @@ test('reviews keep the proven evidence, and an unprovable criterion stops for �
       await scheduler.runGoal(goal.id);
       proven.push(`${calls.at(-1).team}:${store.getGoal(goal.id).evidence.length}`);
     }
-    assert.deepEqual(proven, ['plan:0', 'dev:1', 'qa:1', 'plan:1', 'security:1', 'policy:1', 'qa:1'], 'the proven count never drops during reviews');
+    assert.deepEqual(proven, ['plan:0', 'dev:1', 'security:1', 'qa:1', 'plan:1', 'qa:1'], 'the proven count never drops during reviews; no reviews again on unchanged files');
     const g = store.getGoal(goal.id);
     assert.deepEqual([g.status, g.reason], ['review_required', 'needs_decision']);
     assert.match(g.question, /두 번 연속 그대로.*\n- 합계 테스트 통과/s);

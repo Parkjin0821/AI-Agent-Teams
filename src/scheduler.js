@@ -567,7 +567,11 @@ export class GoalScheduler {
       team.worker = WORKERS.includes(plan.team) ? plan.team : 'dev';
       team.profile = taskProfile(plan.profile);
       if (team.profile.effects.length) return review('needs_decision', { question: `승인 범위가 필요한 작업: ${team.profile.effects.join(', ')}. 해당 외부 작업은 아직 실행하지 않았습니다.` });
-      team.reviews = plan.allDone ? [...REVIEWS] : REVIEWS.filter(r => (plan.reviews ?? []).includes(r));
+      // "All done" with no work step since the last verification: the files are the ones the reviews already passed,
+      // so verification runs again directly (seen in a real run: plan → security → policy → qa three times, 12 steps,
+      // with nothing changed).
+      const unchanged = plan.allDone && team.workSinceQa === false && Array.isArray(team.lastUnproven);
+      team.reviews = unchanged ? [] : plan.allDone ? [...REVIEWS] : REVIEWS.filter(r => (plan.reviews ?? []).includes(r));
       team.reviewNotes = [];
       team.task = plan.allDone ? '완료 여부 최종 확인' : plan.nextTask;
       return plan.allDone ? goTo(team.reviews[0] ?? 'qa') : advance();
@@ -640,8 +644,10 @@ export class GoalScheduler {
     // The same criteria still unproven at two verifications in a row, with no work step in between: another
     // plan → review → verify round cannot change the answer, so 대장 is asked instead of spending more usage.
     const unproven = goal.completionCriteria.filter(c => !evidence.some(e => e.criterion === c));
+    // Stalled: no work since the last verification and nothing it left unproven got proven now (the verifier may word
+    // its checks differently each time, so the lists need not be equal).
     const stalled = !gate.length && unproven.length > 0 && !team.workSinceQa && Array.isArray(team.lastUnproven)
-      && team.lastUnproven.length === unproven.length && unproven.every(c => team.lastUnproven.includes(c));
+      && team.lastUnproven.length > 0 && team.lastUnproven.every(c => unproven.includes(c));
     team.lastUnproven = unproven;
     team.workSinceQa = false;
     // Only criteria that no file or engine check can prove are left (the verifier said so, or the engine proved just the
