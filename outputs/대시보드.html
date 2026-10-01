@@ -976,6 +976,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
       <p class="hint">HTML·이미지·텍스트를 격리된 화면에서 봅니다. 외부 통신과 HTML 스크립트는 차단됩니다.</p>
       <div class="row-f"><sc-for list="{{artifactItems}}" as="a"><button class="btn sm" onClick="{{a.open}}">{{a.path}}</button></sc-for></div>
       <p class="hint">{{artifactMessage}}</p>
+      <sc-if value="{{hasDownload}}"><p style="margin:0 0 10px"><a class="btn sm" href="{{downloadUrl}}" download>PDF 내려받기</a></p></sc-if>
       <sc-if value="{{hasPreview}}"><iframe title="선택한 결과물 미리보기" src="{{previewUrl}}" sandbox="" referrerpolicy="no-referrer" style="width:100%;height:65vh;border:1px solid var(--line);border-radius:10px;background:white"></iframe></sc-if>
     </div>
   </sc-if>
@@ -2549,10 +2550,13 @@ class Component extends DCLogic {
       w: w, m: m, limits: lim,
       ptabs: ptabDefs.map((x) => ({ l: x[1], n: x[2], hasN: x[2] !== '' && x[2] !== 0, cls: 'pt' + (s.ptab === x[0] ? ' on' : ''), cur: s.ptab === x[0] ? 'page' : 'false', go: () => this.setState({ ptab: x[0] }) })),
       artifactItems:(s.artifactItems || []).map(a=>{const url='/api/projects/'+encodeURIComponent(wp.id)+'/preview?path='+encodeURIComponent(a.path);
+        // A slide PDF opens as its page captures (a sandboxed frame cannot show the PDF), with the PDF itself to download.
+        if (/^발표자료\/[a-z0-9-]+\.pdf$/i.test(a.path))
+          return {path:a.path+' · 미리보기',open:()=>this.setState({previewUrl:url+'&view=pages',artifactMessage:a.path+' · 엔진이 PDF와 같은 빌드에서 찍은 장별 화면',downloadUrl:url})};
         return /\.(hwpx|pdf)$/i.test(a.path)
           ? {path:a.path+' · 내려받기',open:()=>{const l=document.createElement('a');l.href=url;l.download=a.path.split('/').pop();document.body.appendChild(l);l.click();l.remove();this.say(a.path+' 내려받기를 시작했습니다');}}
-          : {path:a.path,open:()=>this.setState({previewUrl:url,artifactMessage:a.path})};}),
-      previewUrl:s.previewUrl || '', hasPreview:!!s.previewUrl, artifactMessage:s.artifactMessage || '파일 새로고침을 눌러 결과물을 불러오세요.', testBusy:!!s.testBusy, testMessage:s.testMessage || '아직 실행하지 않았습니다.',
+          : {path:a.path,open:()=>this.setState({previewUrl:url,artifactMessage:a.path,downloadUrl:''})};}),
+      previewUrl:s.previewUrl || '', hasPreview:!!s.previewUrl, downloadUrl:s.downloadUrl || '', hasDownload:!!(s.previewUrl && s.downloadUrl), artifactMessage:s.artifactMessage || '파일 새로고침을 눌러 결과물을 불러오세요.', testBusy:!!s.testBusy, testMessage:s.testMessage || '아직 실행하지 않았습니다.',
       pt: { artifacts:s.ptab === 'artifacts', over: s.ptab === 'over', activity: s.ptab === 'activity', verify: s.ptab === 'verify', settings: s.ptab === 'settings' },
       pinDraft: s.pinDraft, onPin: (e) => this.setState({ pinDraft: e.target.value }),
       autoLevelOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: autoOn === v ? 'on' : '', pressed: autoOn === v ? 'true' : 'false',

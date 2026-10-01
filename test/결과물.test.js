@@ -32,3 +32,19 @@ test('an engine-made 한글 document is listed and offered only as a download', 
   assert.deepEqual(items.map(i => [i.path, i.type]), [['회의록.hwpx', 'application/vnd.hancom.hwpx'], ['회의록.hwpx.svg', 'image/svg+xml']]);
   assert.deepEqual([isDownloadOnly('회의록.hwpx'), isDownloadOnly('회의록.hwpx.svg'), isDownloadOnly('발표자료/deck.pdf')], [true, false, true]);
 });
+
+test('a slide PDF previews as the page captures of the same build, inline (the frame cannot show the PDF)', async () => {
+  const { slidePagesHtml } = await import('../src/결과물.js');
+  const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const path = (await import('node:path')).default;
+  const cwd = mkdtempSync(path.join(tmpdir(), 'hq-slide-preview-'));
+  mkdirSync(path.join(cwd, '.hq-screens')); mkdirSync(path.join(cwd, '발표자료'));
+  for (const n of ['슬라이드-deck-02.png', '슬라이드-deck-01.png', '슬라이드-other-01.png', '화면-index-390.png']) writeFileSync(path.join(cwd, '.hq-screens', n), 'png');
+  const html = slidePagesHtml(cwd, '발표자료/deck.pdf');
+  assert.equal((html.match(/<img /g) || []).length, 2, 'only this deck, in page order');
+  assert.match(html, /1 \/ 2쪽[\s\S]*2 \/ 2쪽/);
+  assert.match(html, /src="data:image\/png;base64,/);
+  assert.throws(() => slidePagesHtml(cwd, '../deck.pdf'), /not a slide PDF/);
+  assert.throws(() => slidePagesHtml(cwd, '발표자료/none.pdf'), /no page captures/);
+});

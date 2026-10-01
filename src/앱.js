@@ -21,7 +21,7 @@ import { ProjectWorkspaces, validateProjectId } from './작업공간.js';
 import { readUsage, recordRateLimits } from './사용량.js';
 import { projectRecord } from './작업기록.js';
 import { capacityBasis, subscriptionCapacity } from './구독안전.js';
-import { artifactList, readArtifact, isDownloadOnly } from './결과물.js';
+import { artifactList, readArtifact, isDownloadOnly, slidePagesHtml } from './결과물.js';
 import { detectTests } from './검사.js';
 import { npmCommand } from './격리환경.js';
 import { AutoSave } from './자동저장.js';
@@ -465,10 +465,12 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       }
       const artifactMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/preview$/);
       if (request.method === 'GET' && artifactMatch) {
-        const artifact = readArtifact(existingWorkspace(artifactMatch[1]), url.searchParams.get('path'));
         const file = url.searchParams.get('path');
+        const artifact = url.searchParams.get('view') === 'pages'
+          ? { type: 'text/html; charset=utf-8', bytes: Buffer.from(slidePagesHtml(existingWorkspace(artifactMatch[1]), file)), pages: true }
+          : readArtifact(existingWorkspace(artifactMatch[1]), file);
         response.writeHead(200, { 'content-type': artifact.type, 'x-content-type-options': 'nosniff',
-          ...(isDownloadOnly(file) ? { 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(path.basename(file))}` } : {}),
+          ...(isDownloadOnly(file) && !artifact.pages ? { 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(path.basename(file))}` } : {}),
           'cache-control': 'no-store', 'referrer-policy': 'no-referrer',
           'content-security-policy': "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" });
         return response.end(artifact.bytes);
