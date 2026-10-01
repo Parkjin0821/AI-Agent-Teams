@@ -520,6 +520,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .dlg-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 22px 18px}
 .dlg-f .hint{margin:0 auto 0 0;align-self:center;font-size:12px;color:var(--text-3)}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 16px;border-radius:var(--r);font-size:13px;z-index:60;box-shadow:0 10px 30px rgba(0,0,0,.2);max-width:calc(100% - 32px);animation:fade .15s}
+.toast[hidden]{display:none}
 
 /* 반응형 */
 @media (max-width:900px){
@@ -1375,7 +1376,6 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
   </aside>
 </sc-if>
 
-<sc-if value="{{hasToast}}"><div class="toast" role="status">{{toast}}</div></sc-if>
 </div>
 </template>
 <script>
@@ -1627,7 +1627,7 @@ class Component extends DCLogic {
       .then((d) => { if (d) { const o = Object.assign({}, this.state.sentinel); o[pid] = d; this.setState({ sentinel: o }); } })
       .catch(() => {});
   }
-  say(m) { this.setState({ toast: m }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: '' }), 3200); }
+  say(m) { showToast(m); }
   act(promise, okMsg) { return promise.then((v) => { this.refresh(); if (okMsg) this.say(okMsg); return v; }).catch((e) => this.say(korErr(e.message))); }
   go(view) { this.setState({ view: view }); window.scrollTo(0, 0); if (view === 'connect') this.loadEnvs(); if(view === 'skills') this.loadSkills();
     if (view === 'inbox') this.loadInbox(); if (view === 'memory') this.loadMemory(); }
@@ -2790,6 +2790,16 @@ function openDialog({ message = '', title = '', input = false, value = '', okL =
     document.body.appendChild(scrim);
     (field || ok).focus();
   });
+}
+// The toast lives outside #app: rebuilt with the page it restarted its fade on every refresh after an approval and
+// flickered (대장, 2026-10-01). The same message again only extends its time.
+let toastEl = null, toastTimer = null;
+function showToast(m) {
+  if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'toast'; toastEl.setAttribute('role', 'status'); toastEl.hidden = true; document.body.appendChild(toastEl); }
+  const fresh = toastEl.hidden || toastEl.textContent !== m;
+  toastEl.textContent = m; toastEl.hidden = false;
+  if (fresh) { toastEl.style.animation = 'none'; void toastEl.offsetWidth; toastEl.style.animation = ''; }
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { toastEl.hidden = true; }, 3200);
 }
 const ask = (message, opts = {}) => openDialog({ message, ...opts }).then((v) => v === true);
 const askText = (message, value = '', opts = {}) => openDialog({ message, input: true, value, ...opts });
