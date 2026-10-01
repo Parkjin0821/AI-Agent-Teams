@@ -206,3 +206,19 @@ test('skills up to 50,000 characters are accepted (slide-authoring 24.7 KB, desi
   assert.equal(skillChecks('가'.repeat(25000), null).size.ok, true);
   assert.equal(skillChecks('가'.repeat(50001), null).size.ok, false);
 });
+
+test('a slide or document task takes its own skills as the baseline instead of the screen ones', async () => {
+  const { SkillLibrary } = await import('../src/스킬.js');
+  const entries = new Map();
+  const store = { getSettings: () => Object.fromEntries([...entries].map(([k, v]) => ['skill.entry.' + k, v])), setSetting: (k, v) => entries.set(k.replace('skill.entry.', ''), v) };
+  const lib = new SkillLibrary({ store });
+  const add = (name, teams, triggers) => { const id = name.padEnd(64, '0').replace(/[^a-f0-9]/g, 'a').slice(0, 64); entries.set(id, { id, name, teams, triggers, status: 'active', body: name, checks: { tool: { needed: false } } }); };
+  for (const n of ['frontend-design', 'agent-hq-screen-design']) add(n, ['design'], ['디자인', '화면']);
+  add('agent-hq-slides', ['design', 'dev'], ['슬라이드']); add('slide-authoring', ['design', 'dev'], ['슬라이드']); add('theme-factory', ['design', 'dev'], ['슬라이드', '테마']);
+  add('agent-hq-documents', ['dev', 'design'], ['회의록']); add('document-typography-design', ['dev', 'design'], ['문서']);
+  const names = (team, task) => lib.select(team, task).map(s => s.name);
+  assert.deepEqual(names('design', '화면설계 문서를 쓰고 페이지 디자인').slice(0, 2), ['frontend-design', 'agent-hq-screen-design'], 'screen work keeps the screen baselines');
+  assert.deepEqual(names('design', '슬라이드 6장을 만든다').slice(0, 2), ['agent-hq-slides', 'slide-authoring']);
+  assert.ok(!names('design', '슬라이드 6장을 만든다').includes('frontend-design'));
+  assert.deepEqual(names('dev', '회의록 원고를 쓴다').slice(0, 2), ['agent-hq-documents', 'document-typography-design']);
+});

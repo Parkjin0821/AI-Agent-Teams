@@ -91,6 +91,12 @@ function matchScore(skill, query) {
 // Instruction-only candidates. No checkout, package installation, scripts or credentials.
 // Approved skills a team always gets, whatever the task text says (each still needs 대장's approval to be active).
 const BASELINE_SKILLS = Object.freeze({ design: ['frontend-design', 'agent-hq-screen-design'] });
+// Slide and document work have their own baselines (checked in this order; "문서" alone is too common, since every
+// screen task mentions its 화면설계 document).
+const TASK_BASELINES = Object.freeze([
+  { test: /슬라이드|발표|slides?\b|deck|ppt|프레젠테이션/i, teams: ['design', 'dev'], skills: ['agent-hq-slides', 'slide-authoring'] },
+  { test: /회의록|보고서|계획서|기안문|업무보고|hwpx|한글 문서/i, teams: ['dev', 'design'], skills: ['agent-hq-documents', 'document-typography-design'] },
+]);
 
 export class SkillLibrary {
   constructor({ store, fetcher = fetch }) { this.store = store; this.fetcher = fetcher; }
@@ -228,7 +234,10 @@ export class SkillLibrary {
     const selected = ranked(task).length ? ranked(task) : ranked(objective);
     // A vague design handoff must not silently omit the approved baselines: the general frontend guidance and AGENT HQ's
     // own screen principles (learned from a four-way design comparison, 2026-10-01). Only active (approved) ones count.
-    const baseline = (BASELINE_SKILLS[team] ?? []).map(n => eligible.find(s => s.name === n)).filter(Boolean);
+    // A slide or document task takes that kind's skills as its baseline instead of the screen ones (seen 2026-10-01: the
+    // two web-design baselines took the design team's places on a slide task and only one slide skill got in).
+    const kind = TASK_BASELINES.find(b => b.teams.includes(team) && b.test.test(`${task ?? ''} ${objective ?? ''}`));
+    const baseline = (kind ? kind.skills : BASELINE_SKILLS[team] ?? []).map(n => eligible.find(s => s.name === n)).filter(Boolean);
     return [...baseline, ...selected.filter(s => !baseline.some(b => b.id === s.id))].slice(0, Math.max(2, baseline.length + 1));
   }
   async github(endpoint) {
