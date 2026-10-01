@@ -240,6 +240,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const { evidence, claims } = verifyReport(report, goal.completionCriteria, cwd, { verifying: team === 'qa', test, originals: attachmentOriginals(goal, records),
         // 화면 검사 of this verification step (screen_ok); a design step's captures are for looking, not proof
         visual: team === 'qa' ? engineTools.find(t => t.id === 'visual') ?? null : null,
+        slides: team === 'qa' ? engineTools.find(t => t.id === 'slides') ?? null : null,
         documents: { ...documentRecords(records), ...documentRecords([{ documents: documents?.made ?? [] }]) },
         baseline: goal.routine?.baseline ?? null,
         sources: { ...sourceRecords(records), ...sourceRecords([{ sources: sources?.saved ?? [] }]) },

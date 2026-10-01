@@ -47,3 +47,17 @@ test('slides: verification finds the decks a team wrote under slides/<id>/index.
   writeFileSync(path.join(cwd, 'slides', 'Bad Name', 'index.tsx'), 'export default []');
   assert.deepEqual(slideDecks(cwd), ['weekly-report']);
 });
+
+test('slides_ok: proven only by this verification step\'s own build, with the page count; overflow or no build fails', async () => {
+  const { verifyReport } = await import('../src/완료근거.js');
+  const cwd = mkdtempSync(path.join(tmpdir(), 'hq-slide-ok-'));
+  const crit = ['엔진이 슬라이드를 빌드해 PDF 를 만들고, PDF 쪽 수가 슬라이드 수와 같다'];
+  const report = { criteria: [{ index: 1, done: true, check: { type: 'slides_ok', path: 'slides/market/index.tsx' } }] };
+  const deck = { id: 'market', pages: 6, pdf: '발표자료/market.pdf', screenshots: [], overflowPages: [], scriptErrors: 0, error: null };
+  const ok = verifyReport(report, crit, cwd, { verifying: true, slides: slideTool({ ok: true, decks: [deck] }) });
+  assert.equal(ok.evidence.length, 1, JSON.stringify(ok.claims));
+  assert.match(ok.evidence[0].proof, /발표자료\/market\.pdf 6쪽 \(슬라이드 6장/);
+  assert.equal(verifyReport(report, crit, cwd, { verifying: true }).claims[0].check, 'fail', 'no build in this step');
+  const over = verifyReport(report, crit, cwd, { verifying: true, slides: slideTool({ ok: false, decks: [{ ...deck, overflowPages: [4] }] }) });
+  assert.match(over.claims[0].detail, /4쪽 내용이 1920×1080 밖으로 넘침/);
+});

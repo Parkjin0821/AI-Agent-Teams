@@ -52,7 +52,7 @@ export function slideTool(result) {
     summary: result.error ? result.error : made.map(d => `${d.pdf} (${d.pages}쪽)`).join(' · ') + (issues.length ? ` · 문제 ${issues.length}개` : ''),
     details: [...issues, ...made.flatMap(d => d.screenshots.map(s => '캡처: ' + s))],
     blocking: issues.length || result.error ? ['슬라이드: ' + (result.error ?? issues.slice(0, 3).join(' · '))] : [],
-    screenshots: made.flatMap(d => d.screenshots.map(p => ({ file: d.id, path: p }))) };
+    screenshots: made.flatMap(d => d.screenshots.map(p => ({ file: d.id, path: p }))), decks };
 }
 
 export function slidesPrompt() {

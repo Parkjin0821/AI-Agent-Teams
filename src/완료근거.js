@@ -51,6 +51,9 @@ export function reportInstructions(criteria, { verifying = false } = {}) {
     '  {"type":"screen_ok","path":"index.html"}  (in verification: the engine opened this page in an isolated browser at',
     '   PC 1440px and phone 390px just before this step and found no horizontal overflow, broken image or script error;',
     '   it does not judge whether the page looks good)',
+    '  {"type":"slides_ok","path":"slides/<id>/index.tsx"}  (in verification: the engine built this open-slide deck just before',
+    '   this step, printed its PDF with one page per slide and found no page whose content leaves the 1920×1080 canvas;',
+    '   the proof gives the page count. It does not judge whether the deck reads well)',
     '  {"type":"document_made","path":"x.hwpx","text":"optional exact text"}  (the engine itself made this 한글 document',
     '   from your Markdown, it passed the structure check and is unchanged since; with "text", the document contains it)',
     'To get a 한글 document (HWPX), write the text as Markdown and add "documents":[{"from":"x.md","to":"x.hwpx",',
@@ -154,6 +157,7 @@ function relatesTo(check, criterion) {
   if (check.type === 'file_exists') return words(String(check.path).replace(/\\/g, '/')).some(w => mentions(c, w));
   // (also "a check that opens the page in a real browser": the engine's own check is exactly that)
   if (check.type === 'screen_ok') return /화면|모바일|레이아웃|넘침|깨진|브라우저|렌더링|헤드리스|screen|layout|browser|render|headless/.test(c);
+  if (check.type === 'slides_ok') return /슬라이드|발표|pdf|쪽|장|넘침|깨진|잘림|겹침|빌드|slide|deck|page/.test(c);
   if (check.type === 'file_excludes') {
     // "인터넷에서 불러오는 글꼴·라이브러리가 없다" names no literal it excludes; loading patterns (src="http, url(,
     // @import, fetch() speak to it all the same (seen 2026-10-01: a correct check counted as unrelated twice).
@@ -223,6 +227,7 @@ function runCheck(check, cwd, ctx = {}) {
       ? { status: 'pass', proof: `엔진 확인 · ${rel}에 “${shown}” 포함` } : { status: 'fail', reason: `${rel}에 “${shown}” 없음` };
   }
   if (check.type === 'screen_ok') return checkScreen(rel, ctx.visual);
+  if (check.type === 'slides_ok') return checkSlides(rel, ctx.slides);
   if (check.type === 'file_excludes') return checkExcludes(check, target, rel);
   if (check.type === 'json_shape') return checkJsonShape(check, target, rel);
   if (check.type === 'folder_only') return checkFolderOnly(check, target, rel);
@@ -300,6 +305,19 @@ function checkScreen(rel, visual) {
   const broken = (visual.details ?? []).filter(d => d.startsWith(`${rel} (`) && SCREEN_BROKEN.test(d));
   return broken.length ? { status: 'fail', reason: `화면 검사: ${broken.slice(0, 3).join(' · ')}` }
     : { status: 'pass', proof: `엔진 확인 · ${rel} 화면 검사 (PC ${shots.find(s => s.width >= 1000).width}px · 모바일 ${shots.find(s => s.width < 600).width}px) 깨진 곳 없음` };
+}
+// slides_ok: this verification step's 슬라이드 만들기 (슬라이드.js) built the deck, printed its PDF (one page per slide, made
+// from the deck itself) and found no page past the canvas.
+function checkSlides(rel, slides) {
+  const id = (/^slides\/([a-z0-9][a-z0-9-]{0,40})(?:\/index\.tsx)?$/.exec(rel) ?? /^([a-z0-9][a-z0-9-]{0,40})$/.exec(rel))?.[1];
+  if (!id) return { status: 'invalid', reason: 'slides/<id>/index.tsx 형식의 경로가 아님' };
+  if (!slides || !Array.isArray(slides.decks)) return { status: 'fail', reason: '이번 단계에 엔진 슬라이드 만들기가 실행되지 않음' };
+  const d = slides.decks.find(x => x.id === id);
+  if (!d) return { status: 'fail', reason: `${id} 슬라이드를 만들지 않음` };
+  if (d.error || !d.pdf) return { status: 'fail', reason: `${id}: ${d.error ?? 'PDF 없음'}` };
+  if (d.overflowPages?.length) return { status: 'fail', reason: `${id}: ${d.overflowPages.join('·')}쪽 내용이 1920×1080 밖으로 넘침` };
+  if (d.scriptErrors) return { status: 'fail', reason: `${id}: 실행 오류 ${d.scriptErrors}건` };
+  return { status: 'pass', proof: `엔진 확인 · ${id} 빌드 · ${d.pdf} ${d.pages}쪽 (슬라이드 ${d.pages}장, 한 장에 한 쪽) · 장마다 캡처 · 넘친 쪽 없음` };
 }
 const SCREEN_BROKEN = /가로 넘침|깨진 이미지|JavaScript 실행 오류|보이는 글이 없음|거의 보이지 않는 글/;
 
