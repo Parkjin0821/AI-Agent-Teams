@@ -262,3 +262,23 @@ test('an "internet loads nothing" criterion is proven by an absence check of loa
   writeFileSync(path.join(cwd, 'index.html'), '<p>안내</p>');
   assert.equal(verifyReport({ criteria: [{ index: 1, done: true, check }] }, ['주의사항 상자가 기울어져 있지 않다'], cwd).claims[0].check, 'unrelated');
 });
+
+test('slides re-test: N items found in the deck prove "N개 이상", and the engine reads Korean file names itself', () => {
+  const cwd = ws();
+  mkdirSync(path.join(cwd, 'slides', '구청소개발표'), { recursive: true });
+  mkdirSync(path.join(cwd, 'design'));
+  writeFileSync(path.join(cwd, 'slides', '구청소개발표', 'index.tsx'),
+    '<Item name="장소 사용 허가" /><Item name="임시 전기·수도" /><Item name="안내 게시·홍보" /><Item name="안전·정리 협조" />');
+  writeFileSync(path.join(cwd, 'design', '화면설계.md'), '# 설계');
+  writeFileSync(path.join(cwd, 'design', 'plan.md'), '# plan');
+  const run = (criterion, checks) => verifyReport({ criteria: [{ index: 1, done: true, checks }] }, [criterion], cwd).claims[0].check;
+  const deck = 'slides/구청소개발표/index.tsx';
+  const items = ['장소 사용 허가', '임시 전기·수도', '안내 게시·홍보', '안전·정리 협조'].map(t => ({ type: 'file_contains', path: deck, text: `name="${t}"` }));
+  const ask = "'구청에 요청할 사항' 슬라이드에 구체적인 요청 항목이 3개 이상 적혀 있다";
+  assert.equal(run(ask, items), 'pass');
+  assert.equal(run(ask, items.slice(0, 2)), 'unrelated', 'two items do not speak to "3개 이상"');
+  assert.equal(run('참여 셀러 분류가 3개 이상이고 외부 이미지가 없다', items), 'unrelated', 'a count never proves an absence');
+  const names = '새로 만든 소스·문서·결과물 파일 이름이 역할이 드러나는 한글이다';
+  assert.equal(run(names, [{ type: 'file_exists', path: 'design/화면설계.md' }, { type: 'file_exists', path: deck }]), 'pass');
+  assert.equal(run(names, [{ type: 'file_exists', path: 'design/화면설계.md' }, { type: 'file_exists', path: 'design/plan.md' }]), 'unrelated', 'an English name is not a Korean one');
+});

@@ -145,7 +145,9 @@ function runChecks(list, criterion, cwd, ctx, claimed) {
   }
   // Every check must pass, so a set is at least as strong as the one about the criterion; a technical extra
   // (an id, a class name) need not share its words (seen in a real run: id="total-ratio" spoiled a proven set).
-  if (claimed && !list.some(c => relatesTo(c, criterion))) return { status: 'unrelated', reason: `${proofs.join(' / ')} — 이 조건과 관련 없는 검사라 근거로 치지 않음` };
+  if (claimed && !list.some(c => relatesTo(c, criterion)) && !countsFor(list, criterion) && !koreanNames(list, criterion)) {
+    return { status: 'unrelated', reason: `${proofs.join(' / ')} — 이 조건과 관련 없는 검사라 근거로 치지 않음 · 조건의 낱말(구역 제목 등)이 든 확인을 하나 함께 내면 인정` };
+  }
   return { status: 'pass', proof: `엔진 확인 · ${proofs.join(' / ')}` };
 }
 
@@ -193,6 +195,30 @@ function relatesTo(check, criterion) {
     return namesFile(c, check.path) && !CLAIMS_ABSENCE.test(c);
   }
   return false;
+}
+// The slides re-test (2026-10-01) lost two right answers to "관련 없는 검사": four request items found in the deck for
+// "'구청에 요청할 사항' 슬라이드에 요청 항목이 3개 이상" (the item names are not in the criterion), and the three files for
+// "파일 이름이 역할이 드러나는 한글이다". Both are now read as what they are.
+// "N개 이상": at least N passing text checks in the one file the criterion is about (its deck, page or document).
+function countsFor(list, criterion) {
+  const c = String(criterion).toLowerCase();
+  const n = Number(/(\d+)\s*(?:개|가지|장|건|곳|명|팀)\s*이상/.exec(c)?.[1]);
+  if (!n || CLAIMS_ABSENCE.test(c)) return false;
+  const paths = new Set(list.map(k => k?.path));
+  return list.every(k => k?.type === 'file_contains') && paths.size === 1 && list.length >= n && artifactOf(c, [...paths][0]);
+}
+const artifactOf = (c, file) => {
+  const p = String(file ?? '').replace(/\\/g, '/').toLowerCase();
+  return namesFile(c, p) || (/슬라이드|발표|slide|deck/.test(c) && /^slides\//.test(p)) || (/화면|페이지|page|screen/.test(c) && /\.html?$/.test(p))
+    || (DOCUMENT_TOPIC.test(c) && /\.md$/.test(p));
+};
+// "파일 이름이 한글이다": the files listed are there, and the engine reads their names itself; fixed names that tools
+// require (index.tsx, package.json, README.md, …) are allowed beside them.
+const FIXED_NAMES = new Set(['index.tsx', 'index.html', 'package.json', 'package-lock.json', 'readme.md', 'skill.md', 'tsconfig.json']);
+function koreanNames(list, criterion) {
+  if (!/파일\s*이름|파일명|이름이/.test(criterion) || !/한글|한국어/.test(criterion)) return false;
+  const bases = list.map(k => k?.type === 'file_exists' ? path.basename(String(k.path ?? '').replace(/\\/g, '/')) : null);
+  return bases.every(b => b && (/[가-힣]/.test(b) || FIXED_NAMES.has(b.toLowerCase()))) && bases.some(b => /[가-힣]/.test(b));
 }
 const DOCUMENT_TOPIC = /문서|hwpx|한글 파일|보고서|기안|서식|계획서|회의록|보도자료|통지/;
 const SOURCE_TOPIC =/출처|원문|공식|source|official/;
