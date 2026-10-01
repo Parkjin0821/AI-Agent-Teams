@@ -456,6 +456,25 @@ test('a criterion the verifier did not mark as 대장-only keeps the normal rota
     assert.notEqual(store.getGoal(goal.id).status, 'review_required');
   } finally { store.close(); }
 });
+test('a criterion still unproven and still given no check after more work goes to 대장 (flea market loop)', async () => {
+  // seen 2026-10-01: "글자가 움직이지 않는다" could not be proven, design kept editing (new diffs count as progress),
+  // and plan → design → reviews → qa went round until the daily cap
+  const { store, scheduler, add, calls } = setup(team => {
+    if (team === 'plan') return { outcome: 'completed', plan: { nextTask: '고치기', team: 'design', reviews: [] } };
+    if (team === 'design') return { outcome: 'completed', diffHash: String(Math.random()), evidence: [] };
+    if (team === 'qa') return { outcome: 'completed', evidence: ev(0), findings: { feedback: '2번 미검증', improvements: [] },
+      claims: [{ criterion: C[0], check: 'pass' }, { criterion: C[1], check: 'none' }] };
+    return { outcome: 'completed', review: { blocking: false, issues: [] } };
+  });
+  try {
+    const goal = add();
+    for (let i = 0; i < 12 && store.getGoal(goal.id).status !== 'review_required'; i++) await scheduler.runGoal(goal.id);
+    assert.deepEqual(calls.map(c => c.team), ['plan', 'design', 'qa', 'plan', 'design', 'qa'], 'one more round, then 대장');
+    const g = store.getGoal(goal.id);
+    assert.deepEqual([g.status, g.reason], ['review_required', 'needs_decision']);
+    assert.match(g.question, /대장 판단이 필요합니다:\n- 합계 테스트 통과/);
+  } finally { store.close(); }
+});
 test('confirming the criteria a verification left for 대장 finishes the project with no extra run', async () => {
   let plans = 0;
   const { store, scheduler, add, calls } = setup(team => {

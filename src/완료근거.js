@@ -155,7 +155,10 @@ function relatesTo(check, criterion) {
   // (also "a check that opens the page in a real browser": the engine's own check is exactly that)
   if (check.type === 'screen_ok') return /화면|모바일|레이아웃|넘침|깨진|브라우저|렌더링|헤드리스|screen|layout|browser|render|headless/.test(c);
   if (check.type === 'file_excludes') {
-    return ABSENCE.test(c) && ((check.texts ?? []).some(t => words(t).some(w => mentions(c, w)) || c.includes(String(t).toLowerCase())) || namesFile(c, check.path));
+    // "인터넷에서 불러오는 글꼴·라이브러리가 없다" names no literal it excludes; loading patterns (src="http, url(,
+    // @import, fetch() speak to it all the same (seen 2026-10-01: a correct check counted as unrelated twice).
+    const loads = NETWORK_TOPIC.test(c) && (check.texts ?? []).some(t => NETWORK_TEXT.test(String(t)));
+    return ABSENCE.test(c) && (loads || (check.texts ?? []).some(t => words(t).some(w => mentions(c, w)) || c.includes(String(t).toLowerCase())) || namesFile(c, check.path));
   }
   // a data check speaks to a criterion that names the file (or JSON) and does not claim an absence
   if (check.type === 'json_shape') return (namesFile(c, check.path) || /json/.test(c)) && !/없[다고음]$/.test(c.trim());
@@ -178,6 +181,8 @@ const SOURCE_TOPIC =/출처|원문|공식|source|official/;
 const CLAIMS_ABSENCE =/없[다고으음이는었]|않[았는다고음]|아니[다고]|금지|no |never|without/;
 // file_excludes speaks only to a criterion that claims an absence ("…없이", "쓰지 않는다", "금지").
 const ABSENCE = /없[다고으음이는었이]|않[았는다고음]|아니[다고]|금지|제외|no |never|without|free/;
+const NETWORK_TOPIC = /인터넷|외부|네트워크|온라인|cdn|웹폰트|웹 폰트|원격|internet|external|network|remote|offline|오프라인/;
+const NETWORK_TEXT = /https?:|\/\/|url\(|@import|fetch\(|xmlhttprequest|<script|<link|websocket|eventsource/i;
 const namesFile = (criterion, file) => {
   const base = path.basename(String(file ?? '').replace(/\\/g, '/')).toLowerCase();
   return base.length >= 3 && criterion.includes(base);

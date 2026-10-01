@@ -271,6 +271,7 @@ h2{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em}
 .ck{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line-strong);margin-top:2px;display:grid;place-items:center}
 .ck.ok{background:var(--done);border-color:var(--done)}
 .ck.no{border-color:var(--stop)}
+.ck.was{border-color:var(--done);border-style:dashed}
 .ck svg{width:10px;height:10px}
 .cr .t{font-weight:500}
 .cr .e{font-size:12.5px;color:var(--text-3);margin-top:2px}
@@ -850,7 +851,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
       </section>
       <aside class="stack side" aria-label="계획과 진행">
         <div class="card">
-          <div class="lbl">계획 · 완료 조건 {{w.proven}}/{{w.total}}</div>
+          <div class="lbl">계획 · 완료 조건 {{w.proven}}/{{w.total}}{{w.recheckL}}</div>
           <div class="bar"><i style="width: {{w.pct}}%"></i></div>
           <div class="crit" style="margin-top: 12px">
             <sc-for list="{{w.crit}}" as="c"><div class="cr"><span class="{{c.ckCls}}"><sc-if value="{{c.ok}}"><svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.2l2.2 2.2 4.8-5"></path></svg></sc-if></span><div style="min-width: 0"><div class="t small">{{c.t}}</div></div><span></span></div></sc-for>
@@ -929,7 +930,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
   <sc-if value="{{pt.verify}}">
     <div class="card" style="margin-bottom:20px"><h2>격리 테스트</h2><p class="hint">프로젝트 테스트 코드를 실행합니다. 프로젝트 안의 파일이 변경될 수 있으며 AI는 호출하지 않습니다. 아래 버튼을 누르면 실행에 동의합니다.</p><button class="btn sm" onClick="{{runSandboxTests}}" disabled="{{testBusy}}">승인하고 테스트 실행</button><p class="answer" role="status">{{testMessage}}</p></div>
     <div class="card">
-      <div class="lbl">완료 조건 · {{w.proven}}/{{w.total}} 확인</div>
+      <div class="lbl">완료 조건 · {{w.proven}}/{{w.total}} 확인{{w.recheckL}}</div>
       <p class="hint" style="margin: 0 0 8px">엔진이 작업 폴더에서 직접 확인했거나 대장이 확인한 것만 통과로 칩니다. AI가 “했다”고 말한 것만으로는 통과가 아닙니다.</p>
       <div class="crit">
         <sc-for list="{{w.crit}}" as="c">
@@ -1634,9 +1635,17 @@ class Component extends DCLogic {
       const runs = [].concat.apply([], goals.map((x) => x.runs.map((r) => Object.assign({}, r, { goal: x }))));
       const st = stateOf(g);
       const proven = g.completionCriteria.filter((c) => (g.evidence || []).some((e) => e.criterion === c)).length;
+      // After a design or dev step changes the work, the earlier proofs no longer count and the next verification checks
+      // again. Criteria the last verification passed are shown as waiting for that recheck, not as never done
+      // (대장 saw the count jump 6 → 0 → 6 and asked why).
+      const gr = g.runs || [];
+      const qaAt = gr.map((r) => r.team === 'qa' && r.outcome === 'completed').lastIndexOf(true);
+      const changedSince = qaAt >= 0 && gr.slice(qaAt + 1).some((r) => (r.team === 'design' || r.team === 'dev') && r.outcome === 'completed');
+      const recheck = changedSince ? g.completionCriteria.filter((c) => (gr[qaAt].evidence || []).some((e) => e.criterion === c)
+        && !(g.evidence || []).some((e) => e.criterion === c)) : [];
       const last = runs.map((r) => r.finishedAt || r.startedAt).concat([g.updatedAt]).sort().pop();
       const name = (goals.find((x) => x.title) || {}).title || clip(g.objective, 40);
-      return { id: pr.id, workspacePath: pr.workspacePath || 'projects/' + pr.id, name: name, goal: g, goals: goals, runs: runs, st: st, proven: proven, total: g.completionCriteria.length,
+      return { id: pr.id, workspacePath: pr.workspacePath || 'projects/' + pr.id, name: name, goal: g, goals: goals, runs: runs, st: st, proven: proven, total: g.completionCriteria.length, recheck: recheck,
         last: last, today: runs.filter((r) => sameDay(r.startedAt)).length, policy: pr.policy, isTeam: g.kind === 'team', routine: pr.routine || null, lanes: lanes };
     }).sort((a, b) => (b.last || '').localeCompare(a.last || ''));
   }
@@ -1868,17 +1877,20 @@ class Component extends DCLogic {
         goActivity: () => this.setState({ ptab: 'activity' }), goVerify: () => this.setState({ ptab: 'verify' }),
         noRuns: wp.runs.length === 0,
         proven: wp.proven, total: wp.total, pct: wp.total ? Math.round(wp.proven / wp.total * 100) : 0,
+        recheckL: wp.recheck.length ? ' · 지난 검증 통과 ' + wp.recheck.length + '개 다시 확인 대기' : '',
         crit: g.completionCriteria.map((c) => {
           const ev = (g.evidence || []).find((e) => e.criterion === c);
           const claim = lastRun && (lastRun.claims || []).find((x) => x.criterion === c);
           let e = '아직 확인 전';
+          const again = !ev && wp.recheck.includes(c);
           if (ev) e = ev.proof;
+          else if (again) e = '지난 검증에서 통과 · 그 뒤 작업이 바뀌어 다음 검증에서 다시 확인';
           else if (claim && claim.check === 'fail') e = '확인 실패 · ' + claim.detail;
           else if (claim && claim.check === 'invalid') e = '확인 방법이 잘못됨 · ' + claim.detail;
           else if (claim && claim.check === 'partial') e = '엔진이 일부만 확인 · ' + claim.detail;
           else if (claim && claim.check === 'unrelated') e = '조건과 관련 없는 검사 · ' + claim.detail + (claim.note ? ' · AI 보고: ' + clip(claim.note, 160) : '');
           else if (claim) e = (claim.claimed ? 'AI 보고: 완료 · 엔진이 확인할 방법 없음' : 'AI 보고: 미완료') + (claim.note ? ' · ' + clip(claim.note, 200) : '');
-          return { t: c, ok: !!ev, ckCls: 'ck' + (ev ? ' ok' : (claim && claim.check === 'fail' ? ' no' : '')), e: e, eCls: 'e' + (ev ? ' ok' : ''),
+          return { t: c, ok: !!ev, ckCls: 'ck' + (ev ? ' ok' : again ? ' was' : (claim && claim.check === 'fail' ? ' no' : '')), e: e, eCls: 'e' + (ev ? ' ok' : ''),
             // 팀 프로젝트는 검증팀이 실제로 한 번 확인한 뒤, 엔진이 증명하지 못한 조건만 대장이 확인한다.
             canConfirm: !ev && g.status !== 'running' && (!isTeam || qaChecked), confirm: () => this.confirmCriterion(g.id, c),
             confirmHint: !ev && isTeam && !qaChecked ? '검증팀이 확인한 뒤에 대장 확인을 할 수 있습니다' : '' };

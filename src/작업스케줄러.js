@@ -648,6 +648,7 @@ export class GoalScheduler {
     // The same criteria still unproven at two verifications in a row, with no work step in between: another
     // plan → review → verify round cannot change the answer, so 대장 is asked instead of spending more usage.
     const unproven = goal.completionCriteria.filter(c => !evidence.some(e => e.criterion === c));
+    const previousUnproven = Array.isArray(team.lastUnproven) ? team.lastUnproven : [];
     // Stalled: no work since the last verification and nothing it left unproven got proven now (the verifier may word
     // its checks differently each time, so the lists need not be equal).
     const stalled = !gate.length && unproven.length > 0 && !team.workSinceQa && Array.isArray(team.lastUnproven)
@@ -657,7 +658,12 @@ export class GoalScheduler {
     // Only criteria that no file or engine check can prove are left (the verifier said so, or the engine proved just the
     // work-folder part): another round cannot prove them either, so 대장 is asked right after this first verification.
     const claimFor = c => (result.claims ?? []).find(k => k.criterion === c);
-    const personOnly = !gate.length && unproven.length > 0 && unproven.every(c => claimFor(c)?.person === true || claimFor(c)?.check === 'partial');
+    // Also a criterion that was already unproven at the previous verification and that the verifier now gives no check
+    // for at all: work happened in between and still nothing can prove it. Seen 2026-10-01: "글자가 움직이지 않는다"
+    // went back to design again and again, and each design edit counted as progress, so the stall rule never fired.
+    // (The first time, "no check" may still mean unfinished work, so the rotation goes on.)
+    const personOnly = !gate.length && unproven.length > 0 && unproven.every(c => claimFor(c)?.person === true
+      || claimFor(c)?.check === 'partial' || (claimFor(c)?.check === 'none' && previousUnproven.includes(c)));
     if (personOnly) {
       team.awaitingJudgement = unproven;
       return review('needs_decision', { question: `[검증팀] 남은 조건은 파일이나 엔진 검사로 증명할 수 없어 대장 판단이 필요합니다:\n`

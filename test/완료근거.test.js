@@ -248,3 +248,17 @@ test('checks (all must pass) and file_excludes: what the verifier confirmed by r
   assert.equal(verifyReport({ criteria: [{ index: 1, done: true, checks: [sections[3], { type: 'stayed_inside' }] }] },
     ['index.html에 메뉴 표 구역이 있다'], cwd, { boundary: () => ({ status: 'pass', proof: 'x' }) }).claims[0].check, 'invalid');
 });
+
+test('an "internet loads nothing" criterion is proven by an absence check of loading patterns (flea market run)', () => {
+  const cwd = mkdtempSync(path.join(tmpdir(), 'hq-offline-'));
+  writeFileSync(path.join(cwd, 'index.html'), '<link rel="stylesheet" href="글꼴/글꼴.css"><svg xmlns="http://www.w3.org/2000/svg"></svg>');
+  const check = { type: 'file_excludes', path: 'index.html', texts: ['src="http', "src='http", 'src="//', 'url(http', 'url("http', '@import'] };
+  const crit = ['인터넷에서 불러오는 글꼴·라이브러리·이미지가 없다.'];
+  const ok = verifyReport({ criteria: [{ index: 1, done: true, check }] }, crit, cwd);
+  assert.equal(ok.evidence.length, 1, JSON.stringify(ok.claims));
+  writeFileSync(path.join(cwd, 'index.html'), '<script src="https://cdn.example/x.js"></script>');
+  assert.equal(verifyReport({ criteria: [{ index: 1, done: true, check }] }, crit, cwd).claims[0].check, 'fail');
+  // loading patterns say nothing about an absence that is not about the network
+  writeFileSync(path.join(cwd, 'index.html'), '<p>안내</p>');
+  assert.equal(verifyReport({ criteria: [{ index: 1, done: true, check }] }, ['주의사항 상자가 기울어져 있지 않다'], cwd).claims[0].check, 'unrelated');
+});
