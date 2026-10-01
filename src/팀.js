@@ -227,6 +227,9 @@ export const TEAM_BRIEFS = Object.freeze({
       'feedback 에는 기획팀이 다음 계획에 쓸 수 있게 무엇이 빠졌는지 구체적으로 적는다.',
       '화면이 있으면 엔진이 찍은 PC·모바일 캡처를 직접 보고 판단한다. "깨진 곳이 없다" 조건은 screen_ok check 로 증명한다. 보기 나쁜 곳(위계·여백·정렬·잘림·어색한 줄바꿈)은 어느 화면의 어느 부분인지 feedback 에 구체적으로 적는다. 화면이 흰 바탕 카드 나열 같은 무난한 기본형이거나 design/화면설계.md 의 미적 방향이 캡처에 드러나지 않으면 그것도 feedback 에 적는다. 완료 조건에 들어간 것(첫 화면 정보, 살아 있는 요소, 예시 표시 방식 등)이 캡처에서 지켜지지 않으면 그 조건은 통과가 아니다. 조건에 없는 아쉬움(예시 배지 과잉, 장식 과잉, 390px 에서 너무 긴 목록)만 improvements 에 적는다.'],
     collaborate: ['improvements 는 조건이 모두 충족됐을 때만, 최대 5개, 범위를 넓히지 않는 것으로 제안한다. 대장이 승인해야 새 목표가 된다.',
+      // Seen 2026-10-01 (flea market test): "replace the examples once the real event info is decided" became a goal
+      // twice; with no info the teams could only re-check, nine steps with no file changed.
+      '개선은 지금 작업 폴더에 있는 정보로 바로 할 수 있는 것만 제안한다. 대장이 줄 정보(실제 행사·가게 정보, 계정, 결정)가 있어야 하는 일은 improvements 가 아니라 feedback 에 "대장 확인 필요: …" 로 적는다.',
       '후속 작업은 requests 에 제안할 수 있다.'],
     boundary: ['읽기 전용이다. 파일을 읽을 수 있고, 테스트 결과는 엔진 기록이 우선한다.'],
     limits: ['내 check 가 통과해도, 테스트가 조건을 제대로 검사하는지는 증명하지 못한다. 그것은 대장이 본다.'],

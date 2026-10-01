@@ -25,6 +25,11 @@ test('GPT critique: first screen info, compact phone lists, motion with a purpos
   assert.match(teamPrompt('plan',input), /식별 문자열까지 막지 않는다/);
   assert.match(teamPrompt('qa',input), /그 조건은 통과가 아니다/);
 });
+test('qa proposes only improvements doable with what is in the folder; what needs 대장 info is a question', () => {
+  const qa = teamPrompt('qa', {goal,files:[],team:{task:'검증'}});
+  assert.match(qa, /지금 작업 폴더에 있는 정보로 바로 할 수 있는 것만/);
+  assert.match(qa, /대장 확인 필요/);
+});
 test('UI prompts establish a 화면설계, hand it to developers, and distinguish visual verification', () => {
   const input = {goal,files:[],team:{task:'화면 제작'}};
   assert.match(teamPrompt('plan',input), /design\/화면설계\.md/);
