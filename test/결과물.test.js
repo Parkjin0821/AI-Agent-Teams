@@ -30,5 +30,5 @@ test('an engine-made 한글 document is listed and offered only as a download', 
   writeFileSync(path.join(cwd, '회의록.hwpx.svg'), '<svg/>');
   const items = artifactList(cwd);
   assert.deepEqual(items.map(i => [i.path, i.type]), [['회의록.hwpx', 'application/vnd.hancom.hwpx'], ['회의록.hwpx.svg', 'image/svg+xml']]);
-  assert.deepEqual([isDownloadOnly('회의록.hwpx'), isDownloadOnly('회의록.hwpx.svg')], [true, false]);
+  assert.deepEqual([isDownloadOnly('회의록.hwpx'), isDownloadOnly('회의록.hwpx.svg'), isDownloadOnly('발표자료/deck.pdf')], [true, false, true]);
 });

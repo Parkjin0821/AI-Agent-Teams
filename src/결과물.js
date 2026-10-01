@@ -9,6 +9,9 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset
   '.svg': 'image/svg+xml',
   // 한글 documents the engine made: offered as a download only.
   '.hwpx': 'application/vnd.hancom.hwpx',
+  // Slide PDFs the engine printed (발표자료/<id>.pdf): download only, since a sandboxed preview frame cannot show a PDF
+  // (대장 found the slide test's PDF missing from 결과물, 2026-10-01).
+  '.pdf': 'application/pdf',
   // Code is shown as plain text only (never run), so 대장 can read what a team changed before approving it.
   ...Object.fromEntries(['.js', '.mjs', '.cjs', '.ts', '.jsx', '.tsx', '.css', '.py', '.csv'].map(e => [e, 'text/plain; charset=utf-8'])) };
 function resolveFile(cwd, relative) {
@@ -31,7 +34,7 @@ export function readArtifact(cwd, relative) {
   if (!stat.isFile() || stat.size > 2000000) throw new Error('artifact must be a file under 2MB');
   return { type, bytes: readFileSync(file) };
 }
-export const isDownloadOnly = (relative) => path.extname(String(relative)).toLowerCase() === '.hwpx';
+export const isDownloadOnly = (relative) => ['.hwpx', '.pdf'].includes(path.extname(String(relative)).toLowerCase());
 export function artifactList(cwd) {
   return listWorkspaceFiles(cwd, 2000).filter(file => {
     try { readArtifact(cwd, file); return true; } catch { return false; }

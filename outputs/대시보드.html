@@ -2549,7 +2549,7 @@ class Component extends DCLogic {
       w: w, m: m, limits: lim,
       ptabs: ptabDefs.map((x) => ({ l: x[1], n: x[2], hasN: x[2] !== '' && x[2] !== 0, cls: 'pt' + (s.ptab === x[0] ? ' on' : ''), cur: s.ptab === x[0] ? 'page' : 'false', go: () => this.setState({ ptab: x[0] }) })),
       artifactItems:(s.artifactItems || []).map(a=>{const url='/api/projects/'+encodeURIComponent(wp.id)+'/preview?path='+encodeURIComponent(a.path);
-        return /\.hwpx$/i.test(a.path)
+        return /\.(hwpx|pdf)$/i.test(a.path)
           ? {path:a.path+' · 내려받기',open:()=>{const l=document.createElement('a');l.href=url;l.download=a.path.split('/').pop();document.body.appendChild(l);l.click();l.remove();this.say(a.path+' 내려받기를 시작했습니다');}}
           : {path:a.path,open:()=>this.setState({previewUrl:url,artifactMessage:a.path})};}),
       previewUrl:s.previewUrl || '', hasPreview:!!s.previewUrl, artifactMessage:s.artifactMessage || '파일 새로고침을 눌러 결과물을 불러오세요.', testBusy:!!s.testBusy, testMessage:s.testMessage || '아직 실행하지 않았습니다.',
