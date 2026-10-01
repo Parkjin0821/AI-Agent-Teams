@@ -4,3 +4,5 @@ projects/
 node_modules/
 *.log
 tools/
+# Test output folders made per run (문서시험-<time>, 팀문서-보완검증-<time>); 대장 2026-10-01: not in the repo
+outputs/*-[0-9]*/
