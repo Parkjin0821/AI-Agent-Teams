@@ -293,7 +293,7 @@ function checkScreen(rel, visual) {
   return broken.length ? { status: 'fail', reason: `화면 검사: ${broken.slice(0, 3).join(' · ')}` }
     : { status: 'pass', proof: `엔진 확인 · ${rel} 화면 검사 (PC ${shots.find(s => s.width >= 1000).width}px · 모바일 ${shots.find(s => s.width < 600).width}px) 깨진 곳 없음` };
 }
-const SCREEN_BROKEN = /가로 넘침|깨진 이미지|JavaScript 실행 오류|보이는 글이 없음/;
+const SCREEN_BROKEN = /가로 넘침|깨진 이미지|JavaScript 실행 오류|보이는 글이 없음|거의 보이지 않는 글/;
 
 // folder_only: the folder holds exactly these files (at any depth), nothing more and nothing missing.
 function checkFolderOnly(check, target, rel) {

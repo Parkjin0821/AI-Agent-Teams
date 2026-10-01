@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 // No package and no model call. Whether the page looks good stays with the design and verification teams, who get
 // the captures to look at, and with 대장.
 export const SCREENS_DIR = '.hq-screens';
-const BROKEN = /가로 넘침|깨진 이미지|JavaScript 실행 오류|보이는 글이 없음/;
+const BROKEN = /가로 넘침|깨진 이미지|JavaScript 실행 오류|보이는 글이 없음|거의 보이지 않는 글/;
 export class VisualChecker {
   constructor({ sandbox, browserPath = null, env = process.env }) {
     this.sandbox = sandbox;
