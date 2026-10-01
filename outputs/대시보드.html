@@ -24,6 +24,7 @@
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;word-break:keep-all;overflow-wrap:anywhere}
 button,input,textarea{font:inherit;color:inherit}
+b,strong{font-weight:600}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
@@ -118,7 +119,7 @@ main{max-width:1520px;margin:0 auto;padding:36px 32px 96px}
 .side-stat b{display:block;font-size:18px;margin-top:2px}
 .side-meter{display:grid;gap:7px}
 .side-meter .mi{display:flex;justify-content:space-between;gap:8px;font-size:12px}
-.side-meter .provider-label{font-weight:700}
+.side-meter .provider-label{font-weight:600}
 .side-meter .mi.claude .provider-label,.side-meter .mi.claude b{color:#A94F34}
 .side-meter .mi.codex .provider-label,.side-meter .mi.codex b{color:#171717}
 .side-meter .mi b{white-space:nowrap}
@@ -302,15 +303,18 @@ details[open]>summary::before{transform:rotate(90deg)}
 .tchecks{display:grid;gap:6px;margin-top:8px}
 .tcheck{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;align-items:baseline}
 .tcheck details{grid-column:2}
-.tcheck.inspection{grid-template-columns:64px minmax(0,1fr);align-items:start;gap:6px 8px;padding:10px 0}
+/* Check rows: a fixed 18px icon column, so every check name starts on one line; the status word sits on the name line. */
+.tcheck.inspection{grid-template-columns:18px minmax(0,1fr);align-items:start;gap:4px 8px;padding:10px 0}
 .tcheck.inspection+.tcheck.inspection{border-top:1px solid var(--line)}
-.inspection>.pill{justify-self:start;margin-top:1px}
-.inspection>.pill.done{min-width:20px;padding:0;background:transparent;color:var(--done);font-size:0}
-.inspection>.pill.done i{display:none}
-.inspection>.pill.done::before{content:'✓';font-size:16px;font-weight:600;line-height:1.4}
-.inspection>.pill.skipped{padding:0;background:transparent;color:var(--attn);gap:5px;white-space:nowrap}
-.inspection>.pill.skipped i{display:none}
-.inspection>.pill.skipped::before{content:'↷';font-size:16px;font-weight:600;line-height:1.4}
+.tcheck.inspection>.st-ico{display:block;width:18px;padding:0;margin-top:1px;background:none;color:var(--text-3);font-size:0;line-height:1}
+.inspection>.st-ico::before{content:'•';display:block;font-size:14px;font-weight:600;line-height:20px;text-align:center}
+.inspection>.st-ico.done{color:var(--done)}.inspection>.st-ico.done::before{content:'✓'}
+.inspection>.st-ico.skipped{color:var(--attn)}.inspection>.st-ico.skipped::before{content:'↷'}
+.inspection>.st-ico.attn{color:var(--attn)}.inspection>.st-ico.attn::before{content:'!'}
+.inspection>.st-ico.stop{color:var(--stop)}.inspection>.st-ico.stop::before{content:'✕'}
+.st-line{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:2px 12px;min-width:0}
+.inspection-copy .st-line>.pill{padding:0;background:none;font-size:12px;font-weight:500;white-space:nowrap}
+.pill.skipped{color:var(--attn)}
 .inspection-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:2px;font-size:12px;font-weight:600;color:var(--text-2)}
 .inspection-head .inspection-all-pass{color:var(--done);font-weight:500}
 .inspection-copy{min-width:0;display:grid;gap:3px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
@@ -383,8 +387,8 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .msg.team .meta b,.msg.action[class*="team-"] .meta b{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;background:var(--team-tint,var(--subtle));color:var(--team-accent,var(--text));font-size:12px;font-weight:600;white-space:nowrap}
 .msg.team .meta b::before,.msg.action[class*="team-"] .meta b::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--team-accent,var(--text));flex:none}
 .msg.team .meta .when{color:var(--text-4)}
-/* 팀 답변은 고유색을 옅게 입힌 말풍선으로 구분합니다. */
-.msg.team{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:12px;border:1px solid color-mix(in srgb,var(--team-accent,#71717A) 12%,var(--surface));border-radius:16px;background:var(--team-tint,var(--subtle));box-shadow:none;padding:18px 20px;color:var(--text)}
+/* 팀 답변: 팀 색은 '누가 말했는지'만 (이름·원형 마크·왼쪽 얇은 선). 초록·빨강·주황은 검사 결과에만 씁니다. */
+.msg.team{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:12px;border:1px solid var(--line);border-left:3px solid color-mix(in srgb,var(--team-accent,#71717A) 55%,var(--surface));border-radius:12px;background:var(--surface);box-shadow:none;padding:18px 20px;color:var(--text)}
 .mono-tile{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:600;line-height:1;
   color:var(--team-accent,var(--text-2));background:color-mix(in srgb,var(--team-accent,#71717A) 10%,var(--surface));border:0}
 .mono-tile.lg{width:38px;height:38px;border-radius:50%;font-size:14px}
@@ -398,7 +402,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .team .nm .mono-tile{width:28px;height:28px;border-radius:50%;font-size:11px}
 .msg.team>:not(.mono-tile){grid-column:2}
 .msg.team .meta b,.msg.team .meta b::before{background:none;padding:0}
-.msg.team .meta b{font-size:14px;font-weight:700;color:var(--team-accent,var(--text))}
+.msg.team .meta b{font-size:14px;font-weight:600;color:var(--team-accent,var(--text))}
 .msg.team .meta b::before{display:none}
 .msg.team .meta .sub{order:3;flex-basis:100%;color:var(--text-3);font-size:12px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msg.team .meta .when{order:2}
@@ -413,13 +417,16 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .msg.me.ctl .meta .when{margin-left:0}
 .msg.me.ctl .body{font-size:12px;color:var(--text-2)}
 .msg.team .body{font-size:14px;font-weight:400;line-height:1.7;color:var(--text)}
-.msg.team .body strong,.msg.team .body b{font-weight:700}
-.msg.team .inspection-head{font-size:12.5px;font-weight:700;color:var(--text)}
-.msg.team .inspection-copy b{font-size:13.5px;font-weight:700;color:var(--text)}
+/* Weight only for the team name, the one-line conclusion and check names; a long task under a conclusion is plain grey text. */
+.msg.team .body strong,.msg.team .body b{font-weight:600}
+.msg .body .lead{display:block;margin-bottom:2px;font-weight:600;color:var(--text)}
+.msg.team .body:has(.lead){color:var(--text-2)}
+.msg.team .inspection-head{font-size:12.5px;font-weight:600;color:var(--text)}
+.msg.team .inspection-copy b{font-size:13.5px;font-weight:600;color:var(--text)}
 .msg.team .inspection-copy>span{font-size:13px;color:var(--text-2);line-height:1.6}
-.msg.team details>summary{background:var(--surface);color:var(--text);border-color:var(--line-strong);font-weight:600}
+.msg.team details>summary{background:var(--surface);color:var(--text);border-color:var(--line-strong);font-weight:500}
 .msg.team details>summary:hover{background:var(--subtle)}
-.msg.team details .answer{background:var(--surface);color:var(--text);border:1px solid var(--line);line-height:1.75}
+.msg.team details .answer{background:var(--bg);color:var(--text);border:1px solid var(--line);line-height:1.75}
 .msg.team .tchecks{padding-top:9px;margin-top:11px;border-top:1px solid var(--line)}
 .msg.team.err{background:var(--stop-soft);border:0;border-radius:10px;padding:16px}
 .team-plan{--team-accent:#5947A8;--team-tint:#F6F4FC}
@@ -650,6 +657,29 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
 .to-top svg{display:block;width:16px;height:16px;flex:none;margin:0;transition:transform .2s ease}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.to-top.show:hover,.to-top.show:active,.to-top.show:hover svg{transform:none}}
 @media (max-width:760px){.to-top{right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:44px;height:44px;padding:0;justify-content:center}.to-top span{display:none}}
+/* 승인함: nothing waiting is one quiet line, not a card per kind; rules and settings have their own heading below. */
+.ib-clear{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:14px 18px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface)}
+.ib-clear b{font-weight:600;font-size:14px}
+.ib-clear span{font-size:13px;color:var(--text-3)}
+.ib-clear.in-list{border:0;border-radius:0}
+.ib-zero{margin:0;padding:0 2px;font-size:13px;line-height:1.6;color:var(--text-3)}
+.stack>.ib-zero+.ib-zero{margin-top:-12px}
+.ib-settings{margin-top:32px;padding-top:24px;border-top:1px solid var(--line)}
+/* 팀: state and recent work up front, two columns on wide screens so 기획·개발·디자인 show without scrolling. */
+.team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px;align-items:start}
+.team-now{margin:10px 0 0;font-size:13.5px;color:var(--text);line-height:1.55}
+.team-recent-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
+.team-recent-list li{display:grid;grid-template-columns:84px minmax(0,1fr) auto;gap:10px;align-items:baseline;font-size:12.5px;color:var(--text-2)}
+.team-recent-list .when{color:var(--text-3)}
+.team-recent-list .what{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tr-res{white-space:nowrap;font-weight:500;color:var(--text-3)}
+.tr-res::before{margin-right:4px}
+.tr-res.done{color:var(--done)}.tr-res.done::before{content:'✓'}
+.tr-res.stop{color:var(--stop)}.tr-res.stop::before{content:'✕'}
+.tr-res.run{color:var(--accent-ink)}.tr-res.run::before{content:'●';font-size:9px;vertical-align:1px}
+.team-more{margin-top:14px}
+.team-rules{margin-top:24px}
+@media (max-width:760px){.team-grid{grid-template-columns:minmax(0,1fr)}.team-recent-list li{grid-template-columns:76px minmax(0,1fr) auto;gap:8px}}
 /* Phone (dashboard review 2026-10-01): the project title gets the whole first row, status · progress · time the
    second; the conversation drops the stacked side paddings that left a team reply only ~180px of text. */
 @media (max-width:760px){
@@ -659,10 +689,14 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
   .prow .sub{-webkit-line-clamp:1}
   .prow .c{display:inline!important;grid-column:auto}
   .prow .when{display:block!important;grid-column:auto;text-align:right}
-  .thread{padding:12px}
-  .msg{max-width:100%}
-  .msg.me{max-width:92%}
-  .msg.team{grid-template-columns:minmax(0,1fr);padding:14px}
+  .thread{padding:8px;gap:10px}
+  .msg{max-width:100%;padding:10px 12px}
+  .msg.me{max-width:94%}
+  .msg.me.ctl{padding:0 2px;max-width:94%}
+  .msg.sys{max-width:100%}
+  .msg.team{grid-template-columns:minmax(0,1fr);padding:12px 12px 12px 11px}
+  .msg.team.err{padding:12px}
+  .composer{padding:10px 8px}
   .msg.team>.mono-tile{display:none}
   .msg.team>:not(.mono-tile){grid-column:1}
 }
@@ -728,7 +762,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
             </div>
           </div>
         </sc-for>
-        <sc-if value="{{inboxEmpty}}"><div class="empty sm">확인할 일이 없습니다. 팀이 결정을 기다리면 여기에 나타납니다.</div></sc-if>
+        <sc-if value="{{inboxEmpty}}"><div class="ib-clear in-list" role="status"><b>확인할 일이 없습니다</b><span>팀이 결정을 기다리면 여기에 나타납니다</span></div></sc-if>
       </div>
     </section>
 
@@ -846,10 +880,10 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
             <div class="{{x.cls}}">
               <sc-if value="{{x.hasMono}}"><span class="mono-tile" aria-hidden="true">{{x.mono}}</span></sc-if>
               <div class="meta"><b>{{x.who}}</b><span class="small muted sub" title="{{x.metaSub}}">{{x.metaSub}}</span><span class="small muted when">{{x.when}}</span></div>
-              <div class="body">{{x.text}}</div>
+              <div class="body"><sc-if value="{{x.hasLead}}"><b class="lead">{{x.lead}}</b></sc-if>{{x.text}}</div>
               <sc-if value="{{x.hasAtt}}"><div class="att-list"><sc-for list="{{x.atts}}" as="a"><sc-if value="{{a.isImage}}"><button class="att-img" onClick="{{a.open}}" title="{{a.name}} · 새 창에서 크게 보기"><img src="{{a.src}}" alt="{{a.name}}" loading="lazy"></button></sc-if><sc-if value="{{a.isText}}"><button class="att" onClick="{{a.open}}" title="새 창에서 보기"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></button></sc-if><sc-if value="{{a.isPdf}}"><span class="att"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></span></sc-if><sc-if value="{{a.hasConv}}"><button class="att" onClick="{{a.openConv}}" title="엔진이 바꾼 Markdown · 팀은 이것을 읽습니다"><span class="small">변환본 보기</span></button></sc-if></sc-for></div></sc-if>
-              <sc-if value="{{x.hasIssues}}"><div class="tchecks"><sc-for list="{{x.issues}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><div class="inspection-copy"><b>{{k.name}}</b><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
-              <sc-if value="{{x.hasMore}}"><details class="more"><summary>{{x.moreL}}</summary><sc-if value="{{x.runInfo}}"><p class="run-info">{{x.runInfo}}</p></sc-if><sc-if value="{{x.hasOkTools}}"><div class="tchecks"><sc-for list="{{x.okTools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><div class="inspection-copy"><b>{{k.name}}</b><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if><sc-if value="{{x.hasAnswer}}"><div class="answer">{{x.answer}}</div></sc-if></details></sc-if>
+              <sc-if value="{{x.hasIssues}}"><div class="tchecks"><sc-for list="{{x.issues}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}} st-ico" aria-hidden="true"></span><div class="inspection-copy"><div class="st-line"><b>{{k.name}}</b><span class="{{k.pillCls}}">{{k.stL}}</span></div><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
+              <sc-if value="{{x.hasMore}}"><details class="more"><summary>{{x.moreL}}</summary><sc-if value="{{x.runInfo}}"><p class="run-info">{{x.runInfo}}</p></sc-if><sc-if value="{{x.hasOkTools}}"><div class="tchecks"><sc-for list="{{x.okTools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}} st-ico" aria-hidden="true"></span><div class="inspection-copy"><div class="st-line"><b>{{k.name}}</b><span class="{{k.pillCls}}">{{k.stL}}</span></div><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if><sc-if value="{{x.hasAnswer}}"><div class="answer">{{x.answer}}</div></sc-if></details></sc-if>
             </div>
           </sc-for>
           <sc-if value="{{w.working}}"><div class="msg sys working"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>{{w.workingL}}</div>
@@ -956,7 +990,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
           <div style="min-width: 0">
             <div class="who">{{a.who}}<span class="tool">{{a.tool}}</span><span class="{{a.pillCls}}"><i></i>{{a.resL}}</span></div>
             <div class="res">{{a.res}}</div>
-            <sc-if value="{{a.hasTools}}"><div class="tchecks"><div class="inspection-head"><span>검사 결과</span><sc-if value="{{a.allToolsPassed}}"><span class="inspection-all-pass">실행한 검사 모두 통과</span></sc-if></div><sc-for list="{{a.tools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><div class="inspection-copy"><b>{{k.name}}</b><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
+            <sc-if value="{{a.hasTools}}"><div class="tchecks"><div class="inspection-head"><span>검사 결과</span><sc-if value="{{a.allToolsPassed}}"><span class="inspection-all-pass">실행한 검사 모두 통과</span></sc-if></div><sc-for list="{{a.tools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}} st-ico" aria-hidden="true"></span><div class="inspection-copy"><div class="st-line"><b>{{k.name}}</b><span class="{{k.pillCls}}">{{k.stL}}</span></div><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
             <sc-if value="{{a.hasAnswer}}"><details><summary>답변 보기</summary><div class="answer">{{a.answer}}</div></details></sc-if>
           </div>
         </div>
@@ -1073,7 +1107,9 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
 <sc-if value="{{vInbox}}">
   <div class="page-h"><div><h1>승인함</h1><p class="lede">대장의 결정을 기다리는 일이 모두 여기에 모입니다 · {{ib.total}}건. 팀의 질문, 감시 에이전트가 멈춰 둔 동작, 처음 몇 번 확인하는 작업 결과, 팀이 제안한 기억.</p></div>
     <button class="btn sm" onClick="{{ib.reload}}">새로고침</button></div>
+  <!-- Pending decisions first; empty kinds collapse into one line instead of a card each. Rules and settings follow under their own heading. -->
   <div class="stack">
+    <sc-if value="{{ib.allClear}}"><div class="ib-clear" role="status"><b>확인할 일이 없습니다</b><span>{{ib.zeroLine}}</span></div></sc-if>
     <sc-if value="{{ib.hasOthers}}">
       <section class="card">
         <div class="lbl">질문 · 개선안 · 멈춘 프로젝트 · {{ib.othersN}}건</div>
@@ -1106,7 +1142,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
         </div>
       </section>
     </sc-if>
-    <section class="card">
+    <sc-if value="{{ib.hasApprovals}}"><section class="card">
       <div class="lbl">감시 에이전트 승인 요청 · {{ib.approvalsN}}건</div>
       <sc-for list="{{ib.approvals}}" as="a">
         <div class="ib-row col">
@@ -1119,9 +1155,8 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
             <div class="row-f" style="margin-top: 8px"><sc-for list="{{a.more}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for></div></details>
         </div>
       </sc-for>
-      <sc-if value="{{ib.noApprovals}}"><p class="hint">기다리는 요청이 없습니다.</p></sc-if>
-    </section>
-    <section class="card">
+    </section></sc-if>
+    <sc-if value="{{ib.hasReviews}}"><section class="card">
       <div class="lbl">결과 확인 · 신뢰 쌓기 · {{ib.reviewsN}}건</div>
       <p class="hint" style="margin: 0 0 8px">새로운 종류의 작업은 처음 {{ib.trustRequired}}번 결과를 대장이 보고 나서야 자동으로 이어집니다. 지금: {{ib.trustLevels}}</p>
       <sc-for list="{{ib.reviews}}" as="r">
@@ -1132,14 +1167,13 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
           <sc-if value="{{r.hasRemoved}}"><div class="small muted">{{r.removed}}</div></sc-if>
           <sc-if value="{{r.hasText}}"><pre class="answer" style="max-height: 50vh" aria-label="{{r.previewPath}} 내용">{{r.previewText}}</pre></sc-if>
           <sc-if value="{{r.hasFrame}}"><iframe title="바뀐 파일 내용" src="{{r.previewUrl}}" sandbox="" referrerpolicy="no-referrer" style="width:100%;height:50vh;border:1px solid var(--line);border-radius:10px;background:white"></iframe></sc-if>
-          <sc-if value="{{r.hasTools}}"><div class="tchecks"><div class="inspection-head"><span>검사 결과</span><sc-if value="{{r.allToolsPassed}}"><span class="inspection-all-pass">실행한 검사 모두 통과</span></sc-if></div><sc-for list="{{r.tools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><div class="inspection-copy"><b>{{k.name}}</b><span>{{k.summary}}</span></div></div></sc-for></div></sc-if>
+          <sc-if value="{{r.hasTools}}"><div class="tchecks"><div class="inspection-head"><span>검사 결과</span><sc-if value="{{r.allToolsPassed}}"><span class="inspection-all-pass">실행한 검사 모두 통과</span></sc-if></div><sc-for list="{{r.tools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}} st-ico" aria-hidden="true"></span><div class="inspection-copy"><div class="st-line"><b>{{k.name}}</b><span class="{{k.pillCls}}">{{k.stL}}</span></div><span>{{k.summary}}</span></div></div></sc-for></div></sc-if>
           <sc-if value="{{r.hasAnswer}}"><details><summary>팀 답변 전체</summary><div class="answer">{{r.answer}}</div></details></sc-if>
           <div class="row-f"><button class="btn pri sm" onClick="{{r.accept}}">확인하고 계속</button><button class="btn sm" onClick="{{r.acceptAll}}">{{r.trustAllL}}</button><button class="btn sm" onClick="{{r.sendBack}}">되돌려 보내기</button><button class="link small" onClick="{{r.open}}">프로젝트 열기</button></div>
         </div>
       </sc-for>
-      <sc-if value="{{ib.noReviews}}"><p class="hint">확인할 결과가 없습니다.</p></sc-if>
-    </section>
-    <section class="card">
+    </section></sc-if>
+    <sc-if value="{{ib.hasSkills}}"><section class="card">
       <div class="lbl">스킬 후보 · {{ib.skillsN}}건</div>
       <p class="hint" style="margin: 0 0 8px">팀이 필요하다고 한 스킬을 엔진이 찾아 검사했습니다 (신뢰 출처 우선). 켜기 전에는 어떤 작업에도 쓰이지 않습니다.</p>
       <sc-for list="{{ib.skills}}" as="k">
@@ -1147,17 +1181,22 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
           <div class="small">{{k.description}}</div><div class="small muted">{{k.checksL}}</div></div>
           <div class="row-f ib-acts"><button class="btn pri sm" onClick="{{k.approve}}">켜기</button><button class="btn sm" onClick="{{k.drop}}">버리기</button><button class="link small" onClick="{{k.open}}">자세히</button></div></div>
       </sc-for>
-      <sc-if value="{{ib.noSkills}}"><p class="hint">기다리는 스킬 후보가 없습니다.</p></sc-if>
       <sc-if value="{{ib.hasSkillsHeld}}"><p class="hint">자세한 검토가 필요한 후보 {{ib.skillsHeld}}건(라이선스 확인·위험 문구·외부 프로그램 필요)은 스킬 화면에 있습니다.</p></sc-if>
-    </section>
-    <section class="card">
+    </section></sc-if>
+    <sc-if value="{{ib.hasProposals}}"><section class="card">
       <div class="lbl">기억 제안 · {{ib.proposalsN}}건</div>
       <sc-for list="{{ib.proposals}}" as="p">
         <div class="ib-row"><div style="min-width: 0"><div>{{p.text}}</div><div class="small muted">{{p.scope}} · {{p.by}} 제안 · {{p.when}}</div></div>
           <div class="row-f ib-acts"><button class="btn pri sm" onClick="{{p.approve}}">기억하기</button><button class="btn sm" onClick="{{p.reject}}">버리기</button></div></div>
       </sc-for>
-      <sc-if value="{{ib.noProposals}}"><p class="hint">팀이 제안한 기억이 없습니다.</p></sc-if>
-    </section>
+    </section></sc-if>
+    <sc-if value="{{ib.someZero}}"><p class="ib-zero">없음 · {{ib.zeroLine}}</p></sc-if>
+    <sc-if value="{{ib.heldOnly}}"><p class="ib-zero">자세한 검토가 필요한 스킬 후보 {{ib.skillsHeld}}건(라이선스 확인·위험 문구·외부 프로그램 필요)은 스킬 화면에 있습니다.</p></sc-if>
+  </div>
+
+  <div class="ib-settings">
+    <div class="sec-h"><h2>규칙 · 권한 설정</h2><span class="meta">기다리는 일과 별개로, 팀이 무엇을 묻지 않고 해도 되는지 정합니다</span></div>
+  <div class="stack">
     <section class="card">
       <div class="lbl">허용해 둔 것</div>
       <sc-for list="{{ib.grants}}" as="g">
@@ -1187,6 +1226,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
       <div class="field"><label>권한 모드 · 모든 프로젝트 기본</label>
         <div class="seg" role="group" aria-label="권한 모드"><sc-for list="{{ib.modeOpts}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div>
         <p class="hint">{{ib.modeHint}} 어느 모드든 완료 조건 승인, 대장 규칙, 삭제·공유·게시·전송·결제 성격의 도구 동작, 내부 주소·비밀정보 차단은 그대로 대장에게 묻거나 막습니다.</p></div>
+      <p class="hint">신뢰 쌓기 · 새로운 종류의 작업은 처음 {{ib.trustRequired}}번 결과를 대장이 확인합니다 · 지금: {{ib.trustLevels}}</p>
       <sc-if value="{{ib.careful}}">
       <div class="field"><label>웹 접근</label>
         <div class="seg" role="group" aria-label="웹 접근"><button class="{{ib.webAskCls}}" aria-pressed="{{ib.webAsk}}" onClick="{{ib.setWebAsk}}">처음 여는 사이트는 승인 받기</button><button class="{{ib.webOpenCls}}" aria-pressed="{{ib.webOpen}}" onClick="{{ib.setWebOpen}}">공개 사이트는 모두 허용</button></div>
@@ -1195,6 +1235,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
         <div class="row-f"><input class="input" id="trust-in" type="number" min="0" max="10" step="1" style="max-width: 90px" value="{{ib.trustDraft}}" onChange="{{ib.onTrust}}"><button class="btn sm" onClick="{{ib.saveTrust}}">저장</button></div></div>
       </sc-if>
     </section>
+  </div>
   </div>
 </sc-if>
 
@@ -1250,7 +1291,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
         <div class="seg wrap" role="group" aria-label="이 스킬을 적용할 팀"><sc-for list="{{k.teamOptions}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" disabled="{{o.disabled}}" onClick="{{o.toggle}}">{{o.label}}</button></sc-for></div>
         <p class="hint">팀을 바꾸면 호환성 검토를 다시 받아야 사용할 수 있습니다.</p>
         <div class="skill-checks"><div class="inspection-head"><span>자동 검사 결과 · 참고</span><sc-if value="{{k.allChecksPassed}}"><span class="inspection-all-pass">실행한 검사 모두 통과</span></sc-if></div>
-          <sc-for list="{{k.checkRows}}" as="c"><div class="tcheck inspection"><span class="{{c.pillCls}}"><i></i>{{c.stL}}</span><div class="inspection-copy"><b>{{c.name}}</b><span>{{c.text}}</span></div></div></sc-for></div>
+          <sc-for list="{{k.checkRows}}" as="c"><div class="tcheck inspection"><span class="{{c.pillCls}} st-ico" aria-hidden="true"></span><div class="inspection-copy"><div class="st-line"><b>{{c.name}}</b><span class="{{c.pillCls}}">{{c.stL}}</span></div><span>{{c.text}}</span></div></div></sc-for></div>
         <div class="skill-review"><div class="lbl" style="margin:12px 0 6px">검토 상태 · {{k.gateL}}</div>
           <sc-for list="{{k.reviewRows}}" as="r"><div class="row-f small" style="margin-bottom:6px"><b style="min-width:84px">{{r.label}}</b><span class="muted" style="flex:1;min-width:160px">{{r.stateL}}</span><button class="btn sm" onClick="{{r.pass}}">통과</button><button class="btn ghost sm" onClick="{{r.hold}}">보류</button></div></sc-for>
           <div class="row-f" style="margin-top:10px"><sc-if value="{{k.canActivate}}"><button class="btn pri sm" onClick="{{k.activate}}">승인하고 켜기</button></sc-if><sc-if value="{{k.isActive}}"><button class="btn sm" onClick="{{k.disableIt}}">끄기</button></sc-if><button class="btn danger sm" onClick="{{k.removeIt}}">삭제</button></div></div>
@@ -1265,32 +1306,37 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
 </sc-if>
 <sc-if value="{{vTeams}}">
   <div class="page-h"><div><h1>팀</h1><p class="lede">팀마다 맡은 일과 쓰는 AI, 할 수 있는 일입니다. 조사·개발·디자인팀이 만든 결과는 보안·정책팀이 검토하고 검증팀이 확인합니다. 모델은 각 프로젝트의 설정 탭에서 바꿉니다.</p></div></div>
-  <div class="card" style="margin-bottom: 16px"><div class="sec-h"><h2>제어팀 · AI 없이 엔진이 직접</h2><span class="{{control.pillCls}}"><i></i>{{control.stL}}</span></div>
-    <p class="hint">기획팀이 매 계획에 적는 난이도·위험도를 보고, 모델을 따로 고르지 않은 팀의 모델과 추론 수준을 정합니다. 간단한 일에 무거운 모델을 쓰지 않아 사용량을 아낍니다. 프로젝트 설정에서 팀 모델을 직접 고르면 그 선택이 우선입니다.</p>
-    <dl class="facts"><sc-for list="{{control.rows}}" as="c"><dt>{{c.l}}</dt><dd>{{c.d}}</dd></sc-for></dl></div>
-  <div class="card" style="margin-bottom: 16px"><h2>기록팀 · AI 없이 엔진이 직접</h2><p class="hint">실행·검증 기록을 GitHub·Notion에 붙여 넣을 초안으로 정리합니다. 대화 원문과 파일은 넣지 않고, 자동으로 보내지 않습니다.</p></div>
-  <div class="stack">
+  <!-- Each team's state and latest work first; what it is allowed to do, its AI and programs fold away, and the model
+       assignment rules (제어팀) and 기록팀 sit in a fold below the teams. -->
+  <div class="team-grid">
     <sc-for list="{{teams}}" as="t">
       <div class="{{t.cardCls}}">
         <div class="row-f" style="justify-content: space-between"><div class="team-title"><span class="mono-tile lg" aria-hidden="true">{{t.mono}}</span><h2>{{t.name}}</h2><span class="kind">{{t.kind}}</span></div><span class="{{t.pillCls}}"><i></i>{{t.stL}}</span></div>
-        <p class="hint" style="margin: 4px 0 14px">{{t.role}}</p>
-        <dl class="facts"><dt>AI</dt><dd>{{t.ai}}</dd><dt>할 수 있는 일</dt><dd>{{t.access}}</dd><dt>최근 실제 실행</dt><dd>{{t.model}}</dd><dt>오늘</dt><dd class="num">{{t.today}}회</dd><dt>지금</dt><dd>{{t.now}}</dd></dl>
-        <details style="margin-top: 16px"><summary>{{t.progsL}}</summary>
-        <div class="progs" style="margin-top: 8px"><sc-for list="{{t.tools}}" as="p"><div class="prog">
-          <div style="min-width: 0"><div class="row-f"><b class="small">{{p.name}}</b><span class="kind">{{p.howL}}</span></div>
-            <div class="small muted">{{p.what}}</div>
-            <sc-if value="{{p.hasDocs}}"><div class="small muted">{{p.extra}}<a href="{{p.docs}}" target="_blank" rel="noopener noreferrer">공식 문서</a></div></sc-if></div>
-          <span class="{{p.pillCls}}"><i></i>{{p.statusL}}</span></div></sc-for>
-          <sc-if value="{{t.noTools}}"><div class="small muted">프로그램 상태를 불러오는 중입니다.</div></sc-if></div></details>
+        <p class="team-now">{{t.now}} · 오늘 {{t.today}}회</p>
         <sc-if value="{{t.hasRecent}}">
-          <details class="team-recent">
-            <summary>최근 작업 {{t.recentCount}}건</summary>
-            <div class="crit"><sc-for list="{{t.recent}}" as="r"><div class="cr" style="grid-template-columns: 84px minmax(0,1fr) auto"><span class="small muted num">{{r.when}}</span><span class="small">{{r.project}} · {{r.res}}</span><span></span></div></sc-for></div>
-          </details>
+          <ul class="team-recent-list" aria-label="{{t.name}} 최근 작업"><sc-for list="{{t.recentTop}}" as="r"><li><span class="when num">{{r.when}}</span><span class="what">{{r.project}}</span><span class="{{r.cls}}">{{r.res}}</span></li></sc-for></ul>
         </sc-if>
+        <details class="team-more"><summary>맡은 일 · AI · {{t.progsL}}</summary>
+          <p class="hint" style="margin: 10px 0 12px">{{t.role}}</p>
+          <dl class="facts"><dt>AI</dt><dd>{{t.ai}}</dd><dt>할 수 있는 일</dt><dd>{{t.access}}</dd><dt>최근 실제 실행</dt><dd>{{t.model}}</dd></dl>
+          <div class="progs" style="margin-top: 12px"><sc-for list="{{t.tools}}" as="p"><div class="prog">
+            <div style="min-width: 0"><div class="row-f"><b class="small">{{p.name}}</b><span class="kind">{{p.howL}}</span></div>
+              <div class="small muted">{{p.what}}</div>
+              <sc-if value="{{p.hasDocs}}"><div class="small muted">{{p.extra}}<a href="{{p.docs}}" target="_blank" rel="noopener noreferrer">공식 문서</a></div></sc-if></div>
+            <span class="{{p.pillCls}}"><i></i>{{p.statusL}}</span></div></sc-for>
+            <sc-if value="{{t.noTools}}"><div class="small muted">프로그램 상태를 불러오는 중입니다.</div></sc-if></div>
+          <sc-if value="{{t.hasMoreRecent}}"><div class="crit" style="margin-top: 12px"><div class="lbl">최근 작업 {{t.recentCount}}건 중 최근 5건</div><sc-for list="{{t.recent}}" as="r"><div class="cr" style="grid-template-columns: 84px minmax(0,1fr) auto"><span class="small muted num">{{r.when}}</span><span class="small">{{r.project}} · {{r.res}}</span><span></span></div></sc-for></div></sc-if>
+        </details>
       </div>
     </sc-for>
   </div>
+  <details class="card team-rules">
+    <summary>모델 배정 규칙 · 제어팀 {{control.stL}} · 기록팀</summary>
+    <div class="sec-h" style="margin-top: 14px"><h2>제어팀 · AI 없이 엔진이 직접</h2><span class="{{control.pillCls}}"><i></i>{{control.stL}}</span></div>
+    <p class="hint">기획팀이 매 계획에 적는 난이도·위험도를 보고, 모델을 따로 고르지 않은 팀의 모델과 추론 수준을 정합니다. 간단한 일에 무거운 모델을 쓰지 않아 사용량을 아낍니다. 프로젝트 설정에서 팀 모델을 직접 고르면 그 선택이 우선입니다.</p>
+    <dl class="facts"><sc-for list="{{control.rows}}" as="c"><dt>{{c.l}}</dt><dd>{{c.d}}</dd></sc-for></dl>
+    <h2 style="margin-top: 20px">기록팀 · AI 없이 엔진이 직접</h2><p class="hint">실행·검증 기록을 GitHub·Notion에 붙여 넣을 초안으로 정리합니다. 대화 원문과 파일은 넣지 않고, 자동으로 보내지 않습니다.</p>
+  </details>
 </sc-if>
 
 <!-- ================= 연결 ================= -->
@@ -1488,6 +1534,15 @@ const ago = (iso) => {
 };
 const sameDay = (iso) => iso && new Date(iso).toDateString() === new Date().toDateString();
 const clip = (t, n) => (t && t.length > n ? t.slice(0, n - 1) + '…' : (t || ''));
+// A task as one short line for the project list: its first sentence, without "[필수 요구]" tags, (괄호) asides or
+// folder paths (design/화면설계.md → 화면설계.md), so a phone row shows what is being made instead of a cut path.
+const gist = (t, n) => {
+  const line = String(t || '').trim().split('\n')[0];
+  const g = line.replace(/^(\s*\[[^\]]*\])+\s*/, '').replace(/\s*\([^)]*(\)|$)/g, '')
+    .replace(/(?:[^\s\/\\()'"·,]+[\/\\])+([^\s\/\\()'"·,]+\.[A-Za-z0-9]{1,6})/g, '$1')
+    .replace(/^(.*?다)[.:](\s.*)?$/, '$1').trim();
+  return clip(g || line, n);
+};
 // The first paragraph of a team's answer, without Markdown marks, for the one-line conclusion in the thread.
 const firstPara = (text) => clip(String(text || '').replace(/^\(답변 없음\)$/, '').trim().split(/\n\s*\n/)[0]
   .replace(/\*\*|`|^#+\s*/gm, '').replace(/\s*\n\s*/g, ' ').trim(), 180);
@@ -1726,8 +1781,8 @@ class Component extends DCLogic {
     const activeP = P.filter((p) => !isDone(p)).sort((a, b) => (RANK[a.goal.status] ?? 3) - (RANK[b.goal.status] ?? 3) || recent(a, b));
     const doneP = P.filter(isDone).sort(recent);
     const rowOf = (p) => ({ name: p.name, single: !p.isTeam, stL: p.st.l, pillCls: pillCls(p.st.tone), proven: p.proven, total: p.total,
-      sub: isDone(p) ? '완료 · ' + clip(p.goal.objective, 90)
-        : p.isTeam && p.goal.team && p.goal.team.task ? '지금 작업 · ' + clip(p.goal.team.task, 90) : clip(p.goal.objective, 90),
+      sub: isDone(p) ? '완료 · ' + gist(p.goal.objective, 90)
+        : p.isTeam && p.goal.team && p.goal.team.task ? '지금 작업 · ' + gist(p.goal.team.task, 90) : gist(p.goal.objective, 90),
       ago: ago(p.last), flow: flowOf(p), open: () => this.openProject(p.id) });
 
     // ── 대장 결정: 승인 요청·결과 확인은 홈·프로젝트·승인함 어디서나 같은 버튼으로 바로 처리한다 ──
@@ -1837,6 +1892,12 @@ class Component extends DCLogic {
       const defM = ch && (ch.models || []).find((x) => x.id === ch.defaultModel);
       const modelL = (id) => { const x = ch && (ch.models || []).find((m) => m.id === id); return x ? x.label : id; };
       const readyN = progs.filter((p) => p.tone === 'done').length;
+      // Result of each recent step: the word carries the meaning, the colour and mark only repeat it.
+      const recentRows = mine.slice(0, 5).map((r) => {
+        const tone = r.simulated ? 'idle' : r.outcome === 'completed' ? 'done' : r.status === 'running' ? 'run' : 'stop';
+        return { when: fmt(r.startedAt), project: r.project.name, cls: 'tr-res ' + tone,
+          res: r.simulated ? '모의 실행' : (r.outcome === 'completed' ? '완료' : (r.status === 'running' ? '실행 중' : '오류 · ' + (r.errorKind || ''))) };
+      });
       return { name: t.name, kind: t.kind, role: t.role, access: t.access, tool: TOOL[executor],
         mono: t.name.charAt(0), cardCls: 'card team-card' + teamTone(t.id), miniCls: 'team' + teamTone(t.id),
         ai: TOOL[executor] + ' · ' + (autoOn ? '자동 · 작업 난이도에 따라 제어팀이 고름 (프로젝트에서 고른 팀은 그 모델)' : defM ? '기본 ' + defM.label + (defM.defaultEffort ? ' · ' + (EFFORT_L[defM.defaultEffort] || defM.defaultEffort) : '') : '모델 목록 확인 중'),
@@ -1850,8 +1911,8 @@ class Component extends DCLogic {
         stL: working.length ? '작업 중' : '대기', pillCls: pillCls(working.length ? 'run' : 'idle'),
         now: working.length ? working.map((p) => p.name).join(', ') + ' 작업 중' : (mine[0] ? '최근 · ' + mine[0].project.name + ' (' + ago(mine[0].finishedAt || mine[0].startedAt) + ')' : '아직 작업 기록 없음'),
         hasRecent: mine.length > 0,
-        recentCount: mine.length,
-        recent: mine.slice(0, 5).map((r) => ({ when: fmt(r.startedAt), project: r.project.name, res: r.simulated ? '모의 실행' : (r.outcome === 'completed' ? '완료' : (r.status === 'running' ? '실행 중' : '오류 · ' + (r.errorKind || ''))) })) };
+        recentCount: mine.length, hasMoreRecent: mine.length > 3,
+        recent: recentRows, recentTop: recentRows.slice(0, 3) };
     });
 
     // 프로젝트 상세
@@ -1973,19 +2034,26 @@ class Component extends DCLogic {
           const ok = r.outcome === 'completed' && !r.simulated;
           const resL = r.status === 'running' ? '실행 중' : r.simulated ? '모의' : r.status === 'interrupted' ? '끊김' : ok ? '완료' : '오류';
           const tone = r.status === 'running' ? 'run' : r.simulated || r.status === 'interrupted' ? 'idle' : ok ? 'done' : 'stop';
-          let res = '';
+          let res = '', lead = '', detail = '';
           if (r.status === 'running') res = '작업 중입니다.';
           else if (r.simulated) res = '모의 실행이라 실제 작업은 하지 않았습니다.';
           else if (!ok) res = reasonText(r.errorKind + '_error') || ('오류 · ' + r.errorKind);
-          else if (r.team === 'plan') res = r.plan ? TEAM_NAME[r.plan.team] + '에 맡김 · ' + clip(r.plan.nextTask, 120)
-            + (r.plan.reviews.length ? ' · 검토: ' + r.plan.reviews.map((x) => TEAM_NAME[x]).join(', ') : '') : '다음 작업을 정하지 못했습니다.';
-          else if (r.team === 'security' || r.team === 'policy') res = !r.review ? '검토 결과 형식을 읽지 못했습니다.'
-            : r.review.verdict === 'pass' ? '문제 없음' : (r.review.blocking ? '막아야 할 문제 ' : '참고할 점 ') + r.review.issues.length + '건 · ' + clip(r.review.issues.join(' / '), 160);
+          // Planning and review steps: a short conclusion (bold in the thread) over the long task or issue list (plain).
+          else if (r.team === 'plan' && r.plan) {
+            lead = TEAM_NAME[r.plan.team] + '에 맡김' + (r.plan.reviews.length ? ' · 검토: ' + r.plan.reviews.map((x) => TEAM_NAME[x]).join(', ') : '');
+            detail = clip(r.plan.nextTask, 120);
+          } else if (r.team === 'plan') res = '다음 작업을 정하지 못했습니다.';
+          else if (r.team === 'security' || r.team === 'policy') {
+            if (!r.review) res = '검토 결과 형식을 읽지 못했습니다.';
+            else if (r.review.verdict === 'pass') res = '문제 없음';
+            else { lead = (r.review.blocking ? '막아야 할 문제 ' : '참고할 점 ') + r.review.issues.length + '건'; detail = clip(r.review.issues.join(' / '), 160); }
+          }
           // Work teams: their own first paragraph is the conclusion ("두 가지를 수정했습니다 …"); a count of criteria a
           // work step proved read like the project's progress. Verification states what it proved.
           else if (r.team === 'qa') res = '완료 조건 ' + (r.evidence || []).length + '/' + r.goal.completionCriteria.length + '개 증명';
           else res = firstPara(r.answer ? cleanAnswer(r.answer) : '') || '작업을 마쳤습니다.';
-          return { when: fmt(r.startedAt), who: r.team ? TEAM_NAME[r.team] : '실행 ' + r.round + '회', tool: TOOL[r.executor || 'claude-code'] + ' · ' + (r.actualModel || (r.requestedModel ? r.requestedModel + ' 요청' : '모델 확인 필요'))
+          if (lead) res = lead + ' · ' + detail;
+          return { lead: lead, detail: detail, when: fmt(r.startedAt), who: r.team ? TEAM_NAME[r.team] : '실행 ' + r.round + '회', tool: TOOL[r.executor || 'claude-code'] + ' · ' + (r.actualModel || (r.requestedModel ? r.requestedModel + ' 요청' : '모델 확인 필요'))
               + (r.level ? ' · 제어팀 ' + r.level.label + (r.requestedEffort ? ' · 추론 ' + (EFFORT_L[r.requestedEffort] || r.requestedEffort) : '') + ' (' + r.level.why + ')' : '')
               + (r.switchedFrom ? ' · ' + TOOL[r.switchedFrom] + ' 한도로 대신 실행' + (r.sameAsWorker ? ' (작업팀과 같은 AI · 독립 검토 아님)' : '') : ''),
             resL: resL, pillCls: pillCls(tone), res: res, hasAnswer: !!r.answer, answer: r.answer ? cleanAnswer(r.answer) : '',
@@ -2022,7 +2090,7 @@ class Component extends DCLogic {
       runsDesc.filter((r) => r.status !== 'running').forEach((r) => {
         const a = byRunId[r.id];
         items.push({ at: r.finishedAt || r.startedAt, cls: 'msg team' + teamTone(r.team) + (a.pillCls.indexOf('stop') >= 0 ? ' err' : ''), who: a.who, sub: a.tool,
-          text: a.res, hasTools: a.hasTools, allToolsPassed: a.allToolsPassed, tools: a.tools, hasAnswer: a.hasAnswer, answer: a.answer });
+          hasLead: !!a.lead, lead: a.lead, text: a.lead ? a.detail : a.res, hasTools: a.hasTools, allToolsPassed: a.allToolsPassed, tools: a.tools, hasAnswer: a.hasAnswer, answer: a.answer });
       });
       ((s.eng && s.eng.events) || []).filter((e) => e.type === 'skill.applied' && wp.goals.some((x) => x.id === e.goalId)).forEach((e) => {
         const shown = (e.skills || []).filter((k) => k.notice);
@@ -2068,7 +2136,7 @@ class Component extends DCLogic {
         const issues = tools.filter((k) => !['통과', '건너뜀'].includes(k.stL)), okTools = tools.filter((k) => ['통과', '건너뜀'].includes(k.stL));
         const runInfo = team ? x.sub || '' : '';
         const moreBits = [okTools.length ? '실행한 검사 ' + okTools.length + '개' + (okTools.every((k) => k.stL === '통과') ? ' 통과' : '') : '', x.hasAnswer ? '팀 답변 전체' : '', runInfo ? '실행 정보' : ''].filter(Boolean);
-        return Object.assign({ hasTools: false, tools: [], hasAnswer: false, answer: '', hasAtt: false, atts: [] }, x,
+        return Object.assign({ hasLead: false, lead: '', hasTools: false, tools: [], hasAnswer: false, answer: '', hasAtt: false, atts: [] }, x,
           { when: fmt(x.at), hasMono: team, mono: team ? String(x.who || '·').charAt(0) : '', cls: x.cls + (cont ? ' cont' : ''),
             metaSub: team ? '' : x.sub || '', issues: issues, hasIssues: issues.length > 0, okTools: okTools, hasOkTools: okTools.length > 0,
             runInfo: runInfo, hasMore: moreBits.length > 0, moreL: '자세히 · ' + moreBits.join(' · ') });
@@ -2186,8 +2254,14 @@ class Component extends DCLogic {
     const navMoreDefs = [['memory', '기억'], ['skills', '스킬'], ['connect', '연결'], ['usage', '사용량 상세']];
     // ── 승인함 ──
     const KIND_L = { web: '웹사이트 열기', connector: '커넥터 동작', path: '승인 필요 경로에 쓰기' };
+    // Kinds with nothing waiting are listed on one line ("감시 승인 0 · 결과 확인 0 …") instead of an empty card each.
+    const ibKinds = [['감시 승인', ibd.approvals.length], ['결과 확인', ibd.reviews.length], ['스킬 후보', ibd.skillCandidates.length], ['기억 제안', ibd.memoryProposals.length]];
+    const ibZero = ibKinds.filter((k) => !k[1]);
     const ib = {
       reload: () => this.loadInbox(),
+      allClear: pendingTotal === 0, someZero: pendingTotal > 0 && ibZero.length > 0, zeroLine: ibZero.map((k) => k[0] + ' 0').join(' · '),
+      hasApprovals: ibd.approvals.length > 0, hasReviews: ibd.reviews.length > 0, hasSkills: ibd.skillCandidates.length > 0, hasProposals: ibd.memoryProposals.length > 0,
+      heldOnly: !ibd.skillCandidates.length && ibd.skillsHeld > 0,
       others: inbox.filter((it) => !it.held).map((it) => Object.assign({}, it, { ibInputId: 'ib-' + (it.inputId || '') })), hasOthers: othersN > 0, othersN: othersN, total: pendingTotal,
       approvalsN: ibd.approvals.length, noApprovals: !ibd.approvals.length,
       approvals: ibd.approvals.map((a) => ({ kindL: KIND_L[a.kind] || a.kind, target: a.target, project: a.projectTitle, team: TEAM_NAME[a.team] || a.team, when: ago(a.at),
