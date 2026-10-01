@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { attachmentNote } from './첨부파일.js';
 import { validateCriteria } from './업무도메인.js';
+import { lintCriteria } from './완료근거.js';
 import { isUsable, resolveModel, validateExecutor } from './모델.js';
 import { levelChoice, levelFor } from './모델수준.js';
 import { DEFAULT_POLICY } from './정책.js';
@@ -547,8 +548,17 @@ export class GoalScheduler {
       team.pendingParallel = plan.parallel ?? null;
       if (!goal.completionCriteria.length) {
         if (!plan.completionCriteria?.length) return review('criteria_not_derived');
-        this.update(goal, { completionCriteria: validateCriteria(plan.completionCriteria), criteriaApprovalPending: true });
-        return review('criteria_approval_required', { question: '도출한 완료 조건을 확인하고 승인해 주세요.' });
+        const derived = validateCriteria(plan.completionCriteria), issues = lintCriteria(derived);
+        // 사전 점검: planning rewrites a list the engine knows will stall once; what is still left goes to 대장 with it.
+        if (issues.length && !team.criteriaLinted) {
+          team.criteriaLinted = true;
+          team.feedback = `[엔진] 완료 조건 사전 점검 · 승인 요청 전에 고쳐 주세요:\n- ${issues.join('\n- ')}`;
+          return goTo('plan');
+        }
+        this.update(goal, { completionCriteria: derived, criteriaApprovalPending: true });
+        return review('criteria_approval_required', { question: issues.length
+          ? `도출한 완료 조건을 확인하고 승인해 주세요. 엔진 사전 점검에서 남은 점:\n- ${issues.join('\n- ')}`
+          : '도출한 완료 조건을 확인하고 승인해 주세요.' });
       }
       // After 대장's message planning may propose a changed list; only a real change needs approval again.
       if (team.criteriaCheck) {

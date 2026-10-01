@@ -99,6 +99,24 @@ export function parseReport(answer) {
 // a verifier may rightly fail a page that has no overflow but does not meet the criterion.)
 const ENGINE_OWNED = ['document_made', 'stayed_inside'];
 
+// 완료 조건 사전 점검: what stalled real runs on 2026-10-01, caught before 대장 approves the list.
+//   - a judgement word (설득력, 읽기 편한) with no "(대장이 … 확인)" mark: no file or engine check can ever prove it;
+//   - "no 담당/기한" with no word about (미정): the document rules leave unknown owners and dates as (미정), and the
+//     verifier read it as "no such column" and had the minutes stripped back;
+//   - "only these files are new" with no word about the engine's own files (previews, PDF, captures).
+const JUDGEMENT = /설득력|읽기\s*편|보기\s*좋|자연스럽|깔끔|세련|매력|어색하지|이해하기\s*쉽|친절|좋은\s*인상/;
+const PERSON_MARK = /\(대장이[^)]*확인\)/;
+export function lintCriteria(criteria) {
+  const issues = [];
+  (criteria ?? []).forEach((raw, i) => {
+    const c = String(raw), at = `${i + 1}번`;
+    if (JUDGEMENT.test(c) && !PERSON_MARK.test(c)) issues.push(`${at}: 사람만 판단할 수 있는 말("${JUDGEMENT.exec(c)[0]}")이 있다 · 그 부분을 따로 떼어 "… (대장이 화면에서 확인)" 조건으로`);
+    if (/담당|기한/.test(c) && CLAIMS_ABSENCE.test(c) && !/미정/.test(c)) issues.push(`${at}: 담당·기한이 "없다"고 하면 (미정) 칸까지 금지로 읽힌다 · "지어낸 담당·기한이 없다 (빈 칸은 (미정)으로 둔다)" 로`);
+    if (/뿐이다|뿐이고|뿐$|만\s*(?:있|생긴|새로)/.test(c) && /파일|결과물/.test(c) && !/엔진/.test(c)) issues.push(`${at}: "새 파일은 ○○뿐" 에 엔진이 만드는 파일(미리보기·PDF·캡처·원문)은 빼고 센다고 적는다`);
+  });
+  return issues;
+}
+
 // ctx.verifying: this is the verification round; ctx.test: { label, passed } if the engine ran the tests.
 export function verifyReport(report, criteria, cwd, ctx = {}) {
   const byIndex = new Map();

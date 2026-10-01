@@ -674,3 +674,24 @@ test('a review that could not check part of its field holds completion for 대�
     assert.match(g.question, /필수 검토 중 하지 못한 부분.*\n- \[정책팀\] 검토 못 함: 라이선스 파일을 읽지 못함/s);
   } finally { store.close(); }
 });
+test('완료 조건 사전 점검: planning rewrites a list that would stall once, and what is left goes to 대장 with it', async () => {
+  const stalls = ['회의록.md에 대장이 준 회의 내용에 없는 발언자·담당자·기한·추가 안건이 없다', '발표 흐름이 설득력 있고 읽기 편하다',
+    '작업 폴더에 새로 생긴 결과물은 회의록.md 와 회의록.hwpx 뿐이다'];
+  const fixed = ['회의록.md에 지어낸 담당·기한이 없다 (빈 칸은 (미정)으로 둔다)', '발표 흐름이 설득력 있다 (대장이 PDF에서 확인)'];
+  let plans = 0;
+  const { store, scheduler, add } = setup(team => team === 'plan'
+    ? { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [], completionCriteria: ++plans === 1 ? stalls : [...fixed, stalls[2]] } }
+    : { outcome: 'completed' });
+  try {
+    const g = add({ conversation: true, completionCriteria: [] });
+    await scheduler.runGoal(g.id);
+    let goal = store.getGoal(g.id);
+    assert.deepEqual([goal.status, goal.team.step, goal.completionCriteria.length], ['scheduled', 'plan', 0]);
+    assert.match(goal.team.feedback, /사전 점검[\s\S]*1번: 담당·기한[\s\S]*2번: 사람만 판단[\s\S]*3번: "새 파일은/);
+    await scheduler.runGoal(g.id);
+    goal = store.getGoal(g.id);
+    assert.deepEqual([goal.reason, goal.criteriaApprovalPending, goal.completionCriteria.length], ['criteria_approval_required', true, 3]);
+    assert.match(goal.question, /남은 점:\n- 3번: "새 파일은/);
+    assert.equal(plans, 2, 'one rewrite only');
+  } finally { store.close(); }
+});
