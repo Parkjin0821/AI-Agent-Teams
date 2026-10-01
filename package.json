@@ -5,8 +5,8 @@
   "description": "Local control plane for Claude Code and Codex teams",
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
+    "dev": "node --watch src/서버.js",
+    "start": "node src/서버.js",
     "test": "node --test"
   },
   "engines": {
