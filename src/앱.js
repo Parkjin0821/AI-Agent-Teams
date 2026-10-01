@@ -11,6 +11,7 @@ import { PersistentStore } from './영구저장소.js';
 import { GoalScheduler } from './작업스케줄러.js';
 import { SandboxRunner } from './격리환경.js';
 import { VisualChecker } from './화면검사.js';
+import { SlideMaker } from './슬라이드.js';
 import { TEAMS } from './팀.js';
 import { Digests } from './요약.js';
 import { checkAttachments, DEFAULT_MAX_MB, saveAttachment } from './첨부파일.js';
@@ -85,6 +86,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   // Project tests run in the Codex sandbox (no model call, no network); only used in real execution.
   const sandbox = injectedSandbox ?? (executing ? new SandboxRunner({ codex: resolveBins().codex, resolve: () => resolveBins().codex }) : null);
   const visualChecker = new VisualChecker({ root, sandbox });
+  const slideMaker = new SlideMaker({ root, sandbox });
   // 문서 변환 (kordoc in the sandbox, no model call): also in simulation mode, since it spends no usage.
   let converter = docConverter;
   const docs = () => converter ??= new DocConverter({ root, sandbox: sandbox ?? new SandboxRunner({ codex: resolveBins().codex, resolve: () => resolveBins().codex }) });
@@ -118,7 +120,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     trust,
     capabilities: team => ({ 'claude-code': ['text','code', ...(TEAMS[team]?.web ? ['web'] : []),
       ...(toolsFor(team).connectors?.length ? ['connectors'] : [])], codex: ['text','code'] }),
-    runner: createGoalRunner({ adapter, workspaces, store, toolsFor, sandbox, visualChecker, settings: () => store.getSettings(),
+    runner: createGoalRunner({ adapter, workspaces, store, toolsFor, sandbox, visualChecker, slideMaker, settings: () => store.getSettings(),
       onRateLimits: async limits => {
         try { await recordRateLimits(dataDir, limits); }
         catch (error) {

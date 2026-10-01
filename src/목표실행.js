@@ -11,6 +11,7 @@ import { readGrants } from './승인.js';
 import { saveSources, sourceRecords } from './웹원문.js';
 import { guardDenied, pathViolations, readRules, restoreDenied, rulesPrompt } from './규칙.js';
 import { copyKitFonts, fontsPrompt, installedKoreanFonts, kitPrompt } from './글꼴.js';
+import { slidesPrompt, slideTool } from './슬라이드.js';
 import { documentQuality } from './문서품질.js';
 
 // Bridges the goal scheduler to the CLI adapter. After a real run the engine reads the tool's final
@@ -22,7 +23,7 @@ import { documentQuality } from './문서품질.js';
 const PROVIDER = { 'claude-code': 'claude', codex: 'codex' };
 
 // toolsFor(team) → { connectors, knownConnectors }: which claude.ai connectors 대장 opened for that team.
-export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, visualChecker = null, settings = () => ({}),
+export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, visualChecker = null, slideMaker = null, settings = () => ({}),
   onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, docMaker = null, onActivity = () => {}, heldDir = null,
   webModeFor = () => (settings()['sentinel.web'] === 'open' ? 'open' : 'ask'),
   fonts = () => (adapter.enabled === false ? [] : installedKoreanFonts()) }) {
@@ -49,7 +50,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const team = goal.kind === 'team' ? run.team : null;
       const extra = team ? toolsFor(team) : {};
       const tools = { web: Boolean(team && TEAMS[team]?.web), connectors: extra.connectors ?? [], knownConnectors: extra.knownConnectors ?? [] };
-      const engineTools = team && !simulated ? await runTeamTools(team, cwd, { sandbox, visualChecker, settings: settings() }) : [];
+      const engineTools = team && !simulated ? await runTeamTools(team, cwd, { sandbox, visualChecker, slideMaker, settings: settings() }) : [];
       if (team === 'qa' && !simulated && Object.keys(documentRecords(records)).length)
         engineTools.push(documentQuality(cwd, documentRecords(records)));
       let prompt = team
@@ -84,7 +85,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const rulesBlock = team ? rulesPrompt(stepRules, goal.projectId) : '';
       if (rulesBlock) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + rulesBlock + prompt.slice(at) : prompt + rulesBlock; }
       // 화면을 만드는 팀에는 이 PC에 실제로 설치된 한글 글꼴과 쓸 CSS 이름 (글꼴.js).
-      const fontBlock = ['design', 'dev'].includes(team) ? fontsPrompt(fonts()) + kitPrompt() : '';
+      const fontBlock = ['design', 'dev'].includes(team) ? fontsPrompt(fonts()) + kitPrompt() + (slideMaker?.available ? slidesPrompt() : '') : '';
       if (fontBlock) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + fontBlock + prompt.slice(at) : prompt + fontBlock; }
       if (team && PROVIDER[run.executor] === 'codex') {
         const block = inlineTextFiles(cwd, before.files);
@@ -212,6 +213,15 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           const fontsCopied = await copyKitFonts(cwd, report.fonts);
           if (fontsCopied.copied.length) await store.emit({ type: 'fonts.copied', goalId: goal.id, team, fonts: fontsCopied.copied });
         } catch (error) { await store.emit({ type: 'fonts.failed', goalId: goal.id, team, error: String(error.message).slice(0, 200) }); }
+      }
+      // 슬라이드 만들기: decks a screen team named are built and printed right after its step (슬라이드.js), so the PDF
+      // and the page captures exist for the reviews; verification builds them again as proof.
+      if (team && ['design', 'dev'].includes(team) && Array.isArray(report?.slides) && report.slides.length && slideMaker && !simulated) {
+        const made = await slideMaker.make(cwd, report.slides);
+        const t = slideTool(made);
+        toolsSaved.push({ id: t.id, name: t.name, status: t.status, summary: t.summary, details: t.details.slice(0, 10) });
+        await store.emit({ type: 'slides.made', goalId: goal.id, team, ok: made.ok, error: made.error ?? null,
+          decks: made.decks.map(d => ({ id: d.id, pages: d.pages, pdf: d.pdf, error: d.error, overflowPages: d.overflowPages })) });
       }
       // 문서 만들기: a work team's Markdown becomes a 한글 document made and checked by the engine (문서변환.js make).
       let documents = null;

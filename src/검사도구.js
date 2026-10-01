@@ -1,7 +1,8 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { checkHtml, checkSources, detectTests, licenseReport, scanPrivacy, scanSecrets } from './검사.js';
 import { npmCommand } from './격리환경.js';
+import { SLIDE_ID, slideTool } from './슬라이드.js';
 
 // The programs each team works with, and how each one runs:
 //   ai       — the team's AI uses it inside its own CLI session
@@ -69,7 +70,7 @@ const where = (f) => (f.line ? `${f.file}:${f.line}` : f.file);
 
 // Runs the engine-side programs for one team step. Returns [{ id, name, status, summary, details,
 // blocking: [...], decision }]; status is pass | found | fail | skipped | unavailable | timeout.
-export async function runTeamTools(step, cwd, { sandbox = null, settings = {}, visualChecker = null } = {}) {
+export async function runTeamTools(step, cwd, { sandbox = null, settings = {}, visualChecker = null, slideMaker = null } = {}) {
   const results = [];
   const add = (r) => results.push({ details: [], blocking: [], decision: null, ...r });
 
@@ -140,6 +141,13 @@ export async function runTeamTools(step, cwd, { sandbox = null, settings = {}, v
         details: clipList(bad.map(p => `${p.file} · ${p.issues.join(', ')}`)) });
       await screens(html);
     }
+    // 슬라이드 (슬라이드.js): every deck under slides/ is built and printed again; an overflowing page or a build error
+    // holds the project, and the page captures go to the verifier like the screen captures.
+    const decks = slideDecks(cwd);
+    if (decks.length && slideMaker) {
+      const t = slideTool(await slideMaker.make(cwd, decks));
+      add({ ...t, screenshots: t.screenshots.map(s => ({ ...s, width: 960 })) });
+    }
     const notes = checkSources(cwd).notes;
     if (notes.length) {
       const bad = notes.filter(n => !n.links || !n.dated);
@@ -204,4 +212,13 @@ export function toolkitView(snapshot, settings = {}, environments = []) {
     else if (tool.how === 'missing') [statusL, tone] = !snapshot ? ['확인 전', 'idle'] : snapshot.programs?.[tool.bin] ? ['설치됨 · 연결 준비 중', 'wait'] : ['설치 안 됨 · 설치는 대장 승인', 'idle'];
     return { ...tool, statusL, tone };
   })]));
+}
+
+// Decks a team wrote with open-slide: slides/<id>/index.tsx (at most 3, ids the engine accepts).
+export function slideDecks(cwd) {
+  const dir = path.join(cwd, 'slides');
+  if (!existsSync(dir)) return [];
+  try {
+    return readdirSync(dir).filter(id => SLIDE_ID.test(id) && existsSync(path.join(dir, id, 'index.tsx'))).slice(0, 3);
+  } catch { return []; }
 }
