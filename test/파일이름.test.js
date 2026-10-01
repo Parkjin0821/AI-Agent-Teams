@@ -20,7 +20,11 @@ test('renamed engine imports and entry points resolve', () => {
   assert.ok(existsSync(path.join(root, 'outputs', '대시보드.html')));
   assert.ok(existsSync(path.join(root, '에이전트-시작.cmd')));
   assert.ok(existsSync(path.join(root, '에이전트-종료.cmd')));
-  assert.match(readFileSync(path.join(root, '.claude', 'settings.json'), 'utf8'), /클로드-상태표시\.mjs/);
+  // .claude/settings.json is this PC's own file and is not in the repository (a fresh clone has none); the guide
+  // that tells a new PC how to set the status line is.
+  const local = path.join(root, '.claude', 'settings.json');
+  if (existsSync(local)) assert.match(readFileSync(local, 'utf8'), /클로드-상태표시\.mjs/);
+  assert.match(readFileSync(path.join(root, '사용안내.md'), 'utf8'), /scripts\/클로드-상태표시\.mjs/);
 });
 
 test('every team gets Korean filename rules with fixed-name and legacy evidence exceptions', () => {

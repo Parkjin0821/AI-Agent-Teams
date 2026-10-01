@@ -1,0 +1,8 @@
+{
+  "name": "agent-hq-open-slide",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "open-slide build" },
+  "dependencies": { "@open-slide/core": "2.0.1", "react": "^19.2.8", "react-dom": "^19.2.8" },
+  "devDependencies": { "@types/react": "^19.2.18", "@types/react-dom": "^19.2.5" }
+}
