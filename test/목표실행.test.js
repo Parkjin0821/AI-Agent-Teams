@@ -114,7 +114,7 @@ test('review teams run read-only and return the parsed review, never evidence', 
   const result = await createGoalRunner({ adapter, workspaces, store }).run(g, { executor: 'codex', team: 'security', access: 'read', model: null });
   assert.deepEqual([seen.provider, seen.access], ['codex', 'read']);
   assert.match(seen.prompt, /보안팀/);
-  assert.deepEqual(result.review, { verdict: 'issues', issues: ['비밀번호 평문 저장'], blocking: true, needsDecision: null });
+  assert.deepEqual(result.review, { verdict: 'issues', issues: ['비밀번호 평문 저장'], blocking: true, needsDecision: null, checked: 'done' });
   assert.equal(result.evidence.length, 0);
 });
 

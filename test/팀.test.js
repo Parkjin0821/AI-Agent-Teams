@@ -106,8 +106,8 @@ test('each team has its own prompt; reviewers must not change files', () => {
 
 test('a review block is parsed; a missing block is null', () => {
   assert.deepEqual(parseReview('AGENT_HQ_REVIEW {"verdict":"issues","issues":["API 키가 코드에 있음",""],"blocking":true,"needs_decision":null}'),
-    { verdict: 'issues', issues: ['API 키가 코드에 있음'], blocking: true, needsDecision: null });
-  assert.deepEqual(parseReview('AGENT_HQ_REVIEW {"verdict":"pass"}'), { verdict: 'pass', issues: [], blocking: false, needsDecision: null });
+    { verdict: 'issues', issues: ['API 키가 코드에 있음'], blocking: true, needsDecision: null, checked: 'done' });
+  assert.deepEqual(parseReview('AGENT_HQ_REVIEW {"verdict":"pass"}'), { verdict: 'pass', issues: [], blocking: false, needsDecision: null, checked: 'done' });
   assert.equal(parseReview('AGENT_HQ_REVIEW {"verdict":"maybe"}'), null);
   assert.equal(parseReview('검토함'), null);
   assert.equal(parseReview('AGENT_HQ_REVIEW {"verdict":"issues","needs_decision":"GPL 코드를 써도 될까요?"}').needsDecision, 'GPL 코드를 써도 될까요?');
@@ -139,4 +139,15 @@ test('the prompt says whether the completion criteria are approved, pending or n
   assert.match(at(goal), /완료 조건 · 대장 승인됨/);
   assert.match(at({ ...goal, criteriaApprovalPending: true }), /대장 승인 대기 중 \(아직 효력 없음\)/);
   assert.match(teamPrompt('plan', { goal: { ...goal, completionCriteria: [] }, team: {}, files: [] }), /아직 없음 — 기획팀이 대화에서 도출/);
+});
+test('reviews say whether they checked their field; guidance for tests, repeated failures, skills and handoffs (Codex review)', () => {
+  assert.equal(parseReview('AGENT_HQ_REVIEW {"verdict":"pass","checked":"not_done","issues":["npm audit 없음"]}').checked, 'not_done');
+  assert.equal(parseReview('AGENT_HQ_REVIEW {"verdict":"pass","checked":"maybe"}').checked, 'done', 'unknown value: done');
+  const input = { goal, files: [], team: { task: '작업' } };
+  assert.match(teamPrompt('qa', input), /테스트가 완료 조건을 실제로 검사하는지/);
+  assert.match(teamPrompt('plan', input), /구현 결함·검사 한계·요구 불명확·도구 부족/);
+  assert.match(teamPrompt('security', input), /검증팀 참고:/);
+  assert.match(teamPrompt('dev', input), /가장 작은 수정부터/);
+  assert.match(teamPrompt('research', input), /주장과 근거가 이어진/);
+  assert.match(teamPrompt('design', input), /적용하지 않은 부분/);
 });

@@ -605,6 +605,11 @@ export class GoalScheduler {
       }
       team.lastBlock = null;
       team.reviewNotes = [...team.reviewNotes, ...verdict.issues.map(i => `[${name}] ${i}`)];
+      // 검토 미실시 is not 문제 없음 (Codex review, 2026-10-01): a review that could not check part of its own field is
+      // remembered, and completion waits for 대장 instead of finishing as if it had been checked. A later full review clears it.
+      const gaps = (team.reviewGaps ?? []).filter(g => !g.startsWith(`[${name}]`));
+      team.reviewGaps = verdict.checked && verdict.checked !== 'done'
+        ? [...gaps, `[${name}] 검토 ${verdict.checked === 'partial' ? '일부만 함' : '못 함'}: ${verdict.issues.slice(0, 3).join(' / ') || '이유 없음'}`] : gaps;
       return advance();
     }
     if (WORKERS.includes(step)) {
@@ -633,6 +638,11 @@ export class GoalScheduler {
     team.feedback = [...gate, findings.feedback, ...team.reviewNotes].filter(Boolean).join('\n');
     team.reviewNotes = [];
     if (proven && !gate.length) {
+      if (team.reviewGaps?.length) {
+        team.awaitingJudgement = [...goal.completionCriteria];
+        return review('needs_decision', { question: '[엔진] 완료 조건은 모두 증명됐지만 필수 검토 중 하지 못한 부분이 있습니다:\n- '
+          + team.reviewGaps.join('\n- ') + '\n확인하신 뒤 조건의 ‘완료로 확인’을 누르거나, 확인할 방법이나 고칠 점을 답해 주세요.' });
+      }
       if (findings.documentReviewRequired) {
         team.awaitingJudgement = [...goal.completionCriteria];
         return review('needs_decision', { question: '문서 품질 검사에서 내용 대조·페이지 나눔·미리보기 확인이 필요한 항목을 발견했습니다. 구조 검증만으로 완료 처리하지 않습니다.\n검증팀의 엔진 검사 기록과 미리보기를 확인한 뒤 조건의 ‘완료로 확인’을 누르거나, 고칠 점을 답해 주세요.' });
@@ -675,6 +685,8 @@ export class GoalScheduler {
       return review('needs_decision', { question: `[검증팀] 엔진이 확인하지 못한 완료 조건이 두 번 연속 그대로입니다 (그 사이 작업 없음):\n- ${unproven.join('\n- ')}\n`
         + '‘완료로 확인’을 누르거나, 고칠 점을 답으로 보내 주세요. 조건을 바꾸자고 답하면 기획팀이 새 조건을 제안합니다.' });
     }
+    const repeated = unproven.filter(c => previousUnproven.includes(c));
+    if (repeated.length) team.feedback = `[엔진] 두 번 연속 미충족: ${repeated.join(' / ')}\n같은 작업을 다시 지시하지 말고 원인(구현 결함·검사 한계·요구 불명확·도구 부족)을 나눠 방법이나 담당 팀을 바꾸세요.\n${team.feedback}`;
     team.cycle = (team.cycle ?? 1) + 1;
     return advance();
   }

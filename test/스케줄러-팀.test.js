@@ -657,3 +657,20 @@ test('the same review blocking twice for the same problem goes back to planning,
     assert.equal(store.getGoal(goal.id).team.worker, 'dev', 'planning chose the team that should fix it');
   } finally { store.close(); }
 });
+test('a review that could not check part of its field holds completion for 대장; a repeated unproven criterion is named for planning', async () => {
+  let policyChecked = 'not_done';
+  const { store, scheduler, add } = setup(team => {
+    if (team === 'plan') return { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: ['policy'] } };
+    if (team === 'dev') return { outcome: 'completed', diffHash: String(Math.random()), evidence: ev(0, 1) };
+    if (team === 'policy') return { outcome: 'completed', review: { verdict: 'pass', issues: ['라이선스 파일을 읽지 못함'], blocking: false, checked: policyChecked } };
+    if (team === 'qa') return { outcome: 'completed', evidence: ev(0, 1), findings: { feedback: '', improvements: [] } };
+    return { outcome: 'completed', review: { verdict: 'pass', issues: [], blocking: false } };
+  });
+  try {
+    const goal = add();
+    for (let i = 0; i < 10 && store.getGoal(goal.id).status !== 'review_required'; i++) await scheduler.runGoal(goal.id);
+    const g = store.getGoal(goal.id);
+    assert.deepEqual([g.status, g.reason], ['review_required', 'needs_decision']);
+    assert.match(g.question, /필수 검토 중 하지 못한 부분.*\n- \[정책팀\] 검토 못 함: 라이선스 파일을 읽지 못함/s);
+  } finally { store.close(); }
+});
