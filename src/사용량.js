@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { childEnv, resolveBins } from './실행어댑터.js';
-import { STOP_AT_REMAINING } from './정책.js';
+import { STOP_AT_REMAINING, stopAtFor } from './정책.js';
 import path from 'node:path';
 
 // Limit state Claude Code reported during team runs (status only, no percentages), kept per window.
@@ -64,7 +64,7 @@ export function normalizeUsage(provider, data, now = Date.now()) {
     if (!Number.isFinite(used) || used < 0 || used > 100 || !Number.isFinite(reset) || reset * 1000 <= now) return;
     const remaining = 100 - used;
     windows.push({ period, used, remaining, resetAt: new Date(reset * 1000).toISOString(),
-      stopAt: STOP_AT_REMAINING[period], blocked: remaining <= STOP_AT_REMAINING[period] });
+      stopAt: stopAtFor(provider, period), blocked: remaining <= stopAtFor(provider, period) });
   };
   if (provider === 'claude') {
     for (const [key, period] of [['five_hour', 'five_hour'], ['seven_day', 'weekly']]) {

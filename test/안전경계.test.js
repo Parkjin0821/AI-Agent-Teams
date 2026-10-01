@@ -77,3 +77,20 @@ test('Claude runs without a terminal reading, but every stop signal still stops 
   assert.equal(subscriptionCapacity(account, { provider: 'codex', stale: true, windows: [win('five_hour', false), win('weekly', false)] }, now, now), false);
   assert.equal(capacityBasis({ provider: 'codex', windows: [win('five_hour', false), win('weekly', false)] }, now), 'percent');
 });
+test('Claude weekly stops at 15% left; its early warning yields to a fresh percentage above that line', async () => {
+  const { normalizeUsage } = await import('../src/사용량.js');
+  const now = Date.now(), reset = Math.floor(now / 1000) + 3600, at = new Date(now - 30_000).toISOString();
+  const blocked = (provider, used) => normalizeUsage(provider, provider === 'claude'
+    ? { rate_limits: { seven_day: { used_percentage: used, resets_at: reset } } }
+    : { rateLimits: { primary: { usedPercent: used, windowDurationMins: 10080, resetsAt: reset } } }, now).windows[0].blocked;
+  assert.deepEqual([blocked('claude', 84), blocked('claude', 85), blocked('codex', 85), blocked('codex', 90)], [false, true, false, true]);
+  const account = { subscription: true, checkedAt: new Date(now).toISOString() };
+  const claude = (weeklyUsed, observedAt, status = 'allowed_warning') => ({ provider: 'claude', stale: false,
+    ...normalizeUsage('claude', { rate_limits: { five_hour: { used_percentage: 5, resets_at: reset }, seven_day: { used_percentage: weeklyUsed, resets_at: reset } } }, now),
+    observedAt, limitStatus: [{ window: 'seven_day', status, observedAt: at }] });
+  assert.equal(subscriptionCapacity(account, claude(75, at), now, now), true, 'warning at 25% left, line is 15%');
+  assert.equal(subscriptionCapacity(account, claude(86, at), now, now), false, 'below the line');
+  assert.equal(subscriptionCapacity(account, claude(75, new Date(now - 3_600_000).toISOString()), now, now), false, 'reading older than the warning');
+  assert.equal(subscriptionCapacity(account, { provider: 'claude', windows: [], limitStatus: [{ window: 'seven_day', status: 'allowed_warning', observedAt: at }] }, now, now), false, 'no reading');
+  assert.equal(subscriptionCapacity(account, claude(10, at, 'rejected'), now, now), false, 'rejected always stops');
+});

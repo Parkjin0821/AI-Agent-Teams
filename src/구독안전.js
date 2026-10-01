@@ -7,12 +7,23 @@
 //   - otherwise the limit state Claude Code reports on every team run decides: near limit, over limit
 //     or paid overage stops new rounds.
 // Codex percentages come from its official App Server on every check, so Codex always needs them fresh.
+// Claude Code names its windows five_hour / seven_day; the usage page calls the second one weekly.
+const WINDOW_OF = { five_hour: 'five_hour', seven_day: 'weekly', weekly: 'weekly' };
 export function subscriptionCapacity(account, quota, checkedAt, now = Date.now()) {
   const age = now - Date.parse(account?.checkedAt);
   if (account?.subscription !== true || !Number.isFinite(age) || age < 0 || age >= 60000) return false;
   if (!quota || now - checkedAt < 0 || now - checkedAt >= 60000) return false;
-  if ((quota.limitStatus ?? []).some(l => l.usingOverage === true || ['rejected', 'allowed_warning'].includes(l.status))) return false;
+  if ((quota.limitStatus ?? []).some(l => l.usingOverage === true || l.status === 'rejected')) return false;
   const live = (quota.windows ?? []).filter(w => Date.parse(w.resetAt) > now);
+  // Claude Code's "allowed_warning" comes well before 대장's stop line (seen 2026-10-01: a weekly warning at 25% left
+  // while the line is 15%). It holds new rounds unless a percentage reading taken no earlier than the warning shows
+  // that window still above the line; without such a reading it still stops.
+  const heard = Date.parse(quota.observedAt);
+  const warned = (quota.limitStatus ?? []).filter(l => l.status === 'allowed_warning');
+  if (warned.some(l => {
+    const w = live.find(x => x.period === (WINDOW_OF[l.window] ?? l.window));
+    return !w || w.blocked !== false || !Number.isFinite(heard) || heard < Date.parse(l.observedAt) - 60_000;
+  })) return false;
   if (live.some(w => w.blocked !== false)) return false;
   const exact = !quota.stale && ['five_hour', 'weekly'].every(period => live.some(w => w.period === period));
   if (exact) return true;

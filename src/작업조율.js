@@ -17,7 +17,7 @@ export class Orchestrator {
   }
   get availability() {
     return Object.fromEntries(['claude','codex'].map(p => [p,
-      this.exhausted.has(p) ? 'exhausted' : this.adapter.enabled === false ? 'available' : assessUsage(this.usage[p]).state]));
+      this.exhausted.has(p) ? 'exhausted' : this.adapter.enabled === false ? 'available' : assessUsage(this.usage[p], Date.now(), p).state]));
   }
   snapshot() {
     return { tasks: this.store.listTasks(), availability: this.availability, usage: this.usage,

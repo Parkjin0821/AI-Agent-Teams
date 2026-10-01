@@ -96,12 +96,12 @@ test('newer Claude Code runs report percentages too; the newest of runs and the 
     rate_limits: { seven_day: { used_percentage: 76, resets_at: r7 } } }));
   assert.deepEqual((await readClaudeUsage(dir, now)).windows.map(w => w.remaining), [24]);
 });
-test('rounds stop at 20% left in the 5-hour window and 10% left in the weekly window', async () => {
+test('rounds stop at 20% left in the 5-hour window and 10% left in the weekly window (Claude weekly: 15%)', async () => {
   const { normalizeUsage, STOP_AT_REMAINING } = await import('../src/사용량.js');
   assert.deepEqual({ ...STOP_AT_REMAINING }, { five_hour: 20, weekly: 10 });
   const now = Date.now(), reset = Math.floor(now / 1000) + 3600;
   const blocked = (key, used) => normalizeUsage('claude', { rate_limits: { [key]: { used_percentage: used, resets_at: reset } } }, now).windows[0].blocked;
-  assert.deepEqual([blocked('five_hour', 79), blocked('five_hour', 80), blocked('seven_day', 89), blocked('seven_day', 90)], [false, true, false, true]);
+  assert.deepEqual([blocked('five_hour', 79), blocked('five_hour', 80), blocked('seven_day', 84), blocked('seven_day', 85)], [false, true, false, true], 'Claude weekly line is 15% (대장, 2026-10-01)');
   const codex = normalizeUsage('codex', { rateLimits: { primary: { usedPercent: 81, windowDurationMins: 300, resetsAt: reset } } }, now);
   assert.equal(codex.windows[0].blocked, true, 'the same rule applies to Codex');
 });
