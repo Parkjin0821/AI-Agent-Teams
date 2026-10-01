@@ -184,3 +184,18 @@ test('the design team always gets both approved baselines (frontend guidance and
   assert.deepEqual(lib.select('design', '첫 시안 만들기').map(s => s.name), ['frontend-design', 'agent-hq-screen-design']);
   assert.deepEqual(lib.select('dev', '자료 처리').map(s => s.name), []);
 });
+
+test('AGENT HQ\'s own skill (exactly a file in docs/skills) needs no outside license and reaches the inbox', async () => {
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const { quickApprovable } = await import('../src/스킬.js');
+  const file = readdirSync('docs/skills').find(f => f.endsWith('.md'));
+  const body = readFileSync(`docs/skills/${file}`, 'utf8');
+  const lib = setup();
+  const own = lib.register({ name: 'agent-hq-screen-design', description: '화면 디자인 원칙', body, teams: ['design'], triggers: ['화면'], source: 'agent-hq' });
+  assert.deepEqual([own.checks.license.name, own.checks.license.ok, own.checks.license.file], ['AGENT HQ 자체 작성', true, `docs/skills/${file}`]);
+  assert.equal(quickApprovable(own), true, 'shows in the inbox for one-step approval');
+  assert.throws(() => lib.register({ name: 'agent-hq-fake', description: 'x', body: body + '\n추가 지시', teams: ['design'], triggers: ['화면'], source: 'agent-hq' }),
+    /must match a file in docs\/skills/, 'claiming to be ours is not enough');
+  const local = lib.register({ name: 'some-local', description: 'x', body: '지침', teams: ['design'], triggers: ['화면'] });
+  assert.equal(local.checks.license.ok, false, 'other skills still need a real license');
+});

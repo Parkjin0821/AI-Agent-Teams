@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { TEAMS } from './팀.js';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -38,6 +41,18 @@ export function skillChecks(body, license) {
   const tool = doc.match(NEEDS_TOOL);
   return { license: { name: licName, ok: PERMISSIVE.includes(licName) }, tool: { needed: !!tool, hint: tool ? tool[0] : '' },
     risks: RISKY.filter(([re]) => re.test(doc)).map(([, why]) => why), size: { ok: doc.length <= 12000 } };
+}
+
+// AGENT HQ's own skills live in docs/skills/ in this repo. A skill registered as source 'agent-hq' whose text is exactly
+// one of those files is our own writing, so it needs no outside license (seen 2026-10-01: our own design skill showed
+// license "없음" and never reached the inbox). A skill that only claims to be ours is refused.
+const OWN_DIR = new URL('../docs/skills/', import.meta.url);
+const sameText = (a, b) => String(a).replace(/\r\n/g, '\n').trim() === String(b).replace(/\r\n/g, '\n').trim();
+export function ownSkillFile(body, { dir = OWN_DIR } = {}) {
+  const root = typeof dir === 'string' ? dir : fileURLToPath(dir);
+  let files = [];
+  try { files = readdirSync(root).filter(f => f.endsWith('.md')); } catch { return null; }
+  return files.find(f => { try { return sameText(readFileSync(path.join(root, f), 'utf8'), body); } catch { return false; } }) ?? null;
 }
 
 // A skill whose document needs a separate program (npx, MCP …) is a tool, not an instruction: it is kept as a
@@ -117,12 +132,15 @@ export class SkillLibrary {
     if (!Array.isArray(triggers) || !triggers.length || triggers.length > 10) throw new Error('skill triggers required');
     const normalized = triggers.map(t => text(t, 80).toLowerCase());
     const source = input.source || 'local';
+    const own = source === 'agent-hq' ? ownSkillFile(body) : null;
+    if (source === 'agent-hq' && !own) throw new Error('an AGENT HQ skill must match a file in docs/skills');
     const content = `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n---\n\n${body}`;
     const id = hash(JSON.stringify({content,teams,normalized,source}));
     const prior = this.list().find(s => s.id === id);
     if (prior) return prior;
     const entry = {id,name,description,body,content,teams,triggers:normalized,source,status:'pending', reviews:{},
-      checks: skillChecks(body, input.license), createdAt:new Date().toISOString()};
+      checks: own ? { ...skillChecks(body, null), license: { name: 'AGENT HQ 자체 작성', ok: true, file: 'docs/skills/' + own } } : skillChecks(body, input.license),
+      createdAt:new Date().toISOString()};
     this.store.setSetting('skill.entry.' + id, entry); return entry;
   }
   draft(input) {
