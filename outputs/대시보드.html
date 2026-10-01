@@ -2833,7 +2833,23 @@ function render() {
   const opened = [...root.querySelectorAll('details[open]')].map((d) => d.dataset.key || [...root.querySelectorAll('details')].indexOf(d));
   const frag = document.createDocumentFragment();
   build(tpl.childNodes, frag, comp.renderVals(), {});
-  root.replaceChildren(frag);
+  // A preview (결과물 iframe) rebuilt on every background refresh reloaded and jumped back to its top while 대장
+  // was scrolling it (2026-10-01). The open one is moved into the new page instead: moveBefore keeps a connected
+  // iframe's document and scroll; it needs both places in the document, so the new page goes in before the old
+  // one leaves. Browsers without moveBefore keep the old behaviour.
+  const oldFrames = typeof root.moveBefore === 'function' ? [...root.querySelectorAll('iframe[src]')] : [];
+  if (oldFrames.length) {
+    const oldNodes = [...root.childNodes];
+    const newFrames = [...frag.querySelectorAll('iframe[src]')];
+    root.append(frag);
+    for (const nf of newFrames) {
+      const of = oldFrames.find((o) => o.getAttribute('src') === nf.getAttribute('src') && o.title === nf.title);
+      if (!of) continue;
+      oldFrames.splice(oldFrames.indexOf(of), 1);
+      try { nf.parentNode.moveBefore(of, nf); nf.remove(); } catch { /* keep the new one */ }
+    }
+    oldNodes.forEach((n) => n.remove());
+  } else root.replaceChildren(frag);
   const all = [...root.querySelectorAll('details')];
   opened.forEach((i) => { if (all[i]) all[i].open = true; });
   const again = id && document.getElementById(id);
