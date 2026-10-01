@@ -43,7 +43,9 @@ async function start() {
   const at = new Date().toISOString();
   const rec = { startedAt: at, items: [] };
   for (const s of SET) {
-    const g = await api('POST', '/api/projects', { title: s.title, objective: s.objective, conversation: true, start: true });
+    // Each run gets its own folder: the run time goes into the title, e.g. "(자율 시험 10-02 0135)" (no ":" in folders).
+    const stamp = new Date().toLocaleString('sv-SE').slice(5, 16).replace(':', '');
+    const g = await api('POST', '/api/projects', { title: s.title.replace(/\)$/, ` ${stamp})`), objective: s.objective, conversation: true, start: true });
     rec.items.push({ kind: s.kind, title: s.title, goalId: g.id, projectId: g.projectId, interventions: [], approvals: 0 });
     console.log('시작', s.kind, g.projectId);
   }
