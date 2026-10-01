@@ -84,9 +84,13 @@ const wait = (ms) => new Promise(r => setTimeout(r, ms));
       // full-page capture, and a page-load fade was caught halfway, so lively pages looked washed out. Scroll through
       // the page as a person would, then finish every animation and transition, so the capture shows the end state.
       await s('Runtime.evaluate', { awaitPromise: true, expression: `(async () => {
+        // Always jump: with scroll-behavior:smooth a plain scrollTo glides and the page never got past the first
+        // screens in 120ms steps, so lower sections were reported as faded (seen in a design comparison).
+        const go = y => window.scrollTo({ top: y, left: 0, behavior: 'instant' });
         const step = Math.max(300, innerHeight * 0.6), end = Math.min(document.documentElement.scrollHeight, ${MAX_HEIGHT});
-        for (let y = 0; y < end; y += step) { window.scrollTo(0, y); await new Promise(r => setTimeout(r, 120)); }
-        window.scrollTo(0, 0); await new Promise(r => setTimeout(r, 200));
+        for (let y = 0; y < end; y += step) { go(y); await new Promise(r => setTimeout(r, 120)); }
+        go(end); await new Promise(r => setTimeout(r, 150));
+        go(0); await new Promise(r => setTimeout(r, 200));
         for (const a of document.getAnimations()) { try { a.finish(); } catch { /* infinite: leave it */ } }
         return true;
       })()` });
