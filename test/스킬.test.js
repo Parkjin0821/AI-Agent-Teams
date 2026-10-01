@@ -199,3 +199,10 @@ test('AGENT HQ\'s own skill (exactly a file in docs/skills) needs no outside lic
   const local = lib.register({ name: 'some-local', description: 'x', body: '지침', teams: ['design'], triggers: ['화면'] });
   assert.equal(local.checks.license.ok, false, 'other skills still need a real license');
 });
+
+test('skills up to 32,000 characters are accepted (open-slide slide-authoring is 24.7 KB)', async () => {
+  const { skillChecks, SKILL_MAX } = await import('../src/스킬.js');
+  assert.equal(SKILL_MAX, 32000);
+  assert.equal(skillChecks('가'.repeat(25000), null).size.ok, true);
+  assert.equal(skillChecks('가'.repeat(32001), null).size.ok, false);
+});

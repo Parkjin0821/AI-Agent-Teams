@@ -35,12 +35,15 @@ const RISKY = [[/(?:curl|wget)[^\n]*\|\s*(?:ba)?sh/i, '내려받은 스크립트
   [/ignore (?:all |any )?(?:previous|prior|above) instructions|system prompt|이전 지시를 무시/i, '다른 지시를 무시하라는 문구'],
   [/(?:api[_ -]?key|access[_ -]?token|password|비밀번호|토큰)\S*\s*(?:입력|붙여|paste|enter|provide)/i, '키·토큰·비밀번호를 요구'],
   [/--dangerously|bypassPermissions|--no-verify/i, '안전장치를 끄는 옵션']];
+// The longest skill document accepted. 12,000 characters until 2026-10-01; open-slide's slide-authoring reference is
+// 24.7 KB, so 32,000 (a selected skill is only added to the steps whose task matches its triggers).
+export const SKILL_MAX = 32000;
 export function skillChecks(body, license) {
   const doc = String(body ?? '');
   const licName = license?.content ? (LICENSES.find(([, re]) => re.test(license.content))?.[0] ?? '알 수 없음') : '없음';
   const tool = doc.match(NEEDS_TOOL);
   return { license: { name: licName, ok: PERMISSIVE.includes(licName) }, tool: { needed: !!tool, hint: tool ? tool[0] : '' },
-    risks: RISKY.filter(([re]) => re.test(doc)).map(([, why]) => why), size: { ok: doc.length <= 12000 } };
+    risks: RISKY.filter(([re]) => re.test(doc)).map(([, why]) => why), size: { ok: doc.length <= SKILL_MAX } };
 }
 
 // AGENT HQ's own skills live in docs/skills/ in this repo. A skill registered as source 'agent-hq' whose text is exactly
@@ -125,7 +128,7 @@ export class SkillLibrary {
   register(input) {
     const name = text(input.name, 63);
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) throw new Error('invalid skill name');
-    const description = text(input.description, 500), body = text(input.body, 12000);
+    const description = text(input.description, 500), body = text(input.body, SKILL_MAX);
     const teams = input.teams;
     if (!Array.isArray(teams) || !teams.length || teams.some(t => !TEAMS[t])) throw new Error('invalid skill teams');
     const triggers = input.triggers;
@@ -247,7 +250,7 @@ export class SkillLibrary {
     const file = input.path || 'SKILL.md';
     if (!file.endsWith('SKILL.md') || file.length>200 || !file.split('/').every(p=>/^[A-Za-z0-9_-]+(?:\.md)?$/.test(p))) throw new Error('invalid skill path');
     const result = await this.github('/repos/' + input.repository + '/contents/' + file.split('/').map(encodeURIComponent).join('/') + '?ref=' + input.commit);
-    if(result.type !== 'file' || result.encoding !== 'base64' || result.size > 12000) throw new Error('unsupported skill document');
+    if(result.type !== 'file' || result.encoding !== 'base64' || result.size > SKILL_MAX) throw new Error('unsupported skill document');
     const body = Buffer.from(result.content,'base64').toString('utf8');
     return this.register({...input,body,source:`https://github.com/${input.repository}/blob/${input.commit}/${file}`});
   }
@@ -279,7 +282,7 @@ export class SkillLibrary {
         if(items.length>=3)break;
         try {
           const doc=await this.github('/repos/'+target.repository+'/contents/'+path+'?ref='+commit);
-          if(doc.type!=='file'||doc.encoding!=='base64'||doc.size>12000)continue;
+          if(doc.type!=='file'||doc.encoding!=='base64'||doc.size>SKILL_MAX)continue;
           const body=Buffer.from(doc.content,'base64').toString('utf8');
           const name=body.match(/^name:\s*([a-z0-9-]+)\s*$/m)?.[1];
           if(!name)continue;
