@@ -123,6 +123,9 @@ export const TEAM_BRIEFS = Object.freeze({
       // finds it; the flea market's top priority (the program now) sat below eight seller cards.
       '화면 프로젝트는 주요 행동마다 화면에서 확인할 완료 조건을 쓴다. 예: "390px 첫 화면에서 개최일·장소를 찾을 수 있다", "한 번의 이동으로 지금 또는 다음 프로그램을 확인한다".',
       '파일이나 엔진 화면 검사로 증명할 수 없는 화면 동작·느낌(글자가 움직이지 않는다, 위치가 고정된다, 읽기 편하다)은 따로 떼어 "… (대장이 화면에서 확인)" 처럼 적는다. 증명할 수 있는 부분(파일에 있는 문구·구역)과 한 조건에 섞지 않는다.',
+      // The minutes re-test (2026-10-01): "no 담당자·기한 not in the meeting" was read as "no 담당/기한 column, no (미정)",
+      // so the verifier failed the structured minutes and the team stripped them back to the bare manuscript.
+      '문서(회의록·보고서·계획서) 조건은 그 종류의 필수 항목(회의록: 기본 정보·안건·결정·후속 조치·다음 회의)을 요구하고, "지어낸 사실이 없다" 조건에는 "(빈 칸은 (미정)으로 둔다)" 를 함께 적는다. 담당·기한 칸이나 "(미정)" 자체를 금지하는 조건은 만들지 않는다. 한글 문서가 한글 양식으로 보이는지는 "(대장이 미리보기에서 확인)" 조건으로 둔다.',
       // 대장 (2026-10-01): a side-by-side test (team vs one direct build of the same request) showed criteria made only of
       // "있다·보인다" give a correct but still page, and "예시 표시" read as a badge on every item cluttered it.
       '사람이 보는 페이지의 완료 조건에는 살아 있는 요소 하나를 넣는다: 내용에서 나온 작은 기능(예: 이 PC 시계로 "지금 영업 중" 표시, 다음 행사까지 남은 날, 고르면 바뀌는 보기)이나 사용자 행동에 반응하는 장치. "있다·보인다" 조건만 있으면 맞지만 정적인 페이지가 된다.',

@@ -116,6 +116,13 @@ test('document_made proves only an engine-made, checked, unchanged document, and
   assert.equal(run({ type: 'document_made', path: 'r.hwpx', text: '9.9.9' }).check, 'fail');
   assert.match(run({ type: 'document_made', path: 'r.hwpx' }, {}).detail, /엔진이 만든 문서가 아님/);
   assert.match(run({ type: 'document_made', path: 'r.hwpx' }, { 'r.hwpx': { ...rec, validated: false } }).detail, /구조 검증 실패/);
+  // The verifier cannot see the engine's records and sent "not done" for a document the engine had made: the engine's
+  // own check decides then — but not for a check the verifier can run itself.
+  const notDone = checks => verifyReport({ criteria: [{ index: 1, done: false, checks }] }, ['엔진이 회의록 서식으로 r.hwpx를 만들었다'], cwd, { documents: { 'r.hwpx': rec } });
+  const engine = notDone([{ type: 'file_exists', path: 'r.hwpx' }, { type: 'document_made', path: 'r.hwpx' }]);
+  assert.deepEqual([engine.claims[0].check, engine.evidence.length], ['pass', 1]);
+  assert.equal(notDone([{ type: 'file_contains', path: 'r.hwpx.md', text: '3.14.0' }, { type: 'document_made', path: 'r.hwpx' }]).evidence.length, 0);
   writeFileSync(path.join(cwd, 'r.hwpx'), 'EDITED');
   assert.match(run({ type: 'document_made', path: 'r.hwpx' }).detail, /만든 뒤 바뀜/);
+  assert.equal(notDone([{ type: 'document_made', path: 'r.hwpx' }]).evidence.length, 0, 'a failing engine check stays unmet');
 });

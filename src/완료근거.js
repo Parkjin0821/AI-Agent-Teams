@@ -95,6 +95,10 @@ export function parseReport(answer) {
   } catch { return null; }
 }
 
+// Checks whose answer is in the engine's own records, which no team can read. (screen_ok and slides_ok are not here:
+// a verifier may rightly fail a page that has no overflow but does not meet the criterion.)
+const ENGINE_OWNED = ['document_made', 'stayed_inside'];
+
 // ctx.verifying: this is the verification round; ctx.test: { label, passed } if the engine ran the tests.
 export function verifyReport(report, criteria, cwd, ctx = {}) {
   const byIndex = new Map();
@@ -109,15 +113,20 @@ export function verifyReport(report, criteria, cwd, ctx = {}) {
     // each is about it. Seen in a real run: the verifier confirmed such criteria by reading and left "check": null,
     // because one check could only look at one text.
     const list = Array.isArray(item?.checks) && item.checks.length ? item.checks.slice(0, 8) : item?.check ? [item.check] : [];
-    let result = list.length ? runChecks(list, criterion, cwd, ctx, item?.done === true) : { status: 'none' };
+    // The verifier cannot see the engine's records, so it sent "not done · 확인 못 함" for a 한글 document the engine
+    // made and for a confined run (minutes re-test, 2026-10-01: both stayed unmet for ten steps). When every check is
+    // one only the engine can run (a file_exists beside it is fine), the engine's result decides, not that guess.
+    const engineOnly = list.some(c => ENGINE_OWNED.includes(c?.type)) && list.every(c => [...ENGINE_OWNED, 'file_exists'].includes(c?.type));
+    const done = item?.done === true || engineOnly;
+    let result = list.length ? runChecks(list, criterion, cwd, ctx, done) : { status: 'none' };
     // stayed_inside proves only the work-folder part of a criterion; the rest (e.g. "nothing guessed") stays with 대장.
-    if (result.status === 'pass' && item?.done === true && list.length === 1 && list[0].type === 'stayed_inside') {
+    if (result.status === 'pass' && done && list.length === 1 && list[0].type === 'stayed_inside') {
       const rest = beyondBoundary(criterion);
       if (rest.length) result = { status: 'partial', reason: `${result.proof.replace(/^엔진 확인 · /, '')} — 엔진은 이 부분만 확인함 · “${rest.join(' ')}” 부분은 대장 판단` };
     }
     // A check only counts for a criterion the tool itself reports as done.
-    if (result.status === 'pass' && item?.done === true) evidence.push({ criterion, proof: result.proof });
-    claims.push({ criterion, claimed: item?.done === true, check: result.status, note, detail: result.proof ?? result.reason ?? '',
+    if (result.status === 'pass' && done) evidence.push({ criterion, proof: result.proof });
+    claims.push({ criterion, claimed: done, check: result.status, note, detail: result.proof ?? result.reason ?? '',
       ...(item?.person === true && result.status !== 'pass' ? { person: true } : {}) });
   });
   return { evidence, claims };
