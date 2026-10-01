@@ -13,7 +13,7 @@ const { spawn, spawnSync } = require('node:child_process');
 const [toolsArg, browserPath, idsArg] = process.argv.slice(2);
 const root = fs.realpathSync(process.cwd());
 const tools = fs.realpathSync(toolsArg);
-const ID = /^[a-z0-9][a-z0-9-]{0,40}$/;
+const ID = /^[a-z0-9가-힣][a-z0-9가-힣-]{0,40}$/;
 const HOST = 'http://slides.local';
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
@@ -85,7 +85,10 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     fs.symlinkSync(path.join(tools, 'node_modules', name), path.join(mods, name), 'junction');
   }
   const budget = { files: 0, bytes: 0 };
-  for (const id of ids) copyTree(path.join(root, 'slides', id), path.join(work, 'slides', id), budget);
+  // A Korean deck name is built under an English alias (open-slide routes are URL paths); outputs keep the name.
+  const alias = new Map(ids.map((id, i) => [id, /^[a-z0-9-]+$/.test(id) ? id : `hq-deck-${i + 1}`]));
+  if (new Set(alias.values()).size !== ids.length) throw new Error('deck names collide');
+  for (const id of ids) copyTree(path.join(root, 'slides', id), path.join(work, 'slides', alias.get(id)), budget);
   copyTree(path.join(root, 'assets'), path.join(work, 'assets'), budget);
   const built = spawnSync(process.execPath, [path.join(tools, 'node_modules', '@open-slide', 'core', 'bin.js'), 'build'],
     { cwd: work, encoding: 'utf8', timeout: 180_000, windowsHide: true, env: { ...process.env, NO_COLOR: '1', CI: '1' } });
@@ -129,7 +132,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
       await s('Page.enable'); await s('Runtime.enable');
       await s('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false });
       await s('Page.addScriptToEvaluateOnNewDocument', { source: 'window.__hqPrinted = 0; window.print = () => { window.__hqPrinted++; };' });
-      await s('Page.navigate', { url: `${HOST}/s/${id}` });
+      await s('Page.navigate', { url: `${HOST}/s/${alias.get(id)}` });
       const ev = async expression => (await s('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })).result.value;
       for (let i = 0; i < 80 && !(await ev("document.readyState === 'complete' && !!document.querySelector('[aria-label=\"Download\"]')")); i++) await wait(250);
       // open-slide's own export: Download → PDF lays every page out in a print root, then calls print().

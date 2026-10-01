@@ -39,7 +39,7 @@ export const isDownloadOnly = (relative) => ['.hwpx', '.pdf'].includes(path.extn
 // out as one page with the images inline (the preview frame allows only data: images and runs no scripts; a sandboxed
 // frame cannot show the PDF itself). 대장 asked for a preview, not only a download (2026-10-01).
 export function slidePagesHtml(cwd, relative) {
-  const id = /^발표자료\/([a-z0-9][a-z0-9-]{0,40})\.pdf$/.exec(String(relative))?.[1];
+  const id = /^발표자료\/([a-z0-9가-힣][a-z0-9가-힣-]{0,40})\.pdf$/.exec(String(relative))?.[1];
   if (!id) throw new Error('not a slide PDF');
   const root = realpathSync(cwd), dir = path.join(root, '.hq-screens');
   if (lstatSync(dir).isSymbolicLink()) throw new Error('artifact links are forbidden');

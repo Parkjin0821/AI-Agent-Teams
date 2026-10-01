@@ -323,7 +323,7 @@ function checkScreen(rel, visual) {
 // slides_ok: this verification step's 슬라이드 만들기 (슬라이드.js) built the deck, printed its PDF (one page per slide, made
 // from the deck itself) and found no page past the canvas.
 function checkSlides(rel, slides) {
-  const id = (/^slides\/([a-z0-9][a-z0-9-]{0,40})(?:\/index\.tsx)?$/.exec(rel) ?? /^([a-z0-9][a-z0-9-]{0,40})$/.exec(rel))?.[1];
+  const id = (/^slides\/([a-z0-9가-힣][a-z0-9가-힣-]{0,40})(?:\/index\.tsx)?$/.exec(rel) ?? /^([a-z0-9가-힣][a-z0-9가-힣-]{0,40})$/.exec(rel))?.[1];
   if (!id) return { status: 'invalid', reason: 'slides/<id>/index.tsx 형식의 경로가 아님' };
   if (!slides || !Array.isArray(slides.decks)) return { status: 'fail', reason: '이번 단계에 엔진 슬라이드 만들기가 실행되지 않음' };
   const d = slides.decks.find(x => x.id === id);
