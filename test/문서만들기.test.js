@@ -38,6 +38,36 @@ test('문서 만들기: Markdown → HWPX with a preset, then validate, lint, re
   assert.equal((await maker.make(cwd, { from: '보고서.md', preset: '아무거나' }, new Set(['보고서.hwpx']))).preset, '보고서', 'unknown preset falls back to 보고서; a file the engine made may be made again');
 });
 
+test('짧은 업무보고는 간결한 보고서 서식, 정식 요청과 긴 원고는 업무보고 서식을 유지한다', async () => {
+  const cwd = ws();
+  writeFileSync(path.join(cwd, '짧은.md'), '# 업무보고\n## 요약\n완료율 80%\n');
+  writeFileSync(path.join(cwd, '긴.md'), '# 업무보고\n' + '상세 추진 내용입니다.\n'.repeat(300));
+  const { maker, calls } = fakeMaker(cwd);
+  const compact = await maker.make(cwd, { from: '짧은.md', preset: '업무보고' });
+  assert.equal(compact.preset, '보고서');
+  assert.equal(compact.requestedPreset, '업무보고');
+  assert.equal(compact.layout, 'compact');
+  assert.equal(calls[0][calls[0].indexOf('--preset') + 1], '보고서');
+  const full = await maker.make(cwd, { from: '짧은.md', to: '정식.hwpx', preset: '업무보고', layout: 'full' });
+  assert.equal(full.preset, '업무보고');
+  const long = await maker.make(cwd, { from: '긴.md', preset: '업무보고' });
+  assert.equal(long.preset, '업무보고');
+});
+
+test('구조 검증 실패는 성공으로 보고하지 않고 단계와 종료 코드를 남긴다', async () => {
+  const cwd = ws();
+  writeFileSync(path.join(cwd, '보고서.md'), '# 보고');
+  const { maker } = fakeMaker(cwd);
+  const original = maker.sandbox.run;
+  maker.sandbox.run = async (dir, argv) => argv[2] === 'validate'
+    ? { status: 'fail', code: 1, output: 'invalid document structure' } : original(dir, argv);
+  const result = await maker.make(cwd, { from: '보고서.md' });
+  assert.equal(result.ok, false);
+  assert.equal(result.stage, 'validate');
+  assert.equal(result.code, 1);
+  assert.equal(result.output, 'invalid document structure');
+});
+
 test('the maker refuses what it should not touch', async () => {
   const cwd = ws();
   mkdirSync(path.join(cwd, 'attachments'));

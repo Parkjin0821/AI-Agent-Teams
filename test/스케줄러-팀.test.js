@@ -36,6 +36,18 @@ function setup(respond, policy = {}) {
 }
 const ev = (...idx) => idx.map(i => ({ criterion: C[i], proof: '엔진 확인' }));
 
+test('문서 품질 검토가 남으면 완료 조건이 증명돼도 자동 완료하지 않는다', () => {
+  const { store, scheduler, add } = setup(() => ({}));
+  try {
+    const goal = add();
+    goal.team.step = 'qa';
+    const decision = scheduler.decideTeam(goal, { findings: { blocking: [], documentReviewRequired: true } }, ev(0, 1), T0);
+    assert.equal(decision.status, 'review_required');
+    assert.match(decision.question, /문서 품질/);
+    assert.deepEqual(decision.team.awaitingJudgement, C);
+  } finally { store.close(); }
+});
+
 test('unavailable visual verification asks the owner instead of automatically finishing', async () => {
   const {store,scheduler,add} = setup(() => ({outcome:'completed',evidence:ev(0,1),findings:{blocking:[],visualReviewRequired:true}}));
   try {

@@ -532,6 +532,7 @@ h2,.side-block h2{font-size:15px;font-weight:600;line-height:1.55;letter-spacing
 .link:hover{background:var(--subtle);border-color:transparent;color:var(--text)}
 .link.create{background:#18181B;border-color:#18181B;color:#fff}
 .btn.pri{font-weight:600}
+.btn.criteria-approve{margin-top:14px;min-height:42px;padding:10px 18px}
 .btn.ghost{background:transparent;border-color:transparent}
 .btn.ghost:hover{border-color:var(--line)}
 summary,.home-side-toggle{min-height:32px;padding:6px 10px;font-size:12px;line-height:1.5;background:transparent;border-color:var(--line);border-radius:6px}
@@ -601,21 +602,24 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
 .connection-manage:not([open])>.connection-settings{display:none}
 .connection-settings .act{margin-top:10px;flex-wrap:wrap;gap:12px;justify-content:flex-start}
 @media(max-width:600px){.connection-list .erow{padding:14px;gap:12px}.connection-title{gap:8px}.connection-settings{max-width:none}}
-/* 맨 위로: 길어진 프로젝트 화면에서 한 번에 위로. 어느 정도 내려가야 나타난다. 창 모서리가 아니라 본문 오른쪽 끝에 붙는다
-   (창 모서리는 바탕화면 캐릭터 같은 다른 프로그램에 가려짐). */
-.to-top{position:fixed;right:max(24px,calc((100vw - 1520px) / 2 + 32px));bottom:28px;z-index:35;display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:10px 16px 8px 13px;border:1px solid var(--text);border-radius:999px;background:var(--text);color:var(--surface);font-size:13px;font-weight:500;line-height:1.3;box-shadow:0 6px 20px rgba(17,17,26,.12);cursor:pointer;opacity:0;visibility:hidden;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease,visibility .18s,border-color .15s,color .15s}
+/* 맨 위로: 본문 바깥 오른쪽 여백에 배치한다. 좁은 화면에는 버튼 전용 여백을 확보한다. */
+.to-top{position:fixed;right:calc((100vw - 1520px) / 2 - 80px);top:50%;z-index:35;display:inline-flex;align-items:center;justify-content:center;gap:6px;width:96px;height:44px;padding:0;border:1px solid var(--text);border-radius:999px;background:var(--text);color:var(--surface);font-size:13px;font-weight:500;line-height:1.3;box-shadow:0 6px 20px rgba(17,17,26,.12);cursor:pointer;opacity:0;visibility:hidden;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease,visibility .18s,border-color .15s,color .15s}
 .to-top.show{opacity:1;visibility:visible;transform:none}
-.to-top:hover{background:var(--text-2);border-color:var(--text-2)}
-.to-top:active{transform:translateY(1px)}
+.to-top{transition:opacity .18s ease,transform .2s ease,visibility .18s,background .2s ease,border-color .2s ease,box-shadow .2s ease}
+.to-top{gap:8px;font-weight:600;line-height:1}
+.to-top span{display:block;line-height:16px;white-space:nowrap}
+@media (hover:hover){.to-top.show:hover{transform:translateY(-3px);background:var(--text-2);border-color:var(--text-2);box-shadow:0 9px 24px rgba(17,17,26,.2)}.to-top.show:hover svg{transform:translateY(-2px)}}
+.to-top.show:active{transform:translateY(0) scale(.96);box-shadow:0 3px 10px rgba(17,17,26,.14)}
 .to-top:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.to-top svg{width:15px;height:15px;flex:none;margin-top:-1px}
-@media (max-width:640px){.to-top{right:16px;bottom:16px;padding:9px 12px 7px}.to-top span{display:none}}
+.to-top svg{display:block;width:16px;height:16px;flex:none;margin:0;transition:transform .2s ease}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.to-top.show:hover,.to-top.show:active,.to-top.show:hover svg{transform:none}}
+@media (max-width:1740px){main{padding-right:80px}.to-top{right:16px;width:44px;height:44px;padding:0;justify-content:center}.to-top span{display:none}}
 </style>
 </head>
 <body>
 <a class="skip" href="#main">본문으로 건너뛰기</a>
 <div id="app"></div>
-<button type="button" class="to-top" id="to-top" aria-label="맨 위로" aria-hidden="true" tabindex="-1"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3.5M3.5 8 8 3.5 12.5 8"/></svg><span>맨 위로</span></button>
+<button type="button" class="to-top" id="to-top" aria-label="맨 위로" aria-hidden="true" tabindex="-1"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3 12.5 7.5"/></svg><span>맨 위로</span></button>
 <template id="tpl">
 <div style="--accent: {{accent}}">
 <header class="top">
@@ -769,7 +773,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
     <div style="min-width: 0">
       <div class="row-f"><h1>{{w.name}}</h1><span class="{{w.pillCls}}"><i></i>{{w.stL}}</span></div>
       <p class="goal">{{w.objective}}</p>
-      <sc-if value="{{criteriaPending}}"><button class="btn pri" onClick="{{approveCriteria}}">완료 조건 확인·승인</button></sc-if>
+      <sc-if value="{{criteriaPending}}"><button class="btn pri criteria-approve" onClick="{{approveCriteria}}">완료 조건 확인·승인</button></sc-if>
     </div>
     <div class="acts">
       <sc-if value="{{w.canStart}}"><button class="btn pri" onClick="{{w.start}}">{{w.startL}}</button></sc-if>
@@ -2751,9 +2755,38 @@ comp.componentDidMount();
   const sync = () => { const on = window.scrollY > 600; b.classList.toggle('show', on); b.tabIndex = on ? 0 : -1; b.setAttribute('aria-hidden', on ? 'false' : 'true'); };
   window.addEventListener('scroll', sync, { passive: true });
   sync();
+  let frame = null, previousBehavior = '';
+  const stop = () => {
+    if (frame === null) return;
+    cancelAnimationFrame(frame);
+    frame = null;
+    document.documentElement.style.scrollBehavior = previousBehavior;
+  };
+  // User scrolling takes over immediately; do not keep pulling them toward the top.
+  ['wheel', 'touchstart', 'pointerdown'].forEach(type => window.addEventListener(type, stop, { passive: true }));
+  window.addEventListener('keydown', event => {
+    if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) stop();
+  });
   b.addEventListener('click', () => {
+    stop();
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+    const start = window.scrollY;
+    previousBehavior = document.documentElement.style.scrollBehavior;
+    document.documentElement.style.scrollBehavior = 'auto';
+    if (reduce || start <= 0) {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      document.documentElement.style.scrollBehavior = previousBehavior;
+      return;
+    }
+    const duration = Math.min(700, Math.max(420, start * .15)), began = performance.now();
+    const step = now => {
+      const progress = Math.min(1, Math.max(0, (now - began) / duration));
+      // Cubic ease-out: fast at first, then a gentle landing.
+      window.scrollTo({ top: start * Math.pow(1 - progress, 3), behavior: 'auto' });
+      if (progress < 1) frame = requestAnimationFrame(step);
+      else { frame = null; document.documentElement.style.scrollBehavior = previousBehavior; }
+    };
+    frame = requestAnimationFrame(step);
   });
 })();
 </script>

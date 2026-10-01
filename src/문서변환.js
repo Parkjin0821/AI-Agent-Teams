@@ -35,7 +35,7 @@ export class DocConverter {
   // kordoc's own structure check (validate) and notation check (lint), a Markdown read-back of the made file (so its
   // content can be checked), and SVG + HTML previews. Same sandbox, no network, no model call. PDF/PNG are not made
   // (they need extra packages 대장 has not installed). known: HWPX paths the engine made before (may be replaced).
-  async make(cwd, { from, to, preset }, known = new Set()) {
+  async make(cwd, { from, to, preset, layout = 'auto' }, known = new Set()) {
     if (!this.available) return { ok: false, error: existsSync(this.cli) ? '격리 실행 환경을 쓸 수 없음' : 'kordoc 없음' };
     const rel = p => typeof p === 'string' && p && !path.isAbsolute(p) && !/^[a-zA-Z]:/.test(p) ? path.normalize(p).replace(/\\/g, '/') : null;
     const src = rel(from), out = rel(to ?? (typeof from === 'string' ? from.replace(/\.md$/i, '.hwpx') : null));
@@ -45,13 +45,22 @@ export class DocConverter {
     const full = p => path.join(cwd, p);
     if (!existsSync(full(src)) || !lstatSync(full(src)).isFile()) return { ok: false, error: `원고 ${src} 없음` };
     if (lstatSync(full(src)).size > 1_000_000) return { ok: false, error: '원고가 너무 큼 (1MB 초과)' };
-    if (hasSecret(readFileSync(full(src), 'utf8'))) return { ok: false, error: '원고에 비밀정보 형식이 있어 만들지 않음' };
+    const manuscript = readFileSync(full(src), 'utf8');
+    if (hasSecret(manuscript)) return { ok: false, error: '원고에 비밀정보 형식이 있어 만들지 않음' };
+    if (!['auto', 'compact', 'full'].includes(layout)) return { ok: false, error: '문서 배치는 auto, compact, full 중 하나여야 함' };
     if (existsSync(full(out)) && !known.has(out)) return { ok: false, error: `${out}이(가) 이미 있음 (엔진이 만든 문서만 다시 만듦)` };
-    const kind = PRESETS.includes(preset) ? preset : '보고서';
+    const requestedPreset = PRESETS.includes(preset) ? preset : '보고서';
+    // Explicit engine policy, not a page-count estimate: small briefs need no ministry cover/TOC/chapter pages.
+    const compact = requestedPreset === '업무보고' && (layout === 'compact' ||
+      (layout === 'auto' && manuscript.length <= 2000 && manuscript.split(/\r?\n/).length <= 80));
+    const kind = compact ? '보고서' : requestedPreset;
     const run = args => this.sandbox.run(cwd, [process.execPath, this.cli, ...args], { timeoutMs: this.timeoutMs });
     const made = await run(['generate', src, '-o', out, '--preset', kind, '--silent']);
-    if (made.status !== 'pass' || !existsSync(full(out))) return { ok: false, error: made.status === 'timeout' ? '만들기 시간 초과' : '문서 만들기 실패', output: String(made.output ?? '').slice(-300) };
+    const diagnostic = (stage, result) => ({ stage, status: result.status, code: result.code ?? null,
+      output: hasSecret(String(result.output ?? '')) ? '비밀정보 형식이 있어 오류 출력을 숨김' : String(result.output ?? '').slice(-1000) });
+    if (made.status !== 'pass' || !existsSync(full(out))) return { ok: false, error: made.status === 'timeout' ? '만들기 시간 초과' : '문서 만들기 실패', ...diagnostic('generate', made) };
     const valid = await run(['validate', out]);
+    if (valid.status !== 'pass') return { ok: false, error: '문서 구조 검증 실패', ...diagnostic('validate', valid) };
     const lint = await run(['lint', src]);
     const lintOut = String(lint.output ?? '');
     const counts = /error\s+(\d+),\s*warning\s+(\d+)/.exec(lintOut);
@@ -59,7 +68,7 @@ export class DocConverter {
     const svg = await run(['render', out, '-o', `${out}.svg`, '--silent']);
     const html = await run(['render', out, '--format', 'html', '-o', `${out}.html`, '--title', path.basename(out, '.hwpx'), '--silent']);
     const sha = p => createHash('sha256').update(readFileSync(full(p))).digest('hex');
-    return { ok: true, from: src, path: out, preset: kind, sha: sha(out), validated: valid.status === 'pass',
+    return { ok: true, from: src, path: out, preset: kind, requestedPreset, requestedLayout: layout, layout: compact ? 'compact' : 'full', sha: sha(out), validated: valid.status === 'pass',
       lint: counts ? { errors: Number(counts[1]), warnings: Number(counts[2]) } : null,
       readback: back.ok ? { path: back.path, sha: sha(back.path) } : null,
       previews: [`${out}.svg`, `${out}.html`].filter((p, i) => [svg, html][i].status === 'pass' && existsSync(full(p))) };

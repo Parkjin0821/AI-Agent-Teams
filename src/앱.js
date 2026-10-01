@@ -425,7 +425,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     const maker = docs();
     const doc = maker.available ? await maker.make(cwd, { from: report.md, to: report.hwpx, preset: '보고서' }) : { ok: false, error: '문서 도구(kordoc) 없음' };
     await store.emit({ type: 'report.made', goalId, md: report.md,
-      ...(doc.ok ? { hwpx: doc.path, validated: doc.validated, previews: doc.previews } : { docError: doc.error }) });
+      ...(doc.ok ? { hwpx: doc.path, validated: doc.validated, previews: doc.previews } : { docError: doc.error,
+        docDiagnostic: { stage: doc.stage ?? null, status: doc.status ?? null, code: doc.code ?? null, output: doc.output ?? '' } }) });
     return { report, doc };
   };
   store.subscribe(event => {

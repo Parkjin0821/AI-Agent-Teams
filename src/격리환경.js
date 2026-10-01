@@ -42,7 +42,7 @@ export class SandboxRunner {
   }
 
   // command: [program, ...args] fixed by the engine. Resolves with the exit code and output tails.
-  run(cwd, command, { timeoutMs = this.timeoutMs, network = false } = {}) {
+  run(cwd, command, { timeoutMs = this.timeoutMs, network = false, retryMissing = true } = {}) {
     if (!this.available) return Promise.resolve({ status: 'unavailable', code: null, output: '' });
     if (!Array.isArray(command) || !command.length || command.some(a => typeof a !== 'string')) throw new Error('sandbox command must be a list of strings');
     const [file, args] = network
@@ -61,6 +61,13 @@ export class SandboxRunner {
       child.on('close', (code) => finish(timedOut
         ? { status: 'timeout', code, output: output.slice(-4_000) }
         : { status: code === 0 ? 'pass' : 'fail', code, output: output.slice(-4_000) }));
+    }).then(result => {
+      // ENOENT means the command never started: safe to resolve a CLI removed by an app update and retry once.
+      if (!network && retryMissing && this.resolve && result.status === 'unavailable' && result.output === '실행 파일 없음') {
+        try { this.codex = this.resolve() ?? this.codex; } catch { return result; }
+        return this.run(cwd, command, { timeoutMs, network, retryMissing: false });
+      }
+      return result;
     });
   }
 }

@@ -633,6 +633,10 @@ export class GoalScheduler {
     team.feedback = [...gate, findings.feedback, ...team.reviewNotes].filter(Boolean).join('\n');
     team.reviewNotes = [];
     if (proven && !gate.length) {
+      if (findings.documentReviewRequired) {
+        team.awaitingJudgement = [...goal.completionCriteria];
+        return review('needs_decision', { question: '문서 품질 검사에서 내용 대조·페이지 나눔·미리보기 확인이 필요한 항목을 발견했습니다. 구조 검증만으로 완료 처리하지 않습니다.\n검증팀의 엔진 검사 기록과 미리보기를 확인한 뒤 조건의 ‘완료로 확인’을 누르거나, 고칠 점을 답해 주세요.' });
+      }
       if (findings.visualReviewRequired) {
         team.awaitingJudgement = [...goal.completionCriteria];
         return review('needs_decision', { question: '실제 브라우저 화면 검증을 실행하지 못했습니다. HTML 기본 검사만으로 디자인 완료 처리하지 않습니다.\n대장이 화면을 직접 확인한 뒤 조건의 ‘완료로 확인’을 누르거나, 고칠 점을 답해 주세요.' });

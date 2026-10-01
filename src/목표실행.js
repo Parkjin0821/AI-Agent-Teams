@@ -11,6 +11,7 @@ import { readGrants } from './승인.js';
 import { saveSources, sourceRecords } from './웹원문.js';
 import { guardDenied, pathViolations, readRules, restoreDenied, rulesPrompt } from './규칙.js';
 import { copyKitFonts, fontsPrompt, installedKoreanFonts, kitPrompt } from './글꼴.js';
+import { documentQuality } from './문서품질.js';
 
 // Bridges the goal scheduler to the CLI adapter. After a real run the engine reads the tool's final
 // answer, runs the checks it proposed inside the workspace, and only passing checks become evidence.
@@ -49,6 +50,8 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const extra = team ? toolsFor(team) : {};
       const tools = { web: Boolean(team && TEAMS[team]?.web), connectors: extra.connectors ?? [], knownConnectors: extra.knownConnectors ?? [] };
       const engineTools = team && !simulated ? await runTeamTools(team, cwd, { sandbox, visualChecker, settings: settings() }) : [];
+      if (team === 'qa' && !simulated && Object.keys(documentRecords(records)).length)
+        engineTools.push(documentQuality(cwd, documentRecords(records)));
       let prompt = team
         ? teamPrompt(team, { goal, team: goal.team, files: listWorkspaceFiles(cwd), connectors: tools.connectors, toolText: toolReport(engineTools),
           memory: memory?.forTeam(team) ?? null,
@@ -217,7 +220,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
         const known = new Set(Object.keys(documentRecords(records)));
         documents = { made: [], failed: [] };
         for (const d of report.documents.slice(0, 3)) {
-          const r = await maker.make(cwd, { from: d?.from, to: d?.to, preset: d?.preset }, known);
+          const r = await maker.make(cwd, { from: d?.from, to: d?.to, preset: d?.preset, layout: d?.layout }, known);
           if (r.ok) documents.made.push(r); else documents.failed.push({ from: String(d?.from ?? '').slice(0, 120), error: r.error });
         }
         await store.emit({ type: 'documents.made', goalId: goal.id, team,
@@ -234,6 +237,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd), ...(sources ? { sources: sources.saved } : {}), ...(documents ? { documents: documents.made } : {}),
         requests: normalizeRequests(report?.requests, team), requiredReviews: requiredReviews(team),
         ...(team === 'qa' ? { findings: { ...qaFindings(report), blocking,
+          ...(engineTools.some(t => t.id === 'document-quality' && t.reviewRequired) ? { documentReviewRequired: true } : {}),
           ...(engineTools.some(t => t.id === 'visual' && ['unavailable','timeout'].includes(t.status)) ? { visualReviewRequired: true } : {}) } } : {}) };
     },
   };
