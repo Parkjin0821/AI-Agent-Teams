@@ -36,13 +36,15 @@ import { hasSecret } from './보안감시.js';
 import { Routines } from './반복작업.js';
 import { Templates } from './템플릿.js';
 import { Rules } from './규칙.js';
+import { KeepAwake, needsAwake } from './절전방지.js';
 
 const MAX_BODY = 1_000_000;
 const iso = ms => new Date(ms).toISOString();
 
 export function createApp({ root, dataDir, projectsDir, enableExec = false, clock = { now: () => Date.now() }, tickMs = null,
   adapter: injectedAdapter = null, monitor: injectedMonitor = null, sandbox: injectedSandbox = null, detectEnvironments = false,
-  enforceSafety = false, usageReader = readUsage, saveTransport = undefined, modelChoices = new ModelChoices({ clock }), docConverter = null }) {
+  enforceSafety = false, usageReader = readUsage, saveTransport = undefined, modelChoices = new ModelChoices({ clock }), docConverter = null,
+  keepAwake: injectedKeepAwake = null }) {
   const store = new PersistentStore({ dataDir });
   const skills = new SkillLibrary({ store });
   const approvals = new Approvals({ store, grantsFile: path.join(dataDir, 'sentinel-grants.json'), clock });
@@ -499,14 +501,17 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     }
   });
 
+  // 절전 방지: the real server keeps Windows awake while a started project runs or is due (절전방지.js).
+  const awake = injectedKeepAwake ?? (executing && autoTick ? new KeepAwake() : null);
   const timer = autoTick ? setInterval(async () => {
     try { if (guarded) await refreshUsage(); await routines.tick(); await scheduler.tick({ autoOnly: executing }); await autoSave.tick(); digests.tick(); if (executing) await skills.processNeed(); }
     catch (error) { console.error('tick failed:', error.message); }
+    try { awake?.set(needsAwake(store.listGoals(), clock.now())); } catch (error) { console.error('keep-awake failed:', error.message); }
   }, tickMs) : null;
   timer?.unref();
   return {
-    server, store, scheduler, registry, orchestrator, workspaces, autoSave, digests, makeReport, routines, templates, rules,
-    close: () => new Promise(resolve => { if (timer) clearInterval(timer); server.close(() => { store.close(); resolve(); }); }),
+    server, store, scheduler, registry, orchestrator, workspaces, autoSave, digests, makeReport, routines, templates, rules, awake,
+    close: () => new Promise(resolve => { if (timer) clearInterval(timer); awake?.set(false); server.close(() => { store.close(); resolve(); }); }),
   };
 }
 
