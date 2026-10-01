@@ -598,6 +598,8 @@ test('제어팀 keeps the deep level for design until a design step has built th
     assert.equal(scheduler.resolveFor(goal).level.label, '깊게', 'a simulated step builds nothing');
     runs.push({ team: 'design', outcome: 'completed', checkpoint: { added: [], modified: ['index.html'] } });
     assert.equal(scheduler.resolveFor(goal).level.label, '가벼움', 'the page exists: later fixes as usual');
+    runs = [{ team: 'design', outcome: 'completed', checkpoint: { added: ['slides/weekly-report/index.tsx'], modified: [] } }];
+    assert.equal(scheduler.resolveFor(goal).level.label, '가벼움', 'a slide deck is the page of a slide project');
   } finally { store.close(); }
 });
 test('a limit hit during a step waits, and the next step moves to the other subscription (no stop for 대장)', async () => {
