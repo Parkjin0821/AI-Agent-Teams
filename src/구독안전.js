@@ -10,10 +10,16 @@
 // Claude Code names its windows five_hour / seven_day; the usage page calls the second one weekly.
 const WINDOW_OF = { five_hour: 'five_hour', seven_day: 'weekly', weekly: 'weekly' };
 export function subscriptionCapacity(account, quota, checkedAt, now = Date.now()) {
+  return capacityWhy(account, quota, checkedAt, now) === null;
+}
+// Why a new round may not start now (null: it may). Shown with "모델 대기" (2026-10-02: projects waited all
+// morning and nothing outside the server could tell which input said no).
+export function capacityWhy(account, quota, checkedAt, now = Date.now()) {
   const age = now - Date.parse(account?.checkedAt);
-  if (account?.subscription !== true || !Number.isFinite(age) || age < 0 || age >= 60000) return false;
-  if (!quota || now - checkedAt < 0 || now - checkedAt >= 60000) return false;
-  if ((quota.limitStatus ?? []).some(l => l.usingOverage === true || l.status === 'rejected')) return false;
+  if (account?.subscription !== true) return account?.loggedIn ? '구독 로그인이 아님 (auth status)' : '로그인 확인 실패 (auth status)';
+  if (!Number.isFinite(age) || age < 0 || age >= 60000) return '로그인 확인이 1분 넘게 지남';
+  if (!quota || now - checkedAt < 0 || now - checkedAt >= 60000) return '사용량 확인이 1분 넘게 지남';
+  if ((quota.limitStatus ?? []).some(l => l.usingOverage === true || l.status === 'rejected')) return '한도 초과 또는 추가 과금 상태';
   const live = (quota.windows ?? []).filter(w => Date.parse(w.resetAt) > now);
   // Claude Code's "allowed_warning" comes well before 대장's stop line (seen 2026-10-01: a weekly warning at 25% left
   // while the line is 15%). It holds new rounds unless a percentage reading taken no earlier than the warning shows
@@ -23,11 +29,12 @@ export function subscriptionCapacity(account, quota, checkedAt, now = Date.now()
   if (warned.some(l => {
     const w = live.find(x => x.period === (WINDOW_OF[l.window] ?? l.window));
     return !w || w.blocked !== false || !Number.isFinite(heard) || heard < Date.parse(l.observedAt) - 60_000;
-  })) return false;
-  if (live.some(w => w.blocked !== false)) return false;
+  })) return '한도 경고 뒤 새 사용량 값이 없음';
+  const low = live.find(w => w.blocked !== false);
+  if (low) return `${low.period === 'weekly' ? '주간' : '5시간'} 남은 양 ${low.remaining}% · 기준 ${low.stopAt}% 이하`;
   const exact = !quota.stale && ['five_hour', 'weekly'].every(period => live.some(w => w.period === period));
-  if (exact) return true;
-  return quota.provider === 'claude';
+  if (exact || quota.provider === 'claude') return null;
+  return '사용량 값 없음';
 }
 
 // How the last decision was made, for the usage page.

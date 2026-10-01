@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { childEnv, resolveBins } from './실행어댑터.js';
 import { STOP_AT_REMAINING, stopAtFor } from './정책.js';
@@ -11,6 +11,18 @@ const LIMIT_FILE = 'claude-limit-status.json';
 // Usage percentages Claude Code reported during team runs (same shape as the status line's claude-usage.json).
 const RUN_USAGE_FILE = 'claude-usage-runs.json';
 const limitWrites = new Map();
+// Windows refuses to replace a file another reader has open for a moment (2026-10-02 08:46: two Claude steps ended
+// together, one save failed with the temp file left behind, and the safety stop held every project all morning).
+// A short retry, then the temp file is removed before the error goes up.
+export async function replaceFile(temp, target, tries = 8, wait = ms => new Promise(r => setTimeout(r, ms))) {
+  for (let i = 1; ; i++) {
+    try { return await rename(temp, target); }
+    catch (error) {
+      if (i >= tries || !['EPERM', 'EACCES', 'EBUSY'].includes(error.code)) { await unlink(temp).catch(() => {}); throw error; }
+      await wait(40 * i);
+    }
+  }
+}
 export function recordRateLimits(dataDir, limits, now = Date.now()) {
   const key = path.resolve(dataDir);
   const pending = (limitWrites.get(key) ?? Promise.resolve()).catch(() => {}).then(() => writeRateLimits(key, limits, now));
@@ -35,13 +47,13 @@ async function writeRateLimits(dataDir, limits, now) {
   await mkdir(dataDir, { recursive: true });
   const temp = `${dataDir}/${LIMIT_FILE}.${randomUUID()}.tmp`;
   await writeFile(temp, JSON.stringify(saved));
-  await rename(temp, `${dataDir}/${LIMIT_FILE}`);
+  await replaceFile(temp, `${dataDir}/${LIMIT_FILE}`);
   // Percentages from the run itself (newer Claude Code), saved like the status line snapshot.
   const usage = [...limits].reverse().find(l => l?.usage)?.usage;
   if (usage) {
     const t = `${dataDir}/${RUN_USAGE_FILE}.${randomUUID()}.tmp`;
     await writeFile(t, JSON.stringify({ observedAt: at, rate_limits: usage }));
-    await rename(t, `${dataDir}/${RUN_USAGE_FILE}`);
+    await replaceFile(t, `${dataDir}/${RUN_USAGE_FILE}`);
   }
 }
 

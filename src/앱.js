@@ -20,7 +20,7 @@ import { toolkitView } from './검사도구.js';
 import { ProjectWorkspaces, validateProjectId } from './작업공간.js';
 import { readUsage, recordRateLimits } from './사용량.js';
 import { projectRecord } from './작업기록.js';
-import { capacityBasis, subscriptionCapacity } from './구독안전.js';
+import { capacityBasis, capacityWhy } from './구독안전.js';
 import { artifactList, readArtifact, isDownloadOnly, slidePagesHtml } from './결과물.js';
 import { detectTests } from './검사.js';
 import { npmCommand } from './격리환경.js';
@@ -100,14 +100,16 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     return quota;
   };
   const guarded = executing && (!injectedAdapter || enforceSafety);
-  const capacity = executor => {
-    if (store.getSettings()['safety.limitStorageFailed'] === true) return false;
+  // Why a new round of this tool may not start now (null: it may); the engine view shows it beside "모델 대기".
+  const capacityReason = executor => {
+    if (store.getSettings()['safety.limitStorageFailed'] === true) return '한도 상태 저장 실패로 안전 정지 (사용량 화면에서 복구)';
     const account = monitor?.snapshot?.[executor === 'codex' ? 'codex' : 'claude'];
     const q = (quota.items ?? []).find(q => q.provider === (executor === 'codex' ? 'codex' : 'claude'));
     // An old statusLine reading is shown on the usage page but never counts as headroom here, and a
     // team run that saw the limit near or hit ("allowed_warning" / "rejected") holds new rounds until its reset.
-    return subscriptionCapacity(account, q, quotaCheckedAt);
+    return capacityWhy(account, q, quotaCheckedAt);
   };
+  const capacity = executor => capacityReason(executor) === null;
   // 제어팀 needs this account's Codex list (Luna / Sol); a real server reads it before the first step.
   if (executing) void modelChoices.get().catch(() => {});
   const liveActivity = new Map();
@@ -170,6 +172,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       projects: [...byProject].map(([id, goals]) => ({ id, workspacePath: path.relative(root, path.join(workspaces.root, workspaceFolders[id] ?? id)).replace(/\\/g, '/'), policy: registry.getPolicy(`project:${id}`), goals, autoSave: autoSave.view(id), routine: routines.view(id) })),
       catalog: registry.catalog(), events: store.recentEvents(200), live: Object.fromEntries(liveActivity),
       limitStorageFailed: store.getSettings()['safety.limitStorageFailed'] === true,
+      waitWhy: guarded ? { claude: capacityReason('claude-code'), codex: capacityReason('codex') } : null,
     };
   };
   const existingWorkspace = projectId => {

@@ -105,3 +105,18 @@ test('rounds stop at 20% left in the 5-hour window and 10% left in the weekly wi
   const codex = normalizeUsage('codex', { rateLimits: { primary: { usedPercent: 81, windowDurationMins: 300, resetsAt: reset } } }, now);
   assert.equal(codex.windows[0].blocked, true, 'the same rule applies to Codex');
 });
+
+test('a save that Windows refuses for a moment (a reader has the file open) is retried; a lasting failure leaves no temp file', async () => {
+  const { replaceFile } = await import('../src/사용량.js');
+  const { mkdtempSync, writeFileSync, existsSync, readFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const pathMod = (await import('node:path')).default;
+  const dir = mkdtempSync(pathMod.join(tmpdir(), 'hq-replace-'));
+  const temp = pathMod.join(dir, 'a.tmp'), target = pathMod.join(dir, 'a.json');
+  writeFileSync(temp, '{"ok":1}');
+  await replaceFile(temp, target);
+  assert.equal(readFileSync(target, 'utf8'), '{"ok":1}');
+  writeFileSync(temp, 'x');
+  await assert.rejects(replaceFile(temp, pathMod.join(dir, 'missing', 'b.json'), 3, async () => {}), /ENOENT/);
+  assert.equal(existsSync(temp), false, 'temp file removed');
+});
