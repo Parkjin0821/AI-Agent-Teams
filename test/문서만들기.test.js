@@ -33,9 +33,23 @@ test('문서 만들기: Markdown → HWPX with a preset, then validate, lint, re
   const r = await maker.make(cwd, { from: '보고서.md', to: '보고서.hwpx', preset: '보고서' });
   assert.equal(r.ok, true);
   assert.deepEqual(calls.map(c => c[0]), ['generate', 'validate', 'lint', '보고서.hwpx', 'render', 'render']);
-  assert.deepEqual(calls[0], ['generate', '보고서.md', '-o', '보고서.hwpx', '--preset', '보고서', '--silent']);
+  assert.deepEqual(calls[0], ['generate', '보고서.md', '-o', '보고서.hwpx', '--preset', '보고서', '--font', 'myeongjo', '--silent']);
   assert.deepEqual([r.validated, r.lint, r.readback.path, r.previews], [true, { errors: 0, warnings: 1 }, '보고서.hwpx.md', ['보고서.hwpx.svg', '보고서.hwpx.html']]);
   assert.equal((await maker.make(cwd, { from: '보고서.md', preset: '아무거나' }, new Set(['보고서.hwpx']))).preset, '보고서', 'unknown preset falls back to 보고서; a file the engine made may be made again');
+});
+
+test('한글 양식: 결재란 직위와 본문 글꼴을 받고, 이상한 값은 버린다', async () => {
+  const cwd = ws();
+  writeFileSync(path.join(cwd, '회의록.md'), '# 회의록\n- 결정\n');
+  const { maker, calls } = fakeMaker(cwd);
+  const r = await maker.make(cwd, { from: '회의록.md', preset: '회의록', approval: ['담당', '검토', '대장', 'x,y', '너무긴직위이름입니다'] });
+  assert.deepEqual(calls[0], ['generate', '회의록.md', '-o', '회의록.hwpx', '--preset', '회의록', '--font', 'myeongjo', '--approval', '담당,검토,대장', '--silent']);
+  assert.deepEqual([r.font, r.approval], ['myeongjo', ['담당', '검토', '대장']]);
+  await maker.make(cwd, { from: '회의록.md', to: '고딕.hwpx', preset: '회의록', font: 'gothic' });
+  assert.equal(calls.find(c => c[0] === 'generate' && c[3] === '고딕.hwpx')[calls[0].indexOf('--font') + 1], 'gothic');
+  writeFileSync(path.join(cwd, '보도.md'), '# 보도\n');
+  await maker.make(cwd, { from: '보도.md', preset: '보도자료' });
+  assert.ok(!calls.find(c => c[0] === 'generate' && c[1] === '보도.md').includes('--font'), 'designed presets keep their own fonts');
 });
 
 test('짧은 업무보고는 간결한 보고서 서식, 정식 요청과 긴 원고는 업무보고 서식을 유지한다', async () => {

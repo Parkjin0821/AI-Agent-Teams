@@ -230,7 +230,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
         const known = new Set(Object.keys(documentRecords(records)));
         documents = { made: [], failed: [] };
         for (const d of report.documents.slice(0, 3)) {
-          const r = await maker.make(cwd, { from: d?.from, to: d?.to, preset: d?.preset, layout: d?.layout }, known);
+          const r = await maker.make(cwd, { from: d?.from, to: d?.to, preset: d?.preset, layout: d?.layout, approval: d?.approval, font: d?.font }, known);
           if (r.ok) documents.made.push(r); else documents.failed.push({ from: String(d?.from ?? '').slice(0, 120), error: r.error });
         }
         await store.emit({ type: 'documents.made', goalId: goal.id, team,

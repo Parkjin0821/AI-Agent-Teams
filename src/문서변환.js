@@ -35,7 +35,7 @@ export class DocConverter {
   // kordoc's own structure check (validate) and notation check (lint), a Markdown read-back of the made file (so its
   // content can be checked), and SVG + HTML previews. Same sandbox, no network, no model call. PDF/PNG are not made
   // (they need extra packages 대장 has not installed). known: HWPX paths the engine made before (may be replaced).
-  async make(cwd, { from, to, preset, layout = 'auto' }, known = new Set()) {
+  async make(cwd, { from, to, preset, layout = 'auto', approval, font }, known = new Set()) {
     if (!this.available) return { ok: false, error: existsSync(this.cli) ? '격리 실행 환경을 쓸 수 없음' : 'kordoc 없음' };
     const rel = p => typeof p === 'string' && p && !path.isAbsolute(p) && !/^[a-zA-Z]:/.test(p) ? path.normalize(p).replace(/\\/g, '/') : null;
     const src = rel(from), out = rel(to ?? (typeof from === 'string' ? from.replace(/\.md$/i, '.hwpx') : null));
@@ -55,7 +55,12 @@ export class DocConverter {
       (layout === 'auto' && manuscript.length <= 2000 && manuscript.split(/\r?\n/).length <= 80));
     const kind = compact ? '보고서' : requestedPreset;
     const run = args => this.sandbox.run(cwd, [process.execPath, this.cli, ...args], { timeoutMs: this.timeoutMs });
-    const made = await run(['generate', src, '-o', out, '--preset', kind, '--silent']);
+    // A 한글 회의록·보고서 looks official with a 결재란 and a 명조 body (the minutes re-test, 2026-10-01, came out in a
+    // web-like 고딕 look). 결재란 labels: 1–4 short words. The designed presets keep their own fonts unless asked.
+    const labels = (Array.isArray(approval) ? approval : []).map(a => String(a).trim()).filter(a => /^[가-힣A-Za-z]{1,6}$/.test(a)).slice(0, 4);
+    const face = ['myeongjo', 'gothic'].includes(font) ? font : ['업무보고', '서울방침', '보도자료'].includes(kind) ? null : 'myeongjo';
+    const made = await run(['generate', src, '-o', out, '--preset', kind, ...(face ? ['--font', face] : []),
+      ...(labels.length ? ['--approval', labels.join(',')] : []), '--silent']);
     const diagnostic = (stage, result) => ({ stage, status: result.status, code: result.code ?? null,
       output: hasSecret(String(result.output ?? '')) ? '비밀정보 형식이 있어 오류 출력을 숨김' : String(result.output ?? '').slice(-1000) });
     if (made.status !== 'pass' || !existsSync(full(out))) return { ok: false, error: made.status === 'timeout' ? '만들기 시간 초과' : '문서 만들기 실패', ...diagnostic('generate', made) };
@@ -68,7 +73,7 @@ export class DocConverter {
     const svg = await run(['render', out, '-o', `${out}.svg`, '--silent']);
     const html = await run(['render', out, '--format', 'html', '-o', `${out}.html`, '--title', path.basename(out, '.hwpx'), '--silent']);
     const sha = p => createHash('sha256').update(readFileSync(full(p))).digest('hex');
-    return { ok: true, from: src, path: out, preset: kind, requestedPreset, requestedLayout: layout, layout: compact ? 'compact' : 'full', sha: sha(out), validated: valid.status === 'pass',
+    return { ok: true, from: src, path: out, preset: kind, requestedPreset, requestedLayout: layout, layout: compact ? 'compact' : 'full', font: face, approval: labels, sha: sha(out), validated: valid.status === 'pass',
       lint: counts ? { errors: Number(counts[1]), warnings: Number(counts[2]) } : null,
       readback: back.ok ? { path: back.path, sha: sha(back.path) } : null,
       previews: [`${out}.svg`, `${out}.html`].filter((p, i) => [svg, html][i].status === 'pass' && existsSync(full(p))) };
