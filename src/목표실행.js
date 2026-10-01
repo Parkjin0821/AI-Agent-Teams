@@ -10,7 +10,7 @@ import { hasSecret, readAsks } from './보안감시.js';
 import { readGrants } from './승인.js';
 import { saveSources, sourceRecords } from './웹원문.js';
 import { guardDenied, pathViolations, readRules, restoreDenied, rulesPrompt } from './규칙.js';
-import { fontsPrompt, installedKoreanFonts } from './글꼴.js';
+import { copyKitFonts, fontsPrompt, installedKoreanFonts, kitPrompt } from './글꼴.js';
 
 // Bridges the goal scheduler to the CLI adapter. After a real run the engine reads the tool's final
 // answer, runs the checks it proposed inside the workspace, and only passing checks become evidence.
@@ -81,7 +81,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const rulesBlock = team ? rulesPrompt(stepRules, goal.projectId) : '';
       if (rulesBlock) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + rulesBlock + prompt.slice(at) : prompt + rulesBlock; }
       // 화면을 만드는 팀에는 이 PC에 실제로 설치된 한글 글꼴과 쓸 CSS 이름 (글꼴.js).
-      const fontBlock = ['design', 'dev'].includes(team) ? fontsPrompt(fonts()) : '';
+      const fontBlock = ['design', 'dev'].includes(team) ? fontsPrompt(fonts()) + kitPrompt() : '';
       if (fontBlock) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + fontBlock + prompt.slice(at) : prompt + fontBlock; }
       if (team && PROVIDER[run.executor] === 'codex') {
         const block = inlineTextFiles(cwd, before.files);
@@ -202,6 +202,13 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           grants: stepGrants, webMode: webModeFor(goal.projectId), ...webSources });
         await store.emit({ type: 'sources.saved', goalId: goal.id, team, saved: sources.saved.map(s => ({ path: s.path, url: s.url, bytes: s.bytes })),
           reused: reused.map(s => ({ path: s.path, url: s.url, fetchedAt: s.fetchedAt })), skipped: sources.skipped });
+      }
+      // 엔진 글꼴 묶음: the fonts a screen team chose are copied into the work folder with their licenses (글꼴.js).
+      if (team && ['design', 'dev'].includes(team) && Array.isArray(report?.fonts) && report.fonts.length && !simulated) {
+        try {
+          const fontsCopied = await copyKitFonts(cwd, report.fonts);
+          if (fontsCopied.copied.length) await store.emit({ type: 'fonts.copied', goalId: goal.id, team, fonts: fontsCopied.copied });
+        } catch (error) { await store.emit({ type: 'fonts.failed', goalId: goal.id, team, error: String(error.message).slice(0, 200) }); }
       }
       // 문서 만들기: a work team's Markdown becomes a 한글 document made and checked by the engine (문서변환.js make).
       let documents = null;

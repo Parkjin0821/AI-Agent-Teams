@@ -23,3 +23,21 @@ test('글꼴: only installed Korean fonts, with the CSS names Edge recognizes', 
   assert.equal(fontsPrompt([]), '');
   assert.deepEqual(installedKoreanFonts({ run: () => { throw new Error('no reg'); } }), [], 'no list when the registry cannot be read');
 });
+
+test('엔진 글꼴 묶음: chosen fonts and their licenses are copied with a css file; unknown ids are ignored', async () => {
+  const { mkdtempSync, existsSync, readFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const path = (await import('node:path')).default;
+  const { copyKitFonts, kitPrompt, KIT_FONTS, FONT_FOLDER } = await import('../src/글꼴.js');
+  const cwd = mkdtempSync(path.join(tmpdir(), 'hq-kit-'));
+  assert.deepEqual((await copyKitFonts(cwd, ['nope'])).copied, []);
+  assert.equal(existsSync(path.join(cwd, FONT_FOLDER)), false, 'nothing made for unknown ids');
+  const r = await copyKitFonts(cwd, ['do-hyeon', 'pretendard', 'do-hyeon', 'gaegu', 'hahmlet']);
+  assert.deepEqual(r.copied, ['do-hyeon', 'pretendard', 'gaegu'], 'at most three, no repeats');
+  for (const f of ['DoHyeon-Regular.ttf', 'DoHyeon-OFL.txt', 'PretendardVariable.woff2', 'Pretendard-OFL.txt', 'Gaegu-Regular.ttf']) assert.ok(existsSync(path.join(cwd, FONT_FOLDER, f)), f);
+  const css = readFileSync(path.join(cwd, FONT_FOLDER, '글꼴.css'), 'utf8');
+  assert.match(css, /font-family: 'Pretendard'; src: url\("PretendardVariable\.woff2"\) format\("woff2"\); font-weight: 45 920/);
+  assert.match(css, /SIL OFL/);
+  assert.equal(KIT_FONTS.every(f => kitPrompt().includes(`'${f.family}'`)), true);
+  assert.match(kitPrompt(), /"fonts":\["pretendard","do-hyeon"\]/);
+});

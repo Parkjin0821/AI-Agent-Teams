@@ -53,3 +53,50 @@ export function fontsPrompt(fonts) {
     + '\n목록에 없는 글꼴 이름(나눔명조, Pretendard 등)만 적으면 바탕·맑은 고딕으로 바뀌어 딱딱해진다. 쓸 글꼴 뒤에는 대체로'
     + " 'Noto Sans KR', 'Malgun Gothic', sans-serif 를 둔다. 한컴 글꼴은 한컴오피스가 있는 PC에만 있으니, 다른 PC에서 볼 페이지면 대체 글꼴로 봐도 어색하지 않게 고른다.\n";
 }
+
+// 엔진 글꼴 묶음 (assets/글꼴/, 2026-10-01 대장 승인으로 받음, 모두 SIL OFL 1.1). 설치되지 않아도 페이지와 함께 따라가는
+// 글꼴이다: 팀이 보고서에 "fonts":["pretendard"] 처럼 고르면 엔진이 단계 뒤에 프로젝트의 글꼴/ 폴더로 파일과 라이선스를
+// 복사하고 글꼴/글꼴.css 를 만든다. 인터넷 없이, 어느 PC에서나, 엔진 화면 캡처에서도 같은 글씨로 보인다.
+export const KIT_DIR = new URL('../assets/글꼴/', import.meta.url);
+export const KIT_FONTS = Object.freeze([
+  { id: 'pretendard', family: 'Pretendard', files: [{ file: 'PretendardVariable.woff2', weight: '45 920', format: 'woff2' }], license: 'Pretendard-OFL.txt',
+    feel: '깔끔하고 현대적인 고딕, 굵기 조절', use: '본문·버튼·표 (가장 무난한 현대적 선택)' },
+  { id: 'nanum-myeongjo', family: 'Nanum Myeongjo', files: [{ file: 'NanumMyeongjo-Regular.ttf', weight: '400' }, { file: 'NanumMyeongjo-ExtraBold.ttf', weight: '800' }],
+    license: 'NanumMyeongjo-OFL.txt', feel: '격식 있는 명조 (보통·아주 굵게)', use: '제목, 긴 글' },
+  { id: 'hahmlet', family: 'Hahmlet', files: [{ file: 'Hahmlet[wght].ttf', weight: '100 900' }], license: 'Hahmlet-OFL.txt',
+    feel: '현대적인 명조, 굵기 조절', use: '편집형 제목·본문' },
+  { id: 'do-hyeon', family: 'Do Hyeon', files: [{ file: 'DoHyeon-Regular.ttf', weight: '400' }], license: 'DoHyeon-OFL.txt',
+    feel: '굵고 단단한 고딕', use: '큰 제목·간판' },
+  { id: 'black-han-sans', family: 'Black Han Sans', files: [{ file: 'BlackHanSans-Regular.ttf', weight: '400' }], license: 'BlackHanSans-OFL.txt',
+    feel: '아주 강한 포스터형', use: '짧은 큰 제목에만' },
+  { id: 'gaegu', family: 'Gaegu', files: [{ file: 'Gaegu-Regular.ttf', weight: '400' }], license: 'Gaegu-OFL.txt',
+    feel: '손글씨', use: '메모·말풍선·짧은 강조' },
+]);
+export const FONT_FOLDER = '글꼴';
+
+export function kitPrompt() {
+  return '\n[엔진 글꼴 묶음 · 설치되지 않아도 페이지와 함께 따라가는 글꼴]\n'
+    + KIT_FONTS.map(f => `- ${f.id}: font-family: '${f.family}' · ${f.feel} · ${f.use}`).join('\n')
+    + `\n쓰려면 보고서 JSON 에 "fonts":["pretendard","do-hyeon"] 처럼 id 를 적는다 (최대 3개). 단계가 끝나면 엔진이 작업 폴더의 ${FONT_FOLDER}/ 에`
+    + ` 글꼴 파일과 라이선스, ${FONT_FOLDER}/글꼴.css 를 넣는다. 페이지에는 <link rel="stylesheet" href="${FONT_FOLDER}/글꼴.css"> 를 넣고`
+    + ` (페이지 위치 기준 상대 경로), font-family 뒤에 대체 글꼴을 둔다. ${FONT_FOLDER}/ 안의 파일은 직접 만들거나 고치지 않는다.\n`;
+}
+
+// Copies the chosen kit fonts (and their licenses) into the work folder and rewrites 글꼴/글꼴.css for every kit
+// font present there. Unknown ids are ignored. Returns what was copied.
+export async function copyKitFonts(cwd, ids, { kitDir = KIT_DIR } = {}) {
+  const { copyFileSync, existsSync, mkdirSync, writeFileSync } = await import('node:fs');
+  const path = (await import('node:path')).default;
+  const { fileURLToPath } = await import('node:url');
+  const src = typeof kitDir === 'string' ? kitDir : fileURLToPath(kitDir);
+  const chosen = [...new Set((Array.isArray(ids) ? ids : []).map(String))].map(id => KIT_FONTS.find(f => f.id === id)).filter(Boolean).slice(0, 3);
+  if (!chosen.length) return { copied: [] };
+  const dest = path.join(cwd, FONT_FOLDER);
+  mkdirSync(dest, { recursive: true });
+  for (const f of chosen) for (const name of [...f.files.map(x => x.file), f.license]) copyFileSync(path.join(src, name), path.join(dest, name));
+  const present = KIT_FONTS.filter(f => f.files.every(x => existsSync(path.join(dest, x.file))));
+  const faces = present.flatMap(f => f.files.map(x => `@font-face { font-family: '${f.family}'; src: url("${x.file}") format("${x.format ?? 'truetype'}");`
+    + ` font-weight: ${x.weight}; font-style: normal; font-display: swap; }`));
+  writeFileSync(path.join(dest, '글꼴.css'), `/* AGENT HQ 엔진이 만든 파일 · 직접 고치지 않는다 · 글꼴 라이선스는 같은 폴더의 *-OFL.txt (SIL OFL 1.1) */\n${faces.join('\n')}\n`);
+  return { copied: chosen.map(f => f.id), present: present.map(f => f.id) };
+}
