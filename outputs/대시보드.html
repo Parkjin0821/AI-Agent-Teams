@@ -297,6 +297,22 @@ details[open]>summary::before{transform:rotate(90deg)}
 .tchecks{display:grid;gap:6px;margin-top:8px}
 .tcheck{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;align-items:baseline}
 .tcheck details{grid-column:2}
+.tcheck.inspection{grid-template-columns:20px minmax(0,1fr);align-items:start;gap:6px 8px;padding:10px 0}
+.tcheck.inspection:has(>.pill:not(.done)){grid-template-columns:64px minmax(0,1fr)}
+.tcheck.inspection+.tcheck.inspection{border-top:1px solid var(--line)}
+.inspection>.pill{justify-self:start;margin-top:1px}
+.inspection>.pill.done{min-width:20px;padding:0;background:transparent;color:var(--done);font-size:0}
+.inspection>.pill.done i{display:none}
+.inspection>.pill.done::before{content:'✓';font-size:16px;font-weight:600;line-height:1.4}
+.inspection>.pill.skipped{padding:0;background:transparent;color:var(--attn);gap:5px;white-space:nowrap}
+.inspection>.pill.skipped i{display:none}
+.inspection>.pill.skipped::before{content:'↷';font-size:16px;font-weight:600;line-height:1.4}
+.inspection-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:2px;font-size:12px;font-weight:600;color:var(--text-2)}
+.inspection-head .inspection-all-pass{color:var(--done);font-weight:500}
+.inspection-copy{min-width:0;display:grid;gap:3px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.inspection-copy b{font-weight:600;color:var(--text)}
+.inspection-copy>span{color:var(--text-3);font-size:12.5px}
+.tcheck.inspection details{margin-top:8px;margin-bottom:4px}
 @media (max-width:560px){.prog{grid-template-columns:minmax(0,1fr)}}
 details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border-radius:var(--r);font-size:13px}
 .log{font-family:var(--mono);font-size:12px;color:var(--text-2);padding:14px 20px;line-height:1.9;max-height:360px;overflow:auto}
@@ -349,7 +365,10 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .msg .meta .when{margin-left:auto}
 .msg .body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
 .msg .tchecks{margin-top:8px}
-.msg details{margin-top:6px}
+.msg details{margin-top:14px}
+.msg .tcheck.inspection details{margin-top:8px;margin-bottom:4px}
+.msg details>summary,.tcheck.inspection details>summary{min-height:36px;padding:8px 14px;gap:9px}
+.msg details[open]>summary,.tcheck.inspection details[open]>summary{margin-bottom:10px}
 .msg.me{align-self:flex-end;background:#EEF2FF;border-color:#DCE3FF}
 .msg.me .meta b{color:#2E5BFF}
 .msg.team{align-self:flex-start;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.035)}
@@ -357,8 +376,8 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .msg.team .meta b,.msg.action[class*="team-"] .meta b{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;background:var(--team-tint,var(--subtle));color:var(--team-accent,var(--text));font-size:12px;font-weight:600;white-space:nowrap}
 .msg.team .meta b::before,.msg.action[class*="team-"] .meta b::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--team-accent,var(--text));flex:none}
 .msg.team .meta .when{color:var(--text-4)}
-/* 팀 색은 원형 마크에 집중하고, 대화와 이름은 중립적인 톤으로 표시합니다. */
-.msg.team{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:12px;border:0;border-radius:0;background:transparent;box-shadow:none;padding:16px 0}
+/* 팀 답변은 고유색을 옅게 입힌 말풍선으로 구분합니다. */
+.msg.team{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:12px;border:1px solid color-mix(in srgb,var(--team-accent,#71717A) 12%,var(--surface));border-radius:16px;background:var(--team-tint,var(--subtle));box-shadow:none;padding:18px 20px;color:var(--text)}
 .mono-tile{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:600;line-height:1;
   color:var(--team-accent,var(--text-2));background:color-mix(in srgb,var(--team-accent,#71717A) 10%,var(--surface));border:0}
 .mono-tile.lg{width:38px;height:38px;border-radius:50%;font-size:14px}
@@ -372,11 +391,11 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .team .nm .mono-tile{width:28px;height:28px;border-radius:50%;font-size:11px}
 .msg.team>:not(.mono-tile){grid-column:2}
 .msg.team .meta b,.msg.team .meta b::before{background:none;padding:0}
-.msg.team .meta b{font-size:14px;font-weight:600;color:var(--text)}
+.msg.team .meta b{font-size:14px;font-weight:700;color:var(--team-accent,var(--text))}
 .msg.team .meta b::before{display:none}
 .msg.team .meta .sub{order:3;flex-basis:100%;color:var(--text-3);font-size:12px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msg.team .meta .when{order:2}
-.msg.team.cont{margin-top:-6px}
+.msg.team.cont{margin-top:0}
 .msg.team.cont>.mono-tile{visibility:hidden;height:0}
 .msg.action[class*="team-"]{border:1px solid var(--line-strong)}
 .msg.action[class*="team-"] .meta b{border-radius:999px;padding:4px 9px;background:var(--team-tint,var(--subtle))}
@@ -386,7 +405,14 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .msg.me.ctl .meta b{color:var(--text-3);font-weight:500}
 .msg.me.ctl .meta .when{margin-left:0}
 .msg.me.ctl .body{font-size:12px;color:var(--text-2)}
-.msg.team .body{font-size:13.5px;line-height:1.65}
+.msg.team .body{font-size:14px;font-weight:500;line-height:1.7;color:var(--text)}
+.msg.team .body strong,.msg.team .body b{font-weight:700}
+.msg.team .inspection-head{font-size:12.5px;font-weight:700;color:var(--text)}
+.msg.team .inspection-copy b{font-size:13.5px;font-weight:700;color:var(--text)}
+.msg.team .inspection-copy>span{font-size:13px;color:var(--text-2);line-height:1.6}
+.msg.team details>summary{background:var(--surface);color:var(--text);border-color:var(--line-strong);font-weight:600}
+.msg.team details>summary:hover{background:var(--subtle)}
+.msg.team details .answer{background:var(--surface);color:var(--text);border:1px solid var(--line);line-height:1.75}
 .msg.team .tchecks{padding-top:9px;margin-top:11px;border-top:1px solid var(--line)}
 .msg.team.err{background:var(--stop-soft);border:0;border-radius:10px;padding:16px}
 .team-plan{--team-accent:#5947A8;--team-tint:#F6F4FC}
@@ -400,6 +426,7 @@ details .answer{margin-top:8px;padding:12px 14px;background:var(--subtle);border
 .msg.sys.stop{border-color:#F2B8A0;color:#9A3412;background:#FFF7F4}
 .msg.action{align-self:stretch;max-width:none;background:var(--surface);border:1px solid var(--line-strong);box-shadow:0 1px 2px rgba(0,0,0,.04)}
 .msg.action.attn{border-color:#F5C77E;background:#FFFBF0}
+.msg.action.daily-cap{border-color:#D8D8D3;background:#F4F4F2;color:var(--text)}
 .msg.action.done{border-color:#A7D8B8;background:#F3FBF6}
 .msg.action.stop{border-color:#F2B8A0;background:#FFF7F4}
 .msg.action .row-f{margin-top:10px}
@@ -603,18 +630,18 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
 .connection-manage:not([open])>.connection-settings{display:none}
 .connection-settings .act{margin-top:10px;flex-wrap:wrap;gap:12px;justify-content:flex-start}
 @media(max-width:600px){.connection-list .erow{padding:14px;gap:12px}.connection-title{gap:8px}.connection-settings{max-width:none}}
-/* 맨 위로: 본문 바깥 오른쪽 여백에 배치한다. 좁은 화면에는 버튼 전용 여백을 확보한다. */
-.to-top{position:fixed;right:calc((100vw - 1520px) / 2 - 80px);top:50%;z-index:35;display:inline-flex;align-items:center;justify-content:center;gap:6px;width:96px;height:44px;padding:0;border:1px solid var(--text);border-radius:999px;background:var(--text);color:var(--surface);font-size:13px;font-weight:500;line-height:1.3;box-shadow:0 6px 20px rgba(17,17,26,.12);cursor:pointer;opacity:0;visibility:hidden;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease,visibility .18s,border-color .15s,color .15s}
+/* 맨 위로: 우측 하단에 고정하고 화면 가장자리·안전 영역과 간격을 둔다. */
+.to-top{position:fixed;right:calc(24px + env(safe-area-inset-right,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:35;display:inline-flex;align-items:center;justify-content:center;gap:6px;width:96px;height:44px;padding:0;border:1px solid var(--text);border-radius:999px;background:var(--text);color:var(--surface);font-size:13px;font-weight:500;line-height:1.3;box-shadow:0 6px 20px rgba(17,17,26,.12);cursor:pointer;opacity:0;visibility:hidden;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease,visibility .18s,border-color .15s,color .15s}
 .to-top.show{opacity:1;visibility:visible;transform:none}
 .to-top{transition:opacity .18s ease,transform .2s ease,visibility .18s,background .2s ease,border-color .2s ease,box-shadow .2s ease}
-.to-top{gap:8px;font-weight:600;line-height:1}
-.to-top span{display:block;line-height:16px;white-space:nowrap}
-@media (hover:hover){.to-top.show:hover{transform:translateY(-3px);background:var(--text-2);border-color:var(--text-2);box-shadow:0 9px 24px rgba(17,17,26,.2)}.to-top.show:hover svg{transform:translateY(-2px)}}
+.to-top{gap:7px;font-weight:600;line-height:20px}
+.to-top span{display:inline-flex;align-items:center;justify-content:center;height:20px;line-height:20px;white-space:nowrap;position:relative;top:-1px}
+@media (hover:hover){.to-top.show:hover{transform:translateY(-3px);background:var(--text-2);border-color:var(--text-2);box-shadow:0 9px 24px rgba(17,17,26,.2)}}
 .to-top.show:active{transform:translateY(0) scale(.96);box-shadow:0 3px 10px rgba(17,17,26,.14)}
 .to-top:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .to-top svg{display:block;width:16px;height:16px;flex:none;margin:0;transition:transform .2s ease}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.to-top.show:hover,.to-top.show:active,.to-top.show:hover svg{transform:none}}
-@media (max-width:1740px){main{padding-right:80px}.to-top{right:16px;width:44px;height:44px;padding:0;justify-content:center}.to-top span{display:none}}
+@media (max-width:760px){.to-top{right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:44px;height:44px;padding:0;justify-content:center}.to-top span{display:none}}
 </style>
 </head>
 <body>
@@ -796,7 +823,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
               <div class="meta"><b>{{x.who}}</b><span class="small muted sub" title="{{x.sub}}">{{x.sub}}</span><span class="small muted when">{{x.when}}</span></div>
               <div class="body">{{x.text}}</div>
               <sc-if value="{{x.hasAtt}}"><div class="att-list"><sc-for list="{{x.atts}}" as="a"><sc-if value="{{a.isImage}}"><button class="att-img" onClick="{{a.open}}" title="{{a.name}} · 새 창에서 크게 보기"><img src="{{a.src}}" alt="{{a.name}}" loading="lazy"></button></sc-if><sc-if value="{{a.isText}}"><button class="att" onClick="{{a.open}}" title="새 창에서 보기"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></button></sc-if><sc-if value="{{a.isPdf}}"><span class="att"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></span></sc-if><sc-if value="{{a.hasConv}}"><button class="att" onClick="{{a.openConv}}" title="엔진이 바꾼 Markdown · 팀은 이것을 읽습니다"><span class="small">변환본 보기</span></button></sc-if></sc-for></div></sc-if>
-              <sc-if value="{{x.hasTools}}"><div class="tchecks"><sc-for list="{{x.tools}}" as="k"><div class="tcheck"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><span class="small"><b>{{k.name}}</b> · {{k.summary}}</span><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
+              <sc-if value="{{x.hasTools}}"><div class="tchecks"><div class="inspection-head"><span>검사 결과</span><sc-if value="{{x.allToolsPassed}}"><span class="inspection-all-pass">모두 통과</span></sc-if></div><sc-for list="{{x.tools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><div class="inspection-copy"><b>{{k.name}}</b><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
               <sc-if value="{{x.hasAnswer}}"><details><summary>팀 답변 전체</summary><div class="answer">{{x.answer}}</div></details></sc-if>
             </div>
           </sc-for>
@@ -826,8 +853,8 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
             </div>
           </sc-if>
           <sc-if value="{{w.atDailyCap}}">
-            <div class="msg action attn">
-              <div class="meta"><b>엔진</b><span class="small muted">오늘 단계 한도</span></div>
+            <div class="msg action daily-cap">
+              <div class="meta"><b>엔진</b><span class="small muted">단계 한도</span></div>
               <div class="body">{{w.capText}}</div>
               <div class="row-f cap-actions"><sc-for list="{{w.extendActs}}" as="x"><button class="{{x.cls}}" onClick="{{x.go}}">{{x.l}}</button></sc-for></div>
             </div>
@@ -904,7 +931,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
           <div style="min-width: 0">
             <div class="who">{{a.who}}<span class="tool">{{a.tool}}</span><span class="{{a.pillCls}}"><i></i>{{a.resL}}</span></div>
             <div class="res">{{a.res}}</div>
-            <sc-if value="{{a.hasTools}}"><div class="tchecks"><sc-for list="{{a.tools}}" as="k"><div class="tcheck"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><span class="small"><b>{{k.name}}</b> · {{k.summary}}</span><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
+            <sc-if value="{{a.hasTools}}"><div class="tchecks"><div class="inspection-head"><span>검사 결과</span><sc-if value="{{a.allToolsPassed}}"><span class="inspection-all-pass">모두 통과</span></sc-if></div><sc-for list="{{a.tools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><div class="inspection-copy"><b>{{k.name}}</b><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
             <sc-if value="{{a.hasAnswer}}"><details><summary>답변 보기</summary><div class="answer">{{a.answer}}</div></details></sc-if>
           </div>
         </div>
@@ -1079,7 +1106,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
           <sc-if value="{{r.hasRemoved}}"><div class="small muted">{{r.removed}}</div></sc-if>
           <sc-if value="{{r.hasText}}"><pre class="answer" style="max-height: 50vh" aria-label="{{r.previewPath}} 내용">{{r.previewText}}</pre></sc-if>
           <sc-if value="{{r.hasFrame}}"><iframe title="바뀐 파일 내용" src="{{r.previewUrl}}" sandbox="" referrerpolicy="no-referrer" style="width:100%;height:50vh;border:1px solid var(--line);border-radius:10px;background:white"></iframe></sc-if>
-          <sc-if value="{{r.hasTools}}"><div class="tchecks"><sc-for list="{{r.tools}}" as="k"><div class="tcheck"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><span class="small"><b>{{k.name}}</b> · {{k.summary}}</span></div></sc-for></div></sc-if>
+          <sc-if value="{{r.hasTools}}"><div class="tchecks"><div class="inspection-head"><span>검사 결과</span><sc-if value="{{r.allToolsPassed}}"><span class="inspection-all-pass">모두 통과</span></sc-if></div><sc-for list="{{r.tools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}}"><i></i>{{k.stL}}</span><div class="inspection-copy"><b>{{k.name}}</b><span>{{k.summary}}</span></div></div></sc-for></div></sc-if>
           <sc-if value="{{r.hasAnswer}}"><details><summary>팀 답변 전체</summary><div class="answer">{{r.answer}}</div></details></sc-if>
           <div class="row-f"><button class="btn pri sm" onClick="{{r.accept}}">확인하고 계속</button><button class="btn sm" onClick="{{r.acceptAll}}">{{r.trustAllL}}</button><button class="btn sm" onClick="{{r.sendBack}}">되돌려 보내기</button><button class="link small" onClick="{{r.open}}">프로젝트 열기</button></div>
         </div>
@@ -1196,8 +1223,8 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
         <div class="lbl" style="margin:12px 0 6px">적용 팀</div>
         <div class="seg wrap" role="group" aria-label="이 스킬을 적용할 팀"><sc-for list="{{k.teamOptions}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" disabled="{{o.disabled}}" onClick="{{o.toggle}}">{{o.label}}</button></sc-for></div>
         <p class="hint">팀을 바꾸면 호환성 검토를 다시 받아야 사용할 수 있습니다.</p>
-        <div class="skill-checks"><div class="lbl" style="margin:0 0 6px">자동 검사 결과 · 참고</div>
-          <sc-for list="{{k.checkRows}}" as="c"><div class="tcheck"><span class="{{c.pillCls}}"><i></i>{{c.stL}}</span><span class="small"><b>{{c.name}}</b> · {{c.text}}</span></div></sc-for></div>
+        <div class="skill-checks"><div class="inspection-head"><span>자동 검사 결과 · 참고</span><sc-if value="{{k.allChecksPassed}}"><span class="inspection-all-pass">모두 통과</span></sc-if></div>
+          <sc-for list="{{k.checkRows}}" as="c"><div class="tcheck inspection"><span class="{{c.pillCls}}"><i></i>{{c.stL}}</span><div class="inspection-copy"><b>{{c.name}}</b><span>{{c.text}}</span></div></div></sc-for></div>
         <div class="skill-review"><div class="lbl" style="margin:12px 0 6px">검토 상태 · {{k.gateL}}</div>
           <sc-for list="{{k.reviewRows}}" as="r"><div class="row-f small" style="margin-bottom:6px"><b style="min-width:84px">{{r.label}}</b><span class="muted" style="flex:1;min-width:160px">{{r.stateL}}</span><button class="btn sm" onClick="{{r.pass}}">통과</button><button class="btn ghost sm" onClick="{{r.hold}}">보류</button></div></sc-for>
           <div class="row-f" style="margin-top:10px"><sc-if value="{{k.canActivate}}"><button class="btn pri sm" onClick="{{k.activate}}">승인하고 켜기</button></sc-if><sc-if value="{{k.isActive}}"><button class="btn sm" onClick="{{k.disableIt}}">끄기</button></sc-if><button class="btn danger sm" onClick="{{k.removeIt}}">삭제</button></div></div>
@@ -1402,7 +1429,7 @@ const HOW_L = { ai: 'AI가 사용', engine: '엔진 내장 검사', sandbox: '�
 const EFFORT_L = { low: '낮음', medium: '중간', high: '높음', xhigh: '매우 높음', max: '최대', ultra: '울트라' };
 const LIMIT_ST = { allowed: ['정상', 'done'], allowed_warning: ['한도 근접', 'attn'], rejected: ['한도 초과', 'stop'] };
 const LIMIT_WIN = { five_hour: '5시간', seven_day: '주간', seven_day_opus: '주간 (Opus)', seven_day_sonnet: '주간 (Sonnet)' };
-const TOOL_ST = { pass: ['통과', 'done'], found: ['발견', 'attn'], fail: ['실패', 'stop'], timeout: ['시간 초과', 'stop'], skipped: ['건너뜀', 'idle'], unavailable: ['실행 못 함', 'attn'] };
+const TOOL_ST = { pass: ['통과', 'done'], found: ['발견', 'attn'], fail: ['실패', 'stop'], timeout: ['시간 초과', 'stop'], skipped: ['건너뜀', 'skipped'], unavailable: ['실행 못 함', 'attn'] };
 const TEAM_NAME = { plan: '기획팀', research: '조사팀', dev: '개발팀', design: '디자인팀', security: '보안팀', policy: '정책팀', qa: '검증팀' };
 const teamTone = (team) => { const id = Object.keys(TEAM_NAME).find((key) => key === team || TEAM_NAME[key] === team); return id ? ' team-' + id : ''; };
 // 이번 순환에서 거치는 팀: 기획 → 작업팀 → [요청된 검토] → 검증
@@ -1854,8 +1881,8 @@ class Component extends DCLogic {
             // A paused project keeps the message but does not run: offer to resume right away instead of silence.
             if (saved && saved.status === 'paused' && await ask('이 프로젝트는 멈춰 있어서 메시지만 저장됐습니다. 지금 이어서 시작할까요? 기획팀이 이 메시지를 보고 다시 계획합니다.'))
               return this.act(this.api('POST', '/api/goals/' + g.id + '/start', {}), '이어서 시작했습니다 · 기획팀이 메시지를 보고 다시 계획합니다');
-            if (saved && saved.reason === 'daily_cap' && await ask('오늘 단계 한도를 다 써서 팀이 자정에 이 메시지를 읽습니다. 오늘만 5단계 더 진행할까요?\n구독 사용량 중단 기준과 반복 감지는 그대로 지킵니다.', { okL: '오늘만 5단계 더', cancelL: '자정에 이어서' }))
-              return this.act(this.api('POST', '/api/goals/' + g.id + '/extend-today', { steps: 5 }), '오늘만 5단계 더 진행합니다');
+            if (saved && saved.reason === 'daily_cap' && await ask('단계 한도를 다 써서 팀이 자정에 이 메시지를 읽습니다. 5단계 더 진행할까요?\n구독 사용량 중단 기준과 반복 감지는 그대로 지킵니다.', { okL: '5단계 더', cancelL: '자정에 이어서' }))
+              return this.act(this.api('POST', '/api/goals/' + g.id + '/extend-today', { steps: 5 }), '5단계 더 진행합니다');
             if (saved && saved.status === 'paused') this.say('메시지를 저장했습니다 · 프로젝트가 멈춰 있어 위의 "이어서 시작"을 눌러야 팀이 읽습니다');
             return this.refresh(); })
           .catch(e => this.say(korErr(e.message))),
@@ -1915,7 +1942,7 @@ class Component extends DCLogic {
               + (r.level ? ' · 제어팀 ' + r.level.label + (r.requestedEffort ? ' · 추론 ' + (EFFORT_L[r.requestedEffort] || r.requestedEffort) : '') + ' (' + r.level.why + ')' : '')
               + (r.switchedFrom ? ' · ' + TOOL[r.switchedFrom] + ' 한도로 대신 실행' + (r.sameAsWorker ? ' (작업팀과 같은 AI · 독립 검토 아님)' : '') : ''),
             resL: resL, pillCls: pillCls(tone), res: res, hasAnswer: !!r.answer, answer: r.answer ? cleanAnswer(r.answer) : '',
-            hasTools: (r.tools || []).length > 0, tools: (r.tools || []).map((k) => ({ name: k.name, summary: k.summary,
+            hasTools: (r.tools || []).length > 0, allToolsPassed: (r.tools || []).length > 0 && r.tools.every(k => k.status === 'pass'), tools: (r.tools || []).map((k) => ({ name: k.name, summary: k.summary,
               stL: TOOL_ST[k.status] ? TOOL_ST[k.status][0] : k.status, pillCls: pillCls(TOOL_ST[k.status] ? TOOL_ST[k.status][1] : 'idle'),
               hasDetails: (k.details || []).length > 0, details: (k.details || []).join('\n') })) };
         }),
@@ -1948,7 +1975,7 @@ class Component extends DCLogic {
       runsDesc.filter((r) => r.status !== 'running').forEach((r) => {
         const a = byRunId[r.id];
         items.push({ at: r.finishedAt || r.startedAt, cls: 'msg team' + teamTone(r.team) + (a.pillCls.indexOf('stop') >= 0 ? ' err' : ''), who: a.who, sub: a.tool,
-          text: a.res, hasTools: a.hasTools, tools: a.tools, hasAnswer: a.hasAnswer, answer: a.answer });
+          text: a.res, hasTools: a.hasTools, allToolsPassed: a.allToolsPassed, tools: a.tools, hasAnswer: a.hasAnswer, answer: a.answer });
       });
       ((s.eng && s.eng.events) || []).filter((e) => e.type === 'skill.applied' && wp.goals.some((x) => x.id === e.goalId)).forEach((e) => {
         const shown = (e.skills || []).filter((k) => k.notice);
@@ -2050,14 +2077,14 @@ class Component extends DCLogic {
       // 오늘 단계 한도: "오늘만 N단계 더" (이 프로젝트만, 오늘만 · 사용량 중단 기준은 그대로)
       const extraToday = g.dailyExtra && g.dailyExtra.day === new Date().toDateString() ? g.dailyExtra.steps : 0;
       const extend = (n) => () => this.act(this.api('POST', '/api/goals/' + g.id + '/extend-today', { steps: n }),
-        '오늘만 ' + n + '단계 더 진행합니다' + (g.autoRun ? ' · 곧 이어집니다' : ' · 시작을 누르면 이어집니다'));
+        n + '단계 더 진행합니다' + (g.autoRun ? ' · 곧 이어집니다' : ' · 시작을 누르면 이어집니다'));
       w.atDailyCap = isTeam && g.reason === 'daily_cap';
-      w.capText = '오늘 이 프로젝트의 단계 ' + (lim.day + extraToday) + '회를 다 썼습니다' + (extraToday ? ' (기본 ' + lim.day + ' + 오늘 추가 ' + extraToday + ')' : '')
-        + '. 그대로 두면 자정에 이어집니다. 더 진행하려면 오늘만 단계를 늘리세요 · 구독 사용량 중단 기준(5시간 20%·주간 10%)과 반복 감지는 그대로 지킵니다.';
-      w.extendActs = [{ l: '오늘만 5단계 더', cls: 'btn pri sm', go: extend(5) }, { l: '오늘만 10단계 더', cls: 'btn sm', go: extend(10) },
+      w.capText = '이 프로젝트의 단계 ' + (lim.day + extraToday) + '회를 다 썼습니다' + (extraToday ? ' (기본 ' + lim.day + ' + 추가 ' + extraToday + ')' : '')
+        + '. 그대로 두면 자정에 이어집니다. 더 진행하려면 단계를 늘리세요 · 구독 사용량 중단 기준(5시간 20%·주간 10%)과 반복 감지는 그대로 지킵니다.';
+      w.extendActs = [{ l: '5단계 더', cls: 'btn pri sm', go: extend(5) }, { l: '10단계 더', cls: 'btn sm', go: extend(10) },
         { l: '기본 한도 바꾸기', cls: 'btn ghost sm', go: () => this.setState({ ptab: 'settings' }) }];
       w.hasWaitNote = ['daily_cap', 'usage_unavailable_or_limited', 'lane_wait'].includes(g.reason) || g.status === 'paused' || (!g.autoRun && isTeam && g.status === 'scheduled');
-      w.waitNote = g.reason === 'daily_cap' ? '오늘 단계 한도(' + lim.day + ')를 다 써서 자정에 이어집니다.' : g.status === 'paused' ? '멈춤 상태입니다. 시작을 누르면 이어집니다.'
+      w.waitNote = g.reason === 'daily_cap' ? '단계 한도(' + lim.day + ')를 다 써서 자정에 이어집니다.' : g.status === 'paused' ? '멈춤 상태입니다. 시작을 누르면 이어집니다.'
         : g.reason ? reasonText(g.reason) : '아직 시작 전입니다.';
       // ── 감시 에이전트 ──
       w.sentinelL = sen && sen.total ? '확인 ' + sen.total + '건 · 차단 ' + sen.blocked + '건' : '아직 기록 없음 · Claude 팀이 웹·파일·커넥터를 쓰면 쓰기 직전에 확인합니다';
@@ -2135,7 +2162,7 @@ class Component extends DCLogic {
           fileBtns: cp.added.map((f) => fileBtn(f, '추가')).concat(cp.modified.map((f) => fileBtn(f, '수정'))).slice(0, 30),
           hasRemoved: cp.removed.length > 0, removed: '삭제: ' + clip(cp.removed.join(', '), 200),
           hasFrame: !!(pv && pv.frame), previewUrl: pv ? src(pv.path) : '', hasText: !!(pv && !pv.frame), previewText: pv ? pv.text : '', previewPath: pv ? pv.path : '',
-          hasTools: (r.tools || []).length > 0, tools: (r.tools || []).map((k) => ({ name: k.name, summary: k.summary,
+          hasTools: (r.tools || []).length > 0, allToolsPassed: (r.tools || []).length > 0 && r.tools.every(k => k.status === 'pass'), tools: (r.tools || []).map((k) => ({ name: k.name, summary: k.summary,
             stL: TOOL_ST[k.status] ? TOOL_ST[k.status][0] : k.status, pillCls: pillCls(TOOL_ST[k.status] ? TOOL_ST[k.status][1] : 'idle') })),
           hasAnswer: !!r.answer, answer: r.answer ? cleanAnswer(r.answer) : '',
           accept: reviewAccept(r), sendBack: reviewSendBack(r), open: () => this.openProject(r.projectId),
@@ -2356,7 +2383,7 @@ class Component extends DCLogic {
           });
           const allPass = KINDS.every(([kind]) => k.reviews && k.reviews[kind] && k.reviews[kind].pass === true);
           const done = KINDS.filter(([kind]) => k.reviews && k.reviews[kind]).length;
-          return { checkRows: checkRows, reviewRows: reviewRows, canActivate: allPass && k.status !== 'active' && k.kind !== 'tool', isActive: k.status === 'active',
+          return { checkRows: checkRows, allChecksPassed: checkRows.every(c => c.stL === '통과'), reviewRows: reviewRows, canActivate: allPass && k.status !== 'active' && k.kind !== 'tool', isActive: k.status === 'active',
             teamOptions:Object.entries(TEAM_NAME).map(([team,label])=>{const assigned=(k.teams || []).includes(team);return {
               label, cls:assigned?'on':'', pressed:assigned?'true':'false', disabled:assigned && k.teams.length===1,
               toggle:()=>act(this.api('PUT','/api/skills/'+k.id+'/teams',{teams:assigned?k.teams.filter(t=>t!==team):[...k.teams,team]}),k.name+' 적용 팀을 바꿨습니다 · 호환성 재검토 필요')};}),
