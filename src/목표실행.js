@@ -10,6 +10,7 @@ import { hasSecret, readAsks } from './보안감시.js';
 import { readGrants } from './승인.js';
 import { saveSources, sourceRecords } from './웹원문.js';
 import { guardDenied, pathViolations, readRules, restoreDenied, rulesPrompt } from './규칙.js';
+import { fontsPrompt, installedKoreanFonts } from './글꼴.js';
 
 // Bridges the goal scheduler to the CLI adapter. After a real run the engine reads the tool's final
 // answer, runs the checks it proposed inside the workspace, and only passing checks become evidence.
@@ -22,7 +23,8 @@ const PROVIDER = { 'claude-code': 'claude', codex: 'codex' };
 // toolsFor(team) → { connectors, knownConnectors }: which claude.ai connectors 대장 opened for that team.
 export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, visualChecker = null, settings = () => ({}),
   onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, docMaker = null, onActivity = () => {}, heldDir = null,
-  webModeFor = () => (settings()['sentinel.web'] === 'open' ? 'open' : 'ask') }) {
+  webModeFor = () => (settings()['sentinel.web'] === 'open' ? 'open' : 'ask'),
+  fonts = () => (adapter.enabled === false ? [] : installedKoreanFonts()) }) {
   const simulated = adapter.enabled === false;
   return {
     async run(goal, run) {
@@ -78,6 +80,9 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       }
       const rulesBlock = team ? rulesPrompt(stepRules, goal.projectId) : '';
       if (rulesBlock) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + rulesBlock + prompt.slice(at) : prompt + rulesBlock; }
+      // 화면을 만드는 팀에는 이 PC에 실제로 설치된 한글 글꼴과 쓸 CSS 이름 (글꼴.js).
+      const fontBlock = ['design', 'dev'].includes(team) ? fontsPrompt(fonts()) : '';
+      if (fontBlock) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + fontBlock + prompt.slice(at) : prompt + fontBlock; }
       if (team && PROVIDER[run.executor] === 'codex') {
         const block = inlineTextFiles(cwd, before.files);
         if (block) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + block + prompt.slice(at) : prompt + block; }
