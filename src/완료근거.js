@@ -113,7 +113,10 @@ export function parseReport(answer) {
 
 // Checks whose answer is in the engine's own records, which no team can read. (screen_ok and slides_ok are not here:
 // a verifier may rightly fail a page that has no overflow but does not meet the criterion.)
-const ENGINE_OWNED = ['document_made', 'spreadsheet_made', 'stayed_inside'];
+// file_updated compares with the fingerprints the engine took when a repeated round started (2026-10-02 routine test:
+// the engine proved "기록.md 이번 회차에 새로 생김", the verifier could not see that record and said not done, and the
+// team appended the same line again).
+const ENGINE_OWNED = ['document_made', 'spreadsheet_made', 'stayed_inside', 'file_updated'];
 // "엔진 빌드·화면 검사에서 넘침·잘림·겹침이 없다": all of it is what the engine's own build or screen check looks at,
 // so its result decides even when the verifier sent "not done" (자율 시험 3차, 2026-10-02: the deck's build passed
 // with no overflow, the verifier said not done, and the day's steps ran out). A criterion that also asks about

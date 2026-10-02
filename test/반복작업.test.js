@@ -161,3 +161,22 @@ test('the scheduler gives a free slot to the goal that has waited longest, not t
     assert.deepEqual(ran, ['routine']);
   } finally { store.close(); }
 });
+
+// 2026-10-02 routine test: the verifier could not see the round-start fingerprints and sent "not done" for the
+// "updated this round" criterion although the engine's own file_updated check passed; the team then wrote the line again.
+test('file_updated is decided by the engine record, whatever the verifier guessed', async () => {
+  const { store, routines, workspaces } = setup();
+  try {
+    const cwd = workspaces.resolve('weekly');
+    const { goalId } = await routines.run('weekly', { manual: true });
+    const goal = store.getGoal(goalId);
+    writeFileSync(path.join(cwd, 'research.md'), '이번 주 가격표');
+    const report = { criteria: [{ index: 2, done: false, note: '회차 시작 기록을 볼 수 없어 확인 못 함', check: { type: 'file_updated', path: 'research.md' } }] };
+    const r = verifyReport(report, goal.completionCriteria, cwd, { baseline: goal.routine.baseline, verifying: true });
+    assert.deepEqual(r.evidence.map(e => e.criterion), [FRESH_CRITERION]);
+    // and a file the round did not touch still fails
+    const same = verifyReport({ criteria: [{ index: 2, done: false, check: { type: 'file_updated', path: 'research.md' } }] }, goal.completionCriteria, cwd,
+      { baseline: routines.baseline('weekly'), verifying: true });
+    assert.equal(same.evidence.length, 0);
+  } finally { store.close(); }
+});
