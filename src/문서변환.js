@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
-import { existsSync, lstatSync, readFileSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { existsSync, lstatSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { hasSecret } from './보안감시.js';
 
@@ -109,20 +109,28 @@ DocConverter.prototype.fill = async function fill(cwd, { template, from, to }, k
   const run = args => this.sandbox.run(cwd, [process.execPath, this.cli, ...args], { timeoutMs: this.timeoutMs });
   // Not --silent: kordoc names each edit it skipped ("⚠️ SKIP: 블록 추가는 미지원 (v1)", "… | <the form's text>"), and
   // the team can only repair what it is told (양식 채우기 시험, 2026-10-02: 19 skips, the error said only "일부").
-  const patched = await run(['patch', form, src, '-o', out]);
+  // kordoc writes its -o file even when it exits 2 (some edits skipped). Written straight to the target, that file had
+  // no engine record, so the team's corrected retry was refused as "이미 있음" (양식 채우기 시험, 2026-10-02). The patch
+  // goes to a temporary name next to it and becomes the target only once it passed; a failed one is removed.
+  const tmp = path.posix.join(path.posix.dirname(out), `.hq-tmp-${randomUUID()}${ext}`);
+  const drop = () => rmSync(full(tmp), { force: true });
+  const patched = await run(['patch', form, src, '-o', tmp]);
   const secret = hasSecret(String(patched.output ?? ''));
-  const output = secret ? '비밀정보 형식이 있어 오류 출력을 숨김' : String(patched.output ?? '').slice(-1000);
+  const output = secret ? '비밀정보 형식이 있어 오류 출력을 숨김' : String(patched.output ?? '').replaceAll(tmp, out).slice(-1000);
   // kordoc exits 2 when some edits could not be placed in the form: that text would be silently lost, so it fails.
-  if (patched.status !== 'pass' || !existsSync(full(out))) {
+  if (patched.status !== 'pass' || !existsSync(full(tmp))) {
+    drop();
     const skipped = secret ? [] : patchSkips(patched.output);
     const where = skipped.length ? ` · 건너뛴 곳 ${skipped.length}개: ${skipped.slice(0, 6).join(' / ')}${skipped.length > 6 ? ' / …' : ''}` : '';
     return { ok: false, error: patched.code === 2 ? `작성본의 일부 수정이 양식에 들어가지 않음 (표·목차 구조를 바꾼 곳을 확인)${where}` : patched.status === 'timeout' ? '양식 채우기 시간 초과' : '양식 채우기 실패',
       stage: 'patch', status: patched.status, code: patched.code ?? null, output, skipped };
   }
-  const valid = ext === '.hwpx' ? await run(['validate', out]) : { status: 'pass' };
-  if (valid.status !== 'pass') return { ok: false, error: '문서 구조 검증 실패', stage: 'validate', status: valid.status, code: valid.code ?? null, output: String(valid.output ?? '').slice(-1000) };
+  const valid = ext === '.hwpx' ? await run(['validate', tmp]) : { status: 'pass' };
+  if (valid.status !== 'pass') { drop(); return { ok: false, error: '문서 구조 검증 실패', stage: 'validate', status: valid.status, code: valid.code ?? null, output: String(valid.output ?? '').slice(-1000) }; }
+  try { renameSync(full(tmp), full(out)); } catch (error) { drop(); return { ok: false, error: `채운 문서를 ${out}(으)로 옮기지 못함 (열려 있으면 닫기)`, stage: 'rename', output: String(error.code ?? '') }; }
   const back = await this.convert(cwd, out);
-  if (!back.ok) return { ok: false, error: '채운 문서를 다시 읽지 못함', stage: 'readback' };
+  // A document the engine cannot read back gets no record, so it is not left behind to block the next try either.
+  if (!back.ok) { rmSync(full(out), { force: true }); return { ok: false, error: '채운 문서를 다시 읽지 못함', stage: 'readback' }; }
   const before = formShape(readFileSync(full(skeletonPath), 'utf8')), after = formShape(readFileSync(full(back.path), 'utf8'));
   const missing = before.headings.filter(h => !after.headings.includes(h)).slice(0, 10);
   const structure = { same: before.tables === after.tables && missing.length === 0 && before.headings.length === after.headings.length,

@@ -126,6 +126,10 @@ export const TEAM_BRIEFS = Object.freeze({
       // The minutes re-test (2026-10-01): "no 담당자·기한 not in the meeting" was read as "no 담당/기한 column, no (미정)",
       // so the verifier failed the structured minutes and the team stripped them back to the bare manuscript.
       '문서(회의록·보고서·계획서) 조건은 그 종류의 필수 항목(회의록: 기본 정보·안건·결정·후속 조치·다음 회의)을 요구하고, "지어낸 사실이 없다" 조건에는 "(빈 칸은 (미정)으로 둔다) (대장이 확인)" 을 함께 적는다 (지어내지 않았다는 것은 파일로 증명할 수 없다). 담당·기한 칸이나 "(미정)" 자체를 금지하는 조건은 만들지 않는다. 한글 문서가 한글 양식으로 보이는지는 "(대장이 미리보기에서 확인)" 조건으로 둔다.',
+      // 양식 채우기 시험 (2026-10-02): the guidance was only in the dev brief, so planning decided "the engine has no HWP
+      // feature" and had dev write a raw HWP/CFB binary editor for 15 steps.
+      '대장이 기관 양식(attachments/ 의 .hwp·.hwpx)을 첨부했으면 엔진의 양식 채우기를 쓴다. 다음 작업은 "attachments/<양식>.md 를 복사해 요청받은 글자만 바꾸고, documents 에 template 로 양식을 적어 요청한다" 이다 (team "dev"). HWP·HWPX 를 읽고 쓰는 도구(바이너리 편집기·변환기)는 어느 팀에게도 만들게 하지 않는다. 원본 파일에 글자를 넣는 것은 엔진이 한다.',
+      '양식 채우기의 완료 조건: 엔진은 새 문단·항목 추가, 그림을 글로 바꾸기, 표 제목(캡션) 고치기, 탭 같은 제어 문자가 든 문단 고치기를 못 하고, 일부 표 칸은 자리를 못 찾아 건너뛴다("셀 텍스트 불일치 — 소스맵 신뢰 불가"). 조건에 이런 것을 요구하지 않는다. 주 조건은 엔진의 document_made 증명(양식과 같은 형식, 목차·표 구조가 양식과 같음)과 바꾼 글자가 문서에 들어 있음이다. 건너뛴 곳·모양처럼 파일로 증명할 수 없는 부분은 "… (대장이 한글에서 확인)" 조건으로 둔다.',
       // Minutes test 3 (2026-10-01) stopped on "only 회의록.md and 회의록.hwpx are new": the engine's previews counted.
       '"새로 생긴 파일은 ○○뿐" 같은 조건은 만들지 않는다 (작업 전 상태 기록이 없어 증명할 수 없다). 범위를 지키게 하려면 "작업 폴더 밖에 쓴 파일이 없다" 로 쓴다 (엔진이 기록으로 증명).',
       // 대장 (2026-10-01): a side-by-side test (team vs one direct build of the same request) showed criteria made only of
@@ -179,7 +183,7 @@ export const TEAM_BRIEFS = Object.freeze({
       // a two-column 구분/내용 table, the 안건 written twice, a table whose every cell was (미정).
       '한글 문서는 한글 양식처럼 보이게 쓴다: 맨 위 기본 정보는 4열 표(라벨|값|라벨|값, 예: 회 의 명|…|작 성 자|…), 본문은 번호 없는 "## 제목" 과 "- 항목" (엔진이 1. → 가. → 1) 로 바꿈), 표에 이미 쓴 내용을 본문에 다시 쓰지 않는다, 칸이 전부 (미정)인 표는 만들지 않고 한 줄로 "(미정)" 이라 쓴다. 회의록·보고서·기안문은 documents 에 "approval":["담당","검토","대장"] 으로 결재란을 넣는다.',
       // 대장 (2026-10-02): a 사업계획서 has to fit the institution's form exactly — its tables, numbering and cells.
-      '대장이 기관 양식(attachments/ 의 .hwp·.hwpx)을 줬으면 새로 만들지 않고 양식을 채운다: 엔진이 만든 attachments/양식.hwp.md 를 복사해 칸과 본문만 고치고, documents 에 "template" 로 양식을 적는다. 목차·표·행·열·순서는 그대로 둔다. 작성요령·예시 문구는 양식이 지우라고 한 곳만 지운다.',
+      '대장이 기관 양식(attachments/ 의 .hwp·.hwpx)을 줬으면 새로 만들지 않고 양식을 채운다: 엔진이 만든 attachments/양식.hwp.md 를 복사해 칸과 본문만 고치고, documents 에 "template" 로 양식을 적는다. 목차·표·행·열·순서는 그대로 둔다. 작성요령·예시 문구는 양식이 지우라고 한 곳만 지운다. 새 문단 추가·그림 교체·표 제목 수정·탭이 든 문단 수정은 엔진이 못 하니 있는 문단과 칸의 글자만 바꾼다. HWP·HWPX 를 직접 다루는 도구는 만들지 않는다.',
       '사업계획서·연구개발계획서·결과보고서는 개조식으로 쓴다: ◦ 핵심 한 줄 → - 근거·수치 한두 줄, 문장 끝은 "~함·~임·~예정". 목표는 숫자와 측정 방법(시험기관·기준)으로, 일정은 월 단위 표로, 사업비는 양식의 단위(천원·백만원)와 합계식을 지킨다. 대장이 주지 않은 실적·숫자·기관명은 지어내지 않고 "(미정)" 이나 "(확인 필요)" 로 남긴다.',
       // 엑셀 만들기 (2026-10-02): the engine writes the .xlsx itself from a JSON spec and reads it back (엑셀.js).
       '표·집계·예산은 엑셀이 필요하면 spreadsheets 로 요청한다: 집계.json 에 시트·열(형식 text·number·money·percent·date)·행·합계를 적고 "spreadsheets":[{"from":"집계.json","to":"집계.xlsx"}] 를 낸다. .xlsx 파일을 직접 쓰거나 고치지 않는다. 엔진이 만들고 다시 읽어 시트·행·열 제목·합계를 대조하며, spreadsheet_made 로 증명한다.',

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DocConverter } from '../src/문서변환.js';
@@ -151,7 +151,8 @@ test('양식 채우기: the form is filled in place, its headings and tables are
   Object.defineProperty(maker, 'available', { get: () => true });
   const r = await maker.fill(cwd, { template: 'attachments/양식.hwp', from: '계획서.md' });
   assert.equal(r.ok, true, r.error);
-  assert.deepEqual(calls[0], ['patch', 'attachments/양식.hwp', '계획서.md', '-o', '계획서.hwp']);
+  assert.deepEqual(calls[0].slice(0, 4), ['patch', 'attachments/양식.hwp', '계획서.md', '-o']);
+  assert.match(calls[0][4], /^\.hq-tmp-[0-9a-f-]{36}\.hwp$/, 'kordoc writes to a temporary name; the target appears only on success');
   assert.ok(!calls.some(c => c[0] === 'validate'), 'HWP has no HWPX structure check; the read-back stands in');
   // an HWP of several pages renders one SVG only page by page: its preview is the first page
   assert.deepEqual(calls.find(c => c[0] === 'render' && c.includes('계획서.hwp.svg')), ['render', '계획서.hwp', '--pages', '1', '-o', '계획서.hwp.svg', '--silent']);
@@ -183,4 +184,36 @@ test('양식 채우기: the form is filled in place, its headings and tables are
   sandbox.run = async () => ({ status: 'fail', code: 2, output: 'skip 3' });
   assert.match((await maker.fill(cwd, { template: 'attachments/양식.hwp', from: '계획서.md' }, new Set(['계획서.hwp']))).error, /일부 수정이 양식에 들어가지 않음 \(표·목차 구조를 바꾼 곳을 확인\)$/);
   assert.deepEqual(formShape('1. 개요\n\n(1) 세부\n\n| a | b |\n| --- | --- |\n| x |  |').headings, ['1. 개요']);
+});
+
+test('양식 채우기: a patch that skipped edits leaves no file behind, so the corrected draft can be filled next time', async () => {
+  const cwd = ws();
+  mkdirSync(path.join(cwd, 'attachments'));
+  const form = '1. 사업 개요\n\n| 구분 | 내용 |\n| --- | --- |\n| 목표 |  |\n';
+  writeFileSync(path.join(cwd, 'attachments', '양식.hwp'), 'HWP-FORM');
+  writeFileSync(path.join(cwd, 'attachments', '양식.hwp.md'), form);
+  writeFileSync(path.join(cwd, '계획서.md'), form.replace('| 목표 |  |', '| 목표 | 불량률 30% 감소 |'));
+  let skipEdits = true;
+  // kordoc writes its -o file even when it exits 2 (seen 2026-10-02), so the fake does too
+  const sandbox = { available: true, run: async (dir, argv) => {
+    const args = argv.slice(2), out = args[args.indexOf('-o') + 1];
+    if (args[0] === 'patch') { writeFileSync(path.join(dir, out), 'HWP-PARTLY-FILLED');
+      if (skipEdits) return { status: 'fail', code: 2, output: `[kordoc] 1개 변경 적용 → ${out}\n[kordoc] ⚠️ SKIP: 블록 추가는 미지원 (v1)` }; }
+    else if (args[0] === 'render') writeFileSync(path.join(dir, out), '<svg/>');
+    else if (args[0] === 'lint') return { status: 'pass', output: '(error 0, warning 0)' };
+    else writeFileSync(path.join(dir, out), form.replace('| 목표 |  |', '| 목표 | 불량률 30% 감소 |'));
+    return { status: 'pass', output: '' };
+  } };
+  const maker = new DocConverter({ root: cwd, sandbox });
+  Object.defineProperty(maker, 'available', { get: () => true });
+  const failed = await maker.fill(cwd, { template: 'attachments/양식.hwp', from: '계획서.md' });
+  assert.equal(failed.ok, false);
+  assert.match(failed.output, /→ 계획서\.hwp$/m,'the team reads the target name, not the temporary one');
+  assert.equal(existsSync(path.join(cwd, '계획서.hwp')), false, 'no unrecorded document is left at the target');
+  assert.deepEqual(readdirSync(cwd).filter(n => n.startsWith('.hq-tmp-')), [], 'the temporary file is removed');
+  skipEdits = false;
+  const fixed = await maker.fill(cwd, { template: 'attachments/양식.hwp', from: '계획서.md' }); // nothing known: a first try again
+  assert.equal(fixed.ok, true, fixed.error);
+  assert.equal(readFileSync(path.join(cwd, '계획서.hwp'), 'utf8'), 'HWP-PARTLY-FILLED');
+  assert.deepEqual(readdirSync(cwd).filter(n => n.startsWith('.hq-tmp-')), []);
 });
