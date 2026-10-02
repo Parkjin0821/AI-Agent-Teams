@@ -61,6 +61,7 @@ export const SETTINGS = Object.freeze({
   // 정기 요약: written by the engine from its own records (no model call). Time is local "HH:MM".
   'digest.time': { type: 'string', default: '09:00', pattern: /^([01]\d|2[0-3]):[0-5]\d$/ },
   'digest.daily': { type: 'boolean', default: true },
+  'digest.morning': { type: 'boolean', default: true },
   'digest.weekly': { type: 'string', default: 'mon', values: ['off', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] },
   // Largest file 대장 can attach in the project conversation (MB).
   'attach.maxMB': { type: 'number', default: 30, min: 1, max: 100 },

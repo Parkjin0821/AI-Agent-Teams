@@ -59,7 +59,11 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     add: team => store.setSetting(`trust.count.${team}`, setting(`trust.count.${team}`, 0) + 1),
     // 대장 decides this kind of work has earned trust: later results continue without a review.
     complete: team => store.setSetting(`trust.count.${team}`, Math.max(setting(`trust.count.${team}`, 0) + 1, setting('trust.required', 3))) };
-  const digests = new Digests({ store, approvals, clock, setting });
+  // 아침 요약 reads the last usage reading and the engine's own wait reasons (both defined below, used only at tick
+  // time), the 자율 시험 records (data/자율시험) and saves its Markdown under this data folder's 요약/.
+  const digests = new Digests({ store, approvals, clock, setting, usage: () => quota,
+    waitWhy: goal => { try { return guarded ? capacityReason(scheduler.stepExecutor(goal)) : null; } catch { return null; } },
+    measureDir: path.join(root, 'data', '자율시험'), saveDir: path.join(dataDir, '요약') });
   const sentinelLog = path.join(dataDir, 'sentinel.jsonl');
   const workspaces = new ProjectWorkspaces(projectsDir, {
     titleFor: id => {

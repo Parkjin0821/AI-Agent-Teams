@@ -128,6 +128,15 @@ main{max-width:1520px;margin:0 auto;padding:36px 32px 96px}
 .side-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
 .side-list li{font-size:12px;line-height:1.45;color:var(--text-2)}
 .side-list .muted{display:block}
+/* 아침 요약: the morning summary at the top of home, details folded below */
+.morning{margin-top:0}
+.morning-lines{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.morning-lines li{font-size:13.5px;line-height:1.5;color:var(--text-2)}
+.morning-lines li:first-child{font-weight:600;color:var(--text)}
+.morning-more{margin-top:12px}
+.morning-more summary{cursor:pointer;font-size:12.5px;color:var(--text-2)}
+.morning-sec{margin-top:12px}
+.morning-sec h3{margin:0 0 6px;font-size:12.5px;font-weight:600;color:var(--text)}
 .side-manage{display:grid;gap:10px;margin-top:10px}
 .side-manage .row-f{flex-wrap:wrap}
 .side-manage .input{max-width:130px}
@@ -734,6 +743,12 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
   <sc-if value="{{hasProjects}}">
     <div class="home-layout"><div class="home-primary">
 
+    <sc-if value="{{mg.has}}"><section class="sec morning" aria-labelledby="morning-h">
+      <div class="sec-h"><h2 id="morning-h">{{mg.title}}</h2><span class="meta">{{mg.when}} · 엔진이 기록으로 작성</span></div>
+      <div class="card"><ul class="morning-lines"><sc-for list="{{mg.lines}}" as="l"><li>{{l}}</li></sc-for></ul>
+        <details class="morning-more"><summary>자세히 보기</summary><sc-for list="{{mg.sections}}" as="x"><div class="morning-sec"><h3>{{x.title}}</h3><ul class="side-list"><sc-for list="{{x.lines}}" as="l"><li>{{l}}</li></sc-for></ul></div></sc-for></details></div>
+    </section></sc-if>
+
     <section class="sec" aria-labelledby="inbox-h">
       <div class="sec-h"><h2 id="inbox-h">확인 필요</h2><span class="meta">팀이 대장의 결정을 기다리는 일</span></div>
       <div class="list inbox">
@@ -785,7 +800,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
   <section class="side-block" aria-label="작업 현황"><div class="side-stats"><div class="side-stat"><span>진행 중</span><b>{{st.active}}개</b></div><div class="side-stat"><span>오늘 실행</span><b>{{st.today}}회</b></div><div class="side-stat"><span>완료</span><b>{{st.done}}개</b></div><div class="side-stat"><span>확인 필요</span><b>{{st.inbox}}건</b></div></div></section>
       <section class="side-block"><div class="sec-h"><h2>구독 사용량</h2><button class="link small" onClick="{{meter.go}}">상세</button></div><sc-if value="{{meter.has}}"><div class="side-meter"><sc-for list="{{meter.items}}" as="m"><div class="{{m.cls}}" title="{{m.t}}"><span class="provider-label">{{m.l}}</span><b>{{m.v}}</b></div></sc-for></div></sc-if><sc-if value="{{meter.none}}"><p class="hint">확인된 사용량이 없습니다.</p></sc-if></section>
       <div class="side-block"><button class="home-side-toggle" aria-expanded="{{sideExpanded}}" aria-controls="home-side-extra" onClick="{{toggleSide}}">요약 · 활동 보기</button></div><sc-if value="{{sideOpen}}"><div id="home-side-extra">
-      <section class="side-block"><h2>요약 · 예정</h2><sc-if value="{{dg.has}}"><p class="small"><b>{{dg.title}}</b> · {{dg.when}}</p><ul class="side-list"><sc-for list="{{dg.lines}}" as="l"><li>{{l}}</li></sc-for></ul><sc-if value="{{dg.hasProjects}}"><ul class="side-list" style="margin-top:10px"><sc-for list="{{dg.projects}}" as="p"><li><button class="link small" onClick="{{p.open}}">{{p.title}}</button> · {{p.statusL}}</li></sc-for></ul></sc-if></sc-if><sc-if value="{{dg.none}}"><p class="hint">아직 요약이 없습니다.</p></sc-if><sc-if value="{{dg.noUpcoming}}"><p class="hint">예정된 일이 없습니다.</p></sc-if><ul class="side-list"><sc-for list="{{dg.upcoming}}" as="u"><li><span class="muted">{{u.when}}</span>{{u.what}}</li></sc-for></ul><details style="margin-top:12px"><summary>요약 관리</summary><div class="side-manage"><div class="row-f"><button class="btn sm" onClick="{{dg.makeDaily}}">오늘 요약 만들기</button><button class="btn sm" onClick="{{dg.makeWeekly}}">주간 보고 만들기</button></div><details><summary>요약 설정</summary><div class="field"><label for="dg-time">요약 시각</label><div class="row-f"><input class="input" id="dg-time" type="time" value="{{dg.timeDraft}}" onChange="{{dg.onTime}}"><button class="btn sm" onClick="{{dg.saveTime}}">저장</button></div></div><div class="field"><label>매일 요약</label><div class="seg" role="group" aria-label="매일 요약"><sc-for list="{{dg.dailyChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div><div class="field"><label>주간 보고</label><div class="seg wrap" role="group" aria-label="주간 보고 요일"><sc-for list="{{dg.weekChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div></details><sc-if value="{{dg.hasOlder}}"><details><summary>지난 요약 {{dg.olderN}}개</summary><sc-for list="{{dg.older}}" as="o"><div class="small"><b>{{o.title}}</b> · {{o.when}}<button class="link small" onClick="{{o.remove}}">삭제</button></div></sc-for></details></sc-if><sc-if value="{{dg.has}}"><button class="btn ghost sm" onClick="{{dg.removeLatest}}">최근 요약 삭제</button><button class="btn danger sm" onClick="{{dg.clear}}">요약 모두 지우기</button></sc-if></div></details></section>
+      <section class="side-block"><h2>요약 · 예정</h2><sc-if value="{{dg.has}}"><p class="small"><b>{{dg.title}}</b> · {{dg.when}}</p><ul class="side-list"><sc-for list="{{dg.lines}}" as="l"><li>{{l}}</li></sc-for></ul><sc-if value="{{dg.hasProjects}}"><ul class="side-list" style="margin-top:10px"><sc-for list="{{dg.projects}}" as="p"><li><button class="link small" onClick="{{p.open}}">{{p.title}}</button> · {{p.statusL}}</li></sc-for></ul></sc-if></sc-if><sc-if value="{{dg.none}}"><p class="hint">아직 요약이 없습니다.</p></sc-if><sc-if value="{{dg.noUpcoming}}"><p class="hint">예정된 일이 없습니다.</p></sc-if><ul class="side-list"><sc-for list="{{dg.upcoming}}" as="u"><li><span class="muted">{{u.when}}</span>{{u.what}}</li></sc-for></ul><details style="margin-top:12px"><summary>요약 관리</summary><div class="side-manage"><div class="row-f"><button class="btn sm" onClick="{{dg.makeMorning}}">아침 요약 만들기</button><button class="btn sm" onClick="{{dg.makeDaily}}">오늘 요약 만들기</button><button class="btn sm" onClick="{{dg.makeWeekly}}">주간 보고 만들기</button></div><details><summary>요약 설정</summary><div class="field"><label for="dg-time">요약 시각</label><div class="row-f"><input class="input" id="dg-time" type="time" value="{{dg.timeDraft}}" onChange="{{dg.onTime}}"><button class="btn sm" onClick="{{dg.saveTime}}">저장</button></div></div><div class="field"><label>아침 요약 (요약 시각을 정하지 않으면 08:00)</label><div class="seg" role="group" aria-label="아침 요약"><sc-for list="{{dg.morningChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div><div class="field"><label>매일 요약</label><div class="seg" role="group" aria-label="매일 요약"><sc-for list="{{dg.dailyChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div><div class="field"><label>주간 보고</label><div class="seg wrap" role="group" aria-label="주간 보고 요일"><sc-for list="{{dg.weekChips}}" as="c"><button class="{{c.cls}}" aria-pressed="{{c.on}}" onClick="{{c.pick}}">{{c.l}}</button></sc-for></div></div></details><sc-if value="{{dg.hasOlder}}"><details><summary>지난 요약 {{dg.olderN}}개</summary><sc-for list="{{dg.older}}" as="o"><div class="small"><b>{{o.title}}</b> · {{o.when}}<button class="link small" onClick="{{o.remove}}">삭제</button></div></sc-for></details></sc-if><sc-if value="{{dg.has}}"><button class="btn ghost sm" onClick="{{dg.removeLatest}}">최근 요약 삭제</button><button class="btn danger sm" onClick="{{dg.clear}}">요약 모두 지우기</button></sc-if></div></details></section>
       <section class="side-block"><h2>최근 활동</h2><ul class="side-list"><sc-for list="{{recentActivity}}" as="r"><li><b>{{r.project}}</b> · {{r.team}}<span class="muted">{{r.when}} · {{r.result}}</span></li></sc-for></ul><sc-if value="{{noRecentActivity}}"><p class="hint">아직 실행 기록이 없습니다.</p></sc-if></section>
     </div></sc-if></div></aside></div>
 
@@ -2354,14 +2369,15 @@ class Component extends DCLogic {
       const days = Math.round((new Date(d).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000);
       return (days === 0 ? '오늘 ' : days === 1 ? '내일 ' : (d.getMonth() + 1) + '/' + d.getDate() + ' ') + t;
     };
-    const nextDue = (weekday) => {
-      const [h, mi] = String(sch.time || '09:00').split(':').map(Number);
+    const nextDue = (weekday, time) => {
+      const [h, mi] = String(time || sch.time || '09:00').split(':').map(Number);
       const d = new Date(); d.setHours(h, mi, 0, 0);
       if (weekday) { d.setDate(d.getDate() + ((WD_I[weekday] - d.getDay() + 7) % 7)); if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 7); }
       else if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
       return d.getTime();
     };
     const upcoming = [];
+    if (sch.morning) upcoming.push({ at: nextDue(null, sch.morningTime), what: '아침 요약 (엔진 작성)' });
     if (sch.daily) upcoming.push({ at: nextDue(null), what: '오늘 요약 (엔진 작성)' });
     if (sch.weekly && sch.weekly !== 'off') upcoming.push({ at: nextDue(sch.weekly), what: '주간 보고 (엔진 작성)' });
     P.forEach((p) => {
@@ -2373,9 +2389,13 @@ class Component extends DCLogic {
     });
     upcoming.sort((a, b) => a.at - b.at);
     const dgLatest = dgd.items[0];
+    // 아침 요약: the newest one leads the home page (headline lines; sections folded under 자세히 보기).
+    const mLatest = dgd.items.find((x) => x.kind === 'morning');
+    const mg = { has: !!mLatest, title: mLatest ? mLatest.title : '', when: mLatest ? fmt(mLatest.at) + ' · ' + ago(mLatest.at) : '',
+      lines: mLatest ? mLatest.lines : [], sections: mLatest ? (mLatest.sections || []).map((x) => ({ title: x.title, lines: x.lines })) : [] };
     const dgProject = (x) => ({ title: x.title, statusL: x.statusL, open: () => this.openProject(x.projectId),
       detail: (x.steps ? '단계 ' + x.steps + '번' + (x.teams.length ? ' (' + x.teams.join('·') + ')' : '') : '실행 없음') + ' · 조건 ' + x.proven + '/' + x.total });
-    const makeDigest = (kind) => () => this.act(this.api('POST', '/api/digests', { kind: kind }).then(() => this.loadDigests()), kind === 'weekly' ? '주간 보고를 만들었습니다' : '오늘 요약을 만들었습니다');
+    const makeDigest = (kind) => () => this.act(this.api('POST', '/api/digests', { kind: kind }).then(() => this.loadDigests()), kind === 'weekly' ? '주간 보고를 만들었습니다' : kind === 'morning' ? '아침 요약을 만들었습니다' : '오늘 요약을 만들었습니다');
     const putSetting = (key, value, msg) => this.act(this.api('PUT', '/api/settings', { key: key, value: value }).then(() => this.loadDigests()), msg);
     const removeDigest = (x) => async () => {
       if (!await ask(x.title + ' (' + fmt(x.at) + ')을(를) 삭제할까요?')) return;
@@ -2391,7 +2411,9 @@ class Component extends DCLogic {
         this.act(this.api('POST', '/api/digests/clear', { confirm: true }).then(() => this.loadDigests()), '요약을 모두 지웠습니다'); },
       upcoming: upcoming.slice(0, 8).map((u) => ({ when: whenL(u.at), what: u.what })), noUpcoming: !upcoming.length,
       scheduleL: (sch.daily ? '매일 ' + sch.time : '매일 요약 꺼짐') + ' · ' + (sch.weekly && sch.weekly !== 'off' ? '주간 ' + (WD.find((w) => w[0] === sch.weekly) || [0, sch.weekly])[1] + '요일' : '주간 꺼짐'),
-      makeDaily: makeDigest('daily'), makeWeekly: makeDigest('weekly'),
+      makeDaily: makeDigest('daily'), makeWeekly: makeDigest('weekly'), makeMorning: makeDigest('morning'),
+      morningChips: [[true, '켜기'], [false, '끄기']].map((c) => ({ l: c[1], on: sch.morning === c[0] ? 'true' : 'false', cls: sch.morning === c[0] ? 'on' : '',
+        pick: () => putSetting('digest.morning', c[0], c[0] ? '아침 요약을 켰습니다 · 매일 ' + sch.morningTime : '아침 요약을 껐습니다') })),
       timeDraft: s.dgTime == null ? sch.time : s.dgTime, onTime: (e) => this.setState({ dgTime: e.target.value }),
       saveTime: () => { const t = s.dgTime == null ? sch.time : s.dgTime; this.setState({ dgTime: null }); putSetting('digest.time', t, '요약 시각을 ' + t + '로 바꿨습니다'); },
       dailyChips: [[true, '켜기'], [false, '끄기']].map((c) => ({ l: c[1], on: sch.daily === c[0] ? 'true' : 'false', cls: sch.daily === c[0] ? 'on' : '',
@@ -2486,7 +2508,7 @@ class Component extends DCLogic {
       modeCls: 'mode' + (s.offline ? ' off' : real ? ' real' : ''), modeL: s.offline ? '연결 끊김' : real ? '실제 실행' : '모의 실행',
       modeTitle: real ? '시작한 프로젝트는 실제 AI가 실행하며 구독 사용량이 쓰입니다' : '실제 AI를 호출하지 않는 모의 실행 모드입니다',
       offline: s.offline,
-      vInbox: s.view === 'inbox', vMemory: s.view === 'memory', ib: ib, mem: mem, dg: dg,
+      vInbox: s.view === 'inbox', vMemory: s.view === 'memory', ib: ib, mem: mem, dg: dg, mg: mg,
       vSkills:s.view === 'skills', refreshSkills:()=>this.loadSkills(), skillsMessage:s.skillsMessage || '', skillsEmpty:Array.isArray(s.skillEntries) && !s.skillEntries.length,
       skillBusy:!!s.skillBusy,skillFormMessage:s.skillFormMessage || '',importSkill:()=>this.saveSkill('import'),draftSkill:()=>this.saveSkill('draft'),
       skillCounts:Array.isArray(s.skillEntries) ? `전체 ${s.skillEntries.length}개 · 사용 가능 ${s.skillEntries.filter(k=>k.status==='active').length}개 · 검토 대기 ${s.skillEntries.filter(k=>k.status==='pending').length}개 · 비활성 ${s.skillEntries.filter(k=>k.status==='disabled').length}개` : '등록 목록을 불러오는 중…',
