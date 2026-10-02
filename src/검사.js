@@ -82,6 +82,20 @@ export function inspectExport(files) {
   return findings.slice(0, 30);
 }
 
+// 반복 검토 생략 (작업스케줄러.js): per file, how many network calls and personal-data patterns it holds, recorded in
+// the step snapshots. The engine keeps hashes, not old contents, so a later step tells "this change added a fetch(" by
+// a count that went up. Network is counted in code and markup only (a research note's source links are not calls);
+// the SVG namespace URL is not a request.
+const NETWORK_RE = /\bfetch\s*\(|https?:\/\/|XMLHttpRequest|WebSocket|<script[^>]+\bsrc\s*=|<link[^>]+href\s*=\s*["']?https?:/gi;
+const CODE_EXT = /\.(js|mjs|cjs|ts|tsx|jsx|html?|vue|svelte|py|php|rb|go|java|kt|rs|sh|ps1|css|scss)$/i;
+export function concernSignals(rel, text) {
+  if (!(TEXT_EXT.test(rel) || /(^|\/)\.env/.test(rel)) || typeof text !== 'string') return null;
+  const net = CODE_EXT.test(rel) ? (text.replace(/https?:\/\/www\.w3\.org\/[^\s"'<>)]*/g, '').match(NETWORK_RE) ?? []).length : 0;
+  let pii = 0;
+  for (const line of text.split(/\r?\n/)) for (const p of PRIVACY_PATTERNS) if (p.re.test(line) && !(p.skip && p.skip.test(line))) pii++;
+  return net || pii ? [net, pii] : null;
+}
+
 export function scanPrivacy(cwd) {
   const findings = scan(cwd, PRIVACY_PATTERNS);
   const strong = new Set(PRIVACY_PATTERNS.filter(p => p.strong).map(p => p.kind));

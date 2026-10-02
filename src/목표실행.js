@@ -7,6 +7,7 @@ import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { SkillLibrary } from './스킬.js';
 import { hasSecret, readAsks } from './보안감시.js';
+import { concernSignals } from './검사.js';
 import { readGrants } from './승인.js';
 import { saveSources, sourceRecords } from './웹원문.js';
 import { guardDenied, pathViolations, readRules, restoreDenied, rulesPrompt } from './규칙.js';
@@ -37,11 +38,18 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const previous = records.filter(r => r.id !== runRecord?.id && r.team === run.team).at(-1);
       const snapshot = () => {
         const files = listWorkspaceFiles(cwd, 2000);
+        // signals: network calls and personal-data patterns per text file, so the scheduler can tell whether a change
+        // since a passed review touched that review's field (반복 검토 생략).
+        const signals = {};
         const signatures = Object.fromEntries(files.map(file => {
           const full = path.join(cwd, file), stat = statSync(full);
-          return [file, stat.size <= 2000000 ? createHash('sha256').update(readFileSync(full)).digest('hex') : `metadata:${stat.size}:${stat.mtimeMs}`];
+          if (stat.size > 2000000) return [file, `metadata:${stat.size}:${stat.mtimeMs}`];
+          const bytes = readFileSync(full);
+          const s = stat.size <= 1000000 ? concernSignals(file, bytes.toString('utf8')) : null;
+          if (s) signals[file] = s;
+          return [file, createHash('sha256').update(bytes).digest('hex')];
         }));
-        return { fingerprint: workspaceFingerprint(cwd), files, signatures };
+        return { fingerprint: workspaceFingerprint(cwd), files, signatures, signals };
       };
       const before = snapshot();
       // The write limits this step runs under, recorded before it starts (stayed_inside reads them back).

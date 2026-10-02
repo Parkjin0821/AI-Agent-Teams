@@ -319,7 +319,7 @@ test('requested reviews run between the work and verification; blocking issues g
   assert.equal(store.getGoal(g.id).team.cycle, 2);
   const runs = store.listRuns(g.id);
   assert.deepEqual(runs[0].plan, { nextTask: '화면 작업', team: 'dev', reviews: ['security', 'policy'] }, 'the plan summary is kept on the run');
-  assert.deepEqual(runs[2].review, { verdict: 'issues', issues: ['API 키가 코드에 있음'], blocking: true }, 'the review verdict is kept on the run');
+  assert.deepEqual(runs[2].review, { verdict: 'issues', issues: ['API 키가 코드에 있음'], blocking: true, checked: null, needsDecision: null }, 'the review verdict is kept on the run');
   store.close();
 });
 
@@ -716,4 +716,84 @@ test('only the proof failed: the verifier gets those criteria back once, no work
     assert.deepEqual([goal.status, goal.reason, qa], ['review_required', 'needs_decision', 2]);
     assert.deepEqual(calls.map(c => c.team), ['plan', 'dev', 'qa', 'qa']);
   } finally { store.close(); }
+});
+
+// 반복 검토 생략 (2026-10-02): a fake work folder whose snapshots the runner records on each step, like 목표실행.js does.
+function reviewRig(change, { securityBlocksFirst = false, allDoneAt = 0 } = {}) {
+  const ws = { sig: { 'index.html': 'v0' }, signals: {} };
+  const snap = () => ({ files: Object.keys(ws.sig), signatures: { ...ws.sig }, signals: structuredClone(ws.signals) });
+  let workers = 0, plans = 0, security = 0;
+  const pass = { outcome: 'completed', review: { verdict: 'pass', issues: [], blocking: false, checked: 'done', needsDecision: null } };
+  const rig = setup((team, n, goal) => {
+    const before = snap();
+    let result;
+    if (team === 'plan') { plans++; result = { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [], allDone: plans === allDoneAt } }; }
+    else if (team === 'dev') { workers++; ws.sig['index.html'] = `v${n}`; change(ws, workers); result = { outcome: 'completed', diffHash: `d${n}`, requiredReviews: ['security', 'policy'] }; }
+    else if (team === 'security' && securityBlocksFirst && ++security === 1) result = { outcome: 'completed', review: { verdict: 'issues', issues: ['입력 검사 없음'], blocking: true, checked: 'done', needsDecision: null } };
+    else if (team === 'security' || team === 'policy') result = pass;
+    else result = { outcome: 'completed', evidence: [], claims: [], findings: { blocking: [], feedback: '더 할 것' } };
+    const run = rig.store.listRuns(goal.id).find(r => r.status === 'running');
+    rig.store.saveRun({ ...run, checkpoint: { before, after: snap(), state: 'completed' } });
+    return result;
+  }, { maxRoundsPerDay: 50 });
+  return rig;
+}
+const skippedEvents = store => store.db.prepare('SELECT body FROM events').all().map(r => JSON.parse(r.body)).filter(e => e.type === 'reviews.skipped');
+
+test('a review that passed is not run again while the work since touched none of its field, also before the final check', async () => {
+  const { store, scheduler, add, calls } = reviewRig(() => {}, { allDoneAt: 3 });
+  try {
+    const g = add();
+    await ticks(scheduler, 8);
+    // a work step since the last verification (as after a lane or a resume), so the final check is not "unchanged"
+    const goal = store.getGoal(g.id); goal.team.workSinceQa = true; store.saveGoal(goal);
+    await ticks(scheduler, 2);
+    assert.deepEqual(calls.map(c => c.team), ['plan', 'dev', 'security', 'policy', 'qa', 'plan', 'dev', 'qa', 'plan', 'qa']);
+    const events = skippedEvents(store);
+    assert.deepEqual(events.map(e => [e.team, e.skipped]), [['dev', ['security', 'policy']], ['plan', ['security', 'policy']]]);
+    assert.match(events[0].notes[0], /^보안팀 검토 생략 · 이전 통과 뒤 바뀐 파일 1개가 보안 영역을 건드리지 않음$/);
+    assert.match(events[0].notes[1], /^정책팀 검토 생략/);
+    assert.deepEqual(store.listRuns(g.id)[2].review.checked, 'done', 'the run keeps whether the review was complete');
+  } finally { store.close(); }
+});
+
+test('a worker that adds package.json or a fetch( call runs the reviews again', async () => {
+  for (const change of [(ws, k) => { if (k === 2) ws.sig['package.json'] = 'p'; },
+    (ws, k) => { if (k === 2) { ws.sig['앱.js'] = 'a'; ws.signals['앱.js'] = [1, 0]; } }]) {
+    const { store, scheduler, calls } = reviewRig(change);
+    try {
+      scheduler.addGoal({ projectId: 'budget', kind: 'team', autoRun: true, objective: '가계부', completionCriteria: C });
+      await ticks(scheduler, 8);
+      assert.deepEqual(calls.map(c => c.team), ['plan', 'dev', 'security', 'policy', 'qa', 'plan', 'dev', 'security']);
+      assert.deepEqual(skippedEvents(store), []);
+    } finally { store.close(); }
+  }
+});
+
+test('a review that blocked last time is never skipped', async () => {
+  const { store, scheduler, calls } = reviewRig(() => {}, { securityBlocksFirst: true });
+  try {
+    scheduler.addGoal({ projectId: 'budget', kind: 'team', autoRun: true, objective: '가계부', completionCriteria: C });
+    await ticks(scheduler, 6);
+    // security blocks before policy ever ran, so both run after the fix
+    assert.deepEqual(calls.map(c => c.team), ['plan', 'dev', 'security', 'dev', 'security', 'policy']);
+  } finally { store.close(); }
+});
+
+test('reviewSkip needs the engine snapshots: an old run without signals, a partial check or a question means the review runs', async () => {
+  const { reviewSkip } = await import('../src/팀검토.js');
+  const snapA = { files: ['a.md'], signatures: { 'a.md': '1' }, signals: {} }, snapB = { files: ['a.md'], signatures: { 'a.md': '2' }, signals: {} };
+  const review = extra => ({ team: 'security', review: { verdict: 'pass', issues: [], blocking: false, checked: 'done', needsDecision: null, ...extra }, checkpoint: { before: snapA, after: snapA } });
+  const work = { team: 'dev', checkpoint: { before: snapA, after: snapB } };
+  assert.match(reviewSkip([review(), work], 'security'), /보안팀 검토 생략/);
+  assert.equal(reviewSkip([review({ checked: 'partial' }), work], 'security'), null);
+  assert.equal(reviewSkip([review({ needsDecision: '물어봄' }), work], 'security'), null);
+  assert.equal(reviewSkip([review(), { team: 'dev', checkpoint: { before: snapA, after: { ...snapB, signals: undefined } } }], 'security'), null);
+  assert.equal(reviewSkip([review(), { team: 'dev', checkpoint: { before: snapA, after: { ...snapB, files: ['attachments/양식.hwp'], signatures: { 'attachments/양식.hwp': 'x' } } } }], 'policy'), null);
+  assert.match(reviewSkip([{ ...review(), team: 'policy' }, work], 'policy'), /정책팀 검토 생략/);
+  assert.equal(reviewSkip([{ ...review(), team: 'policy' }, work], 'policy', { sourcesSaved: true }), null);
+  const { concernSignals } = await import('../src/검사.js');
+  assert.deepEqual(concernSignals('앱.js', 'const r = await fetch(url);'), [1, 0]);
+  assert.equal(concernSignals('그림.html', '<svg xmlns="http://www.w3.org/2000/svg"></svg>'), null, 'the SVG namespace is not a request');
+  assert.equal(concernSignals('조사.md', '출처: https://nodejs.org/'), null, 'a source link in a note is not a network call');
 });

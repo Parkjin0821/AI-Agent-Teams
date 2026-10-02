@@ -135,7 +135,7 @@ export const TEAM_BRIEFS = Object.freeze({
       '어느 작업팀도 명령을 실행할 수 없다. 테스트 실행은 검증 단계에서 엔진이 샌드박스로 하고, 실패하면 실패 이유(오류·expected/actual)가 피드백으로 온다. 명령 실행이나 테스트 재실행을 작업으로 맡기지 않는다.',
       '파일 수정 없이 테스트 결과만 다시 확인하면 되는 상황이면 all_done 을 true 로 해 검토·검증 단계로 보낸다.',
       // 자율 시험 2차 (2026-10-02): every fix ran security and policy again, five steps a round, three rounds a day.
-      '"reviews" 에 "security" (보안팀): 입력 처리·로그인·비밀정보·네트워크·의존성을 건드릴 때. "policy" (정책팀): 외부 데이터·API·타사 코드·개인정보·게시물이 관련될 때. 둘 다 아니면 비운다. 이미 한 번 검토를 통과한 뒤의 수정(문구·배치·표시·테스트 고치기)이면 다시 부르지 않는다. 수정이 그 팀 영역(새 외부 연결·입력 처리·개인정보·의존성·게시)을 새로 건드릴 때만 다시 부른다. 엔진의 비밀정보·네트워크·금지 파일 검사는 매 단계 따로 돈다.',
+      '"reviews" 에 "security" (보안팀): 입력 처리·로그인·비밀정보·네트워크·의존성을 건드릴 때. "policy" (정책팀): 외부 데이터·API·타사 코드·개인정보·게시물이 관련될 때. 둘 다 아니면 비운다. 이미 한 번 검토를 통과한 뒤의 수정(문구·배치·표시·테스트 고치기)이면 다시 부르지 않는다. 엔진도 이전 검토가 통과했고 그 뒤 바뀐 파일이 그 팀 영역(의존성·설정·비밀정보 파일, 새 외부 연결, 개인정보 형식, attachments/·sources/)을 건드리지 않았으면 그 검토를 생략한다 (마지막 확인 전 검토도 같다). 엔진의 비밀정보·네트워크·금지 파일 검사는 매 단계 따로 돈다.',
       'complexity (simple|normal|complex), risk (low|normal|high), task_type (planning|coding|research|ui|image|connector), required_capabilities (text,code,web,image,connectors)를 적는다.',
       'proposed_model 과 proposal_reason 으로 모델을 제안할 수 있다. 브랜드 선호가 아니라 작업 요구로 근거를 댄다. 선택은 엔진이 검증된 후보 안에서 하며, 제안은 안전 조건을 넘지 못한다.',
       '모든 조건이 이미 증명된 것으로 보이면 all_done 을 true 로 한다. 실제 완료는 검토·검증팀과 엔진이 정한다.',

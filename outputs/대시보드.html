@@ -2159,6 +2159,10 @@ class Component extends DCLogic {
           text: (saved.length ? 'sources/에 저장 ' + saved.length + '개: ' + saved.join(', ') : reused.length ? '새로 받은 원문 없음' : '저장한 원문 없음')
             + (reused.length ? '\n이전에 저장한 원문 사용: ' + reused.join(', ') : '') + (skipped.length ? '\n건너뜀: ' + skipped.join(' / ') : '') });
       });
+      // 반복 검토 생략: a review whose last pass still holds (nothing in its field changed since) is not run again.
+      ((s.eng && s.eng.events) || []).filter((e) => e.type === 'reviews.skipped' && wp.goals.some((x) => x.id === e.goalId)).forEach((e) => {
+        items.push({ at: e.at, cls: 'msg sys', who: '엔진 · 검토 생략', sub: TEAM_NAME[e.team] || '', text: (e.notes || []).join('\n') });
+      });
       // 완료 보고서: written by the engine from its records when the project finished.
       ((s.eng && s.eng.events) || []).filter((e) => e.type === 'report.made' && wp.goals.some((x) => x.id === e.goalId)).forEach((e) => {
         items.push({ at: e.at, cls: 'msg sys' + (e.error ? ' stop' : ''), who: '엔진 · 완료 보고서', sub: '',

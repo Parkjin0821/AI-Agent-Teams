@@ -7,7 +7,7 @@ import { levelChoice, levelFor } from './모델수준.js';
 import { DEFAULT_POLICY } from './정책.js';
 import { nextStep, REVIEWS, TEAMS, WORKERS } from './팀.js';
 import { validateProjectId } from './작업공간.js';
-import { enqueueRequests, taskProfile } from './팀검토.js';
+import { enqueueRequests, reviewSkip, taskProfile } from './팀검토.js';
 import { selectAssignment } from './작업배정.js';
 import { DEFAULT_CLAUDE_MODEL } from './모델선택.js';
 
@@ -510,7 +510,8 @@ export class GoalScheduler {
       ...(Array.isArray(result.documents) ? { documents: result.documents.slice(0, 3) } : {}),
       ...(Array.isArray(result.spreadsheets) ? { spreadsheets: result.spreadsheets.slice(0, 3) } : {}),
       plan: result.plan ? { nextTask: result.plan.nextTask, team: result.plan.team ?? 'dev', reviews: result.plan.reviews ?? [] } : null,
-      review: result.review ? { verdict: result.review.verdict, issues: result.review.issues, blocking: result.review.blocking } : null });
+      review: result.review ? { verdict: result.review.verdict, issues: result.review.issues, blocking: result.review.blocking,
+        checked: result.review.checked ?? null, needsDecision: result.review.needsDecision ?? null } : null });
     if (goal.status !== GoalStatus.RUNNING) return;
     // 대장 규칙: a step that added or changed a file a 금지 / 승인 필요 path rule covers stops for 대장 (규칙.js).
     const violations = Array.isArray(result.ruleViolations) ? result.ruleViolations : [];
@@ -530,9 +531,20 @@ export class GoalScheduler {
       if (DUE.includes(next.status)) Object.assign(next, { pausedFrom: next.status, status: GoalStatus.PAUSED });
     }
     this.update(goal, next);
+    // 반복 검토 생략: the thread says which review the engine skipped this step and why.
+    const skips = next.team?.skippedReviews;
+    if (skips?.round === run.round && skips.notes.length) await this.store.emit({ type: 'reviews.skipped', goalId: goal.id, round: run.round, team: run.team, skipped: skips.teams, notes: skips.notes });
     if (goal.status === GoalStatus.VERIFIED && goal.lane) this.laneFinished(goal);
     if (goal.status === GoalStatus.VERIFIED && !result.simulated) this.dispatchFollowup(goal);
     await this.store.emit({ type: `goal.${goal.status}`, goalId: goal.id, round: run.round, reason: goal.reason, team: run.team });
+  }
+
+  // 반복 검토 생략 (팀검토.js reviewSkip): drops the reviews whose latest pass still holds and notes them on the team.
+  skipReviews(goal, team, wanted, opts = {}) {
+    const runs = this.store.listRuns(goal.id);
+    const notes = wanted.map(r => [r, reviewSkip(runs, r, opts)]).filter(([, note]) => note);
+    team.skippedReviews = { round: goal.round, teams: notes.map(([r]) => r), notes: notes.map(([, note]) => note) };
+    return wanted.filter(r => !notes.some(([s]) => s === r));
   }
 
   // One step of the team rotation. The next step starts right away (no timer) until the goal is proven,
@@ -594,7 +606,8 @@ export class GoalScheduler {
       // so verification runs again directly (seen in a real run: plan → security → policy → qa three times, 12 steps,
       // with nothing changed).
       const unchanged = plan.allDone && team.workSinceQa === false && Array.isArray(team.lastUnproven);
-      team.reviews = unchanged ? [] : plan.allDone ? [...REVIEWS] : REVIEWS.filter(r => (plan.reviews ?? []).includes(r));
+      // The forced full review before the final verification also skips a team that passed and whose field is untouched.
+      team.reviews = unchanged ? [] : plan.allDone ? this.skipReviews(goal, team, [...REVIEWS]) : REVIEWS.filter(r => (plan.reviews ?? []).includes(r));
       team.reviewNotes = [];
       team.task = plan.allDone ? '완료 여부 최종 확인' : plan.nextTask;
       return plan.allDone ? goTo(team.reviews[0] ?? 'qa') : advance();
@@ -637,7 +650,8 @@ export class GoalScheduler {
     }
     if (WORKERS.includes(step)) {
       team.workSinceQa = true;
-      team.reviews = [...new Set([...team.reviews, ...(result.requiredReviews ?? [])])].filter(r => REVIEWS.includes(r));
+      team.reviews = this.skipReviews(goal, team, [...new Set([...team.reviews, ...(result.requiredReviews ?? [])])].filter(r => REVIEWS.includes(r)),
+        { sourcesSaved: Array.isArray(result.sources) && result.sources.length > 0 });
       // Progress means new evidence or a workspace change not seen before; only development rounds count.
       const diffIsNew = Boolean(result.diffHash) && !goal.recentDiffs.includes(result.diffHash);
       const progressed = evidence.length > goal.bestCriteriaMet || diffIsNew;
