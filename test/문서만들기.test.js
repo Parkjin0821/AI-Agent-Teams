@@ -126,3 +126,48 @@ test('document_made proves only an engine-made, checked, unchanged document, and
   assert.match(run({ type: 'document_made', path: 'r.hwpx' }).detail, /만든 뒤 바뀜/);
   assert.equal(notDone([{ type: 'document_made', path: 'r.hwpx' }]).evidence.length, 0, 'a failing engine check stays unmet');
 });
+
+test('양식 채우기: the form is filled in place, its headings and tables are checked, and document_made says so', async () => {
+  const { formShape } = await import('../src/문서변환.js');
+  const cwd = ws();
+  mkdirSync(path.join(cwd, 'attachments'));
+  const form = '# 사업계획서\n\n1. 사업 개요\n\n가. 추진배경\n\n<table><tr><td>과제명</td><td></td></tr></table>\n\n| 구분 | 내용 |\n| --- | --- |\n| 목표 |  |\n';
+  writeFileSync(path.join(cwd, 'attachments', '양식.hwp'), 'HWP-FORM');
+  writeFileSync(path.join(cwd, 'attachments', '양식.hwp.md'), form);
+  const filled = form.replace('<td></td>', '<td>스마트 용접 품질 개선</td>').replace('| 목표 |  |', '| 목표 | 불량률 30% 감소 |');
+  writeFileSync(path.join(cwd, '계획서.md'), filled);
+  let readback = filled;
+  const calls = [];
+  const sandbox = { available: true, run: async (dir, argv) => {
+    const args = argv.slice(2); calls.push(args);
+    const out = args[args.indexOf('-o') + 1];
+    if (args[0] === 'patch') writeFileSync(path.join(dir, out), 'HWP-FILLED');
+    else if (args[0] === 'render') writeFileSync(path.join(dir, out), '<svg/>');
+    else if (args[0] === 'lint') return { status: 'pass', output: '(error 0, warning 0)' };
+    else writeFileSync(path.join(dir, out), readback);
+    return { status: 'pass', output: '' };
+  } };
+  const maker = new DocConverter({ root: cwd, sandbox });
+  Object.defineProperty(maker, 'available', { get: () => true });
+  const r = await maker.fill(cwd, { template: 'attachments/양식.hwp', from: '계획서.md' });
+  assert.equal(r.ok, true, r.error);
+  assert.deepEqual(calls[0], ['patch', 'attachments/양식.hwp', '계획서.md', '-o', '계획서.hwp', '--silent']);
+  assert.ok(!calls.some(c => c[0] === 'validate'), 'HWP has no HWPX structure check; the read-back stands in');
+  assert.deepEqual([r.path, r.kind, r.structure.same, r.empties], ['계획서.hwp', 'form', true, [2, 0]]);
+  const run = (rec) => verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'document_made', path: '계획서.hwp', text: '불량률 30% 감소' } }] },
+    ['양식에 맞춘 사업계획서 계획서.hwp 에 목표가 들어 있다'], cwd, { documents: { '계획서.hwp': rec } }).claims[0];
+  const ok = run(r);
+  assert.equal(ok.check, 'pass');
+  assert.match(ok.detail, /양식 양식\.hwp에 계획서\.md 내용을 채움, 원본 서식 그대로\) · 목차 3개·표 2개 양식과 같음 · 빈칸 0개 \(양식 2개\)/);
+  // a heading of the form dropped while filling: the engine says so and the proof fails
+  readback = filled.replace('가. 추진배경\n', '');
+  const lost = await maker.fill(cwd, { template: 'attachments/양식.hwp', from: '계획서.md' }, new Set(['계획서.hwp']));
+  assert.deepEqual([lost.structure.same, lost.structure.missing], [false, ['가. 추진배경']]);
+  assert.match(run(lost).detail, /목차·표가 양식과 다름 .*빠진 목차: 가\. 추진배경/);
+  // refused: the result in another format, the draft inside attachments/, edits kordoc could not place
+  assert.match((await maker.fill(cwd, { template: 'attachments/양식.hwp', from: '계획서.md', to: '계획서.hwpx' })).error, /양식과 같은 형식/);
+  assert.match((await maker.fill(cwd, { template: 'attachments/양식.hwp', from: 'attachments/양식.hwp.md' })).error, /작성본/);
+  sandbox.run = async () => ({ status: 'fail', code: 2, output: 'skip 3' });
+  assert.match((await maker.fill(cwd, { template: 'attachments/양식.hwp', from: '계획서.md' }, new Set(['계획서.hwp']))).error, /일부 수정이 양식에 들어가지 않음/);
+  assert.deepEqual(formShape('1. 개요\n\n(1) 세부\n\n| a | b |\n| --- | --- |\n| x |  |').headings, ['1. 개요']);
+});

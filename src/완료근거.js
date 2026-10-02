@@ -65,6 +65,12 @@ export function reportInstructions(criteria, { verifying = false } = {}) {
     'label, value), not a two-column 구분/내용 table.',
     'layout: auto uses a compact report format for short 업무보고; full keeps the formal ministry format with cover/TOC; compact explicitly selects the compact 업무보고 format. Preserve the manuscript content.',
     'After your step the engine makes it, checks it, and saves previews (x.hwpx.svg, x.hwpx.html) and a read-back (x.hwpx.md).',
+    '양식 채우기 — when 대장 attached the institution\'s own form (attachments/양식.hwp or .hwpx), never rebuild it: copy its',
+    'Markdown (attachments/양식.hwp.md, made by the engine) to a file of yours, e.g. 계획서.md, and change ONLY the text the form',
+    'asks for (cells, body paragraphs, (미정) where a fact is unknown). Keep every heading, table, row, column and their order;',
+    'delete the form\'s 작성요령/예시 text only where the form says to. Then add "documents":[{"template":"attachments/양식.hwp",',
+    '"from":"계획서.md","to":"계획서.hwp"}] (same extension as the form). The engine writes your text into the original file,',
+    'keeping its layout, and checks that every heading and table of the form is still there; document_made then proves it.',
     'If you read web pages, list them in "sources":[{"url":"https://…"}] (at most 5). After your step the engine fetches',
     'each allowed page again and saves its original text under sources/ for comparison. Never write into sources/.',
     'Do not claim done without doing the work. Put anything a person must judge in "note".',
@@ -512,6 +518,13 @@ function checkDocument(check, cwd, documents) {
     found = ` · 문서에 “${shown}” 있음`;
   }
   const lint = rec.lint ? ` · 표기법 검수 오류 ${rec.lint.errors}·경고 ${rec.lint.warnings}` : '';
+  // 양식 채우기: the form's headings and tables must all still be there, in order.
+  if (rec.kind === 'form') {
+    const s = rec.structure ?? {};
+    if (!s.same) return { status: 'fail', reason: `${rel}의 목차·표가 양식과 다름 (표 ${s.tables?.join('→')}, 목차 ${s.headings?.join('→')}${s.missing?.length ? ` · 빠진 목차: ${s.missing.slice(0, 3).join(', ')}` : ''})` };
+    const empty = rec.empties ? ` · 빈칸 ${rec.empties[1]}개 (양식 ${rec.empties[0]}개)` : '';
+    return { status: 'pass', proof: `엔진 확인 · ${rel} (양식 ${path.basename(rec.template)}에 ${rec.from} 내용을 채움, 원본 서식 그대로) · 목차 ${s.headings?.[1]}개·표 ${s.tables?.[1]}개 양식과 같음${empty}${found}${lint}` };
+  }
   return { status: 'pass', proof: `엔진 확인 · ${rel} (${rec.preset} 서식, ${rec.from}에서 엔진이 만듦) 구조 검증 통과${found}${lint}` };
 }
 

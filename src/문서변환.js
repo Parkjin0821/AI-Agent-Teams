@@ -80,5 +80,71 @@ export class DocConverter {
   }
 }
 
+// 양식 채우기 (대장, 2026-10-02: "원래 사업계획서는 이렇게 딱딱 맞게 들어가야 되잖아"): an institution's own form
+// (attachments/x.hwp or .hwpx) is filled, not rebuilt. The team edits a copy of the form's Markdown (the engine
+// converted it when it was attached) and the engine writes only the edited text back into the original file with
+// kordoc patch, which keeps its tables, merged cells, fonts, margins and page setup. Then: a read-back, the
+// structure of the result against the form (the same headings in the same order, the same tables), the empty cells
+// left, the notation check, and SVG/HTML previews. Same sandbox, no network, no model call.
+DocConverter.prototype.fill = async function fill(cwd, { template, from, to }, known = new Set()) {
+  if (!this.available) return { ok: false, error: existsSync(this.cli) ? '격리 실행 환경을 쓸 수 없음' : 'kordoc 없음' };
+  const rel = p => typeof p === 'string' && p && !path.isAbsolute(p) && !/^[a-zA-Z]:/.test(p) ? path.normalize(p).replace(/\\/g, '/') : null;
+  const form = rel(template), src = rel(from);
+  const ext = form ? path.extname(form).toLowerCase() : '';
+  const out = rel(to ?? (src ? src.replace(/\.md$/i, ext) : null));
+  const hidden = p => p.split('/').some(s => s.startsWith('.'));
+  if (!form || form.startsWith('..') || hidden(form) || !['.hwp', '.hwpx'].includes(ext)) return { ok: false, error: '양식은 작업 폴더 안의 .hwp 또는 .hwpx 파일이어야 함' };
+  const bad = p => !p || p.startsWith('..') || /^(attachments|sources)\//.test(p) || hidden(p);
+  if (bad(src) || !src.toLowerCase().endsWith('.md')) return { ok: false, error: '작성본은 작업 폴더 안의 .md 파일이어야 함 (attachments/ 밖)' };
+  if (bad(out) || path.extname(out).toLowerCase() !== ext) return { ok: false, error: `결과는 작업 폴더 안의 ${ext} 파일이어야 함 (양식과 같은 형식)` };
+  const full = p => path.join(cwd, p);
+  for (const [p, l] of [[form, '양식'], [src, '작성본']]) if (!existsSync(full(p)) || !lstatSync(full(p)).isFile()) return { ok: false, error: `${l} ${p} 없음` };
+  if (lstatSync(full(src)).size > 3_000_000) return { ok: false, error: '작성본이 너무 큼 (3MB 초과)' };
+  const draft = readFileSync(full(src), 'utf8');
+  if (hasSecret(draft)) return { ok: false, error: '작성본에 비밀정보 형식이 있어 넣지 않음' };
+  if (existsSync(full(out)) && !known.has(out)) return { ok: false, error: `${out}이(가) 이미 있음 (엔진이 만든 문서만 다시 만듦)` };
+  // The form's own Markdown: the one made at attachment time, or made now.
+  let skeletonPath = `${form}.md`;
+  if (!existsSync(full(skeletonPath))) { const c = await this.convert(cwd, form); if (!c.ok) return { ok: false, error: `양식을 읽지 못함: ${c.error}` }; skeletonPath = c.path; }
+  const run = args => this.sandbox.run(cwd, [process.execPath, this.cli, ...args], { timeoutMs: this.timeoutMs });
+  const patched = await run(['patch', form, src, '-o', out, '--silent']);
+  const output = hasSecret(String(patched.output ?? '')) ? '비밀정보 형식이 있어 오류 출력을 숨김' : String(patched.output ?? '').slice(-1000);
+  // kordoc exits 2 when some edits could not be placed in the form: that text would be silently lost, so it fails.
+  if (patched.status !== 'pass' || !existsSync(full(out))) {
+    return { ok: false, error: patched.code === 2 ? '작성본의 일부 수정이 양식에 들어가지 않음 (표·목차 구조를 바꾼 곳을 확인)' : patched.status === 'timeout' ? '양식 채우기 시간 초과' : '양식 채우기 실패',
+      stage: 'patch', status: patched.status, code: patched.code ?? null, output };
+  }
+  const valid = ext === '.hwpx' ? await run(['validate', out]) : { status: 'pass' };
+  if (valid.status !== 'pass') return { ok: false, error: '문서 구조 검증 실패', stage: 'validate', status: valid.status, code: valid.code ?? null, output: String(valid.output ?? '').slice(-1000) };
+  const back = await this.convert(cwd, out);
+  if (!back.ok) return { ok: false, error: '채운 문서를 다시 읽지 못함', stage: 'readback' };
+  const before = formShape(readFileSync(full(skeletonPath), 'utf8')), after = formShape(readFileSync(full(back.path), 'utf8'));
+  const missing = before.headings.filter(h => !after.headings.includes(h)).slice(0, 10);
+  const structure = { same: before.tables === after.tables && missing.length === 0 && before.headings.length === after.headings.length,
+    tables: [before.tables, after.tables], headings: [before.headings.length, after.headings.length], missing };
+  const lint = await run(['lint', src]);
+  const counts = /error\s+(\d+),\s*warning\s+(\d+)/.exec(String(lint.output ?? ''));
+  const svg = await run(['render', out, '-o', `${out}.svg`, '--silent']);
+  const html = await run(['render', out, '--format', 'html', '-o', `${out}.html`, '--title', path.basename(out, ext), '--silent']);
+  const sha = p => createHash('sha256').update(readFileSync(full(p))).digest('hex');
+  return { ok: true, kind: 'form', template: form, from: src, path: out, preset: '양식', sha: sha(out), validated: true, structure,
+    empties: [before.empties, after.empties], lint: counts ? { errors: Number(counts[1]), warnings: Number(counts[2]) } : null,
+    readback: { path: back.path, sha: sha(back.path) },
+    previews: [`${out}.svg`, `${out}.html`].filter((p, i) => [svg, html][i].status === 'pass' && existsSync(full(p))) };
+};
+
+// The parts of a form that filling must keep: its headings in order (목차·번호 줄), its tables, and how many cells are
+// still empty. Read from kordoc's Markdown of the form and of the filled document.
+// (Sub-items such as "(1) 산업의 특성" are usually the writer's own and may change; the form's levels are kept.)
+const HEADING = /^(#{1,6}\s+\S.*|\d{1,2}\.\s+\S.*|[가-하]\.\s+\S.*|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]\.?\s+\S.*)$/;
+export function formShape(md) {
+  const lines = String(md).split(/\r?\n/).map(l => l.trim());
+  const headings = lines.filter(l => HEADING.test(l) && l.length <= 80).map(l => l.replace(/^#+\s+/, ''));
+  const tables = (String(md).match(/<table/g) ?? []).length + lines.filter(l => /^\|(\s*:?-{3,}:?\s*\|)+$/.test(l)).length;
+  const empties = (String(md).match(/<td[^>]*>\s*<\/td>/g) ?? []).length
+    + lines.filter(l => l.startsWith('|') && !/^\|(\s*:?-{3,}:?\s*\|)+$/.test(l)).reduce((n, l) => n + (l.split('|').slice(1, -1).filter(c => !c.trim()).length), 0);
+  return { headings, tables, empties };
+}
+
 // kordoc generate presets (official Korean document forms).
 export const PRESETS = ['기안문', '보고서', '계획서', '통지', '회의록', '개조식', '업무보고', '서울방침', '보도자료'];

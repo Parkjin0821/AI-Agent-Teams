@@ -95,7 +95,7 @@ const BASELINE_SKILLS = Object.freeze({ design: ['frontend-design', 'agent-hq-sc
 // screen task mentions its 화면설계 document).
 const TASK_BASELINES = Object.freeze([
   { test: /슬라이드|발표|slides?\b|deck|ppt|프레젠테이션/i, teams: ['design', 'dev'], skills: ['agent-hq-slides', 'slide-authoring'] },
-  { test: /회의록|보고서|계획서|기안문|업무보고|hwpx|한글 문서/i, teams: ['dev', 'design'], skills: ['agent-hq-documents', 'document-typography-design'] },
+  { test: /회의록|보고서|계획서|기안문|업무보고|신청서|양식|hwpx?|한글 문서/i, teams: ['dev', 'design'], skills: ['agent-hq-documents', 'document-typography-design'] },
 ]);
 
 export class SkillLibrary {

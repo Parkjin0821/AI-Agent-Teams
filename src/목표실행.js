@@ -230,11 +230,13 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
         const known = new Set(Object.keys(documentRecords(records)));
         documents = { made: [], failed: [] };
         for (const d of report.documents.slice(0, 3)) {
-          const r = await maker.make(cwd, { from: d?.from, to: d?.to, preset: d?.preset, layout: d?.layout, approval: d?.approval, font: d?.font }, known);
+          // "template": an institution's form is filled in place (양식 채우기); otherwise a new document is made.
+          const r = d?.template ? await maker.fill(cwd, { template: d.template, from: d?.from, to: d?.to }, known)
+            : await maker.make(cwd, { from: d?.from, to: d?.to, preset: d?.preset, layout: d?.layout, approval: d?.approval, font: d?.font }, known);
           if (r.ok) documents.made.push(r); else documents.failed.push({ from: String(d?.from ?? '').slice(0, 120), error: r.error });
         }
         await store.emit({ type: 'documents.made', goalId: goal.id, team,
-          made: documents.made.map(m => ({ path: m.path, from: m.from, preset: m.preset, validated: m.validated, lint: m.lint, previews: m.previews })),
+          made: documents.made.map(m => ({ path: m.path, from: m.from, preset: m.preset, validated: m.validated, lint: m.lint, previews: m.previews, ...(m.kind === 'form' ? { template: m.template, structure: m.structure, empties: m.empties } : {}) })),
           failed: documents.failed });
       }
       const { evidence, claims } = verifyReport(report, goal.completionCriteria, cwd, { verifying: team === 'qa', test, originals: attachmentOriginals(goal, records),
