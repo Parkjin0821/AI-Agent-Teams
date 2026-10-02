@@ -898,7 +898,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
               <div class="body"><sc-if value="{{x.hasLead}}"><b class="lead">{{x.lead}}</b></sc-if>{{x.text}}</div>
               <sc-if value="{{x.hasAtt}}"><div class="att-list"><sc-for list="{{x.atts}}" as="a"><sc-if value="{{a.isImage}}"><button class="att-img" onClick="{{a.open}}" title="{{a.name}} · 새 창에서 크게 보기"><img src="{{a.src}}" alt="{{a.name}}" loading="lazy"></button></sc-if><sc-if value="{{a.isText}}"><button class="att" onClick="{{a.open}}" title="새 창에서 보기"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></button></sc-if><sc-if value="{{a.isPdf}}"><span class="att"><span class="small">{{a.name}}</span><span class="small muted">{{a.sizeL}}</span></span></sc-if><sc-if value="{{a.hasConv}}"><button class="att" onClick="{{a.openConv}}" title="엔진이 바꾼 Markdown · 팀은 이것을 읽습니다"><span class="small">변환본 보기</span></button></sc-if></sc-for></div></sc-if>
               <sc-if value="{{x.hasIssues}}"><div class="tchecks"><sc-for list="{{x.issues}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}} st-ico" aria-hidden="true"></span><div class="inspection-copy"><div class="st-line"><b>{{k.name}}</b><span class="{{k.pillCls}}">{{k.stL}}</span></div><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
-              <sc-if value="{{x.hasMore}}"><details class="more"><summary>{{x.moreL}}</summary><sc-if value="{{x.runInfo}}"><p class="run-info">{{x.runInfo}}</p></sc-if><sc-if value="{{x.hasOkTools}}"><div class="tchecks"><sc-for list="{{x.okTools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}} st-ico" aria-hidden="true"></span><div class="inspection-copy"><div class="st-line"><b>{{k.name}}</b><span class="{{k.pillCls}}">{{k.stL}}</span></div><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if><sc-if value="{{x.hasAnswer}}"><div class="answer">{{x.answer}}</div></sc-if></details></sc-if>
+              <sc-if value="{{x.hasMore}}"><details class="more" onToggle="{{x.openAnswer}}"><summary>{{x.moreL}}</summary><sc-if value="{{x.runInfo}}"><p class="run-info">{{x.runInfo}}</p></sc-if><sc-if value="{{x.hasOkTools}}"><div class="tchecks"><sc-for list="{{x.okTools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}} st-ico" aria-hidden="true"></span><div class="inspection-copy"><div class="st-line"><b>{{k.name}}</b><span class="{{k.pillCls}}">{{k.stL}}</span></div><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if><sc-if value="{{x.hasAnswer}}"><div class="answer">{{x.answer}}</div></sc-if></details></sc-if>
             </div>
           </sc-for>
           <sc-if value="{{w.working}}"><div class="msg sys working"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>{{w.workingL}}</div>
@@ -1006,7 +1006,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
             <div class="who">{{a.who}}<span class="tool">{{a.tool}}</span><span class="{{a.pillCls}}"><i></i>{{a.resL}}</span></div>
             <div class="res">{{a.res}}</div>
             <sc-if value="{{a.hasTools}}"><div class="tchecks"><div class="inspection-head"><span>검사 결과</span><sc-if value="{{a.allToolsPassed}}"><span class="inspection-all-pass">실행한 검사 모두 통과</span></sc-if></div><sc-for list="{{a.tools}}" as="k"><div class="tcheck inspection"><span class="{{k.pillCls}} st-ico" aria-hidden="true"></span><div class="inspection-copy"><div class="st-line"><b>{{k.name}}</b><span class="{{k.pillCls}}">{{k.stL}}</span></div><span>{{k.summary}}</span></div><sc-if value="{{k.hasDetails}}"><details><summary>자세히</summary><div class="answer">{{k.details}}</div></details></sc-if></div></sc-for></div></sc-if>
-            <sc-if value="{{a.hasAnswer}}"><details><summary>답변 보기</summary><div class="answer">{{a.answer}}</div></details></sc-if>
+            <sc-if value="{{a.hasAnswer}}"><details onToggle="{{a.openAnswer}}"><summary>답변 보기</summary><div class="answer">{{a.answer}}</div></details></sc-if>
           </div>
         </div>
       </sc-for>
@@ -1710,6 +1710,22 @@ class Component extends DCLogic {
   // A button's answer that is the changed project goal goes on screen at once; the full engine view (megabytes) is
   // fetched after it. 대장 (2026-10-02): "완료로 확인 … 적용속도가 너무 느려" — the page waited for the full view.
   act(promise, okMsg) { return promise.then((v) => { this.applyGoal(v); if (okMsg) this.say(okMsg); this.refresh(); return v; }).catch((e) => this.say(korErr(e.message))); }
+  // 팀 답변 전체 (2026-10-02): the engine view carries only an answer's start; opening it loads the whole text once.
+  answerOf(r) {
+    const full = this._answers && this._answers[r.id];
+    if (typeof full === 'string') return cleanAnswer(full);
+    return r.answer ? cleanAnswer(r.answer) + (r.answerCut ? '\n\n… 전체 답변을 불러오는 중입니다' : '') : '';
+  }
+  loadAnswer(r) {
+    if (!r || !r.answerCut || !r.id) return;
+    this._answers = this._answers || {};
+    if (this._answers[r.id] !== undefined) return;
+    this._answers[r.id] = null;
+    fetch('/api/runs/' + r.id + '/answer').then((x) => (x.ok ? x.json() : null)).then((d) => {
+      this._answers[r.id] = d && typeof d.answer === 'string' ? d.answer : undefined;
+      this.setState({ answersLoaded: (this.state.answersLoaded || 0) + 1 });
+    }).catch(() => { this._answers[r.id] = undefined; });
+  }
   applyGoal(g) {
     const eng = this.state.eng;
     if (!eng || !g || typeof g !== 'object' || !g.id || !g.projectId || !g.status) return;
@@ -2092,7 +2108,7 @@ class Component extends DCLogic {
           return { lead: lead, detail: detail, when: fmt(r.startedAt), who: r.team ? TEAM_NAME[r.team] : '실행 ' + r.round + '회', tool: TOOL[r.executor || 'claude-code'] + ' · ' + (r.actualModel || (r.requestedModel ? r.requestedModel + ' 요청' : '모델 확인 필요'))
               + (r.level ? ' · 제어팀 ' + r.level.label + (r.requestedEffort ? ' · 추론 ' + (EFFORT_L[r.requestedEffort] || r.requestedEffort) : '') + ' (' + r.level.why + ')' : '')
               + (r.switchedFrom ? ' · ' + TOOL[r.switchedFrom] + ' 한도로 대신 실행' + (r.sameAsWorker ? ' (작업팀과 같은 AI · 독립 검토 아님)' : '') : ''),
-            resL: resL, pillCls: pillCls(tone), res: res, hasAnswer: !!r.answer, answer: r.answer ? cleanAnswer(r.answer) : '',
+            resL: resL, pillCls: pillCls(tone), res: res, hasAnswer: !!r.answer, answer: this.answerOf(r), openAnswer: (e) => { if (e && e.target && e.target.open) this.loadAnswer(r); },
             hasTools: (r.tools || []).length > 0, allToolsPassed: (r.tools || []).length > 0 && r.tools.every(k => k.status === 'pass'), tools: (r.tools || []).map((k) => ({ name: k.name, summary: k.summary,
               stL: TOOL_ST[k.status] ? TOOL_ST[k.status][0] : k.status, pillCls: pillCls(TOOL_ST[k.status] ? TOOL_ST[k.status][1] : 'idle'),
               hasDetails: (k.details || []).length > 0, details: (k.details || []).join('\n') })) };
@@ -2126,7 +2142,7 @@ class Component extends DCLogic {
       runsDesc.filter((r) => r.status !== 'running').forEach((r) => {
         const a = byRunId[r.id];
         items.push({ at: r.finishedAt || r.startedAt, cls: 'msg team' + teamTone(r.team) + (a.pillCls.indexOf('stop') >= 0 ? ' err' : ''), who: a.who, sub: a.tool,
-          hasLead: !!a.lead, lead: a.lead, text: a.lead ? a.detail : a.res, hasTools: a.hasTools, allToolsPassed: a.allToolsPassed, tools: a.tools, hasAnswer: a.hasAnswer, answer: a.answer });
+          hasLead: !!a.lead, lead: a.lead, text: a.lead ? a.detail : a.res, hasTools: a.hasTools, allToolsPassed: a.allToolsPassed, tools: a.tools, hasAnswer: a.hasAnswer, answer: a.answer, openAnswer: a.openAnswer });
       });
       ((s.eng && s.eng.events) || []).filter((e) => e.type === 'skill.applied' && wp.goals.some((x) => x.id === e.goalId)).forEach((e) => {
         const shown = (e.skills || []).filter((k) => k.notice);

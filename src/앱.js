@@ -39,6 +39,7 @@ import { Rules } from './규칙.js';
 import { KeepAwake, needsAwake } from './절전방지.js';
 
 const MAX_BODY = 1_000_000;
+const ANSWER_HEAD = 1200;
 const iso = ms => new Date(ms).toISOString();
 
 export function createApp({ root, dataDir, projectsDir, enableExec = false, clock = { now: () => Date.now() }, tickMs = null,
@@ -196,8 +197,11 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       if (!byProject.has(goal.projectId)) byProject.set(goal.projectId, []);
       // The page shows only which files a step added, changed or removed; the checkpoint's file signatures (about a
       // quarter of a 6 MB view, 2026-10-02) stay on the server.
-      const runs = store.listRuns(goal.id).map(r => r.checkpoint
-        ? { ...r, checkpoint: { added: r.checkpoint.added ?? [], modified: r.checkpoint.modified ?? [], removed: r.checkpoint.removed ?? [] } } : r);
+      // A team's whole answer (1.3 MB over all runs) comes when 대장 opens it (/api/runs/:id/answer); the view carries its
+      // start, which the thread's one-line conclusion is read from.
+      const runs = store.listRuns(goal.id).map(r => ({ ...r,
+        ...(r.checkpoint ? { checkpoint: { added: r.checkpoint.added ?? [], modified: r.checkpoint.modified ?? [], removed: r.checkpoint.removed ?? [] } } : {}),
+        ...(typeof r.answer === 'string' && r.answer.length > ANSWER_HEAD ? { answer: r.answer.slice(0, ANSWER_HEAD), answerCut: true, answerLength: r.answer.length } : {}) }));
       byProject.get(goal.projectId).push({ ...goal, runs, model: scheduler.modelStatus(goal.id) });
     }
     return {
@@ -281,6 +285,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       return scheduler.resume(g.id);
     }],
     // The engine reads usage every 30 s anyway (two CLI checks, ~6 s); the page gets that reading while it is fresh.
+    ['GET', /^\/api\/runs\/([0-9a-f-]{36})\/answer$/, m => { const r = store.getRun(m[1]); if (!r) throw new Error('run not found'); return { id: r.id, answer: r.answer ?? '' }; }],
     ['GET', /^\/api\/usage$/, () => (quota.items && Date.now() - quotaCheckedAt < 25_000 ? quota : refreshUsage())],
     ['GET', /^\/api\/state$/, () => orchestrator.snapshot()],
     ['GET', /^\/api\/engine$/, () => engineView()],

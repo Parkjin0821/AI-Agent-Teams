@@ -20,6 +20,7 @@ export class PersistentStore {
   listGoals() { return this.db.prepare('SELECT body FROM goals').all().map(r => JSON.parse(r.body)); }
   getGoal(id) { const row = this.db.prepare('SELECT body FROM goals WHERE id=?').get(id); return row ? JSON.parse(row.body) : undefined; }
   saveGoal(goal) { this.db.prepare('INSERT INTO goals VALUES (?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(goal.id, JSON.stringify(goal)); return goal; }
+  getRun(id) { const r = this.db.prepare('SELECT body FROM runs WHERE id=?').get(id); return r ? JSON.parse(r.body) : null; }
   listRuns(goalId) { return this.db.prepare('SELECT body FROM runs WHERE goal_id=? ORDER BY round, attempt').all(goalId).map(r => JSON.parse(r.body)); }
   insertRun(run) { this.db.prepare('INSERT INTO runs VALUES (?,?,?,?,?)').run(run.id, run.goalId, run.round, run.attempt, JSON.stringify(run)); return run; }
   saveRun(run) { this.db.prepare('UPDATE runs SET body=? WHERE id=?').run(JSON.stringify(run), run.id); return run; }

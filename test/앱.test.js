@@ -405,3 +405,18 @@ test('the limit-storage safety stop lifts itself once the record checks out and 
     assert.equal(s()['safety.limitStorageFailed'], false);
   } finally { await app.close(); }
 });
+test('the engine view carries the start of a long team answer; the whole one comes from /api/runs/:id/answer', async () => {
+  const { app, call } = await start();
+  try {
+    const g = app.scheduler.addGoal({ projectId: 'answers', kind: 'team', objective: 'x', completionCriteria: ['a'] });
+    const long = '결론 문단입니다.\n\n' + '세부 내용 '.repeat(400);
+    const id = '11111111-2222-4333-8444-555555555555';
+    app.store.insertRun({ id, goalId: g.id, round: 1, attempt: 0, team: 'dev', status: 'finished', answer: long,
+      checkpoint: { added: ['a.md'], modified: [], removed: [], before: { signatures: { 'a.md': 'x'.repeat(64) } } } });
+    const run = (await call('GET', '/api/engine')).body.projects.find(p => p.id === 'answers').goals[0].runs[0];
+    assert.deepEqual([run.answer.length, run.answerCut, run.answerLength], [1200, true, long.length]);
+    assert.deepEqual(run.checkpoint, { added: ['a.md'], modified: [], removed: [] });
+    assert.equal((await call('GET', `/api/runs/${id}/answer`)).body.answer, long);
+    assert.equal((await call('GET', '/api/runs/99999999-2222-4333-8444-555555555555/answer')).status, 400);
+  } finally { await app.close(); }
+});
