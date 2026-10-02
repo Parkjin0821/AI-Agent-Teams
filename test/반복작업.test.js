@@ -143,3 +143,21 @@ test('a never-started project is taken over by the first round, not skipped; ski
     await assert.rejects(routines.run('held', { manual: true }), /still open/);
   } finally { store.close(); }
 });
+
+// 2026-10-02 real test: the routine round was due at 09:55 but waited 10+ minutes, because every freed slot went to
+// older projects that were due again right after each step (goals were claimed in store order).
+test('the scheduler gives a free slot to the goal that has waited longest, not the oldest project', async () => {
+  const store = new PersistentStore({ dataDir: mkdtempSync(path.join(tmpdir(), 'hq-rt-')) });
+  const clock = { t: MON_8, now() { return this.t; } };
+  const ran = [];
+  const scheduler = new GoalScheduler({ store, clock, policy: { ...DEFAULT_POLICY, maxConcurrent: 1 },
+    runner: { run: async (goal) => { ran.push(goal.projectId); return { outcome: 'completed', evidence: [], claims: [] }; } } });
+  try {
+    const old = scheduler.addGoal({ projectId: 'older', kind: 'task', objective: 'x', completionCriteria: ['a'], autoRun: true });
+    const late = scheduler.addGoal({ projectId: 'routine', kind: 'task', objective: 'y', completionCriteria: ['a'], autoRun: true });
+    scheduler.update(store.getGoal(late.id), { nextRunAt: new Date(MON_8 - 10 * 60_000).toISOString() }); // due ten minutes ago
+    scheduler.update(store.getGoal(old.id), { nextRunAt: new Date(MON_8 - 1_000).toISOString() }); // due again just now
+    await scheduler.tick({ autoOnly: true });
+    assert.deepEqual(ran, ['routine']);
+  } finally { store.close(); }
+});

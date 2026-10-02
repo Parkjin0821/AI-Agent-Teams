@@ -328,8 +328,12 @@ export class GoalScheduler {
       }
     }
     const claimed = [];
-    for (const goal of goals) {
-      if (!DUE.includes(goal.status) || Date.parse(goal.nextRunAt) > now || (autoOnly && !goal.autoRun)) continue;
+    // Longest-waiting first. In store order, older projects that are due again right after each step took every freed
+    // slot (2026-10-02 real test: a routine round due at 09:55 waited 10+ minutes behind five 자율 시험 projects).
+    const dueAt = g => Date.parse(g.nextRunAt) || 0;
+    const queue = goals.filter(g => DUE.includes(g.status) && !(Date.parse(g.nextRunAt) > now) && !(autoOnly && !g.autoRun))
+      .sort((a, b) => dueAt(a) - dueAt(b));
+    for (const goal of queue) {
       const executor = this.stepExecutor(goal);
       if (busy.total >= (this.policy.maxConcurrent ?? 2) || busy[executor] >= cap[executor]
         || busy.goals.some(g => g.projectId === goal.projectId && !this.sameProjectOk(g, goal))) continue;
