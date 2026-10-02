@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
@@ -88,12 +89,17 @@ export function inspectExport(files) {
 // the SVG namespace URL is not a request.
 const NETWORK_RE = /\bfetch\s*\(|https?:\/\/|XMLHttpRequest|WebSocket|<script[^>]+\bsrc\s*=|<link[^>]+href\s*=\s*["']?https?:/gi;
 const CODE_EXT = /\.(js|mjs|cjs|ts|tsx|jsx|html?|vue|svelte|py|php|rb|go|java|kt|rs|sh|ps1|css|scss)$/i;
+// Third value: a short hash of a page's inline <script> blocks, so a script added or changed in markup is seen too
+// (a count would miss an edited script).
+const MARKUP_EXT = /\.(html?|svg|vue|svelte)$/i;
 export function concernSignals(rel, text) {
   if (!(TEXT_EXT.test(rel) || /(^|\/)\.env/.test(rel)) || typeof text !== 'string') return null;
   const net = CODE_EXT.test(rel) ? (text.replace(/https?:\/\/www\.w3\.org\/[^\s"'<>)]*/g, '').match(NETWORK_RE) ?? []).length : 0;
   let pii = 0;
   for (const line of text.split(/\r?\n/)) for (const p of PRIVACY_PATTERNS) if (p.re.test(line) && !(p.skip && p.skip.test(line))) pii++;
-  return net || pii ? [net, pii] : null;
+  const scripts = MARKUP_EXT.test(rel) ? text.match(/<script\b[\s\S]*?(?:<\/script>|$)/gi) ?? [] : [];
+  const scriptHash = scripts.length ? createHash('sha256').update(scripts.join('\0')).digest('hex').slice(0, 12) : 0;
+  return net || pii || scriptHash ? [net, pii, scriptHash] : null;
 }
 
 export function scanPrivacy(cwd) {

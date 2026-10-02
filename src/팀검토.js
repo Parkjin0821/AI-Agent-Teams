@@ -18,11 +18,14 @@ export function requiredReviews(worker, requested = []) {
 // did not help, since every worker step adds both). A review team is skipped when its latest review of this goal
 // passed (pass, or issues that did not block, fully checked, no question for 대장) and nothing changed since in its
 // field, judged from the engine's own snapshots: the one the review started from against the newest one.
-//   security: dependency files, config/secret-like names, a network call added to code
-//   policy: dependency files, a network call added, a personal-data pattern added, anything under attachments/ or sources/
+//   security: dependency files, config/secret-like names, a network call added to code, an inline script added or
+//             changed in a page, a file that is not a usual deliverable
+//   policy: dependency files, a network call added, a personal-data pattern added, anything under attachments/ or
+//           sources/, a file that is not a usual deliverable
 // Returns the note for the thread, or null when the review must run. No usable snapshot means it runs.
 const DEPENDENCY = /(^|\/)(package\.json|requirements[^/]*\.txt|pyproject\.toml|Pipfile|Gemfile|go\.(mod|sum)|Cargo\.toml|\.npmrc|\.yarnrc[^/]*)$|(^|\/)[^/]*([-.]lock(\.[^/]+)?|\.lockb?)$/i;
 const CONFIG = /(^|\/)(\.env[^/]*|[^/]*\.config\.[^/]+|[^/]*(settings|credential|secret|passw|api[_-]?key|access[_-]?token|private[_-]?key|설정|비밀|인증|계정)[^/]*|[^/]*\.(pem|key|p12|pfx))$/i;
+const DELIVERABLE = /\.(md|txt|html?|css|scss|js|mjs|cjs|ts|tsx|jsx|py|json|csv|tsv|xml|svg|png|jpe?g|webp|gif|ico|hwpx?|xlsx|docx|pptx|pdf|woff2?|ttf|otf)$|(^|\/)(LICENSE|COPYING|NOTICE|README)[^/]*$/i;
 const REVIEW_NAME = { security: ['보안팀', '보안'], policy: ['정책팀', '정책'] };
 const usable = s => Boolean(s?.signatures && s.signals && Array.isArray(s.files) && s.files.length < 2000);
 export function reviewSkip(runs, team, { sourcesSaved = false } = {}) {
@@ -35,7 +38,11 @@ export function reviewSkip(runs, team, { sourcesSaved = false } = {}) {
   if (!usable(from) || !usable(to)) return null;
   const changed = [...new Set([...Object.keys(from.signatures), ...Object.keys(to.signatures)])].filter(f => from.signatures[f] !== to.signatures[f]);
   const rose = (f, i) => (to.signals[f]?.[i] ?? 0) > (from.signals[f]?.[i] ?? 0);
-  const touches = f => DEPENDENCY.test(f) || rose(f, 0)
+  // an inline <script> added or changed in a page (its hash differs), or a file that is not a usual deliverable
+  // (a .ps1, .bat, .exe …) also brings the review back
+  const scripted = f => (to.signals[f]?.[2] ?? 0) !== (from.signals[f]?.[2] ?? 0);
+  const touches = f => DEPENDENCY.test(f) || rose(f, 0) || (to.signatures[f] !== undefined && !DELIVERABLE.test(f))
+    || (team === 'security' && scripted(f))
     || (team === 'security' ? CONFIG.test(f) : rose(f, 1) || /^(attachments|sources)\//.test(f));
   if ((team === 'policy' && sourcesSaved) || changed.some(touches)) return null;
   const [name, area] = REVIEW_NAME[team];

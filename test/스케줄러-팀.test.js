@@ -793,7 +793,27 @@ test('reviewSkip needs the engine snapshots: an old run without signals, a parti
   assert.match(reviewSkip([{ ...review(), team: 'policy' }, work], 'policy'), /정책팀 검토 생략/);
   assert.equal(reviewSkip([{ ...review(), team: 'policy' }, work], 'policy', { sourcesSaved: true }), null);
   const { concernSignals } = await import('../src/검사.js');
-  assert.deepEqual(concernSignals('앱.js', 'const r = await fetch(url);'), [1, 0]);
+  assert.deepEqual(concernSignals('앱.js', 'const r = await fetch(url);'), [1, 0, 0]);
   assert.equal(concernSignals('그림.html', '<svg xmlns="http://www.w3.org/2000/svg"></svg>'), null, 'the SVG namespace is not a request');
   assert.equal(concernSignals('조사.md', '출처: https://nodejs.org/'), null, 'a source link in a note is not a network call');
+});
+
+// 2026-10-02: an inline script added or edited in a page, or a new file that is not a usual deliverable, is the
+// security review's field even with no network call in it.
+test('reviewSkip runs the review again for a changed inline script or a non-deliverable file, not for a text edit', async () => {
+  const { reviewSkip } = await import('../src/팀검토.js');
+  const { concernSignals } = await import('../src/검사.js');
+  const page = s => ({ files: ['index.html'], signatures: { 'index.html': s }, signals: { 'index.html': concernSignals('index.html', s) ?? undefined } });
+  const plain = '<h1>안내</h1><script>let n = 1;</script>';
+  const review = (team, snap) => ({ team, review: { verdict: 'pass', issues: [], blocking: false, checked: 'done', needsDecision: null }, checkpoint: { before: snap, after: snap } });
+  const after = (snapA, snapB) => ({ team: 'dev', checkpoint: { before: snapA, after: snapB } });
+  const a = page(plain);
+  assert.match(reviewSkip([review('security', a), after(a, page('<h1>여름 안내</h1><script>let n = 1;</script>'))], 'security'), /보안팀 검토 생략/, 'text around the same script');
+  assert.equal(reviewSkip([review('security', a), after(a, page('<h1>안내</h1><script>let n = 2;</script>'))], 'security'), null, 'the script changed');
+  assert.equal(reviewSkip([review('security', a), after(a, page(plain + '<script>go()</script>'))], 'security'), null, 'a script added');
+  assert.match(reviewSkip([review('policy', a), after(a, page('<h1>안내</h1><script>let n = 2;</script>'))], 'policy'), /정책팀 검토 생략/, 'a script is not the policy field');
+  const withTool = { ...a, files: ['index.html', '정리.ps1'], signatures: { ...a.signatures, '정리.ps1': 'x' } };
+  for (const team of ['security', 'policy']) assert.equal(reviewSkip([review(team, a), after(a, withTool)], team), null, `${team}: a new .ps1`);
+  const withNote = { ...a, files: ['index.html', '메모.md', '글꼴/LICENSE'], signatures: { ...a.signatures, '메모.md': 'm', '글꼴/LICENSE': 'l' } };
+  assert.match(reviewSkip([review('security', a), after(a, withNote)], 'security'), /바뀐 파일 2개/);
 });
