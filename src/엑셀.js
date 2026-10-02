@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { deflateRawSync, inflateRawSync } from 'node:zlib';
 import { hasSecret } from './보안감시.js';
@@ -8,9 +8,14 @@ import { hasSecret } from './보안감시.js';
 // the .xlsx with Node built-ins only — an xlsx is a ZIP of XML parts, so the ZIP container (local headers, central
 // directory, CRC-32) is written here with zlib's raw deflate. No package, no model call. The engine then reads the file
 // back with kordoc (the same sandboxed tool that reads attachments) and compares sheets, rows, headers and totals, so
-// spreadsheet_made proves a file that opens and holds what the spec said. Charts are not made (phase 2).
-export const XLSX_LIMITS = Object.freeze({ sheets: 10, rows: 20_000, columns: 50, cellChars: 32_767, sourceBytes: 5_000_000 });
+// spreadsheet_made proves a file that opens and holds what the spec said. Phase 2 (2026-10-02): a sheet may ask for
+// native Excel charts (column, bar, line, pie) drawn from its own columns; they are DrawingML parts that point at the
+// sheet's cells, so the chart follows the numbers when someone edits them in Excel.
+export const XLSX_LIMITS = Object.freeze({ sheets: 10, rows: 20_000, columns: 50, cellChars: 32_767, sourceBytes: 5_000_000,
+  chartsPerSheet: 3, chartSeries: 6, chartRows: 1_000 });
 export const COLUMN_TYPES = ['text', 'number', 'date', 'money', 'percent'];
+export const CHART_TYPES = ['column', 'bar', 'line', 'pie'];
+export const CHART_NAMES = { column: '세로 막대', bar: '가로 막대', line: '꺾은선', pie: '원형' };
 
 // ── ZIP ──
 const CRC_TABLE = (() => {
@@ -190,10 +195,142 @@ export function normalizeSpec(spec) {
       totals = { label: String(sheet.totals.label ?? '합계').slice(0, 40), labelAt, columns: idx,
         values: Object.fromEntries(idx.map(i => [cols[i].header, round(cells.reduce((s, r) => s + (r[i]?.n ?? 0), 0))])) };
     }
-    return { name, cols, cells, totals, warnings };
+    const charts = normalizeCharts(sheet.charts, name, cols, cells);
+    return { name, cols, cells, totals, warnings, charts };
   });
 }
 const round = n => Math.round(n * 1e9) / 1e9;
+
+// charts: [{ type: column|bar|line|pie, title, category: "항목", values: ["예산", "실적"] }] — the category is any
+// column, the values are number, money or percent columns; the chart covers the data rows (not the totals row).
+function normalizeCharts(charts, name, cols, cells) {
+  if (charts === undefined || charts === null) return [];
+  if (!Array.isArray(charts)) throw new Error(`${name}: charts 는 목록이어야 함`);
+  if (charts.length > XLSX_LIMITS.chartsPerSheet) throw new Error(`${name}: 차트는 시트마다 ${XLSX_LIMITS.chartsPerSheet}개까지`);
+  return charts.map((ch, k) => {
+    const label = `${name}: ${k + 1}번째 차트`;
+    const type = ch?.type ?? 'column';
+    if (!CHART_TYPES.includes(type)) throw new Error(`${label} 형식은 ${CHART_TYPES.join('·')} 중 하나`);
+    const category = cols.findIndex(c => c.header === String(ch?.category ?? ''));
+    if (category < 0) throw new Error(`${label}의 category “${String(ch?.category ?? '').slice(0, 30)}”이(가) 열 제목에 없음`);
+    const headers = Array.isArray(ch?.values) ? ch.values.map(String) : [];
+    if (!headers.length) throw new Error(`${label}의 values 에 값 열 제목이 없음`);
+    if (headers.length > XLSX_LIMITS.chartSeries) throw new Error(`${label}의 값 열은 ${XLSX_LIMITS.chartSeries}개까지`);
+    if (type === 'pie' && headers.length !== 1) throw new Error(`${label}: 원형 차트는 값 열 하나만`);
+    const values = headers.map(h => {
+      const i = cols.findIndex(c => c.header === h);
+      if (i < 0) throw new Error(`${label}의 값 열 “${h.slice(0, 30)}”이(가) 열 제목에 없음`);
+      if (!['number', 'money', 'percent'].includes(cols[i].type)) throw new Error(`${label}의 값 열 “${h}”은(는) number·money·percent 여야 함`);
+      if (i === category) throw new Error(`${label}: category 열을 값으로 쓸 수 없음`);
+      return i;
+    });
+    if (new Set(values).size !== values.length) throw new Error(`${label}: 값 열이 겹침`);
+    if (!cells.length) throw new Error(`${label}: 그릴 행이 없음`);
+    if (cells.length > XLSX_LIMITS.chartRows) throw new Error(`${label}: 차트는 ${XLSX_LIMITS.chartRows}행까지`);
+    if (!values.some(i => cells.some(r => r[i]?.n !== undefined))) throw new Error(`${label}: 값 열에 숫자가 없음`);
+    const title = String(ch?.title ?? '').trim().slice(0, 80) || headers.join('·');
+    return { type, title, category, values };
+  });
+}
+
+// ── charts (DrawingML) ──
+const PALETTE = ['4472C4', 'ED7D31', 'A5A5A5', 'FFC000', '5B9BD5', '70AD47'];
+const FONT = '<a:latin typeface="맑은 고딕"/><a:ea typeface="맑은 고딕"/>';
+const quoteSheet = name => `'${name.replace(/'/g, "''")}'`;
+const range = (sheet, i, first, last = first) => `${quoteSheet(sheet.name)}!$${colName(i)}$${first}${last === first ? '' : `:$${colName(i)}$${last}`}`;
+const formatCode = c => c.type === 'percent' ? '0.0%' : c.type === 'date' ? (c.korean ? 'yyyy. m. d.' : 'yyyy-mm-dd') : '#,##0';
+const rich = (text, size, bold) => `<c:rich><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="${size}" b="${bold ? 1 : 0}">${FONT}</a:defRPr></a:pPr>`
+  + `<a:r><a:rPr lang="ko-KR" sz="${size}" b="${bold ? 1 : 0}">${FONT}</a:rPr><a:t>${xmlEscape(text)}</a:t></a:r></a:p></c:rich>`;
+
+// One chart part. The cached values are the sheet's own, so a reader that does not recalculate still draws it.
+export function chartXml(sheet, chart) {
+  const last = sheet.cells.length + 1, cat = sheet.cols[chart.category];
+  const numericCat = cat.type !== 'text' && sheet.cells.every(r => !r[chart.category] || r[chart.category].n !== undefined);
+  const catPts = sheet.cells.map((r, k) => { const v = r[chart.category]; return v ? `<c:pt idx="${k}"><c:v>${numericCat ? v.n : xmlEscape(v.s ?? String(v.n))}</c:v></c:pt>` : ''; }).join('');
+  const catRef = numericCat
+    ? `<c:numRef><c:f>${xmlEscape(range(sheet, chart.category, 2, last))}</c:f><c:numCache><c:formatCode>${xmlEscape(formatCode(cat))}</c:formatCode><c:ptCount val="${sheet.cells.length}"/>${catPts}</c:numCache></c:numRef>`
+    : `<c:strRef><c:f>${xmlEscape(range(sheet, chart.category, 2, last))}</c:f><c:strCache><c:ptCount val="${sheet.cells.length}"/>${catPts}</c:strCache></c:strRef>`;
+  const series = chart.values.map((i, k) => {
+    const c = sheet.cols[i], color = PALETTE[k % PALETTE.length];
+    const pts = sheet.cells.map((r, j) => r[i]?.n !== undefined ? `<c:pt idx="${j}"><c:v>${r[i].n}</c:v></c:pt>` : '').join('');
+    const tx = `<c:tx><c:strRef><c:f>${xmlEscape(range(sheet, i, 1))}</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>${xmlEscape(c.header)}</c:v></c:pt></c:strCache></c:strRef></c:tx>`;
+    const look = chart.type === 'line'
+      ? `<c:spPr><a:ln w="28575" cap="rnd"><a:solidFill><a:srgbClr val="${color}"/></a:solidFill><a:round/></a:ln></c:spPr>`
+        + `<c:marker><c:symbol val="circle"/><c:size val="5"/><c:spPr><a:solidFill><a:srgbClr val="${color}"/></a:solidFill></c:spPr></c:marker>`
+      : chart.type === 'pie' ? ''
+        : `<c:spPr><a:solidFill><a:srgbClr val="${color}"/></a:solidFill></c:spPr><c:invertIfNegative val="0"/>`;
+    const labels = chart.type === 'pie' ? '<c:dLbls><c:showLegendKey val="0"/><c:showVal val="0"/><c:showCatName val="0"/><c:showSerName val="0"/>'
+      + '<c:showPercent val="1"/><c:showBubbleSize val="0"/><c:showLeaderLines val="1"/></c:dLbls>' : '';
+    return `<c:ser><c:idx val="${k}"/><c:order val="${k}"/>${tx}${look}${labels}<c:cat>${catRef}</c:cat>`
+      + `<c:val><c:numRef><c:f>${xmlEscape(range(sheet, i, 2, last))}</c:f><c:numCache><c:formatCode>${xmlEscape(formatCode(c))}</c:formatCode>`
+      + `<c:ptCount val="${sheet.cells.length}"/>${pts}</c:numCache></c:numRef></c:val>${chart.type === 'line' ? '<c:smooth val="0"/>' : ''}</c:ser>`;
+  }).join('');
+  const axes = '<c:axId val="500000001"/><c:axId val="500000002"/>';
+  const horizontal = chart.type === 'bar';
+  const plot = chart.type === 'pie' ? `<c:pieChart><c:varyColors val="1"/>${series}<c:firstSliceAng val="0"/></c:pieChart>`
+    : chart.type === 'line' ? `<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${series}<c:marker val="1"/>${axes}</c:lineChart>`
+      : `<c:barChart><c:barDir val="${horizontal ? 'bar' : 'col'}"/><c:grouping val="clustered"/><c:varyColors val="0"/>${series}<c:gapWidth val="80"/>${axes}</c:barChart>`;
+  const line = '<c:spPr><a:ln w="9525"><a:solidFill><a:srgbClr val="BFBFBF"/></a:solidFill></a:ln></c:spPr>';
+  const axisXml = chart.type === 'pie' ? '' : '<c:catAx><c:axId val="500000001"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/>'
+    + `<c:axPos val="${horizontal ? 'l' : 'b'}"/><c:numFmt formatCode="${xmlEscape(numericCat ? formatCode(cat) : 'General')}" sourceLinked="1"/>`
+    + `<c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>${line}<c:crossAx val="500000002"/><c:crosses val="autoZero"/>`
+    + '<c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>'
+    + `<c:valAx><c:axId val="500000002"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="${horizontal ? 'b' : 'l'}"/>`
+    + '<c:majorGridlines><c:spPr><a:ln w="9525"><a:solidFill><a:srgbClr val="E5E5E5"/></a:solidFill></a:ln></c:spPr></c:majorGridlines>'
+    + `<c:numFmt formatCode="${xmlEscape(formatCode(sheet.cols[chart.values[0]]))}" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/>`
+    + `<c:tickLblPos val="nextTo"/>${line}<c:crossAx val="500000001"/><c:crosses val="autoZero"/><c:crossBetween val="between"/></c:valAx>`;
+  // one series of bars or a line needs no legend; a pie's legend names the slices
+  const legend = chart.type === 'pie' || chart.values.length > 1 ? '<c:legend><c:legendPos val="b"/><c:overlay val="0"/></c:legend>' : '';
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    + '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+    + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><c:lang val="ko-KR"/><c:roundedCorners val="0"/>'
+    + `<c:chart><c:title><c:tx>${rich(chart.title, 1200, true)}</c:tx><c:overlay val="0"/></c:title><c:autoTitleDeleted val="0"/>`
+    + `<c:plotArea><c:layout/>${plot}${axisXml}</c:plotArea>${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>`
+    + '<c:spPr><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln w="9525"><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill></a:ln></c:spPr>'
+    + `<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="900">${FONT}</a:defRPr></a:pPr><a:endParaRPr lang="ko-KR"/></a:p></c:txPr></c:chartSpace>`;
+}
+
+// Where a sheet's charts sit: to the right of a narrow table, below a wide one; 8 columns × 16 rows each.
+export function chartAnchors(sheet) {
+  const below = sheet.cols.length > 8;
+  const top = below ? sheet.cells.length + (sheet.totals ? 1 : 0) + 2 : 1;
+  return sheet.charts.map((_, k) => {
+    const col = below ? 0 : sheet.cols.length + 1, row = top + k * 18;
+    return { col, row, toCol: col + 8, toRow: row + 16 };
+  });
+}
+
+function drawingXml(sheet, firstId) {
+  const anchors = chartAnchors(sheet).map((a, k) => '<xdr:twoCellAnchor editAs="oneCell">'
+    + `<xdr:from><xdr:col>${a.col}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${a.row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>`
+    + `<xdr:to><xdr:col>${a.toCol}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${a.toRow}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>`
+    + `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${k + 2}" name="차트 ${firstId + k}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>`
+    + '<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">'
+    + `<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="rId${k + 1}"/></a:graphicData></a:graphic></xdr:graphicFrame>`
+    + '<xdr:clientData/></xdr:twoCellAnchor>').join('');
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    + '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+    + ` xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${anchors}</xdr:wsDr>`;
+}
+
+// Node ships no XML parser: a well-formedness check for the parts the engine wrote (every tag well made and closed in
+// order, one root, no stray < or > in text). The engine runs it on its own file before anything trusts it.
+export function xmlWellFormed(xml) {
+  const body = String(xml).replace(/^<\?xml[^?]*\?>\s*/, '');
+  const stack = [];
+  let roots = 0, at = 0;
+  for (const m of body.matchAll(/<[^<>]*>/g)) {
+    if (/[<>]/.test(body.slice(at, m.index))) return false;
+    at = m.index + m[0].length;
+    const tag = /^<(\/?)([A-Za-z_][\w.:-]*)((?:\s+[A-Za-z_][\w.:-]*="[^"<]*")*)\s*(\/?)>$/.exec(m[0]);
+    if (!tag) return false;
+    const [, close, name, , self] = tag;
+    if (close) { if (self || stack.pop() !== name) return false; continue; }
+    if (!stack.length) roots++;
+    if (!self) stack.push(name);
+  }
+  return stack.length === 0 && roots === 1 && !/[<>]/.test(body.slice(at));
+}
 
 // The numeric style of a column: whole numbers #,##0, otherwise #,##0.00.
 const decimals = (sheet, i) => sheet.cells.some(r => r[i]?.n !== undefined && !Number.isInteger(r[i].n));
@@ -210,7 +347,8 @@ export function buildXlsx(spec) {
   const sheets = normalizeSpec(spec);
   const strings = [], index = new Map();
   const sst = s => { if (!index.has(s)) { index.set(s, strings.length); strings.push(s); } return index.get(s); };
-  const parts = [];
+  const parts = [], drawings = [];
+  let chartCount = 0;
   sheets.forEach((sheet, si) => {
     const xml = [];
     const cell = (ref, v, style) => v.n !== undefined ? `<c r="${ref}"${style ? ` s="${style}"` : ''}><v>${v.n}</v></c>`
@@ -244,7 +382,21 @@ export function buildXlsx(spec) {
       + '<sheetFormatPr defaultRowHeight="16.5"/>'
       + `<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${Math.round(w * 100) / 100}" customWidth="1"/>`).join('')}</cols>`
       + `<sheetData>${xml.join('')}</sheetData>`
-      + '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>', 'utf8') });
+      + '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>'
+      + `${sheet.charts.length ? '<drawing r:id="rId1"/>' : ''}</worksheet>`, 'utf8') });
+    if (!sheet.charts.length) return;
+    // sheet → drawing → its charts (numbered across the workbook)
+    const first = chartCount + 1;
+    chartCount += sheet.charts.length;
+    drawings.push(si + 1);
+    const rels = targets => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+      + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + targets.map(([type, target], k) => `<Relationship Id="rId${k + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`).join('')
+      + '</Relationships>';
+    parts.push({ name: `xl/worksheets/_rels/sheet${si + 1}.xml.rels`, data: Buffer.from(rels([['drawing', `../drawings/drawing${si + 1}.xml`]]), 'utf8') });
+    parts.push({ name: `xl/drawings/drawing${si + 1}.xml`, data: Buffer.from(drawingXml(sheet, first), 'utf8') });
+    parts.push({ name: `xl/drawings/_rels/drawing${si + 1}.xml.rels`, data: Buffer.from(rels(sheet.charts.map((_, k) => ['chart', `../charts/chart${first + k}.xml`])), 'utf8') });
+    sheet.charts.forEach((chart, k) => parts.push({ name: `xl/charts/chart${first + k}.xml`, data: Buffer.from(chartXml(sheet, chart), 'utf8') }));
   });
   const space = s => /^\s|\s$|\n/.test(s) ? ' xml:space="preserve"' : '';
   const files = [
@@ -253,6 +405,8 @@ export function buildXlsx(spec) {
       + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
       + '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
       + sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')
+      + drawings.map(n => `<Override PartName="/xl/drawings/drawing${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`).join('')
+      + Array.from({ length: chartCount }, (_, i) => `<Override PartName="/xl/charts/chart${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>`).join('')
       + '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
       + '<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>'
       + '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'
@@ -287,7 +441,8 @@ export function buildXlsx(spec) {
     + strings.map(s => `<si><t${space(s)}>${xmlEscape(s)}</t></si>`).join('') + '</sst>' });
   const buffer = zip(files.map(f => ({ name: f.name, data: Buffer.isBuffer(f.data) ? f.data : Buffer.from(f.data, 'utf8') })));
   const summary = sheets.map(s => ({ name: s.name, rows: s.cells.length, columns: s.cols.map(c => c.header),
-    ...(s.totals ? { totals: { label: s.totals.label, values: s.totals.values } } : {}), ...(s.warnings.length ? { warnings: s.warnings } : {}) }));
+    ...(s.totals ? { totals: { label: s.totals.label, values: s.totals.values } } : {}), ...(s.warnings.length ? { warnings: s.warnings } : {}),
+    ...(s.charts.length ? { charts: s.charts.map(c => ({ type: c.type, title: c.title, category: s.cols[c.category].header, values: c.values.map(i => s.cols[i].header) })) } : {}) }));
   return { buffer, summary, sheets };
 }
 
@@ -313,18 +468,92 @@ export function specFromCsv(text, name = '시트1') {
   return { sheets: [{ name: String(name).replace(BAD_SHEET_NAME, ' ').slice(0, 31).trim() || '시트1', columns, rows: body.map(r => r.slice(0, columns.length)) }] };
 }
 
+// A cell as the sheet shows it (plain text, not escaped).
+function cellText(sheet, i, v) {
+  if (!v) return '';
+  if (v.s !== undefined) return v.s;
+  const c = sheet.cols[i];
+  if (c.type === 'percent') return `${(v.n * 100).toFixed(1)}%`;
+  if (c.type === 'date') { const d = new Date(Date.UTC(1899, 11, 30) + v.n * 86_400_000); const p = n => String(n).padStart(2, '0');
+    return c.korean ? `${d.getUTCFullYear()}. ${d.getUTCMonth() + 1}. ${d.getUTCDate()}.` : `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`; }
+  return v.n.toLocaleString('ko-KR', { maximumFractionDigits: decimals(sheet, i) ? 2 : 0, minimumFractionDigits: decimals(sheet, i) ? 2 : 0 });
+}
+
+// A plain SVG drawing of a chart for the preview frame, so 대장 sees roughly what Excel will draw (first 60 rows).
+export function chartSvg(sheet, chart) {
+  const W = 560, H = 300, rows = sheet.cells.slice(0, 60), n = rows.length;
+  const short = s => { const t = [...String(s)]; return xmlEscape(t.length > 8 ? `${t.slice(0, 7).join('')}…` : t.join('')); };
+  const cat = r => cellText(sheet, chart.category, r[chart.category]);
+  const head = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${xmlEscape(chart.title)}" style="font:11px system-ui,'Malgun Gothic',sans-serif;background:#fff;border:1px solid #d9d9d9">`
+    + `<text x="${W / 2}" y="20" text-anchor="middle" style="font-weight:700;font-size:13px">${xmlEscape(chart.title)}</text>`;
+  if (chart.type === 'pie') {
+    const i = chart.values[0], vals = rows.map(r => Math.max(0, r[i]?.n ?? 0)), sum = vals.reduce((a, b) => a + b, 0) || 1;
+    const cx = 150, cy = 165, R = 110;
+    let a = -Math.PI / 2, out = '';
+    vals.forEach((v, k) => {
+      if (!v) return;
+      const color = `#${PALETTE[k % PALETTE.length]}`, b = a + (v / sum) * 2 * Math.PI;
+      out += v === sum ? `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${color}"/>`
+        : `<path d="M${cx},${cy} L${(cx + R * Math.cos(a)).toFixed(1)},${(cy + R * Math.sin(a)).toFixed(1)} A${R},${R} 0 ${b - a > Math.PI ? 1 : 0} 1 ${(cx + R * Math.cos(b)).toFixed(1)},${(cy + R * Math.sin(b)).toFixed(1)} Z" fill="${color}" stroke="#fff"/>`;
+      a = b;
+    });
+    const legend = rows.slice(0, 12).map((r, k) => `<rect x="300" y="${52 + k * 18}" width="10" height="10" fill="#${PALETTE[k % PALETTE.length]}"/>`
+      + `<text x="316" y="${61 + k * 18}">${short(cat(r))} ${((vals[k] / sum) * 100).toFixed(1)}%</text>`).join('');
+    return `${head}${out}${legend}</svg>`;
+  }
+  const all = chart.values.flatMap(i => rows.map(r => r[i]?.n).filter(v => v !== undefined));
+  let lo = Math.min(0, ...all), hi = Math.max(0, ...all);
+  if (hi === lo) hi = lo + 1;
+  // round the axis out to a 1·2·2.5·5 step, as Excel does ("106.5만" ticks read badly)
+  const raw = (hi - lo) / 4, mag = 10 ** Math.floor(Math.log10(raw));
+  const unit = [1, 2, 2.5, 5, 10].find(m => m * mag >= raw - 1e-12) * mag;
+  lo = Math.floor(lo / unit + 1e-9) * unit; hi = Math.ceil(hi / unit - 1e-9) * unit;
+  const ticks = Math.round((hi - lo) / unit);
+  const horizontal = chart.type === 'bar', L = horizontal ? 80 : 64, T = 34, Rgt = 16, B = chart.values.length > 1 ? 52 : 36;
+  const pw = W - L - Rgt, ph = H - T - B;
+  const pos = v => (v - lo) / (hi - lo); // 0..1 along the value axis
+  const first = sheet.cols[chart.values[0]];
+  const tick = v => first.type === 'percent' ? `${Math.round(v * 1000) / 10}%` : Math.abs(v) >= 1e8 ? `${Math.round(v / 1e7) / 10}억` : Math.abs(v) >= 1e4 ? `${Math.round(v / 1e3) / 10}만` : String(Math.round(v * 100) / 100);
+  let out = '';
+  for (let k = 0; k <= ticks; k++) {
+    const v = lo + unit * k, p = pos(v);
+    out += horizontal ? `<line x1="${L + p * pw}" y1="${T}" x2="${L + p * pw}" y2="${T + ph}" stroke="#e5e5e5"/><text x="${L + p * pw}" y="${T + ph + 14}" text-anchor="middle">${tick(v)}</text>`
+      : `<line x1="${L}" y1="${T + ph - p * ph}" x2="${L + pw}" y2="${T + ph - p * ph}" stroke="#e5e5e5"/><text x="${L - 6}" y="${T + ph - p * ph + 4}" text-anchor="end">${tick(v)}</text>`;
+  }
+  const slot = (horizontal ? ph : pw) / Math.max(1, n), step = Math.ceil(n / (horizontal ? 14 : 10));
+  rows.forEach((r, j) => {
+    if (j % step) return;
+    const c = slot * (j + 0.5);
+    out += horizontal ? `<text x="${L - 6}" y="${T + c + 4}" text-anchor="end">${short(cat(r))}</text>` : `<text x="${L + c}" y="${T + ph + 14}" text-anchor="middle">${short(cat(r))}</text>`;
+  });
+  const zero = pos(0);
+  chart.values.forEach((i, k) => {
+    const color = `#${PALETTE[k % PALETTE.length]}`;
+    if (chart.type === 'line') {
+      const pts = rows.map((r, j) => r[i]?.n === undefined ? null : `${(L + slot * (j + 0.5)).toFixed(1)},${(T + ph - pos(r[i].n) * ph).toFixed(1)}`).filter(Boolean);
+      out += `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="2"/>` + pts.map(p => `<circle cx="${p.split(',')[0]}" cy="${p.split(',')[1]}" r="2.5" fill="${color}"/>`).join('');
+      return;
+    }
+    const w = (slot * 0.8) / chart.values.length;
+    rows.forEach((r, j) => {
+      const v = r[i]?.n;
+      if (v === undefined) return;
+      const a = Math.min(zero, pos(v)), len = Math.abs(pos(v) - zero), off = slot * 0.1 + w * k + slot * j;
+      out += horizontal ? `<rect x="${(L + a * pw).toFixed(1)}" y="${(T + off).toFixed(1)}" width="${(len * pw).toFixed(1)}" height="${w.toFixed(1)}" fill="${color}"/>`
+        : `<rect x="${(L + off).toFixed(1)}" y="${(T + ph - (a + len) * ph).toFixed(1)}" width="${w.toFixed(1)}" height="${(len * ph).toFixed(1)}" fill="${color}"/>`;
+    });
+  });
+  out += horizontal ? `<line x1="${L + zero * pw}" y1="${T}" x2="${L + zero * pw}" y2="${T + ph}" stroke="#999"/>` : `<line x1="${L}" y1="${T + ph - zero * ph}" x2="${L + pw}" y2="${T + ph - zero * ph}" stroke="#999"/>`;
+  if (chart.values.length > 1) out += chart.values.map((i, k) => `<rect x="${L + k * 110}" y="${H - 16}" width="10" height="10" fill="#${PALETTE[k % PALETTE.length]}"/><text x="${L + k * 110 + 14}" y="${H - 7}">${short(sheet.cols[i].header)}</text>`).join('');
+  return `${head}${out}</svg>`;
+}
+
 // A readable HTML table of what the engine wrote, for the dashboard's preview frame (no scripts, all text escaped).
 export function previewHtml(title, sheets) {
-  const fmt = (sheet, i, v) => {
-    if (!v) return '';
-    if (v.s !== undefined) return xmlEscape(v.s).replace(/\n/g, '<br>');
-    const c = sheet.cols[i];
-    if (c.type === 'percent') return `${(v.n * 100).toFixed(1)}%`;
-    if (c.type === 'date') { const d = new Date(Date.UTC(1899, 11, 30) + v.n * 86_400_000); const p = n => String(n).padStart(2, '0');
-      return c.korean ? `${d.getUTCFullYear()}. ${d.getUTCMonth() + 1}. ${d.getUTCDate()}.` : `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`; }
-    return v.n.toLocaleString('ko-KR', { maximumFractionDigits: decimals(sheet, i) ? 2 : 0, minimumFractionDigits: decimals(sheet, i) ? 2 : 0 });
-  };
-  const body = sheets.map(s => `<h2>${xmlEscape(s.name)}</h2><table><thead><tr>${s.cols.map(c => `<th>${xmlEscape(c.header)}</th>`).join('')}</tr></thead><tbody>`
+  const fmt = (sheet, i, v) => xmlEscape(cellText(sheet, i, v)).replace(/\n/g, '<br>');
+  const drawn = s => (s.charts ?? []).length ? `<div class="charts">${s.charts.map(c => chartSvg(s, c)).join('')}</div>`
+    + (s.cells.length > 60 ? '<p style="color:#666">차트 미리보기는 앞 60행만 (엑셀 차트는 전체 행)</p>' : '') : '';
+  const body = sheets.map(s => `<h2>${xmlEscape(s.name)}</h2>${drawn(s)}<table><thead><tr>${s.cols.map(c => `<th>${xmlEscape(c.header)}</th>`).join('')}</tr></thead><tbody>`
     + s.cells.slice(0, 500).map(r => `<tr>${r.map((v, i) => `<td class="${v?.n !== undefined ? 'n' : ''}">${fmt(s, i, v)}</td>`).join('')}</tr>`).join('')
     + (s.cells.length > 500 ? `<tr><td colspan="${s.cols.length}">… ${s.cells.length - 500}행 더 (엑셀 파일에 모두 있음)</td></tr>` : '')
     + (s.totals ? `<tr class="t">${s.cols.map((c, i) => `<td class="${s.totals.columns.includes(i) ? 'n' : ''}">${s.totals.columns.includes(i)
@@ -334,6 +563,7 @@ export function previewHtml(title, sheets) {
     + 'body{margin:0;padding:20px;font:13px/1.45 system-ui,"Malgun Gothic",sans-serif;color:#222;background:#fff}h2{font-size:15px;margin:18px 0 8px}'
     + 'table{border-collapse:collapse;max-width:100%}th,td{border:1px solid #ccc;padding:4px 8px;vertical-align:top}th{background:#E7E6E6;position:sticky;top:0}'
     + 'td.n{text-align:right;font-variant-numeric:tabular-nums}tr.t td{font-weight:700;border-top:2px solid #888}'
+    + '.charts{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 12px}.charts svg{max-width:100%;height:auto}'
     + `</style></head><body><p style="color:#666">엔진이 만든 엑셀 파일의 표 미리보기 · 시트 ${sheets.length}개</p>${body}</body></html>`;
 }
 
@@ -402,8 +632,15 @@ export async function makeSpreadsheet(cwd, { from, to } = {}, known = new Set(),
     built = buildXlsx(spec);
   } catch (error) { return { ok: false, error: `표를 만들지 못함: ${String(error.message).slice(0, 200)}` }; }
   writeFileSync(full(out), built.buffer);
-  // the engine's own check first: every part comes back out of the ZIP with its CRC
-  try { unzip(readFileSync(full(out))); } catch (error) { return { ok: false, error: `만든 파일이 깨짐: ${error.message}` }; }
+  // the engine's own check first: every part comes back out of the ZIP with its CRC and is well-formed XML, and each
+  // chart the spec asked for is there
+  try {
+    const parts = unzip(readFileSync(full(out)));
+    const broken = [...parts].find(([name, data]) => /\.(xml|rels)$/.test(name) && !xmlWellFormed(data.toString('utf8')));
+    if (broken) throw new Error(`${broken[0]} XML 이 올바르지 않음`);
+    const charts = built.summary.reduce((n, s) => n + (s.charts?.length ?? 0), 0);
+    if ([...parts.keys()].filter(n => /^xl\/charts\/chart\d+\.xml$/.test(n)).length !== charts) throw new Error('차트 수가 요청과 다름');
+  } catch (error) { rmSync(full(out), { force: true }); return { ok: false, error: `만든 파일이 깨짐: ${error.message}` }; }
   writeFileSync(full(`${out}.html`), previewHtml(path.basename(out), built.sheets), 'utf8');
   const sha = p => createHash('sha256').update(readFileSync(full(p))).digest('hex');
   let readback = null;
@@ -414,8 +651,9 @@ export async function makeSpreadsheet(cwd, { from, to } = {}, known = new Set(),
       readback = { path: back.path, sha: sha(back.path), match: cmp.match, problems: cmp.problems };
     } else readback = { error: String(back.error ?? 'read-back failed').slice(0, 200) };
   }
+  const charts = built.summary.flatMap(s => (s.charts ?? []).map(c => ({ sheet: s.name, type: c.type, title: c.title })));
   return { ok: true, kind: 'xlsx', from: src, path: out, sha: sha(out), bytes: built.buffer.length,
-    sheets: built.summary, rows: built.summary.reduce((n, s) => n + s.rows, 0), readback, previews: [`${out}.html`] };
+    sheets: built.summary, rows: built.summary.reduce((n, s) => n + s.rows, 0), ...(charts.length ? { charts } : {}), readback, previews: [`${out}.html`] };
 }
 
 // The engine's record of the spreadsheets it made for a goal (newest wins), from its run records.

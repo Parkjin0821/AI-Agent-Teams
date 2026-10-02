@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { buildXlsx, colName, compareReadback, crc32, makeSpreadsheet, specFromCsv, unzip, xmlEscape, zip } from '../src/엑셀.js';
+import { buildXlsx, colName, compareReadback, crc32, makeSpreadsheet, specFromCsv, unzip, xmlEscape, xmlWellFormed, zip } from '../src/엑셀.js';
 import { verifyReport } from '../src/완료근거.js';
 
 const ws = () => mkdtempSync(path.join(tmpdir(), 'hq-xlsx-'));
@@ -149,6 +149,94 @@ test('spreadsheet_made proves an engine-made, unchanged file whose read-back mat
   assert.equal(verifyReport({ criteria: [] }, ['엑셀 파일을 엔진이 만들었다'], cwd, { ...ctx, verifying: true }).claims[0].check, 'pass');
   writeFileSync(path.join(cwd, '집계.xlsx'), 'edited by hand');
   assert.match(check({ type: 'spreadsheet_made', path: '집계.xlsx' }).detail, /엔진이 만든 뒤 바뀜/);
+});
+
+// Phase 2: native charts drawn from the sheet's own cells.
+const CHART_SPEC = { sheets: [
+  { ...SPEC.sheets[0], name: "팀's 예산", columns: [...SPEC.sheets[0].columns, { header: '실적', type: 'money' }],
+    rows: SPEC.sheets[0].rows.map((r, i) => [...r, [1000000, 2000000, 500000][i]]),
+    charts: [{ type: 'column', title: '예산과 실적', category: '항목', values: ['금액', '실적'] }, { type: 'pie', category: '항목', values: ['실적'] }] },
+  { name: '추이', columns: [{ header: '날짜', type: 'date' }, { header: '비율', type: 'percent' }], rows: [['2026-10-01', 0.1], ['2026-10-02', '12.5%']],
+    charts: [{ type: 'line', title: '추이', category: '날짜', values: ['비율'] }] },
+  { name: '빈 시트', columns: [{ header: 'x' }], rows: [['a']] }] };
+
+test('charts: DrawingML parts tied to the sheet\'s cells, listed in the content types, every part well-formed', () => {
+  const { buffer, summary } = buildXlsx(CHART_SPEC);
+  const parts = unzip(buffer), text = p => parts.get(p).toString('utf8');
+  for (const p of ['xl/worksheets/_rels/sheet1.xml.rels', 'xl/drawings/drawing1.xml', 'xl/drawings/_rels/drawing1.xml.rels', 'xl/charts/chart1.xml', 'xl/charts/chart2.xml',
+    'xl/worksheets/_rels/sheet2.xml.rels', 'xl/drawings/drawing2.xml', 'xl/charts/chart3.xml']) assert.ok(parts.has(p), p);
+  assert.ok(!parts.has('xl/drawings/drawing3.xml') && !parts.has('xl/worksheets/_rels/sheet3.xml.rels'), 'a sheet without charts gets no drawing');
+  for (const [name, data] of parts) if (/\.(xml|rels)$/.test(name)) assert.ok(xmlWellFormed(data.toString('utf8')), name);
+  const types = text('[Content_Types].xml');
+  for (const p of ['/xl/drawings/drawing1.xml', '/xl/drawings/drawing2.xml', '/xl/charts/chart1.xml', '/xl/charts/chart2.xml', '/xl/charts/chart3.xml']) assert.ok(types.includes(`PartName="${p}"`), p);
+  assert.match(text('xl/worksheets/sheet1.xml'), /<pageMargins [^>]*\/><drawing r:id="rId1"\/><\/worksheet>$/);
+  assert.ok(!text('xl/worksheets/sheet3.xml').includes('<drawing'));
+  assert.match(text('xl/drawings/_rels/drawing1.xml.rels'), /Id="rId1" [^>]*Target="\.\.\/charts\/chart1\.xml".*Id="rId2" [^>]*Target="\.\.\/charts\/chart2\.xml"/);
+  assert.match(text('xl/drawings/_rels/drawing2.xml.rels'), /Target="\.\.\/charts\/chart3\.xml"/, 'charts are numbered across the workbook');
+  const c1 = text('xl/charts/chart1.xml');
+  // the sheet name is quoted (its apostrophe doubled) and every range is absolute; the totals row (5) is not charted
+  assert.ok(c1.includes('<c:f>&apos;팀&apos;&apos;s 예산&apos;!$A$2:$A$4</c:f>') && c1.includes('<c:f>&apos;팀&apos;&apos;s 예산&apos;!$C$2:$C$4</c:f>') && c1.includes('!$F$2:$F$4</c:f>'));
+  assert.match(c1, /<c:barDir val="col"\/>.*<c:ser><c:idx val="0"\/>.*<c:ser><c:idx val="1"\/>/);
+  assert.ok(c1.includes('<c:pt idx="0"><c:v>재료비 &lt;A&amp;B&gt;</c:v></c:pt>') && c1.includes('<a:t>예산과 실적</a:t>'));
+  assert.ok(c1.includes('<c:pt idx="1"><c:v>2400000</c:v></c:pt>') && !/<c:pt idx="2"><c:v>\(미정\)/.test(c1), 'a text cell in a money column is left out of the cache');
+  assert.ok(c1.includes('<c:legend>'), 'two series get a legend');
+  const pie = text('xl/charts/chart2.xml');
+  assert.match(pie, /<c:pieChart><c:varyColors val="1"\/>.*<c:showPercent val="1"\/>/);
+  assert.ok(!pie.includes('<c:catAx>') && pie.includes('<a:t>실적</a:t>'), 'a pie has no axes; with no title it is named after its values');
+  const line = text('xl/charts/chart3.xml');
+  assert.match(line, /<c:lineChart>.*<c:numRef><c:f>&apos;추이&apos;!\$A\$2:\$A\$3<\/c:f><c:numCache><c:formatCode>yyyy-mm-dd<\/c:formatCode>/);
+  assert.ok(line.includes('<c:numFmt formatCode="0.0%" sourceLinked="0"/>') && !line.includes('<c:legend>'));
+  assert.deepEqual(summary[0].charts, [{ type: 'column', title: '예산과 실적', category: '항목', values: ['금액', '실적'] }, { type: 'pie', title: '실적', category: '항목', values: ['실적'] }]);
+  assert.equal(summary[2].charts, undefined);
+  // narrow tables put their charts to the right, wide ones below the totals
+  const anchors = text('xl/drawings/drawing1.xml');
+  assert.match(anchors, /<xdr:from><xdr:col>7<\/xdr:col><xdr:colOff>0<\/xdr:colOff><xdr:row>1<\/xdr:row>.*<xdr:row>19<\/xdr:row>/);
+  const wide = buildXlsx({ sheets: [{ name: '넓은 표', columns: Array.from({ length: 10 }, (_, i) => ({ header: `c${i}`, type: i ? 'number' : 'text' })), rows: [['a', 1, 2, 3, 4, 5, 6, 7, 8, 9]], charts: [{ category: 'c0', values: ['c1'] }] }] });
+  assert.match(unzip(wide.buffer).get('xl/drawings/drawing1.xml').toString('utf8'), /<xdr:from><xdr:col>0<\/xdr:col><xdr:colOff>0<\/xdr:colOff><xdr:row>3<\/xdr:row>/);
+});
+
+test('chart specs out of bounds are refused with a reason', () => {
+  const one = charts => () => buildXlsx({ sheets: [{ name: '표', columns: [{ header: '이름' }, { header: '금액', type: 'money' }, { header: '메모' }], rows: [['a', 1, 'x']], charts }] });
+  assert.throws(one('column'), /목록/);
+  assert.throws(one([{ type: 'area', category: '이름', values: ['금액'] }]), /형식은 column·bar·line·pie/);
+  assert.throws(one([{ category: '없음', values: ['금액'] }]), /category “없음”/);
+  assert.throws(one([{ category: '이름', values: [] }]), /values/);
+  assert.throws(one([{ category: '이름', values: ['메모'] }]), /number·money·percent/);
+  assert.throws(one([{ category: '이름', values: ['금액', '금액'] }]), /겹침/);
+  assert.throws(one(Array.from({ length: 4 }, () => ({ category: '이름', values: ['금액'] }))), /3개까지/);
+  assert.throws(() => buildXlsx({ sheets: [{ name: '표', columns: [{ header: '이름' }, { header: 'a', type: 'number' }, { header: 'b', type: 'number' }], rows: [['x', 1, 2]],
+    charts: [{ type: 'pie', category: '이름', values: ['a', 'b'] }] }] }), /원형 차트는 값 열 하나만/);
+  assert.throws(() => buildXlsx({ sheets: [{ name: '표', columns: [{ header: '이름' }, { header: '금액', type: 'money' }], rows: [], charts: [{ category: '이름', values: ['금액'] }] }] }), /그릴 행이 없음/);
+  assert.throws(() => buildXlsx({ sheets: [{ name: '표', columns: [{ header: '이름' }, { header: '금액', type: 'money' }], rows: [['a', '(미정)']], charts: [{ category: '이름', values: ['금액'] }] }] }), /숫자가 없음/);
+  assert.throws(() => buildXlsx({ sheets: [{ name: '표', columns: [{ header: '이름' }, { header: '금액', type: 'money' }], rows: Array.from({ length: 1001 }, () => ['a', 1]), charts: [{ category: '이름', values: ['금액'] }] }] }), /1000행까지/);
+});
+
+test('the well-formedness check catches what a broken part would look like', () => {
+  assert.ok(xmlWellFormed('<?xml version="1.0"?>\n<a x="1"><b/><c:d e:f="&amp;">텍스트</c:d></a>'));
+  for (const bad of ['<a><b></a></b>', '<a>', '<a></a><b/>', '<a>1 < 2</a>', '<a x=1/>', '<a x="1"></a>>', '</a>', '<a></b>']) assert.equal(xmlWellFormed(bad), false, bad);
+});
+
+test('the preview draws each chart as plain SVG, and spreadsheet_made can ask for the charts', async () => {
+  const cwd = ws();
+  writeFileSync(path.join(cwd, '집계.json'), JSON.stringify(CHART_SPEC));
+  const made = await makeSpreadsheet(cwd, { from: '집계.json' }, new Set(), fakeConverter());
+  assert.equal(made.ok, true, made.error);
+  assert.deepEqual(made.charts, [{ sheet: "팀's 예산", type: 'column', title: '예산과 실적' }, { sheet: "팀's 예산", type: 'pie', title: '실적' }, { sheet: '추이', type: 'line', title: '추이' }]);
+  const html = readFileSync(path.join(cwd, '집계.xlsx.html'), 'utf8');
+  assert.equal((html.match(/<svg /g) ?? []).length, 3);
+  assert.ok(html.includes('aria-label="예산과 실적"') && /<path d="M150,165 /.test(html) && html.includes('<polyline') && !html.includes('<script'));
+  const ctx = { spreadsheets: { [made.path]: { ...made, readback: { ...made.readback, match: true } } } };
+  const criteria = ['집계.xlsx 엑셀에 차트가 3개 들어 있다'];
+  const claim = c => verifyReport({ criteria: [{ index: 1, done: true, check: c }] }, criteria, cwd, ctx).claims[0];
+  const pass = claim({ type: 'spreadsheet_made', path: '집계.xlsx', charts: 3 });
+  assert.equal(pass.check, 'pass', pass.detail);
+  assert.match(pass.detail, /차트 3개 \(세로 막대·원형·꺾은선, 엔진이 넣고 파일 안에서 확인\)/);
+  assert.match(claim({ type: 'spreadsheet_made', path: '집계.xlsx', charts: 4 }).detail, /차트 3개 \(4개 이상 필요\)/);
+  // with no check in verification, the engine runs its own for "the Excel file has N charts"
+  const own = verifyReport({ criteria: [] }, criteria, cwd, { ...ctx, verifying: true }).claims[0];
+  assert.equal(own.check, 'pass', own.detail);
+  assert.equal(verifyReport({ criteria: [] }, ['집계.xlsx 엑셀에 차트가 4개 들어 있다'], cwd, { ...ctx, verifying: true }).claims[0].check, 'fail');
+  assert.equal(verifyReport({ criteria: [] }, ['집계.xlsx 엑셀 차트에 10월 실적이 들어 있다'], cwd, { ...ctx, verifying: true }).claims[0].check, 'none', 'what a chart shows stays with the verifier');
 });
 
 // The real reader: kordoc (when installed in tools/kordoc) opens the engine's file and finds the same table.

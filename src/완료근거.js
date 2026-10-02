@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { FORBIDDEN_NAMES, WRITE_TOOLS, hasSecret } from './보안감시.js';
+import { CHART_NAMES } from './엑셀.js';
 
 // The tool may claim a criterion is done, but only a check this engine runs itself counts as evidence.
 // Allowed checks are deliberately tiny and read-only, and confined to the project workspace.
@@ -58,7 +59,7 @@ export function reportInstructions(criteria, { verifying = false } = {}) {
     '   from your Markdown, it passed the structure check and is unchanged since; with "text", the document contains it)',
     '  {"type":"spreadsheet_made","path":"x.xlsx","text":"optional exact text"}  (the engine itself made this Excel file from',
     '   your spec, read it back and found the same sheets, rows, column headers and totals, and it is unchanged since; with',
-    '   "text", the read-back table contains it)',
+    '   "text", the read-back table contains it; with "charts":N, the engine put at least N charts in it)',
     'To get a 한글 document (HWPX), write the text as Markdown and add "documents":[{"from":"x.md","to":"x.hwpx",',
     '"preset":"보고서","layout":"auto"}] (presets: 기안문, 보고서, 계획서, 통지, 회의록, 개조식, 업무보고, 서울방침, 보도자료; at most 3).',
     'Optional per document: "approval":["담당","검토","대장"] puts a 결재란 (1–4 short labels) at the top right; "font":"gothic"',
@@ -81,6 +82,10 @@ export function reportInstructions(criteria, { verifying = false } = {}) {
     '2026. 10. 2.). Sheet names: 1–31 characters without [ ] : * ? / \\. At most 10 sheets, 20,000 rows, 50 columns. The engine writes',
     'the file (bold frozen header, number formats, widths, SUM formulas for totals), reads it back and compares; never write the',
     '.xlsx yourself. It also saves x.xlsx.html (a preview) and x.xlsx.md (the read-back).',
+    'Charts: add "charts":[{"type":"column","title":"월별 예산","category":"항목","values":["예산","실적"]}] to a sheet',
+    '(types column, bar, line, pie; category = any column header, values = number/money/percent column headers, a pie has',
+    'exactly one; at most 3 charts per sheet, 6 values, 1,000 rows). The engine draws them as real Excel charts from the',
+    'sheet\'s cells (the totals row is left out); never draw a chart as a picture.',
     'If you read web pages, list them in "sources":[{"url":"https://…"}] (at most 5). After your step the engine fetches',
     'each allowed page again and saves its original text under sources/ for comparison. Never write into sources/.',
     'Do not claim done without doing the work. Put anything a person must judge in "note".',
@@ -129,14 +134,20 @@ const BUILD_ONLY = c => /넘침|넘치|잘림|잘린|겹침|겹친|깨진/.test(
 // "the engine made x.hwpx" and "nothing written outside the folder" — never for a criterion about content.
 function engineCheckFor(criterion, ctx) {
   const c = String(criterion).toLowerCase();
+  const sheets = Object.keys(ctx.spreadsheets ?? {});
+  const namedSheets = sheets.filter(p => c.includes(path.basename(p).toLowerCase()));
+  // "집계.xlsx 에 막대 차트가 2개 들어 있다": the engine's record of the charts it put in covers it; a criterion about
+  // what a chart shows ("차트에 … 가 들어 있다") does not match and stays with the verifier.
+  const chartClaim = /(차트|그래프)\s*[가이]?\s*(\d+)?\s*(개)?\s*(이상)?\s*(들어\s*있|있|포함)/.exec(c);
+  if (chartClaim && /xlsx|엑셀/.test(c) && (namedSheets.length === 1 || sheets.length === 1)) {
+    return [{ type: 'spreadsheet_made', path: namedSheets[0] ?? sheets[0], charts: Number(chartClaim[2] ?? 1) || 1 }];
+  }
   if (/들어\s*있|포함|내용|적혀|같다/.test(c)) return [];
   const docs = Object.keys(ctx.documents ?? {});
   const named = docs.filter(p => c.includes(path.basename(p).toLowerCase()));
   if (/hwpx|한글 문서/.test(c) && /엔진|서식|만들|생성|만든/.test(c) && (named.length === 1 || docs.length === 1)) {
     return [{ type: 'document_made', path: named[0] ?? docs[0] }];
   }
-  const sheets = Object.keys(ctx.spreadsheets ?? {});
-  const namedSheets = sheets.filter(p => c.includes(path.basename(p).toLowerCase()));
   if (/xlsx|엑셀/.test(c) && /엔진|만들|생성|만든/.test(c) && (namedSheets.length === 1 || sheets.length === 1)) {
     return [{ type: 'spreadsheet_made', path: namedSheets[0] ?? sheets[0] }];
   }
@@ -548,7 +559,12 @@ function checkSpreadsheet(check, cwd, spreadsheets) {
   }
   const sheets = rec.sheets ?? [];
   const totals = sheets.filter(s => s.totals).map(s => Object.entries(s.totals.values).map(([h, v]) => `${h} ${v.toLocaleString('ko-KR')}`).join('·'));
-  return { status: 'pass', proof: `엔진 확인 · ${rel} (${rec.from}에서 엔진이 만듦) · 시트 ${sheets.length}개·행 ${rec.rows}개 · 다시 읽은 표가 시트·행·열 제목·합계와 같음${totals.length ? ` (합계 ${totals.join(' / ')})` : ''}${found}` };
+  // charts: the engine wrote them from the spec and found every chart part in its own file (kordoc reads tables only)
+  const charts = rec.charts ?? [];
+  const want = Number.isInteger(check.charts) && check.charts > 0 ? check.charts : 0;
+  if (want && charts.length < want) return { status: 'fail', reason: `${rel}의 차트 ${charts.length}개 (${want}개 이상 필요)` };
+  const drawn = charts.length ? ` · 차트 ${charts.length}개 (${[...new Set(charts.map(c => CHART_NAMES[c.type] ?? c.type))].join('·')}, 엔진이 넣고 파일 안에서 확인)` : '';
+  return { status: 'pass', proof: `엔진 확인 · ${rel} (${rec.from}에서 엔진이 만듦) · 시트 ${sheets.length}개·행 ${rec.rows}개 · 다시 읽은 표가 시트·행·열 제목·합계와 같음${totals.length ? ` (합계 ${totals.join(' / ')})` : ''}${drawn}${found}` };
 }
 
 // documents: { "x.hwpx": { from, preset, sha, validated, lint, readback: { path, sha } } } — what the engine made

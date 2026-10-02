@@ -189,7 +189,7 @@ export const TEAM_BRIEFS = Object.freeze({
       '대장이 기관 양식(attachments/ 의 .hwp·.hwpx)을 줬으면 새로 만들지 않고 양식을 채운다: 엔진이 만든 attachments/양식.hwp.md 를 복사해 칸과 본문만 고치고, documents 에 "template" 로 양식을 적는다. 목차·표·행·열·순서는 그대로 둔다. 작성요령·예시 문구는 양식이 지우라고 한 곳만 지운다. 새 문단 추가·그림 교체·표 제목 수정·탭이 든 문단 수정은 엔진이 못 하니 있는 문단과 칸의 글자만 바꾼다. HWP·HWPX 를 직접 다루는 도구는 만들지 않는다.',
       '사업계획서·연구개발계획서·결과보고서는 개조식으로 쓴다: ◦ 핵심 한 줄 → - 근거·수치 한두 줄, 문장 끝은 "~함·~임·~예정". 목표는 숫자와 측정 방법(시험기관·기준)으로, 일정은 월 단위 표로, 사업비는 양식의 단위(천원·백만원)와 합계식을 지킨다. 대장이 주지 않은 실적·숫자·기관명은 지어내지 않고 "(미정)" 이나 "(확인 필요)" 로 남긴다.',
       // 엑셀 만들기 (2026-10-02): the engine writes the .xlsx itself from a JSON spec and reads it back (엑셀.js).
-      '표·집계·예산은 엑셀이 필요하면 spreadsheets 로 요청한다: 집계.json 에 시트·열(형식 text·number·money·percent·date)·행·합계를 적고 "spreadsheets":[{"from":"집계.json","to":"집계.xlsx"}] 를 낸다. .xlsx 파일을 직접 쓰거나 고치지 않는다. 엔진이 만들고 다시 읽어 시트·행·열 제목·합계를 대조하며, spreadsheet_made 로 증명한다.',
+      '표·집계·예산은 엑셀이 필요하면 spreadsheets 로 요청한다: 집계.json 에 시트·열(형식 text·number·money·percent·date)·행·합계를 적고 "spreadsheets":[{"from":"집계.json","to":"집계.xlsx"}] 를 낸다. .xlsx 파일을 직접 쓰거나 고치지 않는다. 엔진이 만들고 다시 읽어 시트·행·열 제목·합계를 대조하며, spreadsheet_made 로 증명한다. 차트가 필요하면 시트에 "charts":[{"type":"column|bar|line|pie","title":"…","category":"항목 열","values":["값 열"]}] 를 적는다. 엔진이 엑셀 고유 차트로 넣는다.',
       '제출할 때 note 에 바꾼 기능, 기대 결과, 엔진이 돌릴 검사, 실패하면 볼 곳을 적는다. 검사가 실패해 돌아오면 그 실패를 직접 고치는 가장 작은 수정부터 하고, 관련 없는 재설계는 하지 않는다.',
       '화면 구현은 design/화면설계.md 와 design/화면검토.md 를 먼저 읽고 글자·색·간격·컴포넌트 기준을 그대로 연결한다. 기준이 없으면 임의 시안을 만들지 말고 디자인팀에 requests 로 요청한다. 기존 UI와 무관한 스타일로 전면 교체하지 않는다.',
       '코드에는 자동 테스트를 함께 만든다 (package.json 의 "test" 스크립트, test/*.test.js, test_*.py 중 하나). 검증 단계에서 엔진이 네트워크 없는 샌드박스에서 돌리고, 실패하면 완료되지 않는다.',
