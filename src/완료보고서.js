@@ -65,6 +65,11 @@ export function buildReport({ goal, runs = [], files = [], now = new Date().toIS
   if (Object.keys(documents).length) {
     lines.push('## 엔진이 만든 한글 문서', '', ...Object.values(documents).map(d => `- ${d.path} (${d.preset} 서식, ${d.validated ? '구조 검증 통과' : '구조 검증 실패'})`), '');
   }
+  const sheets = {};
+  for (const r of runs) for (const x of r.spreadsheets ?? []) sheets[x.path] = x;
+  if (Object.keys(sheets).length) {
+    lines.push('## 엔진이 만든 엑셀 파일', '', ...Object.values(sheets).map(x => `- ${x.path} (${x.from}에서, 시트 ${x.sheets?.length ?? 0}개·행 ${x.rows ?? 0}개, ${x.readback?.match ? '다시 읽기 일치' : '다시 읽기 확인 안 됨'})`), '');
+  }
   if (byHuman.length) lines.push('## 대장이 직접 확인한 조건', '', ...byHuman.map(c => `- ${clip(c, 120)}`), '');
   lines.push('## 작성', '', `- AGENT HQ 엔진이 실행 기록만으로 작성했다 (AI 호출 없음). 작성 시각 ${officialDate(now)}.`, '');
 

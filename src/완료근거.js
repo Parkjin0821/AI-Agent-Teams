@@ -56,6 +56,9 @@ export function reportInstructions(criteria, { verifying = false } = {}) {
     '   the proof gives the page count. It does not judge whether the deck reads well)',
     '  {"type":"document_made","path":"x.hwpx","text":"optional exact text"}  (the engine itself made this 한글 document',
     '   from your Markdown, it passed the structure check and is unchanged since; with "text", the document contains it)',
+    '  {"type":"spreadsheet_made","path":"x.xlsx","text":"optional exact text"}  (the engine itself made this Excel file from',
+    '   your spec, read it back and found the same sheets, rows, column headers and totals, and it is unchanged since; with',
+    '   "text", the read-back table contains it)',
     'To get a 한글 document (HWPX), write the text as Markdown and add "documents":[{"from":"x.md","to":"x.hwpx",',
     '"preset":"보고서","layout":"auto"}] (presets: 기안문, 보고서, 계획서, 통지, 회의록, 개조식, 업무보고, 서울방침, 보도자료; at most 3).',
     'Optional per document: "approval":["담당","검토","대장"] puts a 결재란 (1–4 short labels) at the top right; "font":"gothic"',
@@ -71,6 +74,13 @@ export function reportInstructions(criteria, { verifying = false } = {}) {
     'delete the form\'s 작성요령/예시 text only where the form says to. Then add "documents":[{"template":"attachments/양식.hwp",',
     '"from":"계획서.md","to":"계획서.hwp"}] (same extension as the form). The engine writes your text into the original file,',
     'keeping its layout, and checks that every heading and table of the form is still there; document_made then proves it.',
+    'To get an Excel file (.xlsx) for a table, tally or budget, write it as JSON and add "spreadsheets":[{"from":"집계.json",',
+    '"to":"집계.xlsx"}] (at most 3; a .csv also works as one sheet). JSON: {"sheets":[{"name":"예산","columns":[{"header":"항목",',
+    '"type":"text"},{"header":"금액","type":"money","width":14}],"rows":[["재료비",1250000]],"totals":{"label":"합계","sum":["금액"]}}]}.',
+    'Column types: text, number, money (#,##0), percent (0.153 or "15.3%" → 15.3%), date ("2026-10-02"; "format":"korean" shows',
+    '2026. 10. 2.). Sheet names: 1–31 characters without [ ] : * ? / \\. At most 10 sheets, 20,000 rows, 50 columns. The engine writes',
+    'the file (bold frozen header, number formats, widths, SUM formulas for totals), reads it back and compares; never write the',
+    '.xlsx yourself. It also saves x.xlsx.html (a preview) and x.xlsx.md (the read-back).',
     'If you read web pages, list them in "sources":[{"url":"https://…"}] (at most 5). After your step the engine fetches',
     'each allowed page again and saves its original text under sources/ for comparison. Never write into sources/.',
     'Do not claim done without doing the work. Put anything a person must judge in "note".',
@@ -103,7 +113,7 @@ export function parseReport(answer) {
 
 // Checks whose answer is in the engine's own records, which no team can read. (screen_ok and slides_ok are not here:
 // a verifier may rightly fail a page that has no overflow but does not meet the criterion.)
-const ENGINE_OWNED = ['document_made', 'stayed_inside'];
+const ENGINE_OWNED = ['document_made', 'spreadsheet_made', 'stayed_inside'];
 // "엔진 빌드·화면 검사에서 넘침·잘림·겹침이 없다": all of it is what the engine's own build or screen check looks at,
 // so its result decides even when the verifier sent "not done" (자율 시험 3차, 2026-10-02: the deck's build passed
 // with no overflow, the verifier said not done, and the day's steps ran out). A criterion that also asks about
@@ -121,6 +131,11 @@ function engineCheckFor(criterion, ctx) {
   const named = docs.filter(p => c.includes(path.basename(p).toLowerCase()));
   if (/hwpx|한글 문서/.test(c) && /엔진|서식|만들|생성|만든/.test(c) && (named.length === 1 || docs.length === 1)) {
     return [{ type: 'document_made', path: named[0] ?? docs[0] }];
+  }
+  const sheets = Object.keys(ctx.spreadsheets ?? {});
+  const namedSheets = sheets.filter(p => c.includes(path.basename(p).toLowerCase()));
+  if (/xlsx|엑셀/.test(c) && /엔진|만들|생성|만든/.test(c) && (namedSheets.length === 1 || sheets.length === 1)) {
+    return [{ type: 'spreadsheet_made', path: namedSheets[0] ?? sheets[0] }];
   }
   if (BOUNDARY_TOPIC.test(c) && ctx.boundary) return [{ type: 'stayed_inside' }];
   const decks = ctx.slides?.decks ?? [];
@@ -221,6 +236,9 @@ function relatesTo(check, criterion) {
   if (check.type === 'document_made') {
     return namesFile(c, check.path) || (check.text && words(check.text).some(w => mentions(c, w))) || DOCUMENT_TOPIC.test(c);
   }
+  if (check.type === 'spreadsheet_made') {
+    return namesFile(c, check.path) || (check.text && words(check.text).some(w => mentions(c, w))) || SHEET_TOPIC.test(c);
+  }
   if (check.type === 'source_contains') {
     return words(check.text).some(w => mentions(c, w)) || (check.path ? namesFile(c, check.path) && !CLAIMS_ABSENCE.test(c) : SOURCE_TOPIC.test(c));
   }
@@ -277,6 +295,7 @@ function koreanNames(list, criterion) {
   return bases.every(b => b && (/[가-힣]/.test(b) || FIXED_NAMES.has(b.toLowerCase()))) && bases.some(b => /[가-힣]/.test(b));
 }
 const DOCUMENT_TOPIC = /문서|hwpx|한글 파일|보고서|기안|서식|계획서|회의록|보도자료|통지/;
+const SHEET_TOPIC = /엑셀|xlsx|스프레드시트|시트|집계|예산|합계/;
 const SOURCE_TOPIC =/출처|원문|공식|source|official/;
 const CLAIMS_ABSENCE =/없[다고으음이는었]|않[았는다고음]|아니[다고]|금지|no |never|without/;
 // file_excludes speaks only to a criterion that claims an absence ("…없이", "쓰지 않는다", "금지").
@@ -309,6 +328,7 @@ function runCheck(check, cwd, ctx = {}) {
   if (check?.type === 'file_unchanged') return checkUnchanged(check, cwd, ctx.originals ?? {});
   if (check?.type === 'source_contains') return checkSource(check, cwd, ctx.sources ?? {});
   if (check?.type === 'document_made') return checkDocument(check, cwd, ctx.documents ?? {});
+  if (check?.type === 'spreadsheet_made') return checkSpreadsheet(check, cwd, ctx.spreadsheets ?? {});
   if (check?.type === 'file_updated') return checkUpdated(check, cwd, ctx.baseline);
   const target = insideWorkspace(check.path, cwd);
   if (!target) return { status: 'invalid', reason: '작업 폴더 밖이거나 잘못된 경로' };
@@ -495,6 +515,35 @@ function checkUpdated(check, cwd, baseline) {
   const now = createHash('sha256').update(readFileSync(target)).digest('hex');
   if (baseline[rel] === now) return { status: 'fail', reason: `${rel}이(가) 이번 회차 시작 때와 같음 (갱신 안 됨)` };
   return { status: 'pass', proof: `엔진 확인 · ${rel}이(가) 이번 회차에 ${baseline[rel] ? '새로 바뀜' : '새로 생김'}` };
+}
+
+// spreadsheets: { "x.xlsx": { from, sha, sheets, rows, readback: { path, sha, match, problems } } } — what the engine
+// made (엑셀.js makeSpreadsheet). Only an engine-made, unchanged file whose kordoc read-back matched counts.
+function checkSpreadsheet(check, cwd, spreadsheets) {
+  const target = insideWorkspace(check.path, cwd);
+  if (!target) return { status: 'invalid', reason: '작업 폴더 밖이거나 잘못된 경로' };
+  const rel = path.relative(cwd, target).replace(/\\/g, '/');
+  const rec = spreadsheets[rel];
+  if (!rec) return { status: 'invalid', reason: `${rel}은(는) 엔진이 만든 엑셀이 아님 (spreadsheets 로 요청)` };
+  const hash = p => createHash('sha256').update(readFileSync(path.join(cwd, p))).digest('hex');
+  if (!existsSync(target)) return { status: 'fail', reason: `${rel} 없어짐` };
+  if (hash(rel) !== rec.sha) return { status: 'fail', reason: `${rel}이(가) 엔진이 만든 뒤 바뀜` };
+  const back = rec.readback;
+  if (!back?.path) return { status: 'fail', reason: `${rel}을(를) 다시 읽지 못함${back?.error ? ` (${back.error})` : ' (kordoc 없음)'}` };
+  if (!existsSync(path.join(cwd, back.path)) || hash(back.path) !== back.sha) return { status: 'invalid', reason: '엑셀을 다시 읽은 기록이 없거나 바뀜' };
+  if (!back.match) return { status: 'fail', reason: `${rel}을(를) 다시 읽은 표가 만든 것과 다름 · ${(back.problems ?? []).slice(0, 3).join(' · ')}` };
+  let found = '';
+  if (typeof check.text === 'string' && check.text) {
+    // kordoc escapes Markdown characters and writes numbers without thousands separators
+    const md = readFileSync(path.join(cwd, back.path), 'utf8').replace(/\\([\\`*_{}[\]()#+\-.!|<>~])/g, '$1');
+    const plain = check.text.replace(/(\d),(?=\d{3})/g, '$1');
+    const shown = check.text.length > 60 ? `${check.text.slice(0, 60)}…` : check.text;
+    if (!md.includes(check.text) && !md.includes(plain)) return { status: 'fail', reason: `${rel}에 “${shown}” 없음` };
+    found = ` · 표에 “${shown}” 있음`;
+  }
+  const sheets = rec.sheets ?? [];
+  const totals = sheets.filter(s => s.totals).map(s => Object.entries(s.totals.values).map(([h, v]) => `${h} ${v.toLocaleString('ko-KR')}`).join('·'));
+  return { status: 'pass', proof: `엔진 확인 · ${rel} (${rec.from}에서 엔진이 만듦) · 시트 ${sheets.length}개·행 ${rec.rows}개 · 다시 읽은 표가 시트·행·열 제목·합계와 같음${totals.length ? ` (합계 ${totals.join(' / ')})` : ''}${found}` };
 }
 
 // documents: { "x.hwpx": { from, preset, sha, validated, lint, readback: { path, sha } } } — what the engine made

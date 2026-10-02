@@ -13,6 +13,7 @@ import { guardDenied, pathViolations, readRules, restoreDenied, rulesPrompt } fr
 import { copyKitFonts, fontsPrompt, installedKoreanFonts, kitPrompt } from './글꼴.js';
 import { slidesPrompt, slideTool } from './슬라이드.js';
 import { documentQuality } from './문서품질.js';
+import { makeSpreadsheet, spreadsheetRecords } from './엑셀.js';
 
 // Bridges the goal scheduler to the CLI adapter. After a real run the engine reads the tool's final
 // answer, runs the checks it proposed inside the workspace, and only passing checks become evidence.
@@ -239,15 +240,30 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           made: documents.made.map(m => ({ path: m.path, from: m.from, preset: m.preset, validated: m.validated, lint: m.lint, previews: m.previews, ...(m.kind === 'form' ? { template: m.template, structure: m.structure, empties: m.empties } : {}) })),
           failed: documents.failed });
       }
+      // 엑셀 만들기: a work team's JSON spec or CSV becomes an .xlsx the engine writes itself and reads back with kordoc
+      // (엑셀.js). Made even without kordoc; spreadsheet_made then cannot pass, since nothing read the file back.
+      let spreadsheets = null;
+      if (team && WORKERS.includes(team) && Array.isArray(report?.spreadsheets) && report.spreadsheets.length && !simulated) {
+        const known = new Set(Object.keys(spreadsheetRecords(records)));
+        spreadsheets = { made: [], failed: [] };
+        for (const x of report.spreadsheets.slice(0, 3)) {
+          const r = await makeSpreadsheet(cwd, { from: x?.from, to: x?.to }, known, maker);
+          if (r.ok) { spreadsheets.made.push(r); known.add(r.path); } else spreadsheets.failed.push({ from: String(x?.from ?? '').slice(0, 120), error: r.error });
+        }
+        await store.emit({ type: 'spreadsheets.made', goalId: goal.id, team,
+          made: spreadsheets.made.map(m => ({ path: m.path, from: m.from, sheets: m.sheets.length, rows: m.rows, readback: m.readback ? { match: m.readback.match ?? false, problems: m.readback.problems ?? [], error: m.readback.error ?? null } : null })),
+          failed: spreadsheets.failed });
+      }
       const { evidence, claims } = verifyReport(report, goal.completionCriteria, cwd, { verifying: team === 'qa', test, originals: attachmentOriginals(goal, records),
         // 화면 검사 of this verification step (screen_ok); a design step's captures are for looking, not proof
         visual: team === 'qa' ? engineTools.find(t => t.id === 'visual') ?? null : null,
         slides: team === 'qa' ? engineTools.find(t => t.id === 'slides') ?? null : null,
         documents: { ...documentRecords(records), ...documentRecords([{ documents: documents?.made ?? [] }]) },
+        spreadsheets: { ...spreadsheetRecords(records), ...spreadsheetRecords([{ spreadsheets: spreadsheets?.made ?? [] }]) },
         baseline: goal.routine?.baseline ?? null,
         sources: { ...sourceRecords(records), ...sourceRecords([{ sources: sources?.saved ?? [] }]) },
         boundary: () => boundaryCheck({ runs: store.listRuns?.(goal.id) ?? [], sentinelLog: sentinel?.log ?? null, project: goal.projectId, cwd }) });
-      return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd), ...(sources ? { sources: sources.saved } : {}), ...(documents ? { documents: documents.made } : {}),
+      return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd), ...(sources ? { sources: sources.saved } : {}), ...(documents ? { documents: documents.made } : {}), ...(spreadsheets ? { spreadsheets: spreadsheets.made } : {}),
         requests: normalizeRequests(report?.requests, team), requiredReviews: requiredReviews(team),
         ...(team === 'qa' ? { findings: { ...qaFindings(report), blocking,
           ...(engineTools.some(t => t.id === 'document-quality' && t.reviewRequired) ? { documentReviewRequired: true } : {}),

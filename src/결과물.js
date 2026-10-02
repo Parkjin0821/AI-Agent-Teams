@@ -9,6 +9,8 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset
   '.svg': 'image/svg+xml',
   // 한글 documents the engine made: offered as a download only.
   '.hwpx': 'application/vnd.hancom.hwpx',
+  // Excel files the engine made (엑셀.js): download only; their table preview is the engine's x.xlsx.html beside them.
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   // Slide PDFs the engine printed (발표자료/<id>.pdf): download only, since a sandboxed preview frame cannot show a PDF
   // (대장 found the slide test's PDF missing from 결과물, 2026-10-01).
   '.pdf': 'application/pdf',
@@ -34,7 +36,7 @@ export function readArtifact(cwd, relative) {
   if (!stat.isFile() || stat.size > 2000000) throw new Error('artifact must be a file under 2MB');
   return { type, bytes: readFileSync(file) };
 }
-export const isDownloadOnly = (relative) => ['.hwpx', '.pdf'].includes(path.extname(String(relative)).toLowerCase());
+export const isDownloadOnly = (relative) => ['.hwpx', '.pdf', '.xlsx'].includes(path.extname(String(relative)).toLowerCase());
 // A slide PDF's preview: the page captures the engine took in the same build (.hq-screens/슬라이드-<id>-NN.png), laid
 // out as one page with the images inline (the preview frame allows only data: images and runs no scripts; a sandboxed
 // frame cannot show the PDF itself). 대장 asked for a preview, not only a download (2026-10-01).
