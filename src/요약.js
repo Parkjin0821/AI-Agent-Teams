@@ -148,8 +148,14 @@ export class Digests {
     const ref = (g, extra) => ({ goalId: g.id, projectId: g.projectId, title: titleOf(g), status: g.status, statusL: REASON_L[g.reason] ?? STATUS_L[g.status] ?? g.status,
       steps: 0, teams: [], proven: (g.evidence ?? []).length, total: (g.completionCriteria ?? []).length, ...extra });
 
-    const finished = goals.filter(g => g.status === 'verified' && inWindow(g.updatedAt))
-      .map(g => ref(g, { files: resultFiles(this.store.listRuns(g.id)) }));
+    // One line per project: its newest finished goal, with the result files of all its goals finished in the window
+    // (the first real summary, 2026-10-02, listed one project three times for its follow-up goals).
+    const done = goals.filter(g => g.status === 'verified' && inWindow(g.updatedAt))
+      .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    const finished = [...new Set(done.map(g => g.projectId))].map(pid => {
+      const mine = done.filter(g => g.projectId === pid);
+      return ref(mine[0], { files: resultFiles(mine.reverse().flatMap(g => this.store.listRuns(g.id))) });
+    });
     const waiting = goals.filter(g => g.status !== 'verified' && (g.criteriaApprovalPending || (g.status === 'review_required' && HELD.includes(g.reason))))
       .map(g => ref(g, { why: g.criteriaApprovalPending ? REASON_L.criteria_approval_required : REASON_L[g.reason],
         ask: g.criteriaApprovalPending ? `완료 조건 ${(g.completionCriteria ?? []).length}개를 확인하고 승인` : g.reason === 'trust_review' ? '바뀐 파일을 보고 계속할지 결정'

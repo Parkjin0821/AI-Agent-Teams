@@ -86,6 +86,7 @@ test('the morning summary lists finished work, decisions, stops, usage and a fin
   const at = (h, mi = 0) => new Date(2026, 9, 2, h, mi).toISOString();
   const goals = [
     { id: 'g1', projectId: 'p1', title: '회의록 한글 문서', status: 'verified', updatedAt: at(2), completionCriteria: ['a', 'b'], evidence: [{}, {}] },
+    { id: 'g1b', projectId: 'p1', title: '회의록 한글 문서', status: 'verified', updatedAt: at(3), completionCriteria: ['c'], evidence: [{}] },
     { id: 'g0', projectId: 'p0', title: '어제 끝난 일', status: 'verified', updatedAt: new Date(2026, 8, 30, 10).toISOString(), completionCriteria: ['a'], evidence: [{}] },
     { id: 'g2', projectId: 'p2', title: '빵집 페이지', status: 'review_required', reason: 'needs_decision', completionCriteria: ['a'], evidence: [],
       question: '[검증팀] 남은 조건은\n대장 판단이 필요합니다: 영업 중 표시' },
@@ -98,7 +99,7 @@ test('the morning summary lists finished work, decisions, stops, usage and a fin
   const runs = { g1: [
     { team: 'dev', checkpoint: { added: ['회의록.md', '.hq-screens/x.png', '회의록.hwpx.md', 'attachments/원고.txt'], modified: [] } },
     { team: 'dev', documents: [{ path: '회의록.hwpx' }], checkpoint: { added: ['회의록.hwpx', '회의록.hwpx.svg'], modified: ['회의록.md'] } },
-    { team: 'qa', checkpoint: { added: ['검증.md'] } }] };
+    { team: 'qa', checkpoint: { added: ['검증.md'] } }], g1b: [{ team: 'dev', checkpoint: { added: ['회의록-요약.md'], modified: ['회의록.md'] } }] };
   const store = { listGoals: () => goals, listRuns: id => runs[id] ?? [], getSettings: () => settings,
     setSetting: (k, v) => { settings[k] = v; return settings; }, emit: async () => {} };
   const root = mkdtempSync(path.join(tmpdir(), 'hq-morning-'));
@@ -124,7 +125,7 @@ test('the morning summary lists finished work, decisions, stops, usage and a fin
   assert.equal(m.lines[0], '완료 1개 · 대장 결정 대기 3건 · 멈춤 3개');
   assert.match(m.lines[1], /^먼저 볼 것: 빵집 페이지 · 팀 질문에 답 필요/);
   const sec = id => m.sections.find(s => s.id === id).lines;
-  assert.deepEqual(sec('finished'), ['회의록 한글 문서 · 조건 2/2 · 결과 회의록.hwpx, 회의록.md'], 'engine files, previews, read-backs, attachments and verifier notes left out; yesterday\'s work not repeated');
+  assert.deepEqual(sec('finished'), ['회의록 한글 문서 · 조건 1/1 · 결과 회의록.hwpx, 회의록.md, 회의록-요약.md'], 'one line per project (newest goal, files of both); engine files, previews, read-backs, attachments and verifier notes left out; yesterday\'s work not repeated');
   assert.deepEqual(sec('waiting'), [
     '빵집 페이지 · 팀 질문에 답 필요 · [검증팀] 남은 조건은 대장 판단이 필요합니다: 영업 중 표시',
     '조사 · 완료 조건 승인 필요 · 완료 조건 3개를 확인하고 승인',
