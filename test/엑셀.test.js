@@ -147,6 +147,7 @@ test('spreadsheet_made proves an engine-made, unchanged file whose read-back mat
   assert.equal(verifyReport({ criteria: [{ index: 1, done: false, check: { type: 'spreadsheet_made', path: '집계.xlsx' } }] }, criteria, cwd, ctx).evidence.length, 1);
   // in verification with no check at all, the engine runs its own for "the engine made the Excel file"
   assert.equal(verifyReport({ criteria: [] }, ['엑셀 파일을 엔진이 만들었다'], cwd, { ...ctx, verifying: true }).claims[0].check, 'pass');
+  assert.equal(check({ type: 'document_made', path: '집계.xlsx' }).check, 'pass', 'document_made named for an Excel file means its spreadsheet proof');
   writeFileSync(path.join(cwd, '집계.xlsx'), 'edited by hand');
   assert.match(check({ type: 'spreadsheet_made', path: '집계.xlsx' }).detail, /엔진이 만든 뒤 바뀜/);
 });

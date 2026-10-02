@@ -194,7 +194,9 @@ export function verifyReport(report, criteria, cwd, ctx = {}) {
     // "checks": a criterion with several parts (four sections, three files) counts only when every check passes and
     // each is about it. Seen in a real run: the verifier confirmed such criteria by reading and left "check": null,
     // because one check could only look at one text.
-    const given = Array.isArray(item?.checks) && item.checks.length ? item.checks.slice(0, 8) : item?.check ? [item.check] : [];
+    // A plan that named "document_made" for an Excel file (엑셀 차트 시험, 2026-10-02) means the engine's proof for it.
+    const asSheet = k => k?.type === 'document_made' && /\.xlsx$/i.test(String(k.path ?? '')) ? { ...k, type: 'spreadsheet_made' } : k;
+    const given = (Array.isArray(item?.checks) && item.checks.length ? item.checks.slice(0, 8) : item?.check ? [item.check] : []).map(asSheet);
     const list = given.length ? given : ctx.verifying ? engineCheckFor(criterion, ctx) : [];
     // The verifier cannot see the engine's records, so it sent "not done · 확인 못 함" for a 한글 document the engine
     // made and for a confined run (minutes re-test, 2026-10-01: both stayed unmet for ten steps). When every check is
