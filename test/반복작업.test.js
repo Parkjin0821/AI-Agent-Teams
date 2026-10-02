@@ -101,6 +101,7 @@ test('the routine API saves a schedule, shows it in the engine view, and refuses
   const call = async (method, url, body) => { const res = await fetch(base + url, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) }); return { status: res.status, body: await res.json() }; };
   try {
     const g = app.scheduler.addGoal({ projectId: 'p-rt', kind: 'team', objective: '조사', completionCriteria: ['a'] });
+    app.scheduler.start(g.id); // started, so it is an open round
     assert.equal((await call('PUT', '/api/projects/p-rt/routine', { enabled: true, kind: 'weekly', weekday: 'fri', time: '17:30' })).status, 200);
     const view = (await call('GET', '/api/engine')).body.projects.find(p => p.id === 'p-rt').routine;
     assert.deepEqual([view.enabled, view.label, typeof view.nextRunAt], [true, '매주 금요일 17:30', 'string']);
@@ -110,4 +111,35 @@ test('the routine API saves a schedule, shows it in the engine view, and refuses
     assert.deepEqual([run.status, run.body.round], [201, 1]);
     assert.equal((await call('PUT', '/api/projects/nope/routine', { enabled: true, kind: 'daily', time: '09:00' })).status >= 400, true);
   } finally { await app.close(); }
+});
+
+// 2026-10-02 real test: a routine set on a project 대장 had just made (never started) fired at 09:48 and was skipped as
+// "이전 회차가 아직 진행 중 (00:48)" — nothing had run, and the time was UTC.
+test('a never-started project is taken over by the first round, not skipped; skip notes show local time', async () => {
+  const store = new PersistentStore({ dataDir: mkdtempSync(path.join(tmpdir(), 'hq-rt-')) });
+  const clock = { t: MON_8, now() { return this.t; } };
+  const scheduler = new GoalScheduler({ store, clock, policy: DEFAULT_POLICY, runner: { run: async () => ({}) } });
+  const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(), 'hq-rt-ws-')));
+  const routines = new Routines({ store, scheduler, workspaces, clock });
+  try {
+    const g = scheduler.addGoal({ projectId: 'fresh', kind: 'team', title: '기록', objective: '기록.md 에 한 줄을 덧붙인다', completionCriteria: ['기록.md 에 확인 줄이 있다'] });
+    routines.set('fresh', { enabled: true, kind: 'daily', time: '08:03' });
+    clock.t = MON_8 + 3 * 60_000;
+    const [started] = await routines.tick();
+    assert.equal(started.round, 1);
+    assert.equal(started.goalId, g.id, 'the unstarted goal itself becomes round 1');
+    assert.equal(store.listGoals().filter(x => x.projectId === 'fresh').length, 1, 'no idle goal left beside it');
+    const goal = store.getGoal(g.id);
+    assert.deepEqual([goal.autoRun, goal.status, goal.completionCriteria.at(-1)], [true, 'scheduled', FRESH_CRITERION]);
+    assert.match(goal.objective, /^기록\.md 에 한 줄을 덧붙인다\n\n\[반복 실행 1회차 · 2026\. 9\. 28\. 08:03\]/);
+    assert.ok(goal.routine.baseline);
+    clock.t += 86_400_000; // round 1 started and still open: now it is a real open round
+    const [skip] = await routines.tick();
+    assert.equal(skip.skipped, true);
+    assert.match(routines.get('fresh').lastResult, /\(2026\. 9\. 29\. 08:03\)$/, 'local time, not UTC');
+    // a paused (stopped) project is still 대장's open work and is not taken over
+    const h = scheduler.addGoal({ projectId: 'held', kind: 'team', objective: 'x', completionCriteria: ['a'] });
+    scheduler.stop(h.id);
+    await assert.rejects(routines.run('held', { manual: true }), /still open/);
+  } finally { store.close(); }
 });

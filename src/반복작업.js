@@ -15,6 +15,8 @@ export const WEEKDAY_L = { sun: '일', mon: '월', tue: '화', wed: '수', thu: 
 export const FRESH_CRITERION = '이번 회차에 결과 파일을 새로 갱신했다';
 const OPEN = ['scheduled', 'running', 'review_required', 'model_wait', 'retry_wait', 'paused', 'blocked', 'recovery_required'];
 const pad = n => String(n).padStart(2, '0');
+// Local wall-clock time as 대장 reads it ("2026. 10. 2. 09:48"); an ISO slice showed UTC ("00:48") in the real test.
+const localStamp = ms => { const d = new Date(ms); return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}. ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
 export const routineLabel = r => r.kind === 'weekly' ? `매주 ${WEEKDAY_L[r.weekday]}요일 ${r.time}` : `매일 ${r.time}`;
 
@@ -90,22 +92,28 @@ export class Routines {
     const src = this.source(projectId);
     if (!src) throw new Error('project not found');
     const at = new Date(this.clock.now()).toISOString();
-    const open = this.store.listGoals().some(g => g.projectId === projectId && OPEN.includes(g.status));
-    if (open) {
+    // A goal 대장 made and never started is not a round in progress (2026-10-02 real test: a routine set on a new
+    // project fired on time and was skipped as "previous round still open" though nothing had ever run). The round
+    // takes that goal over instead of leaving it idle beside a new one.
+    const openGoals = this.store.listGoals().filter(g => g.projectId === projectId && OPEN.includes(g.status));
+    const idle = openGoals.filter(g => g.status === 'scheduled' && g.autoRun !== true && !(g.round > 0) && !g.criteriaApprovalPending
+      && !g.lane && (g.completionCriteria ?? []).length > 0 && !(this.store.listRuns?.(g.id) ?? []).length);
+    if (openGoals.length > idle.length) {
       if (manual) throw new Error('the previous round is still open');
-      map[projectId] = { ...r, lastRunAt: new Date(due).toISOString(), lastResult: `건너뜀 · 이전 회차가 아직 진행 중 (${at.slice(0, 16).replace('T', ' ')})` };
+      map[projectId] = { ...r, lastRunAt: new Date(due).toISOString(), lastResult: `건너뜀 · 이전 회차가 아직 진행 중 (${localStamp(this.clock.now())})` };
       this.save(map);
       await this.store.emit({ type: 'routine.skipped', projectId, reason: 'previous round open' });
       return { skipped: true };
     }
     const round = (r?.round ?? 0) + 1;
-    const d = new Date(this.clock.now());
-    const stamp = `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}. ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const stamp = localStamp(this.clock.now());
     const base = String(src.objective).replace(/\n\n\[반복 실행 [\s\S]*$/, '');
     const criteria = [...src.completionCriteria.filter(c => c !== FRESH_CRITERION), FRESH_CRITERION];
-    const goal = this.scheduler.addGoal({ projectId, kind: 'team', autoRun: true, title: src.title,
-      objective: `${base}\n\n[반복 실행 ${round}회차 · ${stamp}] 이전 회차 결과를 오늘 기준으로 다시 확인하고, 결과 파일을 새로 갱신한다.`,
-      completionCriteria: criteria });
+    const objective = `${base}\n\n[반복 실행 ${round}회차 · ${stamp}] 이전 회차 결과를 오늘 기준으로 다시 확인하고, 결과 파일을 새로 갱신한다.`;
+    const unstarted = idle.find(g => g.id === src.id);
+    const goal = unstarted
+      ? (this.scheduler.update(unstarted, { objective, completionCriteria: criteria, autoRun: true, nextRunAt: at, reason: null }), unstarted)
+      : this.scheduler.addGoal({ projectId, kind: 'team', autoRun: true, title: src.title, objective, completionCriteria: criteria });
     this.scheduler.update(goal, { routine: { round, startedAt: at, baseline: this.baseline(projectId) },
       messages: this.scheduler.withControl(goal, `반복 실행 ${round}회차 시작${manual ? ' (대장이 지금 실행)' : ` · ${routineLabel(r)}`}`) });
     map[projectId] = { ...(r ?? { projectId, enabled: false, kind: 'daily', time: '09:00' }), round, lastRunAt: new Date(due).toISOString(),
