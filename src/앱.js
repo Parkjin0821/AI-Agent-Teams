@@ -190,6 +190,15 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   const routines = new Routines({ store, scheduler, workspaces, clock });
   // 템플릿: finished projects saved as reusable recipes (템플릿.js).
   const templates = new Templates({ store, registry, clock });
+  // The same view for every page and poller until the store changes, and at most 3 s old (live activity, usage
+  // reasons and "now" are not in the store).
+  let engineCache = null;
+  const engineViewShared = () => {
+    if (engineCache && engineCache.version === store.version && Date.now() - engineCache.at < 3000) return engineCache.view;
+    const view = engineView();
+    engineCache = { view, version: store.version, at: Date.now() };
+    return view;
+  };
   const engineView = () => {
     const workspaceFolders = workspaces.readMap();
     const byProject = new Map();
@@ -288,7 +297,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     ['GET', /^\/api\/runs\/([0-9a-f-]{36})\/answer$/, m => { const r = store.getRun(m[1]); if (!r) throw new Error('run not found'); return { id: r.id, answer: r.answer ?? '' }; }],
     ['GET', /^\/api\/usage$/, () => (quota.items && Date.now() - quotaCheckedAt < 25_000 ? quota : refreshUsage())],
     ['GET', /^\/api\/state$/, () => orchestrator.snapshot()],
-    ['GET', /^\/api\/engine$/, () => engineView()],
+    ['GET', /^\/api\/engine$/, () => engineViewShared()],
     ['GET', /^\/api\/environments$/, () => ({ checkedAt: monitor?.snapshot?.checkedAt ?? null,
       items: environmentView(monitor?.snapshot ?? null, store.getSettings()), settings: store.getSettings() })],
     ['POST', /^\/api\/environments\/refresh$/, async () => {

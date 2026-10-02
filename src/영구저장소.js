@@ -16,6 +16,15 @@ export class PersistentStore {
       + ' CREATE TABLE IF NOT EXISTS model_candidates (id TEXT PRIMARY KEY, body TEXT NOT NULL);'
       + ' CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);');
     this.listeners = new Set();
+    // Bumped by every write, so a view built from the store (the engine view, megabytes) can be reused until something
+    // changes (2026-10-02: several open dashboards rebuilt it on every event and the server stalled for seconds).
+    this.version = 0;
+    const prepare = this.db.prepare.bind(this.db);
+    this.db.prepare = sql => {
+      const statement = prepare(sql);
+      if (/^\s*(INSERT|UPDATE|DELETE)/i.test(sql)) { const run = statement.run.bind(statement); statement.run = (...args) => { this.version++; return run(...args); }; }
+      return statement;
+    };
   }
   listGoals() { return this.db.prepare('SELECT body FROM goals').all().map(r => JSON.parse(r.body)); }
   getGoal(id) { const row = this.db.prepare('SELECT body FROM goals WHERE id=?').get(id); return row ? JSON.parse(row.body) : undefined; }

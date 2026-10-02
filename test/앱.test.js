@@ -420,3 +420,15 @@ test('the engine view carries the start of a long team answer; the whole one com
     assert.equal((await call('GET', '/api/runs/99999999-2222-4333-8444-555555555555/answer')).status, 400);
   } finally { await app.close(); }
 });
+test('the engine view is shared until the store changes: a write shows at once', async () => {
+  const { app, call } = await start();
+  try {
+    const v = app.store.version;
+    app.store.listGoals();
+    assert.equal(app.store.version, v, 'reads do not count');
+    const before = (await call('GET', '/api/engine')).body.projects.length;
+    app.scheduler.addGoal({ projectId: 'shared-view', kind: 'team', objective: 'x', completionCriteria: ['a'] });
+    assert.ok(app.store.version > v);
+    assert.equal((await call('GET', '/api/engine')).body.projects.length, before + 1, 'a new goal is in the next view');
+  } finally { await app.close(); }
+});
