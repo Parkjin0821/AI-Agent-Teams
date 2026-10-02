@@ -98,6 +98,12 @@ export function parseReport(answer) {
 // Checks whose answer is in the engine's own records, which no team can read. (screen_ok and slides_ok are not here:
 // a verifier may rightly fail a page that has no overflow but does not meet the criterion.)
 const ENGINE_OWNED = ['document_made', 'stayed_inside'];
+// "엔진 빌드·화면 검사에서 넘침·잘림·겹침이 없다": all of it is what the engine's own build or screen check looks at,
+// so its result decides even when the verifier sent "not done" (자율 시험 3차, 2026-10-02: the deck's build passed
+// with no overflow, the verifier said not done, and the day's steps ran out). A criterion that also asks about
+// content, reading comfort or a page range is not this.
+const BUILD_ONLY = c => /넘침|넘치|잘림|잘린|겹침|겹친|깨진/.test(c) && /빌드|화면\s*검사|엔진/.test(c)
+  && !/들어\s*있|포함|내용|적혀|읽기|보기|글자\s*크기|대비|\d+\s*[~∼-]\s*\d+/.test(c);
 
 // A criterion only the engine's records can prove, sent with no check at all ("엔진 기록을 확인하지 못함"; 자율 시험
 // minutes, 2026-10-01): the engine runs its own check in verification. Only for what such a check fully covers —
@@ -111,6 +117,8 @@ function engineCheckFor(criterion, ctx) {
     return [{ type: 'document_made', path: named[0] ?? docs[0] }];
   }
   if (BOUNDARY_TOPIC.test(c) && ctx.boundary) return [{ type: 'stayed_inside' }];
+  const decks = ctx.slides?.decks ?? [];
+  if (BUILD_ONLY(c) && /슬라이드|발표|pdf|slide|deck/.test(c) && decks.length === 1) return [{ type: 'slides_ok', path: `slides/${decks[0].id}/index.tsx` }];
   return [];
 }
 
@@ -153,7 +161,8 @@ export function verifyReport(report, criteria, cwd, ctx = {}) {
     // The verifier cannot see the engine's records, so it sent "not done · 확인 못 함" for a 한글 document the engine
     // made and for a confined run (minutes re-test, 2026-10-01: both stayed unmet for ten steps). When every check is
     // one only the engine can run (a file_exists beside it is fine), the engine's result decides, not that guess.
-    const engineOnly = list.some(c => ENGINE_OWNED.includes(c?.type)) && list.every(c => [...ENGINE_OWNED, 'file_exists'].includes(c?.type));
+    const owned = [...ENGINE_OWNED, ...(BUILD_ONLY(criterion) ? ['slides_ok', 'screen_ok'] : [])];
+    const engineOnly = list.some(c => owned.includes(c?.type)) && list.every(c => [...owned, 'file_exists'].includes(c?.type));
     const done = item?.done === true || engineOnly;
     let result = list.length ? runChecks(list, criterion, cwd, ctx, done) : { status: 'none' };
     // A criterion 대장 judges by design ("… (대장이 화면에서 확인)") is never proven by a check: 자율 시험 2차 had "the page

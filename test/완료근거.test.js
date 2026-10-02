@@ -317,3 +317,20 @@ test('자율 시험 2차: "밖에 쓴 파일이 없다" is fully proven by the e
   assert.deepEqual([person.evidence.length, person.claims[0].check, person.claims[0].person], [0, 'none', true]);
   assert.match(person.claims[0].detail, /^참고 · /);
 });
+
+test('자율 시험 3차: a build-only criterion is decided by the engine build, even against "not done" or no check', () => {
+  const cwd = ws();
+  const slides = { decks: [{ id: '여름-독서-교실-안내', pages: 6, pdf: '발표자료/여름-독서-교실-안내.pdf', overflowPages: [], scriptErrors: 0 }] };
+  const crit = '엔진 슬라이드 빌드·화면 검사에서 글자 넘침·잘림·겹침이 없다.';
+  const notDone = verifyReport({ criteria: [{ index: 1, done: false, check: { type: 'slides_ok', path: 'slides/여름-독서-교실-안내/index.tsx' } }] }, [crit], cwd, { slides, verifying: true });
+  assert.deepEqual([notDone.claims[0].check, notDone.evidence.length], ['pass', 1]);
+  const none = verifyReport({ criteria: [] }, [crit], cwd, { slides, verifying: true });
+  assert.equal(none.evidence.length, 1, 'no check: the engine runs its build check');
+  // a page range or reading comfort is more than the build check says
+  for (const c of ['엔진 빌드로 만든 PDF 쪽수가 5~6쪽이고 넘침이 없다', '글자 크기가 읽기 편하고 넘침이 없다 (엔진 빌드)']) {
+    const r = verifyReport({ criteria: [{ index: 1, done: false, check: { type: 'slides_ok', path: 'slides/여름-독서-교실-안내/index.tsx' } }] }, [c], cwd, { slides, verifying: true });
+    assert.equal(r.evidence.length, 0, c);
+  }
+  const broken = { decks: [{ ...slides.decks[0], overflowPages: [3] }] };
+  assert.equal(verifyReport({ criteria: [] }, [crit], cwd, { slides: broken, verifying: true }).claims[0].check, 'fail');
+});

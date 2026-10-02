@@ -144,7 +144,11 @@ export const TEAM_BRIEFS = Object.freeze({
     collaborate: ['next_task 와 team 으로 다음 팀에 작업을 넘긴다.',
       '사람이 결정할 일(비용·계정·외부 게시·설치·요구 불명확)은 작업 대신 needs_decision 에 질문 하나를 남긴다.',
       // 자율 시험 (2026-10-01): planning stopped to ask whether research may read github.com/nodejs/Release.
-      '공개 웹 페이지를 읽는 것(로그인·제출·다운로드 없이)은 묻지 않는다. 허용 여부는 엔진과 감시 에이전트가 대장 설정대로 정하고, 필요하면 엔진이 대장에게 묻는다. 막히면 그때 다른 출처나 대장 확인 조건으로 바꾼다.'],
+      '공개 웹 페이지를 읽는 것(로그인·제출·다운로드 없이)은 묻지 않는다. 허용 여부는 엔진과 감시 에이전트가 대장 설정대로 정하고, 필요하면 엔진이 대장에게 묻는다. 막히면 그때 다른 출처나 대장 확인 조건으로 바꾼다.',
+      // 자율 시험 3차 (2026-10-02): "출처는 https://nodejs.org/ 로 시작하는 주소" — the end-of-life dates are only in the
+      // project's official schedule on GitHub, so planning's own criterion could not be met and it asked 대장.
+      '출처 조건은 "공식 사이트·공식 저장소·공식 문서(예: nodejs.org 와 github.com/nodejs)" 처럼 그 주체가 내는 1차 출처 전체로 넓게 쓴다. 주소 하나로 한정하지 않는다. 필요한 값이 공식 출처 어디에도 없으면 "확인 못 함" 으로 남기는 것을 완료로 인정하는 조건을 함께 둔다.',
+      '저장된 원문은 엔진이 sources/ 에 둔다. 원문 대조 조건은 sources/ 를 가리키고, 팀이 직접 원문 폴더를 만들게 하지 않는다.'],
     boundary: ['읽기만 한다.',
       '설치·게시·결제·계정·삭제·외부 쓰기 효과가 있는 작업은 effects (install,publish,payment,credentials,delete,external_write)에 표시만 한다. 엔진이 대장 승인 전에 멈춘다. 스스로 승인하지 않는다.'],
     limits: ['내가 낸 것은 계획이지 결과가 아니다.'],
