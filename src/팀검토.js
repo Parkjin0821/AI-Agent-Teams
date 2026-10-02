@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { clipTask } from './팀.js';
 const EFFECTS = ['install', 'publish', 'payment', 'credentials', 'delete', 'external_write'];
 export function taskProfile(input = {}) {
   return { complexity: ['simple', 'normal', 'complex'].includes(input.complexity) ? input.complexity : 'normal',
@@ -47,7 +48,7 @@ export function normalizeRequests(raw, from) {
     if (!['dev', 'design', 'research'].includes(r?.team) || typeof r.task !== 'string' || !r.task.trim()
       || !Array.isArray(r.criteria) || !r.criteria.length || r.criteria.length > 20
       || r.criteria.some(c => typeof c !== 'string' || !c.trim() || c.length > 500)) return [];
-    const task = r.task.trim().slice(0, 1000), criteria = r.criteria.map(c => c.trim());
+    const task = clipTask(r.task.trim()), criteria = r.criteria.map(c => c.trim());
     const id = createHash('sha256').update(JSON.stringify([r.team, task, criteria])).digest('hex').slice(0, 24);
     return [{ id, from, team: r.team, task, criteria, ...taskProfile(r), status: 'proposed' }];
   });

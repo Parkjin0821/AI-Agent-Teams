@@ -33,6 +33,15 @@ export function nextStep(team) {
 }
 
 const clip = (text, n) => (typeof text === 'string' ? text.slice(0, n) : '');
+// A task longer than this is cut with a visible mark, so the worker knows part is missing
+// (2026-10-02: the dev team twice reported instructions cut at 1,000 characters with no sign of it).
+export const TASK_MAX = 4000;
+export const TASK_CUT = ' … (지시가 길어 잘림)';
+export function clipTask(text, n = TASK_MAX) {
+  if (typeof text !== 'string') return '';
+  if (text.length <= n || (text.endsWith(TASK_CUT) && text.length <= n + TASK_CUT.length)) return text;
+  return text.slice(0, n).trimEnd() + TASK_CUT;
+}
 
 // Every team prompt has the same shape (docs/팀-지침.md):
 //   공통 목적 → 현재 프로젝트 → 공통 안전 경계 → 내 역할 → 현재 작업 → 판단 근거 → 협업 요청
@@ -93,7 +102,7 @@ function projectBlock({ goal, files = [], toolText = '', engineMade = [] }) {
 function currentWork({ team = {} }, empty) {
   return [
     '[현재 작업]',
-    team.task ? `맡은 작업: ${clip(team.task, 1000)}` : empty,
+    team.task ? `맡은 작업: ${clipTask(team.task)}` : empty,
     ...(team.feedback ? [`최근 피드백 (검증팀·검토팀·대장): ${clip(team.feedback, 1500)}`] : []),
     // 병렬 작업 that finished: its folder's files are now part of the project and may be used.
     ...(team.laneResult ? [`병렬 작업 끝남: ${TEAMS[team.laneResult.team]?.name ?? '팀'}이 ${team.laneResult.folder} 에서 마침 `
@@ -321,6 +330,7 @@ const planBlock = [
   `End your reply with the line ${PLAN_MARK} followed by one JSON object:`,
   '{"next_task":"...","team":"dev","reviews":[],"completion_criteria":["..."],"complexity":"normal","risk":"normal","effects":[],',
   '"task_type":"coding","required_capabilities":["text","code"],"proposed_model":null,"proposal_reason":"","needs_decision":null,"all_done":false}',
+  `next_task: at most ${TASK_MAX} characters; the engine cuts a longer one and marks the cut. Point to files already in the folder instead of copying their text.`,
   'completion_criteria: when the criteria above are empty, or when 대장\'s newest message or answer changes what counts as done (then give the complete new list) — concrete and verifiable, derived from 대장\'s conversation. Otherwise leave it out: a request to continue or clarify keeps the current criteria.',
   'Optional "parallel": ONE piece of work another team can do AT THE SAME TIME, fully independent of next_task, written only',
   'into its own new top-level folder: {"team":"research|dev|design","task":"...","folder":"research","criteria":["verifiable',
@@ -386,14 +396,14 @@ export function parallelOf(p) {
   if (!/^[A-Za-z0-9가-힣_-]{1,40}$/.test(folder) || /^(attachments|sources|reports|node_modules)$/i.test(folder)) return null;
   const criteria = (Array.isArray(p.criteria) ? p.criteria : []).filter(c => typeof c === 'string' && c.trim()).map(c => clip(c, 300).trim()).slice(0, 5);
   if (!criteria.length) return null;
-  return { team: p.team, task: clip(p.task, 1000).trim(), folder: `${folder}/`, criteria };
+  return { team: p.team, task: clipTask(p.task.trim()), folder: `${folder}/`, criteria };
 }
 
 export function parsePlan(answer) {
   const raw = jsonAfter(answer, PLAN_MARK);
   if (!raw) return null;
   const plan = {
-    nextTask: clip(raw.next_task, 1000).trim(),
+    nextTask: clipTask(typeof raw.next_task === 'string' ? raw.next_task.trim() : ''),
     team: WORKERS.includes(raw.team) ? raw.team : 'dev',
     reviews: REVIEWS.filter(r => Array.isArray(raw.reviews) && raw.reviews.includes(r)),
     needsDecision: question(raw.needs_decision),

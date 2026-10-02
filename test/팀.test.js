@@ -171,3 +171,16 @@ test('reviews are told which files the engine made, and leave them to the engine
   assert.match(teamPrompt('policy', { goal, files, engineMade: made, team: {} }), /never report checked "partial" because of them/);
   assert.doesNotMatch(teamPrompt('qa', { goal, files, engineMade: made, team: {} }), /never report checked "partial" because of them/);
 });
+
+// 2026-10-02: the dev team twice reported its instructions cut at 1,000 characters with no sign of it.
+test('a long next_task is kept up to 4,000 characters and a longer one is marked as cut', async () => {
+  const { clipTask, TASK_CUT } = await import('../src/팀.js');
+  const long = '가'.repeat(3000);
+  assert.equal(parsePlan(`AGENT_HQ_PLAN ${JSON.stringify({ next_task: long, team: 'dev' })}`).nextTask, long);
+  const cut = parsePlan(`AGENT_HQ_PLAN ${JSON.stringify({ next_task: '나'.repeat(5000), team: 'dev' })}`).nextTask;
+  assert.ok(cut.endsWith(TASK_CUT) && cut.length === 4000 + TASK_CUT.length);
+  assert.equal(clipTask(cut), cut, 'an already cut task is not cut or marked again');
+  const prompt = teamPrompt('dev', { goal, files: [], team: { task: cut } });
+  assert.equal(prompt.split('(지시가 길어 잘림)').length, 2, 'the worker sees the mark once');
+  assert.ok(prompt.includes('나'.repeat(4000)));
+});

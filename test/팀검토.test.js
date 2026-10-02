@@ -42,3 +42,9 @@ test('Notion details redact sensitive sentences and include engine summaries', (
   assert.notEqual(record.notionDigest, projectRecord(store, 'p').notionDigest);
   assert.doesNotMatch(record.markdown, /카드 정리/);
 });
+
+test('a team request keeps a long task and marks a cut one like the plan', async () => {
+  const { normalizeRequests } = await import('../src/팀검토.js');
+  const [r] = normalizeRequests([{ team: 'dev', task: '다'.repeat(4500), criteria: ['파일이 있다'] }], 'qa');
+  assert.match(r.task, /^다{4000} … \(지시가 길어 잘림\)$/);
+});
