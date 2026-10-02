@@ -107,12 +107,17 @@ DocConverter.prototype.fill = async function fill(cwd, { template, from, to }, k
   let skeletonPath = `${form}.md`;
   if (!existsSync(full(skeletonPath))) { const c = await this.convert(cwd, form); if (!c.ok) return { ok: false, error: `양식을 읽지 못함: ${c.error}` }; skeletonPath = c.path; }
   const run = args => this.sandbox.run(cwd, [process.execPath, this.cli, ...args], { timeoutMs: this.timeoutMs });
-  const patched = await run(['patch', form, src, '-o', out, '--silent']);
-  const output = hasSecret(String(patched.output ?? '')) ? '비밀정보 형식이 있어 오류 출력을 숨김' : String(patched.output ?? '').slice(-1000);
+  // Not --silent: kordoc names each edit it skipped ("⚠️ SKIP: 블록 추가는 미지원 (v1)", "… | <the form's text>"), and
+  // the team can only repair what it is told (양식 채우기 시험, 2026-10-02: 19 skips, the error said only "일부").
+  const patched = await run(['patch', form, src, '-o', out]);
+  const secret = hasSecret(String(patched.output ?? ''));
+  const output = secret ? '비밀정보 형식이 있어 오류 출력을 숨김' : String(patched.output ?? '').slice(-1000);
   // kordoc exits 2 when some edits could not be placed in the form: that text would be silently lost, so it fails.
   if (patched.status !== 'pass' || !existsSync(full(out))) {
-    return { ok: false, error: patched.code === 2 ? '작성본의 일부 수정이 양식에 들어가지 않음 (표·목차 구조를 바꾼 곳을 확인)' : patched.status === 'timeout' ? '양식 채우기 시간 초과' : '양식 채우기 실패',
-      stage: 'patch', status: patched.status, code: patched.code ?? null, output };
+    const skipped = secret ? [] : patchSkips(patched.output);
+    const where = skipped.length ? ` · 건너뛴 곳 ${skipped.length}개: ${skipped.slice(0, 6).join(' / ')}${skipped.length > 6 ? ' / …' : ''}` : '';
+    return { ok: false, error: patched.code === 2 ? `작성본의 일부 수정이 양식에 들어가지 않음 (표·목차 구조를 바꾼 곳을 확인)${where}` : patched.status === 'timeout' ? '양식 채우기 시간 초과' : '양식 채우기 실패',
+      stage: 'patch', status: patched.status, code: patched.code ?? null, output, skipped };
   }
   const valid = ext === '.hwpx' ? await run(['validate', out]) : { status: 'pass' };
   if (valid.status !== 'pass') return { ok: false, error: '문서 구조 검증 실패', stage: 'validate', status: valid.status, code: valid.code ?? null, output: String(valid.output ?? '').slice(-1000) };
@@ -124,7 +129,9 @@ DocConverter.prototype.fill = async function fill(cwd, { template, from, to }, k
     tables: [before.tables, after.tables], headings: [before.headings.length, after.headings.length], missing };
   const lint = await run(['lint', src]);
   const counts = /error\s+(\d+),\s*warning\s+(\d+)/.exec(String(lint.output ?? ''));
-  const svg = await run(['render', out, '-o', `${out}.svg`, '--silent']);
+  // kordoc stacks every page into one SVG only for HWPX; an HWP of several pages needs one file per page and made no
+  // preview at all (양식 채우기 시험, 2026-10-02: 64 pages, "--out-dir 이 필요합니다"), so an HWP previews its first page.
+  const svg = await run(['render', out, ...(ext === '.hwp' ? ['--pages', '1'] : []), '-o', `${out}.svg`, '--silent']);
   const html = await run(['render', out, '--format', 'html', '-o', `${out}.html`, '--title', path.basename(out, ext), '--silent']);
   const sha = p => createHash('sha256').update(readFileSync(full(p))).digest('hex');
   return { ok: true, kind: 'form', template: form, from: src, path: out, preset: '양식', sha: sha(out), validated: true, structure,
@@ -132,6 +139,13 @@ DocConverter.prototype.fill = async function fill(cwd, { template, from, to }, k
     readback: { path: back.path, sha: sha(back.path) },
     previews: [`${out}.svg`, `${out}.html`].filter((p, i) => [svg, html][i].status === 'pass' && existsSync(full(p))) };
 };
+
+// The edits kordoc patch could not place, one short line each ("블록 추가는 미지원 (v1)", "표 캡션 수정은 미지원 (v1) |
+// [표. …]"), the same reason and text only once.
+export function patchSkips(output) {
+  const lines = String(output ?? '').split(/\r?\n/).map(l => /SKIP:\s*(.+)$/.exec(l)?.[1]?.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  return [...new Set(lines.map(l => (l.length > 90 ? `${l.slice(0, 90)}…` : l)))];
+}
 
 // The parts of a form that filling must keep: its headings in order (목차·번호 줄), its tables, and how many cells are
 // still empty. Read from kordoc's Markdown of the form and of the filled document.

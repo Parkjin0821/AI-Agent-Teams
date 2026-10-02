@@ -151,8 +151,11 @@ test('양식 채우기: the form is filled in place, its headings and tables are
   Object.defineProperty(maker, 'available', { get: () => true });
   const r = await maker.fill(cwd, { template: 'attachments/양식.hwp', from: '계획서.md' });
   assert.equal(r.ok, true, r.error);
-  assert.deepEqual(calls[0], ['patch', 'attachments/양식.hwp', '계획서.md', '-o', '계획서.hwp', '--silent']);
+  assert.deepEqual(calls[0], ['patch', 'attachments/양식.hwp', '계획서.md', '-o', '계획서.hwp']);
   assert.ok(!calls.some(c => c[0] === 'validate'), 'HWP has no HWPX structure check; the read-back stands in');
+  // an HWP of several pages renders one SVG only page by page: its preview is the first page
+  assert.deepEqual(calls.find(c => c[0] === 'render' && c.includes('계획서.hwp.svg')), ['render', '계획서.hwp', '--pages', '1', '-o', '계획서.hwp.svg', '--silent']);
+  assert.deepEqual(r.previews, ['계획서.hwp.svg', '계획서.hwp.html']);
   assert.deepEqual([r.path, r.kind, r.structure.same, r.empties], ['계획서.hwp', 'form', true, [2, 0]]);
   const run = (rec) => verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'document_made', path: '계획서.hwp', text: '불량률 30% 감소' } }] },
     ['양식에 맞춘 사업계획서 계획서.hwp 에 목표가 들어 있다'], cwd, { documents: { '계획서.hwp': rec } }).claims[0];
@@ -167,7 +170,17 @@ test('양식 채우기: the form is filled in place, its headings and tables are
   // refused: the result in another format, the draft inside attachments/, edits kordoc could not place
   assert.match((await maker.fill(cwd, { template: 'attachments/양식.hwp', from: '계획서.md', to: '계획서.hwpx' })).error, /양식과 같은 형식/);
   assert.match((await maker.fill(cwd, { template: 'attachments/양식.hwp', from: 'attachments/양식.hwp.md' })).error, /작성본/);
+  // kordoc names each skipped edit; the team is told which (a real form, 2026-10-02: 19 skips and only "일부" said)
+  sandbox.run = async () => ({ status: 'fail', code: 2, output: [
+    '[kordoc] 127개 변경 적용 (원본 서식 보존) → 계획서.hwp',
+    '[kordoc] ⚠️ SKIP: 블록 추가는 미지원 (v1)',
+    '[kordoc] ⚠️ SKIP: 표 캡션 수정은 미지원 (v1) | **[표. 공정 이상 유형]**',
+    '[kordoc] ⚠️ SKIP: 블록 추가는 미지원 (v1)',
+    '[kordoc] ⚠️ 검증 잔차: 수정 5, 추가 2, 삭제 0'].join('\n') });
+  const skip = await maker.fill(cwd, { template: 'attachments/양식.hwp', from: '계획서.md' }, new Set(['계획서.hwp']));
+  assert.ok(skip.error.endsWith(' · 건너뛴 곳 2개: 블록 추가는 미지원 (v1) / 표 캡션 수정은 미지원 (v1) | **[표. 공정 이상 유형]**'), skip.error);
+  assert.deepEqual(skip.skipped, ['블록 추가는 미지원 (v1)', '표 캡션 수정은 미지원 (v1) | **[표. 공정 이상 유형]**']);
   sandbox.run = async () => ({ status: 'fail', code: 2, output: 'skip 3' });
-  assert.match((await maker.fill(cwd, { template: 'attachments/양식.hwp', from: '계획서.md' }, new Set(['계획서.hwp']))).error, /일부 수정이 양식에 들어가지 않음/);
+  assert.match((await maker.fill(cwd, { template: 'attachments/양식.hwp', from: '계획서.md' }, new Set(['계획서.hwp']))).error, /일부 수정이 양식에 들어가지 않음 \(표·목차 구조를 바꾼 곳을 확인\)$/);
   assert.deepEqual(formShape('1. 개요\n\n(1) 세부\n\n| a | b |\n| --- | --- |\n| x |  |').headings, ['1. 개요']);
 });
