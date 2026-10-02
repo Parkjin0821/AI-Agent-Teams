@@ -154,14 +154,17 @@ export const PREVIEW_FIRST_PAGES = 5;
 async function renderPreviews(run, full, out, title) {
   const ext = path.extname(out).toLowerCase();
   const kept = p => { if (!existsSync(full(p))) return false; if (slimPreview(full(p))) return true; rmSync(full(p), { force: true }); return false; };
-  const svg = await run(['render', out, ...(ext === '.hwp' ? ['--pages', '1'] : []), '-o', `${out}.svg`, '--silent']);
+  const svgOf = pages => run(['render', out, ...pages, '-o', `${out}.svg`, '--silent']);
+  // An HWPX's all-pages SVG still over the cap falls back to its first page, so a long document keeps a preview.
+  let svgOk = (await svgOf(ext === '.hwp' ? ['--pages', '1'] : [])).status === 'pass' && kept(`${out}.svg`);
+  if (!svgOk && ext === '.hwpx') svgOk = (await svgOf(['--pages', '1'])).status === 'pass' && kept(`${out}.svg`);
   const html = pages => run(['render', out, '--format', 'html', ...pages, '-o', `${out}.html`, '--title', title, '--silent']);
   let partial = false, htmlOk = (await html([])).status === 'pass' && kept(`${out}.html`);
   if (!htmlOk) {
     partial = true;
     htmlOk = (await html(['--pages', `1-${PREVIEW_FIRST_PAGES}`])).status === 'pass' && kept(`${out}.html`);
   }
-  const previews = [svg.status === 'pass' && kept(`${out}.svg`) ? `${out}.svg` : null, htmlOk ? `${out}.html` : null].filter(Boolean);
+  const previews = [svgOk ? `${out}.svg` : null, htmlOk ? `${out}.html` : null].filter(Boolean);
   const note = htmlOk && partial ? `HTML 미리보기는 앞 ${PREVIEW_FIRST_PAGES}쪽만 (전체는 ${PREVIEW_CAP / 1e6}MB 초과)`
     : !htmlOk ? `HTML 미리보기 없음 (${PREVIEW_CAP / 1e6}MB 초과 또는 실패)` : null;
   return { previews, ...(note ? { previewNote: note } : {}) };

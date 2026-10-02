@@ -261,3 +261,26 @@ test('미리보기: embedded pictures become grey boxes, a preview still too big
   assert.match(none.previewNote, /HTML 미리보기 없음/);
   assert.equal(existsSync(path.join(cwd, '보고서.hwpx.html')), false);
 });
+
+// A long HWPX stacks every page into one SVG; over the cap it falls back to the first page instead of no preview.
+test('미리보기: an HWPX whose all-pages SVG is too big keeps its first page as the SVG', async () => {
+  const { PREVIEW_CAP } = await import('../src/문서변환.js');
+  const cwd = ws();
+  writeFileSync(path.join(cwd, '보고서.md'), '# 보고\n');
+  const calls = [];
+  const sandbox = { available: true, run: async (dir, argv) => {
+    const args = argv.slice(2); calls.push(args);
+    const out = args[args.indexOf('-o') + 1];
+    if (args[0] === 'generate') writeFileSync(path.join(dir, out), 'HWPX');
+    else if (args[0] === 'render') writeFileSync(path.join(dir, out), args.includes('--pages') || args.includes('html') ? '<svg/>' : 'x'.repeat(PREVIEW_CAP + 1));
+    else if (args[0] === 'lint' || args[0] === 'validate') return { status: 'pass', output: '' };
+    else writeFileSync(path.join(dir, out), '# 보고\n');
+    return { status: 'pass', output: '' };
+  } };
+  const maker = new DocConverter({ root: cwd, sandbox });
+  Object.defineProperty(maker, 'available', { get: () => true });
+  const made = await maker.make(cwd, { from: '보고서.md' });
+  assert.deepEqual(made.previews, ['보고서.hwpx.svg', '보고서.hwpx.html']);
+  assert.deepEqual(calls.filter(c => c[0] === 'render' && !c.includes('html')).map(c => c.includes('--pages') ? c[c.indexOf('--pages') + 1] : 'all'), ['all', '1']);
+  assert.equal(readFileSync(path.join(cwd, '보고서.hwpx.svg'), 'utf8'), '<svg/>');
+});

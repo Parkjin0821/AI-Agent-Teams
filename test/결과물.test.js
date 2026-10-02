@@ -48,3 +48,16 @@ test('a slide PDF previews as the page captures of the same build, inline (the f
   assert.throws(() => slidePagesHtml(cwd, '../deck.pdf'), /not a slide PDF/);
   assert.throws(() => slidePagesHtml(cwd, '발표자료/none.pdf'), /no page captures/);
 });
+
+// 2026-10-02: the filled 13 MB .hwp form was neither listed nor downloadable (only .hwpx was, and only under 2 MB).
+test('a filled .hwp is listed and downloaded like .hwpx, and a download may be bigger than a preview', async () => {
+  const { artifactList, isDownloadOnly, readArtifact } = await import('../src/결과물.js');
+  const cwd = mkdtempSync(path.join(tmpdir(), 'hq-art-hwp-'));
+  writeFileSync(path.join(cwd, '계획서.hwp'), Buffer.alloc(3_000_000, 1));
+  writeFileSync(path.join(cwd, '계획서.hwp.svg'), '<svg/>');
+  writeFileSync(path.join(cwd, '큰.html'), 'x'.repeat(3_000_000));
+  assert.deepEqual(artifactList(cwd).map(i => [i.path, i.type]), [['계획서.hwp', 'application/x-hwp'], ['계획서.hwp.svg', 'image/svg+xml']]);
+  assert.equal(isDownloadOnly('계획서.hwp'), true);
+  assert.equal(readArtifact(cwd, '계획서.hwp').bytes.length, 3_000_000);
+  assert.throws(() => readArtifact(cwd, '큰.html'), /under 2MB/);
+});

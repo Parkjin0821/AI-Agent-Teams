@@ -7,8 +7,9 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
   // Document previews the engine renders (served under the preview route's sandbox policy: no scripts run).
   '.svg': 'image/svg+xml',
-  // 한글 documents the engine made: offered as a download only.
-  '.hwpx': 'application/vnd.hancom.hwpx',
+  // 한글 documents the engine made or filled: offered as a download only (a filled .hwp form was missing from 결과물,
+  // 2026-10-02); their preview is the engine's x.hwp.html / x.hwp.svg beside them.
+  '.hwpx': 'application/vnd.hancom.hwpx', '.hwp': 'application/x-hwp',
   // Excel files the engine made (엑셀.js): download only; their table preview is the engine's x.xlsx.html beside them.
   '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   // Slide PDFs the engine printed (발표자료/<id>.pdf): download only, since a sandboxed preview frame cannot show a PDF
@@ -28,15 +29,21 @@ function resolveFile(cwd, relative) {
   if (!realpathSync(file).startsWith(`${root}${path.sep}`)) throw new Error('artifact escapes workspace');
   return file;
 }
+// A download is never shown in the page, so it may be bigger than a preview (the filled 64-page form was 13 MB).
+export const PREVIEW_MAX = 2_000_000, DOWNLOAD_MAX = 100_000_000;
+export const isDownloadOnly = (relative) => ['.hwp', '.hwpx', '.pdf', '.xlsx'].includes(path.extname(String(relative)).toLowerCase());
 export function readArtifact(cwd, relative) {
+  const { type, file } = artifactFile(cwd, relative);
+  return { type, bytes: readFileSync(file) };
+}
+function artifactFile(cwd, relative) {
   const type = TYPES[path.extname(relative).toLowerCase()];
   if (!type) throw new Error('unsupported preview format');
   if (/(^|\/)(?:credentials?|secrets?|\.env)(?:\.|\/|$)/i.test(relative)) throw new Error('sensitive artifact name');
-  const file = resolveFile(cwd, relative), stat = lstatSync(file);
-  if (!stat.isFile() || stat.size > 2000000) throw new Error('artifact must be a file under 2MB');
-  return { type, bytes: readFileSync(file) };
+  const file = resolveFile(cwd, relative), stat = lstatSync(file), max = isDownloadOnly(relative) ? DOWNLOAD_MAX : PREVIEW_MAX;
+  if (!stat.isFile() || stat.size > max) throw new Error(`artifact must be a file under ${max / 1e6}MB`);
+  return { type, file };
 }
-export const isDownloadOnly = (relative) => ['.hwpx', '.pdf', '.xlsx'].includes(path.extname(String(relative)).toLowerCase());
 // A slide PDF's preview: the page captures the engine took in the same build (.hq-screens/슬라이드-<id>-NN.png), laid
 // out as one page with the images inline (the preview frame allows only data: images and runs no scripts; a sandboxed
 // frame cannot show the PDF itself). 대장 asked for a preview, not only a download (2026-10-01).
@@ -60,6 +67,6 @@ export function slidePagesHtml(cwd, relative) {
 }
 export function artifactList(cwd) {
   return listWorkspaceFiles(cwd, 2000).filter(file => {
-    try { readArtifact(cwd, file); return true; } catch { return false; }
+    try { artifactFile(cwd, file); return true; } catch { return false; }
   }).map(file => ({ path: file, type: TYPES[path.extname(file).toLowerCase()] }));
 }
