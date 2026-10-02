@@ -378,3 +378,30 @@ test('the daily step limit is a setting (default 10); raising it lets waiting pr
     assert.ok(Date.parse(after.nextRunAt) <= Date.now(), 'held projects are re-checked right away');
   } finally { await app.close(); }
 });
+test('the limit-storage safety stop lifts itself once the record checks out and no step runs, but not twice in 10 minutes', async () => {
+  const { app, clock } = await start();
+  try {
+    const s = () => app.store.getSettings();
+    app.store.setSetting('safety.limitStorageFailed', true);
+    app.store.setSetting('safety.limitStorageFailedAt', new Date(clock.now()).toISOString());
+    await app.autoRecoverLimitStorage();
+    assert.equal(s()['safety.limitStorageFailed'], false);
+    assert.ok(s()['safety.limitAutoRecoveredAt']);
+    // fails again 3 minutes later: a real fault, 대장 recovers it
+    clock.t += 3 * 60_000;
+    app.store.setSetting('safety.limitStorageFailed', true);
+    app.store.setSetting('safety.limitStorageFailedAt', new Date(clock.now()).toISOString());
+    await app.autoRecoverLimitStorage();
+    assert.equal(s()['safety.limitStorageFailed'], true);
+    // (that stays for 대장 however long it waits) — from a clean state, a step still running also keeps it
+    clock.t += 60 * 60_000;
+    app.store.deleteSetting('safety.limitAutoRecoveredAt');
+    const g = app.scheduler.addGoal({ projectId: 'run', kind: 'team', objective: 'x', completionCriteria: ['a'] });
+    app.scheduler.update(g, { status: 'running' });
+    await app.autoRecoverLimitStorage();
+    assert.equal(s()['safety.limitStorageFailed'], true);
+    app.scheduler.update(app.store.getGoal(g.id), { status: 'scheduled' });
+    await app.autoRecoverLimitStorage();
+    assert.equal(s()['safety.limitStorageFailed'], false);
+  } finally { await app.close(); }
+});

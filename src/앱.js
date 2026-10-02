@@ -29,7 +29,7 @@ import { HIDDEN_CODEX_MODELS, ModelChoices } from './모델선택.js';
 import { kindOf, quickApprovable, SkillLibrary } from './스킬.js';
 import { Approvals, SCOPES } from './승인.js';
 import { Memory } from './기억.js';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { buildReport, REPORTS_DIR } from './완료보고서.js';
 import { listWorkspaceFiles } from './완료근거.js';
 import { hasSecret } from './보안감시.js';
@@ -100,6 +100,31 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     return quota;
   };
   const guarded = executing && (!injectedAdapter || enforceSafety);
+  // The limit-state record can be read and replaced again (the same check 대장's recovery runs); throws if not.
+  const checkLimitStorage = async () => {
+    await recordRateLimits(dataDir, []);
+    try { JSON.parse(await readFile(path.join(dataDir, 'claude-limit-status.json'), 'utf8')); }
+    catch (e) { if (e.code !== 'ENOENT') throw e; }
+    const probe = path.join(dataDir, `limit-probe-${randomUUID()}`);
+    try { await writeFile(probe, '{}', { flag: 'wx' }); await rename(probe, `${probe}.ok`); }
+    finally { await unlink(probe).catch(() => {}); await unlink(`${probe}.ok`).catch(() => {}); }
+    // Temp files a failed save left behind are the engine's own; they go once the record is sound again.
+    for (const f of readdirSync(dataDir)) if (/^claude-(limit-status|usage-runs)\.json\.[0-9a-f-]{36}\.tmp$/.test(f)) await unlink(path.join(dataDir, f)).catch(() => {});
+  };
+  // 대장 (2026-10-02, "안전 정지도 자동 해제"): the safety stop for a failed limit-state save lifts itself when no step
+  // is running and the record checks out again. A second failure within 10 minutes of a self-lift is treated as a
+  // real fault and waits for 대장's recovery.
+  const autoRecoverLimitStorage = async () => {
+    const settings = store.getSettings();
+    if (settings['safety.limitStorageFailed'] !== true || store.listGoals().some(g => g.status === 'running')) return;
+    const last = Date.parse(settings['safety.limitAutoRecoveredAt'] ?? '');
+    const failedAt = Date.parse(settings['safety.limitStorageFailedAt'] ?? '');
+    if (Number.isFinite(last) && Number.isFinite(failedAt) && failedAt >= last && failedAt - last < 10 * 60_000) return;
+    try { await checkLimitStorage(); } catch { return; }
+    store.setSetting('safety.limitStorageFailed', false);
+    store.setSetting('safety.limitAutoRecoveredAt', new Date(clock.now()).toISOString());
+    await store.emit({ type: 'usage.storage_recovered', by: '엔진 (자동)' });
+  };
   // Why a new round of this tool may not start now (null: it may); the engine view shows it beside "모델 대기".
   const capacityReason = executor => {
     if (store.getSettings()['safety.limitStorageFailed'] === true) return '한도 상태 저장 실패로 안전 정지 (사용량 화면에서 복구)';
@@ -129,6 +154,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
         try { await recordRateLimits(dataDir, limits); }
         catch (error) {
           store.setSetting('safety.limitStorageFailed', true);
+          store.setSetting('safety.limitStorageFailedAt', new Date(clock.now()).toISOString());
           await store.emit({ type: 'usage.storage_failed', message: '한도 상태 저장 실패 · 실제 실행 차단' });
           throw error;
         }
@@ -230,12 +256,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     ['POST', /^\/api\/safety\/limit-storage\/recover$/, async (m, body) => {
       if (body.confirm !== true) throw new Error('explicit recovery confirmation required');
       if (store.listGoals().some(g => g.status === 'running')) throw new Error('wait for running checkpoints');
-      await recordRateLimits(dataDir, []);
-      try { JSON.parse(await readFile(path.join(dataDir, 'claude-limit-status.json'), 'utf8')); }
-      catch (e) { if (e.code !== 'ENOENT') throw e; }
-      const probe = path.join(dataDir, `limit-probe-${randomUUID()}`);
-      try { await writeFile(probe, '{}', { flag: 'wx' }); await rename(probe, `${probe}.ok`); }
-      finally { await unlink(probe).catch(() => {}); await unlink(`${probe}.ok`).catch(() => {}); }
+      await checkLimitStorage();
       store.setSetting('safety.limitStorageFailed', false);
       await store.emit({ type: 'usage.storage_recovered', by: '대장' });
       return { recovered: true, resumed: false };
@@ -507,13 +528,13 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   // 절전 방지: the real server keeps Windows awake while a started project runs or is due (절전방지.js).
   const awake = injectedKeepAwake ?? (executing && autoTick ? new KeepAwake() : null);
   const timer = autoTick ? setInterval(async () => {
-    try { if (guarded) await refreshUsage(); await routines.tick(); await scheduler.tick({ autoOnly: executing }); await autoSave.tick(); digests.tick(); if (executing) await skills.processNeed(); }
+    try { if (guarded) { await autoRecoverLimitStorage(); await refreshUsage(); } await routines.tick(); await scheduler.tick({ autoOnly: executing }); await autoSave.tick(); digests.tick(); if (executing) await skills.processNeed(); }
     catch (error) { console.error('tick failed:', error.message); }
     try { awake?.set(needsAwake(store.listGoals(), clock.now())); } catch (error) { console.error('keep-awake failed:', error.message); }
   }, tickMs) : null;
   timer?.unref();
   return {
-    server, store, scheduler, registry, orchestrator, workspaces, autoSave, digests, makeReport, routines, templates, rules, awake,
+    server, store, scheduler, registry, orchestrator, workspaces, autoSave, digests, makeReport, routines, templates, rules, awake, autoRecoverLimitStorage,
     close: () => new Promise(resolve => { if (timer) clearInterval(timer); awake?.set(false); server.close(() => { store.close(); resolve(); }); }),
   };
 }
