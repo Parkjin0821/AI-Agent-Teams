@@ -1,4 +1,5 @@
-import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, lstatSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,6 +12,8 @@ import { fileURLToPath } from 'node:url';
 // engine refused it). The build uses an English alias inside its temp workspace; the PDF and captures keep the name.
 export const SLIDE_ID = /^[a-z0-9가-힣][a-z0-9가-힣-]{0,40}$/;
 export const SLIDE_PDF_DIR = '발표자료';
+// The text of a deck's PDF, page by page, that the engine read in the same build (발표자료/<id>.pdf.md).
+export const SLIDE_TEXT = /^발표자료\/[a-z0-9가-힣][a-z0-9가-힣-]{0,40}\.pdf\.md$/;
 export class SlideMaker {
   constructor({ sandbox, root, browserPath = null, env = process.env }) {
     this.sandbox = sandbox;
@@ -37,12 +40,27 @@ export class SlideMaker {
       const decks = JSON.parse(line.slice('AGENT_HQ_SLIDES '.length)).decks ?? [];
       const safe = p => typeof p === 'string' && !p.includes('..') && (p.startsWith('.hq-screens/') || p.startsWith(SLIDE_PDF_DIR + '/'));
       const clean = decks.filter(d => list.includes(d.id)).map(d => ({ id: d.id, pages: d.pages ?? 0, error: d.error ?? null, detail: d.detail ?? null,
-        pdf: safe(d.pdf) ? d.pdf : null, screenshots: (d.screenshots ?? []).filter(safe), overflowPages: d.overflowPages ?? [], scriptErrors: d.scriptErrors ?? 0,
+        pdf: safe(d.pdf) ? d.pdf : null, readback: d.pdf ? textRecord(cwd, d.text, d.id) : null, screenshots: (d.screenshots ?? []).filter(safe), overflowPages: d.overflowPages ?? [], scriptErrors: d.scriptErrors ?? 0,
         sparsePages: (d.sparsePages ?? []).filter(Number.isInteger).slice(0, 40),
         smallText: (d.smallText ?? []).filter(s => Number.isInteger(s?.page) && Number.isFinite(s?.px)).slice(0, 40) }));
       return { ok: clean.length > 0 && clean.every(d => !d.error && d.pdf), decks: clean };
     } catch { return { ok: false, decks: [], error: '슬라이드 결과를 읽지 못함' }; }
   }
+}
+
+// The engine's record of a deck's PDF text: its path and the sha the engine took right after the build, so a
+// file_contains on it counts only while it is the engine's own reading (like a document read-back).
+function textRecord(cwd, rel, id) {
+  if (rel !== `${SLIDE_PDF_DIR}/${id}.pdf.md` || !SLIDE_TEXT.test(rel)) return null;
+  const full = path.join(cwd, rel);
+  if (!existsSync(full) || !lstatSync(full).isFile() || lstatSync(full).size > 2_000_000) return null;
+  return { path: rel, sha: createHash('sha256').update(readFileSync(full)).digest('hex') };
+}
+// The PDF texts the engine recorded for a goal, newest first wins: { "발표자료/x.pdf.md": sha }.
+export function slideTextRecords(records = []) {
+  const map = {};
+  for (const r of records) for (const d of r.slides ?? []) if (d?.readback?.path && d.readback.sha) map[d.readback.path] = d.readback.sha;
+  return map;
 }
 
 // The engine tool entry shown in the thread and kept on the run.
@@ -70,5 +88,6 @@ export function slidesPrompt() {
     + "- import 는 '@open-slide/core' (Page, SlideMeta, DesignSystem 등 타입·컴포넌트)와 'react' 만 쓴다. 다른 패키지·외부 주소는 쓰지 않는다.\n"
     + '- 각 페이지는 1920×1080 화면 하나다. 넘치면 PDF 에서 잘린다. 글자는 본문 32px 안팎, 제목 72~128px, 한 장에 핵심 하나.\n'
     + '- ol·ul 목록 번호와 점은 기본 스타일이 지워지니 직접 그린다 (번호를 글자로 쓰거나 listStyle 을 지정).\n'
-    + '- 보고서 JSON 에 "slides":["<id>"] 를 적으면 단계가 끝난 뒤 엔진이 빌드해 발표자료/<id>.pdf 와 쪽마다 캡처(.hq-screens/슬라이드-<id>-01.png …)를 만든다. 넘친 쪽이나 빌드 오류는 다음 단계 피드백으로 온다. PPTX 는 만들지 않는다.\n';
+    + '- 보고서 JSON 에 "slides":["<id>"] 를 적으면 단계가 끝난 뒤 엔진이 빌드해 발표자료/<id>.pdf 와 쪽마다 캡처(.hq-screens/슬라이드-<id>-01.png …)를 만든다. 넘친 쪽이나 빌드 오류는 다음 단계 피드백으로 온다. PPTX 는 만들지 않는다.\n'
+    + '- 엔진은 PDF 로 인쇄한 같은 화면에서 쪽별 글을 읽어 발표자료/<id>.pdf.md 에 둔다 ("## 1쪽" …). "PDF 에 ○○ 이 있다" 는 이 파일의 file_contains 로 증명한다. 이 파일은 직접 쓰거나 고치지 않는다 (엔진 기록과 다르면 근거가 안 됨).\n';
 }

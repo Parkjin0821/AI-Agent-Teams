@@ -12,7 +12,7 @@ import { readGrants } from './승인.js';
 import { saveSources, sourceRecords } from './웹원문.js';
 import { guardDenied, pathViolations, readRules, restoreDenied, rulesPrompt } from './규칙.js';
 import { copyKitFonts, fontsPrompt, installedKoreanFonts, kitPrompt } from './글꼴.js';
-import { slidesPrompt, slideTool } from './슬라이드.js';
+import { slidesPrompt, slideTextRecords, slideTool } from './슬라이드.js';
 import { documentQuality } from './문서품질.js';
 import { makeSpreadsheet, spreadsheetRecords } from './엑셀.js';
 
@@ -228,12 +228,16 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       }
       // 슬라이드 만들기: decks a screen team named are built and printed right after its step (슬라이드.js), so the PDF
       // and the page captures exist for the reviews; verification builds them again as proof.
+      // Each built deck's PDF text (발표자료/<id>.pdf.md) is recorded with its sha, so file_contains on it is the engine's proof.
+      const pdfTexts = decks => (decks ?? []).filter(d => d?.readback).map(d => ({ id: d.id, pdf: d.pdf, readback: d.readback }));
+      let slideReads = team === 'qa' ? pdfTexts(engineTools.find(t => t.id === 'slides')?.decks) : [];
       if (team && ['design', 'dev'].includes(team) && Array.isArray(report?.slides) && report.slides.length && slideMaker && !simulated) {
         const made = await slideMaker.make(cwd, report.slides);
+        slideReads = pdfTexts(made.decks);
         const t = slideTool(made);
         toolsSaved.push({ id: t.id, name: t.name, status: t.status, summary: t.summary, details: t.details.slice(0, 10) });
         await store.emit({ type: 'slides.made', goalId: goal.id, team, ok: made.ok, error: made.error ?? null,
-          decks: made.decks.map(d => ({ id: d.id, pages: d.pages, pdf: d.pdf, error: d.error, overflowPages: d.overflowPages })) });
+          decks: made.decks.map(d => ({ id: d.id, pages: d.pages, pdf: d.pdf, text: d.readback?.path ?? null, error: d.error, overflowPages: d.overflowPages })) });
       }
       // 문서 만들기: a work team's Markdown becomes a 한글 document made and checked by the engine (문서변환.js make).
       let documents = null;
@@ -271,10 +275,11 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
         slides: team === 'qa' ? engineTools.find(t => t.id === 'slides') ?? null : null,
         documents: { ...documentRecords(records), ...documentRecords([{ documents: documents?.made ?? [] }]) },
         spreadsheets: { ...spreadsheetRecords(records), ...spreadsheetRecords([{ spreadsheets: spreadsheets?.made ?? [] }]) },
+        slideTexts: { ...slideTextRecords(records), ...slideTextRecords([{ slides: slideReads }]) },
         baseline: goal.routine?.baseline ?? null,
         sources: { ...sourceRecords(records), ...sourceRecords([{ sources: sources?.saved ?? [] }]) },
         boundary: () => boundaryCheck({ runs: store.listRuns?.(goal.id) ?? [], sentinelLog: sentinel?.log ?? null, project: goal.projectId, cwd }) });
-      return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd), ...(sources ? { sources: sources.saved } : {}), ...(documents ? { documents: documents.made } : {}), ...(spreadsheets ? { spreadsheets: spreadsheets.made } : {}),
+      return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd), ...(sources ? { sources: sources.saved } : {}), ...(documents ? { documents: documents.made } : {}), ...(spreadsheets ? { spreadsheets: spreadsheets.made } : {}), ...(slideReads.length ? { slides: slideReads } : {}),
         requests: normalizeRequests(report?.requests, team), requiredReviews: requiredReviews(team),
         ...(team === 'qa' ? { findings: { ...qaFindings(report), blocking,
           ...(engineTools.some(t => t.id === 'document-quality' && t.reviewRequired) ? { documentReviewRequired: true } : {}),

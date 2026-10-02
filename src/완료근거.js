@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'n
 import path from 'node:path';
 import { FORBIDDEN_NAMES, WRITE_TOOLS, hasSecret } from './보안감시.js';
 import { CHART_NAMES } from './엑셀.js';
+import { SLIDE_TEXT } from './슬라이드.js';
 
 // The tool may claim a criterion is done, but only a check this engine runs itself counts as evidence.
 // Allowed checks are deliberately tiny and read-only, and confined to the project workspace.
@@ -55,6 +56,9 @@ export function reportInstructions(criteria, { verifying = false } = {}) {
     '  {"type":"slides_ok","path":"slides/<id>/index.tsx"}  (in verification: the engine built this open-slide deck just before',
     '   this step, printed its PDF with one page per slide and found no page whose content leaves the 1920×1080 canvas;',
     '   the proof gives the page count. It does not judge whether the deck reads well)',
+    '   The engine also reads the text of every PDF page in that build into 발표자료/<id>.pdf.md ("## 1쪽" …): prove "the PDF',
+    '   (or a slide) has X" with {"type":"file_contains","path":"발표자료/<id>.pdf.md","text":"X"}; it counts only while that',
+    '   file is the engine\'s own reading. Never write or edit that file.',
     '  {"type":"document_made","path":"x.hwpx","text":"optional exact text"}  (the engine itself made this 한글 document',
     '   from your Markdown, it passed the structure check and is unchanged since; with "text", the document contains it)',
     '  {"type":"spreadsheet_made","path":"x.xlsx","text":"optional exact text"}  (the engine itself made this Excel file from',
@@ -281,6 +285,8 @@ function relatesTo(check, criterion) {
   }
   if (check.type === 'file_contains') {
     if (words(check.text).some(w => mentions(c, w))) return true;
+    // "PDF 에 일정·신청 방법·문의처가 있다": the engine's PDF text speaks to a criterion about the PDF or the slides.
+    if (SLIDE_TEXT.test(String(check.path ?? '').replace(/\\/g, '/')) && SLIDES_TOPIC.test(c) && !CLAIMS_ABSENCE.test(c)) return true;
     // A value the work had to find (a version, a total) cannot appear in the criterion itself: a check still counts
     // when the criterion names the file it reads — unless the criterion claims an absence ("추측이 없다"), which text
     // that is present can never prove.
@@ -302,7 +308,8 @@ function countsFor(list, criterion) {
 }
 const artifactOf = (c, file) => {
   const p = String(file ?? '').replace(/\\/g, '/').toLowerCase();
-  return namesFile(c, p) || (/슬라이드|발표|slide|deck/.test(c) && /^slides\//.test(p)) || (/화면|페이지|page|screen/.test(c) && /\.html?$/.test(p))
+  return namesFile(c, p) || (/슬라이드|발표|slide|deck/.test(c) && /^slides\//.test(p)) || (SLIDES_TOPIC.test(c) && SLIDE_TEXT.test(p))
+    || (/화면|페이지|page|screen/.test(c) && /\.html?$/.test(p))
     || (DOCUMENT_TOPIC.test(c) && /\.md$/.test(p));
 };
 // "파일 이름이 한글이다": the files listed are there, and the engine reads their names itself; fixed names that tools
@@ -317,6 +324,7 @@ function koreanNames(list, criterion) {
 // 양식과 같다" lost a passing document_made to "관련 없는 검사" — a filled form is an .hwp, and the criterion says 양식.
 const DOCUMENT_TOPIC = /문서|hwpx?|한글 파일|보고서|기안|서식|양식|계획서|회의록|보도자료|통지|document_made/;
 const SHEET_TOPIC = /엑셀|xlsx|스프레드시트|시트|집계|예산|합계/;
+const SLIDES_TOPIC = /pdf|슬라이드|발표|slide|deck/;
 const SOURCE_TOPIC =/출처|원문|공식|source|official/;
 const CLAIMS_ABSENCE =/없[다고으음이는었]|않[았는다고음]|아니[다고]|금지|no |never|without/;
 // file_excludes speaks only to a criterion that claims an absence ("…없이", "쓰지 않는다", "금지").
@@ -363,8 +371,16 @@ function runCheck(check, cwd, ctx = {}) {
     if (!existsSync(target) || !statSync(target).isFile()) return { status: 'fail', reason: `파일 ${rel} 없음` };
     if (statSync(target).size > MAX_READ) return { status: 'invalid', reason: '파일이 너무 큼' };
     const shown = check.text.length > 60 ? `${check.text.slice(0, 60)}…` : check.text;
+    // A slide PDF's text counts only while it is the engine's own reading of that build (like a document read-back).
+    const slideText = SLIDE_TEXT.test(rel);
+    if (slideText) {
+      const sha = ctx.slideTexts?.[rel];
+      if (!sha) return { status: 'invalid', reason: `${rel}은(는) 엔진이 읽은 PDF 글 기록이 없음 (슬라이드를 다시 빌드해야 함)` };
+      if (createHash('sha256').update(readFileSync(target)).digest('hex') !== sha) return { status: 'invalid', reason: `${rel}이(가) 엔진이 읽은 뒤 바뀜` };
+    }
+    const label = slideText ? `${rel} (엔진이 PDF 로 인쇄한 화면에서 읽은 글)` : rel;
     return readFileSync(target, 'utf8').includes(check.text)
-      ? { status: 'pass', proof: `엔진 확인 · ${rel}에 “${shown}” 포함` } : { status: 'fail', reason: `${rel}에 “${shown}” 없음` };
+      ? { status: 'pass', proof: `엔진 확인 · ${label}에 “${shown}” 포함` } : { status: 'fail', reason: `${label}에 “${shown}” 없음` };
   }
   if (check.type === 'screen_ok') return checkScreen(rel, ctx.visual);
   if (check.type === 'slides_ok') return checkSlides(rel, ctx.slides);

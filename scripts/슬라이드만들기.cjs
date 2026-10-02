@@ -185,12 +185,18 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
         fs.writeFileSync(path.join(screens, name), Buffer.from(png, 'base64'));
         shots.push('.hq-screens/' + name);
       }
+      // The text of every page, read from the same print root that becomes the PDF (자율 시험 4차, 2026-10-02: the verifier
+      // could not check "the PDF has 일정·신청 방법·문의처" from the source and captures). kordoc cannot read a PDF here:
+      // its pdfjs-dist is an optional part 대장's install left out.
+      const texts = await ev("[...document.querySelectorAll('#os-print-root .os-print-frame')].map(f => f.innerText.replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim())");
+      const textFile = path.join(pdfDir, `${id}.pdf.md`);
+      fs.writeFileSync(textFile, texts.map((t, i) => `## ${i + 1}쪽\n\n${t}\n`).join('\n'));
       await ev("document.getElementById('hq-shot').remove(), true");
       await s('Emulation.setEmulatedMedia', { media: 'print' });
       const { data } = await s('Page.printToPDF', { preferCSSPageSize: true, printBackground: true });
       const pdfFile = path.join(pdfDir, `${id}.pdf`);
       fs.writeFileSync(pdfFile, Buffer.from(data, 'base64'));
-      decks.push({ id, pages, pdf: path.relative(root, pdfFile).replace(/\\/g, '/'), screenshots: shots, overflowPages: overflow, scriptErrors: errors, sparsePages, smallText });
+      decks.push({ id, pages, pdf: path.relative(root, pdfFile).replace(/\\/g, '/'), text: path.relative(root, textFile).replace(/\\/g, '/'), screenshots: shots, overflowPages: overflow, scriptErrors: errors, sparsePages, smallText });
       await cdp.send('Target.closeTarget', { targetId }).catch(() => {});
     }
   } finally { child.kill(); }

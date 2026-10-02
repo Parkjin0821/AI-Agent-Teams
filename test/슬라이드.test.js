@@ -61,3 +61,42 @@ test('slides_ok: proven only by this verification step\'s own build, with the pa
   const over = verifyReport(report, crit, cwd, { verifying: true, slides: slideTool({ ok: false, decks: [{ ...deck, overflowPages: [4] }] }) });
   assert.match(over.claims[0].detail, /4쪽 내용이 1920×1080 밖으로 넘침/);
 });
+
+// 자율 시험 4차 (2026-10-02): the verifier could not check "the PDF has 일정·신청 방법·문의처" and planning sent the deck back.
+test('PDF text: the build records 발표자료/<id>.pdf.md with its sha, and file_contains on it counts only while it matches', async () => {
+  const { verifyReport } = await import('../src/완료근거.js');
+  const { slideTextRecords } = await import('../src/슬라이드.js');
+  const root = mkdtempSync(path.join(tmpdir(), 'hq-slide-text-'));
+  mkdirSync(path.join(root, 'tools', 'open-slide', 'node_modules', '@open-slide', 'core'), { recursive: true });
+  writeFileSync(path.join(root, 'tools', 'open-slide', 'node_modules', '@open-slide', 'core', 'bin.js'), '');
+  mkdirSync(path.join(root, '발표자료'));
+  const text = '## 1쪽\n\n여름 독서 교실\n\n## 2쪽\n\n일정 7월 21일~8월 1일\n신청 방법 도서관 안내 데스크\n문의처 02-000-0000 (예시)\n';
+  const sandbox = { available: true, async run(cwd) {
+    writeFileSync(path.join(cwd, '발표자료', '안내.pdf.md'), text);
+    return { status: 'pass', output: 'AGENT_HQ_SLIDES ' + JSON.stringify({ decks: [{ id: '안내', pages: 2, pdf: '발표자료/안내.pdf', text: '발표자료/안내.pdf.md', screenshots: [], overflowPages: [] },
+      { id: 'evil', pages: 1, pdf: '발표자료/evil.pdf', text: '../outside.md', screenshots: [] }] }) };
+  } };
+  const maker = new SlideMaker({ root, sandbox, browserPath: 'C:/edge.exe' });
+  const made = await maker.make(root, ['안내', 'evil']);
+  assert.equal(made.decks[0].readback.path, '발표자료/안내.pdf.md');
+  assert.match(made.decks[0].readback.sha, /^[a-f0-9]{64}$/);
+  assert.equal(made.decks[1].readback, null, 'a text path outside 발표자료/<id>.pdf.md is not recorded');
+  const slideTexts = slideTextRecords([{ slides: made.decks }]);
+  const crit = ['PDF 에 일정·신청 방법·문의처가 들어 있다'];
+  const checks = ['일정', '신청 방법', '문의처'].map(t => ({ type: 'file_contains', path: '발표자료/안내.pdf.md', text: t }));
+  const report = { criteria: [{ index: 1, done: true, checks }] };
+  const ok = verifyReport(report, crit, root, { verifying: true, slideTexts });
+  assert.equal(ok.evidence.length, 1, JSON.stringify(ok.claims));
+  assert.match(ok.evidence[0].proof, /엔진이 PDF 로 인쇄한 화면에서 읽은 글/);
+  // a value the criterion does not name still relates: the criterion is about the PDF
+  const dated = verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'file_contains', path: '발표자료/안내.pdf.md', text: '7월 21일' } }] },
+    ['발표 PDF 에 행사 날짜가 적혀 있다'], root, { verifying: true, slideTexts });
+  assert.equal(dated.evidence.length, 1, JSON.stringify(dated.claims));
+  // no engine record, or a team's edit since: not proof
+  assert.equal(verifyReport(report, crit, root, { verifying: true }).claims[0].check, 'invalid');
+  writeFileSync(path.join(root, '발표자료', '안내.pdf.md'), text + '팀이 덧붙임\n');
+  const edited = verifyReport(report, crit, root, { verifying: true, slideTexts });
+  assert.deepEqual([edited.evidence.length, edited.claims[0].check], [0, 'invalid']);
+  assert.match(edited.claims[0].detail, /엔진이 읽은 뒤 바뀜/);
+  assert.match(slidesPrompt(), /발표자료\/<id>\.pdf\.md/);
+});

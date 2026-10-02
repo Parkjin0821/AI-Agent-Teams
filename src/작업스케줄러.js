@@ -509,6 +509,8 @@ export class GoalScheduler {
       ...(Array.isArray(result.sources) ? { sources: result.sources.slice(0, 10) } : {}),
       ...(Array.isArray(result.documents) ? { documents: result.documents.slice(0, 3) } : {}),
       ...(Array.isArray(result.spreadsheets) ? { spreadsheets: result.spreadsheets.slice(0, 3) } : {}),
+      // Slide PDF texts the engine read this step (their sha backs file_contains on 발표자료/<id>.pdf.md).
+      ...(Array.isArray(result.slides) ? { slides: result.slides.slice(0, 3) } : {}),
       plan: result.plan ? { nextTask: result.plan.nextTask, team: result.plan.team ?? 'dev', reviews: result.plan.reviews ?? [] } : null,
       review: result.review ? { verdict: result.review.verdict, issues: result.review.issues, blocking: result.review.blocking,
         checked: result.review.checked ?? null, needsDecision: result.review.needsDecision ?? null } : null });
