@@ -180,3 +180,18 @@ test('file_updated is decided by the engine record, whatever the verifier guesse
     assert.equal(same.evidence.length, 0);
   } finally { store.close(); }
 });
+
+test('the routine card shows how the last round ended', async () => {
+  const { store, clock, scheduler, routines } = setup();
+  try {
+    routines.set('weekly', { enabled: true, kind: 'daily', time: '09:00' });
+    clock.t = MON_8 + 60 * 60_000;
+    const [started] = await routines.tick();
+    assert.match(routines.view('weekly').lastResult, /^1회차 시작/);
+    clock.t += 40 * 60_000;
+    scheduler.update(store.getGoal(started.goalId), { status: 'verified' });
+    assert.equal(routines.view('weekly').lastResult, '1회차 완료 (2026. 9. 28. 09:40)');
+    scheduler.update(store.getGoal(started.goalId), { status: 'review_required', reason: 'needs_decision' });
+    assert.equal(routines.view('weekly').lastResult, '1회차 멈춤 · 대장 확인 필요');
+  } finally { store.close(); }
+});

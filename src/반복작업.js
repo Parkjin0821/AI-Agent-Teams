@@ -72,7 +72,14 @@ export class Routines {
 
   view(projectId) {
     const r = this.get(projectId);
-    return r ? { ...r, label: routineLabel(r), nextRunAt: this.nextRunAt(r) } : null;
+    if (!r) return null;
+    // "최근" shows how the last round ended once it has (2026-10-02 routine test: the card kept "1회차 시작" after the
+    // round was verified). A later skip note is left as it is.
+    const g = r.round && String(r.lastResult ?? '').startsWith(`${r.round}회차 시작`)
+      ? this.store.listGoals().find(x => x.projectId === projectId && !x.lane && x.routine?.round === r.round) : null;
+    const ended = g?.status === 'verified' ? `${r.round}회차 완료 (${localStamp(Date.parse(g.updatedAt))})`
+      : g && ['review_required', 'blocked', 'recovery_required'].includes(g.status) ? `${r.round}회차 멈춤 · 대장 확인 필요` : null;
+    return { ...r, ...(ended ? { lastResult: ended } : {}), label: routineLabel(r), nextRunAt: this.nextRunAt(r) };
   }
 
   async tick(now = this.clock.now()) {
