@@ -162,6 +162,10 @@ test('양식 채우기: the form is filled in place, its headings and tables are
     ['양식에 맞춘 사업계획서 계획서.hwp 에 목표가 들어 있다'], cwd, { documents: { '계획서.hwp': rec } }).claims[0];
   const ok = run(r);
   assert.equal(ok.check, 'pass');
+  // the main criterion of a filled form names the proof and the form, not the file (재시험 2026-10-02: counted as unrelated)
+  const main = verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'document_made', path: '계획서.hwp' } }] },
+    ['엔진의 document_made 증명이 있다: 결과가 원본과 같은 .hwp 형식이고 목차·표 구조가 양식과 같다'], cwd, { documents: { '계획서.hwp': r } });
+  assert.deepEqual([main.claims[0].check, main.evidence.length], ['pass', 1]);
   assert.match(ok.detail, /양식 양식\.hwp에 계획서\.md 내용을 채움, 원본 서식 그대로\) · 목차 3개·표 2개 양식과 같음 · 빈칸 0개 \(양식 2개\)/);
   // a heading of the form dropped while filling: the engine says so and the proof fails
   readback = filled.replace('가. 추진배경\n', '');

@@ -297,7 +297,9 @@ function koreanNames(list, criterion) {
   const bases = list.map(k => k?.type === 'file_exists' ? path.basename(String(k.path ?? '').replace(/\\/g, '/')) : null);
   return bases.every(b => b && (/[가-힣]/.test(b) || FIXED_NAMES.has(b.toLowerCase()))) && bases.some(b => /[가-힣]/.test(b));
 }
-const DOCUMENT_TOPIC = /문서|hwpx|한글 파일|보고서|기안|서식|계획서|회의록|보도자료|통지/;
+// 양식 채우기 재시험 (2026-10-02): "엔진의 document_made 증명이 있다: 결과가 원본과 같은 .hwp 형식이고 목차·표 구조가
+// 양식과 같다" lost a passing document_made to "관련 없는 검사" — a filled form is an .hwp, and the criterion says 양식.
+const DOCUMENT_TOPIC = /문서|hwpx?|한글 파일|보고서|기안|서식|양식|계획서|회의록|보도자료|통지|document_made/;
 const SHEET_TOPIC = /엑셀|xlsx|스프레드시트|시트|집계|예산|합계/;
 const SOURCE_TOPIC =/출처|원문|공식|source|official/;
 const CLAIMS_ABSENCE =/없[다고으음이는었]|않[았는다고음]|아니[다고]|금지|no |never|without/;
