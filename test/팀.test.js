@@ -156,3 +156,18 @@ test('planning writes the design document once; later remarks are checked on the
   assert.match(teamPrompt('plan', input), /설계 문서만 고치는 단계를 두 번 연속 지시하지 않는다/);
   assert.match(teamPrompt('qa', input), /설계 문서만 있으면 설계의 세부 수치를 따지지 않는다/);
 });
+
+// 양식 채우기 재시험 (2026-10-02): the security review read the engine's 129 MB preview and reported "partial".
+test('reviews are told which files the engine made, and leave them to the engine', async () => {
+  const { isEngineFile } = await import('../src/완료근거.js');
+  const files = ['계획서.md', '계획서.hwp', '계획서.hwp.md', '계획서.hwp.svg', '계획서.hwp.html', 'attachments/양식.hwp', 'attachments/양식.hwp.md',
+    '집계.json', '집계.xlsx', '집계.xlsx.html', 'sources/a.html', '발표자료/소개.pdf', 'reports/완료보고서-20261002-1501.hwpx.html', 'index.html'];
+  const made = ['계획서.hwp', '집계.xlsx'];
+  assert.deepEqual(files.filter(f => !isEngineFile(f, made)), ['계획서.md', 'attachments/양식.hwp', '집계.json', 'index.html']);
+  const prompt = teamPrompt('security', { goal, files, engineMade: made, team: {} });
+  assert.match(prompt, /작업 폴더 파일 \(4\): 계획서\.md, attachments\/양식\.hwp, 집계\.json, index\.html\n/);
+  assert.match(prompt, /엔진이 만든 파일 \(10\) · 팀 작업물이 아님 [^\n]*계획서\.hwp\.html/);
+  assert.match(prompt, /do not open the engine's files and never report checked "partial" because of them/);
+  assert.match(teamPrompt('policy', { goal, files, engineMade: made, team: {} }), /never report checked "partial" because of them/);
+  assert.doesNotMatch(teamPrompt('qa', { goal, files, engineMade: made, team: {} }), /never report checked "partial" because of them/);
+});

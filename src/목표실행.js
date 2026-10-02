@@ -1,4 +1,4 @@
-import { boundaryCheck, listWorkspaceFiles, parseReport, reportInstructions, verifyReport, workspaceFingerprint } from './완료근거.js';
+import { boundaryCheck, isEngineFile, listWorkspaceFiles, parseReport, reportInstructions, verifyReport, workspaceFingerprint } from './완료근거.js';
 import { parsePlan, parseReview, qaFindings, REVIEWS, TEAMS, teamPrompt, WORKERS } from './팀.js';
 import { runTeamTools, toolReport } from './검사도구.js';
 import { normalizeRequests, requiredReviews } from './팀검토.js';
@@ -60,10 +60,12 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const extra = team ? toolsFor(team) : {};
       const tools = { web: Boolean(team && TEAMS[team]?.web), connectors: extra.connectors ?? [], knownConnectors: extra.knownConnectors ?? [] };
       const engineTools = team && !simulated ? await runTeamTools(team, cwd, { sandbox, visualChecker, slideMaker, settings: settings() }) : [];
+      // The documents and spreadsheets the engine built (the teams wrote only their .md/.json sources).
+      const engineMade = [...Object.keys(documentRecords(records)), ...Object.keys(spreadsheetRecords(records))];
       if (team === 'qa' && !simulated && Object.keys(documentRecords(records)).length)
         engineTools.push(documentQuality(cwd, documentRecords(records)));
       let prompt = team
-        ? teamPrompt(team, { goal, team: goal.team, files: listWorkspaceFiles(cwd), connectors: tools.connectors, toolText: toolReport(engineTools),
+        ? teamPrompt(team, { goal, team: goal.team, files: listWorkspaceFiles(cwd), engineMade, connectors: tools.connectors, toolText: toolReport(engineTools),
           memory: memory?.forTeam(team) ?? null,
           candidates: catalog().filter(e => e.usable).map(e => ({ id: e.id, executor: e.executor, capabilities: e.capabilities ?? [] })) })
         : [`Goal: ${goal.objective}`, '', reportInstructions(goal.completionCriteria)].join('\n');
@@ -97,7 +99,8 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const fontBlock = ['design', 'dev'].includes(team) ? fontsPrompt(fonts()) + kitPrompt() + (slideMaker?.available ? slidesPrompt() : '') : '';
       if (fontBlock) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + fontBlock + prompt.slice(at) : prompt + fontBlock; }
       if (team && PROVIDER[run.executor] === 'codex') {
-        const block = inlineTextFiles(cwd, before.files);
+        // A review reads the teams' files, not the engine's previews and read-backs (isEngineFile).
+        const block = inlineTextFiles(cwd, REVIEWS.includes(team) ? before.files.filter(f => !isEngineFile(f, engineMade)) : before.files);
         if (block) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + block + prompt.slice(at) : prompt + block; }
       }
       if (previous && (previous.status === 'interrupted' || previous.outcome !== 'completed')) {

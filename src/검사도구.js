@@ -3,6 +3,7 @@ import path from 'node:path';
 import { checkHtml, checkSources, detectTests, licenseReport, scanPrivacy, scanSecrets } from './검사.js';
 import { npmCommand } from './격리환경.js';
 import { SLIDE_ID, slideTool } from './슬라이드.js';
+import { isEngineFile } from './완료근거.js';
 
 // The programs each team works with, and how each one runs:
 //   ai       — the team's AI uses it inside its own CLI session
@@ -84,10 +85,9 @@ export async function runTeamTools(step, cwd, { sandbox = null, settings = {}, v
   };
 
   // 화면 검사 (화면검사.js): captures at PC and phone width for the team to look at, plus what a program can see.
-  // Only the teams' own pages: the engine's document previews (x.hwpx.html) and saved web originals are not their work
-  // (seen in a real run: a report preview's phone-width overflow was reported at every step).
-  const engineMade = f => /\.hwpx\.html?$/i.test(f) || /^(sources|\.hq-screens)\//.test(f);
-  const screens = async (all) => { const html = all.filter(p => !engineMade(p.file)); if (!html.length) return;
+  // Only the teams' own pages: the engine's document previews (x.hwpx.html, x.hwp.html, x.xlsx.html) and saved web
+  // originals are not their work (seen in a real run: a report preview's phone-width overflow was reported at every step).
+  const screens = async (all) => { const html = all.filter(p => !isEngineFile(p.file)); if (!html.length) return;
     add(visualChecker ? { id: 'visual', name: '실제 화면 검증', ...await visualChecker.check(cwd, html.map(p => p.file)) }
     : { id: 'visual', name: '실제 화면 검증', status: 'unavailable', summary: '브라우저 시각 검사 미연결 · HTML 기본 검사 통과는 디자인 검증 완료가 아님',
       details: ['데스크톱·모바일 렌더링, 넘침·정렬·버튼 동작을 실제 확인해야 함. 팀이 작성한 체크리스트는 실행 증거가 아님.'], screenshots: [] }); };
@@ -134,7 +134,7 @@ export async function runTeamTools(step, cwd, { sandbox = null, settings = {}, v
     else if (!sandbox?.available) add({ id: 'tests', name: '테스트 실행', status: 'unavailable', summary: `${tests.label} · 샌드박스를 쓸 수 없어 실행하지 않음` });
     else add(testResult(tests, await sandbox.run(cwd, testCommand(tests))));
     secrets();
-    const html = checkHtml(cwd).pages;
+    const html = checkHtml(cwd).pages.filter(p => !isEngineFile(p.file));
     if (html.length) {
       const bad = html.filter(p => p.issues.length);
       add({ id: 'html', name: 'HTML 기본 점검', status: bad.length ? 'found' : 'pass', summary: `페이지 ${html.length}개 중 ${bad.length}개에 보완점`,

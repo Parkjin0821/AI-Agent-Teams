@@ -611,6 +611,16 @@ export function listWorkspaceFiles(cwd, max = 50) {
   return found;
 }
 
+// Files the engine wrote, not a team: the previews and read-backs of the documents and spreadsheets it made or
+// converted (x.hwp.svg/.html/.md, x.hwpx.*, x.xlsx.html/.md, attachments/x.docx.md), screen captures, slide PDFs,
+// saved web originals and its completion reports. made: the documents and spreadsheets its records name. The reviews
+// and the screen check leave them out (양식 채우기 재시험, 2026-10-02: the security review read the engine's 129 MB
+// preview of the filled form, could check it only in part, and completion waited for 대장).
+export function isEngineFile(file, made = []) {
+  return made.includes(file) || /\.(hwpx?|xlsx|docx)\.(md|svg|html?)$/i.test(file)
+    || /^(sources|\.hq-screens|발표자료)\//.test(file) || /^reports\/완료보고서-/.test(file);
+}
+
 // A content fingerprint of the workspace, used to tell real progress from repeated no-op rounds.
 export function workspaceFingerprint(cwd, { maxFiles = 2000 } = {}) {
   const files = [];

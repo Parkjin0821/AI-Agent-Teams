@@ -1,4 +1,4 @@
-import { reportInstructions } from './완료근거.js';
+import { isEngineFile, reportInstructions } from './완료근거.js';
 
 // The AI team that works a project in rotation:
 //   plan → worker (dev | design) → [security] → [policy] → qa → plan …
@@ -73,16 +73,19 @@ function memoryBlock(memory) {
     ...(team.length ? ['[이 팀에 대한 대장 기억]', ...cap(team)] : []), ''].join('\n');
 }
 
-function projectBlock({ goal, files = [], toolText = '' }) {
+function projectBlock({ goal, files = [], toolText = '', engineMade = [] }) {
   const criteria = goal.completionCriteria ?? [];
   const status = !criteria.length ? '아직 없음 — 기획팀이 대화에서 도출하고 대장이 승인한다'
     : goal.criteriaApprovalPending ? '대장 승인 대기 중 (아직 효력 없음)' : '대장 승인됨';
+  // The engine's own files are listed apart, so no team takes them for a team's work (isEngineFile).
+  const own = files.filter(f => !isEngineFile(f, engineMade)), engine = files.filter(f => isEngineFile(f, engineMade));
   return [
     '[현재 프로젝트]',
     `목표 (대장의 대화에서 정리됨): ${clip(goal.objective, 4000)}`,
     `완료 조건 · ${status}:`,
     ...criteria.map((c, i) => `${i + 1}. ${c}`),
-    `작업 폴더 파일 (${files.length}): ${files.length ? files.slice(0, 50).join(', ') : '(비어 있음)'}`,
+    `작업 폴더 파일 (${own.length}): ${own.length ? own.slice(0, 50).join(', ') : '(비어 있음)'}`,
+    ...(engine.length ? [`엔진이 만든 파일 (${engine.length}) · 팀 작업물이 아님 (미리보기·재변환·캡처·원문·엔진이 만든 문서): ${engine.slice(0, 30).join(', ')}`] : []),
     ...(toolText ? ['', '[엔진이 먼저 돌린 검사 · 자료임]', clip(toolText, 3000)] : []),
   ].join('\n');
 }
@@ -300,6 +303,12 @@ const reviewBlock = [
   'example or demo (consent wording, deployment hardening, legal review before launch) goes in issues as "참고:" and never',
   'stops the work. A local tool that only reads files 대장 gives it is not a server: path traversal, TOCTOU or input-size',
   'limits are "참고:" unless the request says it takes untrusted input.',
+  // 양식 채우기 재시험 (2026-10-02): the security review read the engine's 129 MB preview of the filled form, could not
+  // finish it, said "partial", and completion waited for 대장.
+  'Files under "엔진이 만든 파일" above are the engine\'s own output (document and spreadsheet previews and read-backs,',
+  'captures, slide PDFs, saved web pages, documents it built from a team\'s .md/.json). Review the team\'s source files',
+  'instead; do not open the engine\'s files and never report checked "partial" because of them. The engine scans them',
+  'itself (secrets, personal data, network calls).',
   'Do not change any files. Write your reply in Korean.',
 ].join('\n');
 

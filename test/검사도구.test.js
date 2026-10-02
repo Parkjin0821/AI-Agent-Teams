@@ -157,3 +157,16 @@ test('the sandbox finds the Codex CLI again after the Codex app moved it (seen o
   await sb.run('C:/w', ['node', '--test']);
   assert.equal(lookups, 1, 'looked up once; the new one is kept while it exists');
 });
+
+// 양식 채우기 재시험 (2026-10-02): an HWP form's preview (x.hwp.html) was not on the engine's list, only x.hwpx.html.
+test('the HTML check and the screen check leave out the engine previews of HWP, HWPX and Excel files', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'hq-engine-html-'));
+  for (const f of ['계획서.hwp.html', '보고.hwpx.html', '집계.xlsx.html']) writeFileSync(path.join(dir, f), '<p>preview</p>');
+  const seen = [];
+  const visualChecker = { check: async (cwd, files) => { seen.push(...files); return { status: 'pass', summary: '', screenshots: [] }; } };
+  const results = await runTeamTools('qa', dir, { visualChecker });
+  assert.deepEqual([results.some(r => r.id === 'html' || r.id === 'visual'), seen], [false, []]);
+  writeFileSync(path.join(dir, 'index.html'), '<p>team page</p>');
+  await runTeamTools('qa', dir, { visualChecker });
+  assert.deepEqual(seen, ['index.html']);
+});

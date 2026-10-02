@@ -221,3 +221,43 @@ test('양식 채우기: a patch that skipped edits leaves no file behind, so the
   assert.equal(readFileSync(path.join(cwd, '계획서.hwp'), 'utf8'), 'HWP-PARTLY-FILLED');
   assert.deepEqual(readdirSync(cwd).filter(n => n.startsWith('.hq-tmp-')), []);
 });
+
+// 양식 채우기 재시험 (2026-10-02): kordoc inlined the form's pictures and the HTML preview came out at 129 MB.
+test('미리보기: embedded pictures become grey boxes, a preview still too big keeps its first pages, else it is dropped', async () => {
+  const { stripEmbeddedImages, PREVIEW_CAP } = await import('../src/문서변환.js');
+  const page = n => `<div class="kordoc-page" data-page="${n}"><svg><symbol id="bin0"><image width="100" height="100" preserveAspectRatio="none" href="data:image/bmp;base64,${'A'.repeat(400_000)}"/></symbol><text>${n}쪽</text></svg></div>`;
+  assert.equal(stripEmbeddedImages(page(1)), '<div class="kordoc-page" data-page="1"><svg><symbol id="bin0"><rect width="100" height="100" fill="#efeeec" stroke="#c9c7c3" stroke-width="0.5"/></symbol><text>1쪽</text></svg></div>');
+  const cwd = ws();
+  writeFileSync(path.join(cwd, '보고서.md'), '# 보고\n');
+  const calls = [];
+  let text = 'x';
+  const sandbox = { available: true, run: async (dir, argv) => {
+    const args = argv.slice(2); calls.push(args);
+    const out = args[args.indexOf('-o') + 1];
+    if (args[0] === 'generate') writeFileSync(path.join(dir, out), 'HWPX');
+    else if (args[0] === 'render' && args.includes('html')) writeFileSync(path.join(dir, out), Array.from({ length: args.includes('--pages') ? 5 : 64 }, (_, i) => page(i + 1) + text).join(''));
+    else if (args[0] === 'render') writeFileSync(path.join(dir, out), page(1));
+    else if (args[0] === 'lint' || args[0] === 'validate') return { status: 'pass', output: '' };
+    else writeFileSync(path.join(dir, out), '# 보고\n');
+    return { status: 'pass', output: '' };
+  } };
+  const maker = new DocConverter({ root: cwd, sandbox });
+  Object.defineProperty(maker, 'available', { get: () => true });
+  // 64 pages × 400 KB of pictures: small once the pictures are boxes, all pages kept
+  const small = await maker.make(cwd, { from: '보고서.md' });
+  assert.deepEqual([small.previews, small.previewNote], [['보고서.hwpx.svg', '보고서.hwpx.html'], undefined]);
+  const html = readFileSync(path.join(cwd, '보고서.hwpx.html'), 'utf8');
+  assert.ok(html.length < 100_000 && !html.includes('data:image') && (html.match(/data-page=/g) ?? []).length === 64);
+  // text alone over the cap: the first pages only, and the result says so
+  text = 'x'.repeat(Math.ceil(PREVIEW_CAP / 64) + 10);
+  const part = await maker.make(cwd, { from: '보고서.md' }, new Set(['보고서.hwpx']));
+  assert.deepEqual(calls.filter(c => c[0] === 'render' && c.includes('html')).slice(-2).map(c => c.includes('--pages') ? c[c.indexOf('--pages') + 1] : 'all'), ['all', '1-5']);
+  assert.deepEqual(part.previews, ['보고서.hwpx.svg', '보고서.hwpx.html']);
+  assert.match(part.previewNote, /앞 5쪽만/);
+  // even the first pages over the cap: no HTML is kept
+  text = 'x'.repeat(PREVIEW_CAP);
+  const none = await maker.make(cwd, { from: '보고서.md' }, new Set(['보고서.hwpx']));
+  assert.deepEqual(none.previews, ['보고서.hwpx.svg']);
+  assert.match(none.previewNote, /HTML 미리보기 없음/);
+  assert.equal(existsSync(path.join(cwd, '보고서.hwpx.html')), false);
+});

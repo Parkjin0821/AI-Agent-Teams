@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, lstatSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { hasSecret } from './보안감시.js';
 
@@ -70,13 +70,11 @@ export class DocConverter {
     const lintOut = String(lint.output ?? '');
     const counts = /error\s+(\d+),\s*warning\s+(\d+)/.exec(lintOut);
     const back = await this.convert(cwd, out);
-    const svg = await run(['render', out, '-o', `${out}.svg`, '--silent']);
-    const html = await run(['render', out, '--format', 'html', '-o', `${out}.html`, '--title', path.basename(out, '.hwpx'), '--silent']);
+    const shown = await renderPreviews(run, full, out, path.basename(out, '.hwpx'));
     const sha = p => createHash('sha256').update(readFileSync(full(p))).digest('hex');
     return { ok: true, from: src, path: out, preset: kind, requestedPreset, requestedLayout: layout, layout: compact ? 'compact' : 'full', font: face, approval: labels, sha: sha(out), validated: valid.status === 'pass',
       lint: counts ? { errors: Number(counts[1]), warnings: Number(counts[2]) } : null,
-      readback: back.ok ? { path: back.path, sha: sha(back.path) } : null,
-      previews: [`${out}.svg`, `${out}.html`].filter((p, i) => [svg, html][i].status === 'pass' && existsSync(full(p))) };
+      readback: back.ok ? { path: back.path, sha: sha(back.path) } : null, ...shown };
   }
 }
 
@@ -137,16 +135,51 @@ DocConverter.prototype.fill = async function fill(cwd, { template, from, to }, k
     tables: [before.tables, after.tables], headings: [before.headings.length, after.headings.length], missing };
   const lint = await run(['lint', src]);
   const counts = /error\s+(\d+),\s*warning\s+(\d+)/.exec(String(lint.output ?? ''));
-  // kordoc stacks every page into one SVG only for HWPX; an HWP of several pages needs one file per page and made no
-  // preview at all (양식 채우기 시험, 2026-10-02: 64 pages, "--out-dir 이 필요합니다"), so an HWP previews its first page.
-  const svg = await run(['render', out, ...(ext === '.hwp' ? ['--pages', '1'] : []), '-o', `${out}.svg`, '--silent']);
-  const html = await run(['render', out, '--format', 'html', '-o', `${out}.html`, '--title', path.basename(out, ext), '--silent']);
+  const shown = await renderPreviews(run, full, out, path.basename(out, ext));
   const sha = p => createHash('sha256').update(readFileSync(full(p))).digest('hex');
   return { ok: true, kind: 'form', template: form, from: src, path: out, preset: '양식', sha: sha(out), validated: true, structure,
     empties: [before.empties, after.empties], lint: counts ? { errors: Number(counts[1]), warnings: Number(counts[2]) } : null,
-    readback: { path: back.path, sha: sha(back.path) },
-    previews: [`${out}.svg`, `${out}.html`].filter((p, i) => [svg, html][i].status === 'pass' && existsSync(full(p))) };
+    readback: { path: back.path, sha: sha(back.path) }, ...shown };
 };
+
+// The SVG and HTML previews of a made or filled document, small enough to open. kordoc inlines every picture as
+// base64 (BMP even): the filled 64-page 연구개발계획서 gave a 129 MB HTML that the dashboard (2 MB) could not show and
+// the security review could only read in part, so completion waited for 대장 (양식 채우기 재시험, 2026-10-02). Pictures
+// become grey boxes of the same size (that form: 1.7 MB); a preview still over the cap keeps its first pages, and one
+// that does not fit even then is not kept. kordoc stacks every page into one SVG only for HWPX; an HWP of several pages
+// needs one file per page and made no preview at all (양식 채우기 시험, 2026-10-02: "--out-dir 이 필요합니다"), so an HWP's
+// SVG is its first page.
+export const PREVIEW_CAP = 2_000_000;
+export const PREVIEW_FIRST_PAGES = 5;
+async function renderPreviews(run, full, out, title) {
+  const ext = path.extname(out).toLowerCase();
+  const kept = p => { if (!existsSync(full(p))) return false; if (slimPreview(full(p))) return true; rmSync(full(p), { force: true }); return false; };
+  const svg = await run(['render', out, ...(ext === '.hwp' ? ['--pages', '1'] : []), '-o', `${out}.svg`, '--silent']);
+  const html = pages => run(['render', out, '--format', 'html', ...pages, '-o', `${out}.html`, '--title', title, '--silent']);
+  let partial = false, htmlOk = (await html([])).status === 'pass' && kept(`${out}.html`);
+  if (!htmlOk) {
+    partial = true;
+    htmlOk = (await html(['--pages', `1-${PREVIEW_FIRST_PAGES}`])).status === 'pass' && kept(`${out}.html`);
+  }
+  const previews = [svg.status === 'pass' && kept(`${out}.svg`) ? `${out}.svg` : null, htmlOk ? `${out}.html` : null].filter(Boolean);
+  const note = htmlOk && partial ? `HTML 미리보기는 앞 ${PREVIEW_FIRST_PAGES}쪽만 (전체는 ${PREVIEW_CAP / 1e6}MB 초과)`
+    : !htmlOk ? `HTML 미리보기 없음 (${PREVIEW_CAP / 1e6}MB 초과 또는 실패)` : null;
+  return { previews, ...(note ? { previewNote: note } : {}) };
+}
+
+// Embedded pictures → a grey box of the same place and size. Returns whether the file now fits the cap.
+export function slimPreview(file) {
+  const size = lstatSync(file).size;
+  if (size > 400_000_000) return false;
+  const text = readFileSync(file, 'utf8');
+  const slim = stripEmbeddedImages(text);
+  if (slim !== text) writeFileSync(file, slim);
+  return Buffer.byteLength(slim) <= PREVIEW_CAP;
+}
+export function stripEmbeddedImages(markup) {
+  return String(markup).replace(/<image\b[^>]*?\bhref="data:[^"]*"[^>]*>(?:\s*<\/image>)?/g, tag =>
+    `<rect ${(tag.match(/\s(?:x|y|width|height|transform)="[^"]*"/g) ?? []).map(a => a.trim()).join(' ')} fill="#efeeec" stroke="#c9c7c3" stroke-width="0.5"/>`);
+}
 
 // The edits kordoc patch could not place, one short line each ("블록 추가는 미지원 (v1)", "표 캡션 수정은 미지원 (v1) |
 // [표. …]"), the same reason and text only once.
