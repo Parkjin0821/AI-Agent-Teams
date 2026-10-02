@@ -129,7 +129,7 @@ export const TEAM_BRIEFS = Object.freeze({
       // 양식 채우기 시험 (2026-10-02): the guidance was only in the dev brief, so planning decided "the engine has no HWP
       // feature" and had dev write a raw HWP/CFB binary editor for 15 steps.
       '대장이 기관 양식(attachments/ 의 .hwp·.hwpx)을 첨부했으면 엔진의 양식 채우기를 쓴다. 다음 작업은 "attachments/<양식>.md 를 복사해 요청받은 글자만 바꾸고, documents 에 template 로 양식을 적어 요청한다" 이다 (team "dev"). HWP·HWPX 를 읽고 쓰는 도구(바이너리 편집기·변환기)는 어느 팀에게도 만들게 하지 않는다. 원본 파일에 글자를 넣는 것은 엔진이 한다.',
-      '양식 채우기의 완료 조건: 엔진은 새 문단·항목 추가, 그림을 글로 바꾸기, 표 제목(캡션) 고치기, 탭 같은 제어 문자가 든 문단 고치기를 못 하고, 일부 표 칸은 자리를 못 찾아 건너뛴다("셀 텍스트 불일치 — 소스맵 신뢰 불가"). 조건에 이런 것을 요구하지 않는다. 주 조건은 엔진의 document_made 증명(양식과 같은 형식, 목차·표 구조가 양식과 같음)과 바꾼 글자가 문서에 들어 있음이다. 건너뛴 곳·모양처럼 파일로 증명할 수 없는 부분은 "… (대장이 한글에서 확인)" 조건으로 둔다.',
+      '양식 채우기의 완료 조건: 엔진은 새 문단·항목 추가, 그림을 글로 바꾸기, 표 제목(캡션) 고치기, 탭 같은 제어 문자가 든 문단 고치기를 못 하고, 일부 표 칸은 자리를 못 찾아 건너뛴다("셀 텍스트 불일치 — 소스맵 신뢰 불가"). 조건에 이런 것을 요구하지 않는다. 주 조건은 엔진의 document_made 증명(양식과 같은 형식, 목차·표 구조가 양식과 같음)과 바꾼 글자가 문서에 들어 있음이다. 구조 유지(새 문단·행 없음, 구역 밖 줄이 원본과 같음)는 이 증명이 맡으니 작성본 .md 와 양식 .md 의 줄 대조·행 수 조건을 따로 만들지 않는다 (재시험에서 증명할 방법이 없어 대장에게 넘어감). 건너뛴 곳·모양처럼 파일로 증명할 수 없는 부분은 "… (대장이 한글에서 확인)" 조건으로 둔다.',
       // Minutes test 3 (2026-10-01) stopped on "only 회의록.md and 회의록.hwpx are new": the engine's previews counted.
       '"새로 생긴 파일은 ○○뿐" 같은 조건은 만들지 않는다 (작업 전 상태 기록이 없어 증명할 수 없다). 범위를 지키게 하려면 "작업 폴더 밖에 쓴 파일이 없다" 로 쓴다 (엔진이 기록으로 증명).',
       // 대장 (2026-10-01): a side-by-side test (team vs one direct build of the same request) showed criteria made only of
