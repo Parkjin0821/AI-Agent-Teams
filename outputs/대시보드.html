@@ -1707,7 +1707,20 @@ class Component extends DCLogic {
       .catch(() => {});
   }
   say(m) { showToast(m); }
-  act(promise, okMsg) { return promise.then((v) => { this.refresh(); if (okMsg) this.say(okMsg); return v; }).catch((e) => this.say(korErr(e.message))); }
+  // A button's answer that is the changed project goal goes on screen at once; the full engine view (megabytes) is
+  // fetched after it. 대장 (2026-10-02): "완료로 확인 … 적용속도가 너무 느려" — the page waited for the full view.
+  act(promise, okMsg) { return promise.then((v) => { this.applyGoal(v); if (okMsg) this.say(okMsg); this.refresh(); return v; }).catch((e) => this.say(korErr(e.message))); }
+  applyGoal(g) {
+    const eng = this.state.eng;
+    if (!eng || !g || typeof g !== 'object' || !g.id || !g.projectId || !g.status) return;
+    let hit = false;
+    const projects = (eng.projects || []).map((p) => {
+      if (!(p.goals || []).some((x) => x.id === g.id)) return p;
+      hit = true;
+      return Object.assign({}, p, { goals: p.goals.map((x) => x.id === g.id ? Object.assign({}, x, g, { runs: x.runs, model: x.model }) : x) });
+    });
+    if (hit) this.setState({ eng: Object.assign({}, eng, { projects: projects }) });
+  }
   go(view) { this.setState({ view: view }); window.scrollTo(0, 0); if (view === 'connect') this.loadEnvs(); if(view === 'skills') this.loadSkills();
     if (view === 'inbox') this.loadInbox(); if (view === 'memory') this.loadMemory(); }
   loadInbox() {
@@ -2657,7 +2670,10 @@ class Component extends DCLogic {
         // A slide PDF opens as its page captures (a sandboxed frame cannot show the PDF), with the PDF itself to download.
         if (/^발표자료\/[a-z0-9-]+\.pdf$/i.test(a.path))
           return {path:a.path+' · 미리보기',open:()=>this.setState({previewUrl:url+'&view=pages',artifactMessage:a.path+' · 엔진이 PDF와 같은 빌드에서 찍은 장별 화면',downloadUrl:url})};
-        return /\.(hwpx|pdf)$/i.test(a.path)
+        // An Excel file the engine made opens as its table preview (x.xlsx.html), with the file itself to download.
+        if (/\.xlsx$/i.test(a.path) && (s.artifactItems || []).some((b) => b.path === a.path + '.html'))
+          return {path:a.path+' · 미리보기',open:()=>this.setState({previewUrl:'/api/projects/'+encodeURIComponent(wp.id)+'/preview?path='+encodeURIComponent(a.path+'.html'),artifactMessage:a.path+' · 엔진이 만든 표 미리보기',downloadUrl:url})};
+        return /\.(hwpx|pdf|xlsx)$/i.test(a.path)
           ? {path:a.path+' · 내려받기',open:()=>{const l=document.createElement('a');l.href=url;l.download=a.path.split('/').pop();document.body.appendChild(l);l.click();l.remove();this.say(a.path+' 내려받기를 시작했습니다');}}
           : {path:a.path,open:()=>this.setState({previewUrl:url,artifactMessage:a.path,downloadUrl:''})};}),
       previewUrl:s.previewUrl || '', hasPreview:!!s.previewUrl, downloadUrl:s.downloadUrl || '', hasDownload:!!(s.previewUrl && s.downloadUrl), artifactMessage:s.artifactMessage || '파일 새로고침을 눌러 결과물을 불러오세요.', testBusy:!!s.testBusy, testMessage:s.testMessage || '아직 실행하지 않았습니다.',

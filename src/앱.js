@@ -194,7 +194,11 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     const byProject = new Map();
     for (const goal of store.listGoals().sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
       if (!byProject.has(goal.projectId)) byProject.set(goal.projectId, []);
-      byProject.get(goal.projectId).push({ ...goal, runs: store.listRuns(goal.id), model: scheduler.modelStatus(goal.id) });
+      // The page shows only which files a step added, changed or removed; the checkpoint's file signatures (about a
+      // quarter of a 6 MB view, 2026-10-02) stay on the server.
+      const runs = store.listRuns(goal.id).map(r => r.checkpoint
+        ? { ...r, checkpoint: { added: r.checkpoint.added ?? [], modified: r.checkpoint.modified ?? [], removed: r.checkpoint.removed ?? [] } } : r);
+      byProject.get(goal.projectId).push({ ...goal, runs, model: scheduler.modelStatus(goal.id) });
     }
     return {
       mode: executing ? 'execution' : 'simulation', autoTick, autoScope, now: iso(clock.now()),
@@ -276,7 +280,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       scheduler.startPendingLane(g.id);
       return scheduler.resume(g.id);
     }],
-    ['GET', /^\/api\/usage$/, refreshUsage],
+    // The engine reads usage every 30 s anyway (two CLI checks, ~6 s); the page gets that reading while it is fresh.
+    ['GET', /^\/api\/usage$/, () => (quota.items && Date.now() - quotaCheckedAt < 25_000 ? quota : refreshUsage())],
     ['GET', /^\/api\/state$/, () => orchestrator.snapshot()],
     ['GET', /^\/api\/engine$/, () => engineView()],
     ['GET', /^\/api\/environments$/, () => ({ checkedAt: monitor?.snapshot?.checkedAt ?? null,
