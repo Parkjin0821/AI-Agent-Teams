@@ -33,3 +33,24 @@ test('명시한 정식 서식의 여러 페이지는 결함으로 판단하지 �
   const { cwd, doc } = fixture(7);
   assert.equal(documentQuality(cwd, { doc: { ...doc, requestedLayout: 'full' } }).reviewRequired, false);
 });
+
+// 양식 채우기 재시험 (2026-10-02): a filled 64-page HWP form is 13 MB, and the check stopped at "안전하게 읽을 수 없어".
+test('채운 HWP 양식: 원본은 지문만 대조하고 본문은 엔진 재변환 Markdown 으로 확인한다', () => {
+  const cwd = mkdtempSync(path.join(tmpdir(), 'hq-quality-form-'));
+  const hwp = Buffer.alloc(3_000_000, 7), draft = '| 목표 | 불량률 30% 감소 |\n2026년 착수', back = '| 목표 | 불량률 30% 감소 |\n2026년 착수';
+  for (const [file, content] of Object.entries({ '계획서.hwp': hwp, '계획서.md': draft, '계획서.hwp.md': back, '계획서.hwp.html': '<svg></svg>'.repeat(64) })) writeFileSync(path.join(cwd, file), content);
+  const doc = { kind: 'form', path: '계획서.hwp', from: '계획서.md', sha: sha(hwp), validated: true, readback: { path: '계획서.hwp.md', sha: sha(back) },
+    previews: ['계획서.hwp.svg', '계획서.hwp.html'], structure: { same: true, tables: [45, 45], headings: [57, 57], missing: [] } };
+  const ok = documentQuality(cwd, { doc });
+  assert.equal(ok.status, 'pass', ok.details.join('\n'));
+  assert.match(ok.details.join('\n'), /본문은 엔진 재변환\(계획서\.hwp\.md\)으로 확인 · 원본 파일은 지문만 대조 · 미리보기 64페이지 · 수치·날짜 2개 대조 · 양식 구조 같음/);
+  // an old preview too big to read costs the page count only
+  writeFileSync(path.join(cwd, '계획서.hwp.html'), 'x'.repeat(2_100_000));
+  const big = documentQuality(cwd, { doc });
+  assert.deepEqual([big.status, big.details.some(d => /안전하게 읽을 수 없어/.test(d))], ['review', false]);
+  assert.match(big.details.join('\n'), /계획서\.hwp: 페이지 미리보기 확인 불가/);
+  // a form whose structure changed, or a document changed after the engine made it
+  assert.match(documentQuality(cwd, { doc: { ...doc, structure: { same: false, tables: [45, 44], headings: [57, 57] } } }).details.join('\n'), /목차·표 구조가 양식과 다름 \(표 45→44/);
+  writeFileSync(path.join(cwd, '계획서.hwp'), 'changed');
+  assert.equal(documentQuality(cwd, { doc }).status, 'fail');
+});
