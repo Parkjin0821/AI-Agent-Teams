@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { buildXlsx, colName, compareReadback, crc32, makeSpreadsheet, specFromCsv, unzip, xmlEscape, xmlWellFormed, zip } from '../src/엑셀.js';
+import { buildXlsx, colName, compareReadback, crc32, excelFormula, makeSpreadsheet, parseFormula, specFromCsv, unzip, xmlEscape, xmlWellFormed, zip } from '../src/엑셀.js';
 import { verifyReport } from '../src/완료근거.js';
 
 const ws = () => mkdtempSync(path.join(tmpdir(), 'hq-xlsx-'));
@@ -137,7 +137,7 @@ test('spreadsheet_made proves an engine-made, unchanged file whose read-back mat
   const check = (c, ctxOver = ctx) => verifyReport({ criteria: [{ index: 1, done: true, check: c }] }, criteria, cwd, ctxOver).claims[0];
   const pass = check({ type: 'spreadsheet_made', path: '집계.xlsx', text: '1,250,000' });
   assert.equal(pass.check, 'pass', pass.detail);
-  assert.match(pass.detail, /집계\.xlsx \(집계\.json에서 엔진이 만듦\) · 시트 2개·행 4개 · 다시 읽은 표가 시트·행·열 제목·합계와 같음 \(합계 금액 3,650,000\) · 표에 “1,250,000” 있음/);
+  assert.match(pass.detail, /집계\.xlsx \(집계\.json에서 엔진이 만듦\) · 시트 2개·행 4개 · 다시 읽은 표가 시트·행·열 제목·합계와 같음 \(합계 금액 3,650,000, SUM 수식\) · 표에 “1,250,000” 있음/);
   assert.equal(check({ type: 'spreadsheet_made', path: '집계.xlsx', text: '재료비 <A&B>' }).check, 'pass', 'escaped Markdown characters are read as written');
   assert.match(check({ type: 'spreadsheet_made', path: '집계.xlsx', text: '없는 항목' }).detail, /없음/);
   assert.match(check({ type: 'spreadsheet_made', path: '집계.xlsx' }, { spreadsheets: {} }).detail, /엔진이 만든 엑셀이 아님/);
@@ -237,6 +237,42 @@ test('the preview draws each chart as plain SVG, and spreadsheet_made can ask fo
   assert.equal(own.check, 'pass', own.detail);
   assert.equal(verifyReport({ criteria: [] }, ['집계.xlsx 엑셀에 차트가 4개 들어 있다'], cwd, { ...ctx, verifying: true }).claims[0].check, 'fail');
   assert.equal(verifyReport({ criteria: [] }, ['집계.xlsx 엑셀 차트에 10월 실적이 들어 있다'], cwd, { ...ctx, verifying: true }).claims[0].check, 'none', 'what a chart shows stays with the verifier');
+});
+
+// 계산 열: a formula per row from the columns to its left, with its value cached.
+const FORMULA_SPEC = { sheets: [{ name: '월별 실적', columns: [{ header: '월' }, { header: '매출(원)', type: 'money' }, { header: '비용(원)', type: 'money' },
+  { header: '이익(원)', type: 'money', formula: '{매출(원)} - {비용(원)}' }, { header: '이익률', type: 'percent', formula: '{이익(원)}/{매출(원)}' }],
+  rows: [['1월', 12400000, 9800000, 999, null], ['2월', 0, 0], { 월: '3월', '매출(원)': 13800000, '비용(원)': '(미정)' }],
+  totals: { sum: ['매출(원)', '이익(원)'] }, charts: [{ type: 'line', category: '월', values: ['이익률'] }] }] };
+
+test('computed columns: the same formula on every row, values cached, nothing but columns, numbers and + - * /', async () => {
+  const { buffer, summary } = buildXlsx(FORMULA_SPEC);
+  const s1 = unzip(buffer).get('xl/worksheets/sheet1.xml').toString('utf8');
+  assert.match(s1, /<c r="D2" s="2"><f>B2-C2<\/f><v>2600000<\/v><\/c><c r="E2" s="4"><f>D2\/B2<\/f><v>0\.209677419<\/v><\/c>/, 'a value the team typed in a computed column is ignored');
+  assert.match(s1, /<c r="D3" s="2"><f>B3-C3<\/f><v>0<\/v><\/c><c r="E3" s="4"><f>D3\/B3<\/f><\/c>/, 'division by zero: the formula without a cached value');
+  assert.match(s1, /<c r="D4" s="2"><f>B4-C4<\/f><\/c>/, 'a text cell it reads: no cached value');
+  assert.match(s1, /<c r="D5" s="8"><f>SUM\(D2:D4\)<\/f><v>2600000<\/v><\/c>/, 'totals sum a computed column');
+  assert.deepEqual(summary[0].formulas, { '이익(원)': '{매출(원)} - {비용(원)}', '이익률': '{이익(원)}/{매출(원)}' });
+  assert.equal(excelFormula(parseFormula('-({a}+2.5)*{b}/3', ['a', 'b'], 'x').ast, 7), '-(A7+2.5)*B7/3');
+  const bad = (f, re, type = 'money') => assert.throws(() => buildXlsx({ sheets: [{ name: '표', columns: [{ header: 'a', type: 'number' }, { header: 'b', type, formula: f }], rows: [[1]] }] }), re, f);
+  bad('SUM({a})', /“S”은\(는\) 쓸 수 없음/);
+  bad('{a}+{b}', /왼쪽의 열 제목이 아님/);
+  bad('{a}+', /덜 끝남/);
+  bad('({a}', /괄호/);
+  bad('{a} 2', /남은 글자/);
+  bad('1+2', /다른 열을/);
+  bad('{a', /닫히지 않음/);
+  bad('{a}*2', /number·money·percent/, 'text');
+  bad("{a}&'x'", /쓸 수 없음/);
+  // the engine-made file proves its computed columns
+  const cwd = ws();
+  writeFileSync(path.join(cwd, '실적.json'), JSON.stringify(FORMULA_SPEC));
+  const made = await makeSpreadsheet(cwd, { from: '실적.json' }, new Set(), fakeConverter());
+  assert.equal(made.ok, true, made.error);
+  assert.ok(readFileSync(path.join(cwd, '실적.xlsx.html'), 'utf8').includes('<td class="n">21.0%</td>'), 'the preview shows the computed values');
+  const claim = verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'spreadsheet_made', path: '실적.xlsx' } }] }, ['실적.xlsx 의 이익은 매출-비용 수식이다'], cwd,
+    { spreadsheets: { [made.path]: { ...made, readback: { ...made.readback, match: true } } } }).claims[0];
+  assert.match(claim.detail, /계산 열 이익\(원\) = 매출\(원\) - 비용\(원\), 이익률 = 이익\(원\)\/매출\(원\) \(행마다 엑셀 수식, 엔진이 넣음\) · 차트 1개 \(꺾은선/);
 });
 
 // The real reader: kordoc (when installed in tools/kordoc) opens the engine's file and finds the same table.

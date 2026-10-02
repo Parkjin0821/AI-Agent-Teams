@@ -82,6 +82,9 @@ export function reportInstructions(criteria, { verifying = false } = {}) {
     '2026. 10. 2.). Sheet names: 1–31 characters without [ ] : * ? / \\. At most 10 sheets, 20,000 rows, 50 columns. The engine writes',
     'the file (bold frozen header, number formats, widths, SUM formulas for totals), reads it back and compares; never write the',
     '.xlsx yourself. It also saves x.xlsx.html (a preview) and x.xlsx.md (the read-back).',
+    'Computed columns: {"header":"이익","type":"money","formula":"{매출}-{비용}"} — headers of columns to its LEFT in braces,',
+    'numbers, + - * / and brackets only; the engine writes the formula into every row (Excel recalculates it when a number',
+    'changes) and fills the value; leave that column null in your rows. Totals may sum a computed column.',
     'Charts: add "charts":[{"type":"column","title":"월별 예산","category":"항목","values":["예산","실적"]}] to a sheet',
     '(types column, bar, line, pie; category = any column header, values = number/money/percent column headers, a pie has',
     'exactly one; at most 3 charts per sheet, 6 values, 1,000 rows). The engine draws them as real Excel charts from the',
@@ -564,7 +567,9 @@ function checkSpreadsheet(check, cwd, spreadsheets) {
   const want = Number.isInteger(check.charts) && check.charts > 0 ? check.charts : 0;
   if (want && charts.length < want) return { status: 'fail', reason: `${rel}의 차트 ${charts.length}개 (${want}개 이상 필요)` };
   const drawn = charts.length ? ` · 차트 ${charts.length}개 (${[...new Set(charts.map(c => CHART_NAMES[c.type] ?? c.type))].join('·')}, 엔진이 넣고 파일 안에서 확인)` : '';
-  return { status: 'pass', proof: `엔진 확인 · ${rel} (${rec.from}에서 엔진이 만듦) · 시트 ${sheets.length}개·행 ${rec.rows}개 · 다시 읽은 표가 시트·행·열 제목·합계와 같음${totals.length ? ` (합계 ${totals.join(' / ')})` : ''}${drawn}${found}` };
+  const formulas = sheets.flatMap(s => Object.entries(s.formulas ?? {}).map(([h, f]) => `${h} = ${f.replace(/[{}]/g, '')}`));
+  const computed = formulas.length ? ` · 계산 열 ${formulas.join(', ')} (행마다 엑셀 수식, 엔진이 넣음)` : '';
+  return { status: 'pass', proof: `엔진 확인 · ${rel} (${rec.from}에서 엔진이 만듦) · 시트 ${sheets.length}개·행 ${rec.rows}개 · 다시 읽은 표가 시트·행·열 제목·합계와 같음${totals.length ? ` (합계 ${totals.join(' / ')}, SUM 수식)` : ''}${computed}${drawn}${found}` };
 }
 
 // documents: { "x.hwpx": { from, preset, sha, validated, lint, readback: { path, sha } } } — what the engine made

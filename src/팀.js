@@ -133,6 +133,8 @@ export const TEAM_BRIEFS = Object.freeze({
       // feature" and had dev write a raw HWP/CFB binary editor for 15 steps.
       '대장이 기관 양식(attachments/ 의 .hwp·.hwpx)을 첨부했으면 엔진의 양식 채우기를 쓴다. 다음 작업은 "attachments/<양식>.md 를 복사해 요청받은 글자만 바꾸고, documents 에 template 로 양식을 적어 요청한다" 이다 (team "dev"). HWP·HWPX 를 읽고 쓰는 도구(바이너리 편집기·변환기)는 어느 팀에게도 만들게 하지 않는다. 원본 파일에 글자를 넣는 것은 엔진이 한다.',
       '양식 채우기의 완료 조건: 엔진은 새 문단·항목 추가, 그림을 글로 바꾸기, 표 제목(캡션) 고치기, 탭 같은 제어 문자가 든 문단 고치기를 못 하고, 일부 표 칸은 자리를 못 찾아 건너뛴다("셀 텍스트 불일치 — 소스맵 신뢰 불가"). 조건에 이런 것을 요구하지 않는다. 주 조건은 엔진의 document_made 증명(양식과 같은 형식, 목차·표 구조가 양식과 같음)과 바꾼 글자가 문서에 들어 있음이다. 구조 유지(새 문단·행 없음, 구역 밖 줄이 원본과 같음)는 이 증명이 맡으니 작성본 .md 와 양식 .md 의 줄 대조·행 수 조건을 따로 만들지 않는다 (재시험에서 증명할 방법이 없어 대장에게 넘어감). 건너뛴 곳·모양처럼 파일로 증명할 수 없는 부분은 "… (대장이 한글에서 확인)" 조건으로 둔다.',
+      // 엑셀 차트 시험 (2026-10-02): planning had no word about spreadsheets and asked for "document_made" on an .xlsx.
+      '엑셀(.xlsx)이 필요하면 엔진의 엑셀 만들기를 쓴다 (team "dev": JSON 에 시트·열·행·합계·계산 열·차트를 적어 spreadsheets 로 요청). 주 조건은 엔진의 spreadsheet_made 증명이다 (다시 읽은 표가 시트·행·열 제목·합계와 같음, 계산 열의 행별 수식, 차트 수). 엔진이 못 하는 것(셀 병합, 조건부 서식, 피벗, 매크로, 다른 시트를 참조하는 수식, 차트 색 지정)은 조건에 넣지 않는다. 모양은 "(대장이 엑셀에서 확인)" 조건으로 둔다.',
       // Minutes test 3 (2026-10-01) stopped on "only 회의록.md and 회의록.hwpx are new": the engine's previews counted.
       '"새로 생긴 파일은 ○○뿐" 같은 조건은 만들지 않는다 (작업 전 상태 기록이 없어 증명할 수 없다). 범위를 지키게 하려면 "작업 폴더 밖에 쓴 파일이 없다" 로 쓴다 (엔진이 기록으로 증명).',
       // 대장 (2026-10-01): a side-by-side test (team vs one direct build of the same request) showed criteria made only of
@@ -189,7 +191,7 @@ export const TEAM_BRIEFS = Object.freeze({
       '대장이 기관 양식(attachments/ 의 .hwp·.hwpx)을 줬으면 새로 만들지 않고 양식을 채운다: 엔진이 만든 attachments/양식.hwp.md 를 복사해 칸과 본문만 고치고, documents 에 "template" 로 양식을 적는다. 목차·표·행·열·순서는 그대로 둔다. 작성요령·예시 문구는 양식이 지우라고 한 곳만 지운다. 새 문단 추가·그림 교체·표 제목 수정·탭이 든 문단 수정은 엔진이 못 하니 있는 문단과 칸의 글자만 바꾼다. HWP·HWPX 를 직접 다루는 도구는 만들지 않는다.',
       '사업계획서·연구개발계획서·결과보고서는 개조식으로 쓴다: ◦ 핵심 한 줄 → - 근거·수치 한두 줄, 문장 끝은 "~함·~임·~예정". 목표는 숫자와 측정 방법(시험기관·기준)으로, 일정은 월 단위 표로, 사업비는 양식의 단위(천원·백만원)와 합계식을 지킨다. 대장이 주지 않은 실적·숫자·기관명은 지어내지 않고 "(미정)" 이나 "(확인 필요)" 로 남긴다.',
       // 엑셀 만들기 (2026-10-02): the engine writes the .xlsx itself from a JSON spec and reads it back (엑셀.js).
-      '표·집계·예산은 엑셀이 필요하면 spreadsheets 로 요청한다: 집계.json 에 시트·열(형식 text·number·money·percent·date)·행·합계를 적고 "spreadsheets":[{"from":"집계.json","to":"집계.xlsx"}] 를 낸다. .xlsx 파일을 직접 쓰거나 고치지 않는다. 엔진이 만들고 다시 읽어 시트·행·열 제목·합계를 대조하며, spreadsheet_made 로 증명한다. 차트가 필요하면 시트에 "charts":[{"type":"column|bar|line|pie","title":"…","category":"항목 열","values":["값 열"]}] 를 적는다. 엔진이 엑셀 고유 차트로 넣는다.',
+      '표·집계·예산은 엑셀이 필요하면 spreadsheets 로 요청한다: 집계.json 에 시트·열(형식 text·number·money·percent·date)·행·합계를 적고 "spreadsheets":[{"from":"집계.json","to":"집계.xlsx"}] 를 낸다. .xlsx 파일을 직접 쓰거나 고치지 않는다. 엔진이 만들고 다시 읽어 시트·행·열 제목·합계를 대조하며, spreadsheet_made 로 증명한다. 차트가 필요하면 시트에 "charts":[{"type":"column|bar|line|pie","title":"…","category":"항목 열","values":["값 열"]}] 를 적는다. 엔진이 엑셀 고유 차트로 넣는다. 다른 열로 계산하는 열(이익 = 매출 - 비용 등)은 값을 직접 적지 말고 열에 "formula":"{매출}-{비용}" 을 적는다 (왼쪽 열 제목·숫자·+ - * / 괄호만, 행 칸은 null). 엔진이 행마다 엑셀 수식으로 넣는다.',
       '제출할 때 note 에 바꾼 기능, 기대 결과, 엔진이 돌릴 검사, 실패하면 볼 곳을 적는다. 검사가 실패해 돌아오면 그 실패를 직접 고치는 가장 작은 수정부터 하고, 관련 없는 재설계는 하지 않는다.',
       '화면 구현은 design/화면설계.md 와 design/화면검토.md 를 먼저 읽고 글자·색·간격·컴포넌트 기준을 그대로 연결한다. 기준이 없으면 임의 시안을 만들지 말고 디자인팀에 requests 로 요청한다. 기존 UI와 무관한 스타일로 전면 교체하지 않는다.',
       '코드에는 자동 테스트를 함께 만든다 (package.json 의 "test" 스크립트, test/*.test.js, test_*.py 중 하나). 검증 단계에서 엔진이 네트워크 없는 샌드박스에서 돌리고, 실패하면 완료되지 않는다.',
