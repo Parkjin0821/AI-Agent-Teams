@@ -35,7 +35,7 @@ export class DocConverter {
   // kordoc's own structure check (validate) and notation check (lint), a Markdown read-back of the made file (so its
   // content can be checked), and SVG + HTML previews. Same sandbox, no network, no model call. PDF/PNG are not made
   // (they need extra packages 대장 has not installed). known: HWPX paths the engine made before (may be replaced).
-  async make(cwd, { from, to, preset, layout = 'auto', approval, font }, known = new Set()) {
+  async make(cwd, { from, to, preset, layout = 'auto', approval, font, pt }, known = new Set()) {
     if (!this.available) return { ok: false, error: existsSync(this.cli) ? '격리 실행 환경을 쓸 수 없음' : 'kordoc 없음' };
     const rel = p => typeof p === 'string' && p && !path.isAbsolute(p) && !/^[a-zA-Z]:/.test(p) ? path.normalize(p).replace(/\\/g, '/') : null;
     const src = rel(from), out = rel(to ?? (typeof from === 'string' ? from.replace(/\.md$/i, '.hwpx') : null));
@@ -59,7 +59,10 @@ export class DocConverter {
     // web-like 고딕 look). 결재란 labels: 1–4 short words. The designed presets keep their own fonts unless asked.
     const labels = (Array.isArray(approval) ? approval : []).map(a => String(a).trim()).filter(a => /^[가-힣A-Za-z]{1,6}$/.test(a)).slice(0, 4);
     const face = ['myeongjo', 'gothic'].includes(font) ? font : ['업무보고', '서울방침', '보도자료'].includes(kind) ? null : 'myeongjo';
-    const made = await run(['generate', src, '-o', out, '--preset', kind, ...(face ? ['--font', face] : []),
+    // Body size: the 보고서·계획서 presets set □ lines at a size that pushed a table to the next page and left half a page
+    // empty in 대장's sample report (2026-10-06); 13pt kept the whole first section on page 1. 10–16 when asked.
+    const size = Number.isInteger(pt) && pt >= 10 && pt <= 16 ? pt : ['보고서', '계획서'].includes(kind) ? 13 : null;
+    const made = await run(['generate', src, '-o', out, '--preset', kind, ...(face ? ['--font', face] : []), ...(size ? ['--pt', String(size)] : []),
       ...(labels.length ? ['--approval', labels.join(',')] : []), '--silent']);
     const diagnostic = (stage, result) => ({ stage, status: result.status, code: result.code ?? null,
       output: hasSecret(String(result.output ?? '')) ? '비밀정보 형식이 있어 오류 출력을 숨김' : String(result.output ?? '').slice(-1000) });
@@ -72,7 +75,7 @@ export class DocConverter {
     const back = await this.convert(cwd, out);
     const shown = await renderPreviews(run, full, out, path.basename(out, '.hwpx'));
     const sha = p => createHash('sha256').update(readFileSync(full(p))).digest('hex');
-    return { ok: true, from: src, path: out, preset: kind, requestedPreset, requestedLayout: layout, layout: compact ? 'compact' : 'full', font: face, approval: labels, sha: sha(out), validated: valid.status === 'pass',
+    return { ok: true, from: src, path: out, preset: kind, requestedPreset, requestedLayout: layout, layout: compact ? 'compact' : 'full', font: face, pt: size, approval: labels, sha: sha(out), validated: valid.status === 'pass',
       lint: counts ? { errors: Number(counts[1]), warnings: Number(counts[2]) } : null,
       readback: back.ok ? { path: back.path, sha: sha(back.path) } : null, ...shown };
   }

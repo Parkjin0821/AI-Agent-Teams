@@ -33,7 +33,7 @@ test('문서 만들기: Markdown → HWPX with a preset, then validate, lint, re
   const r = await maker.make(cwd, { from: '보고서.md', to: '보고서.hwpx', preset: '보고서' });
   assert.equal(r.ok, true);
   assert.deepEqual(calls.map(c => c[0]), ['generate', 'validate', 'lint', '보고서.hwpx', 'render', 'render']);
-  assert.deepEqual(calls[0], ['generate', '보고서.md', '-o', '보고서.hwpx', '--preset', '보고서', '--font', 'myeongjo', '--silent']);
+  assert.deepEqual(calls[0], ['generate', '보고서.md', '-o', '보고서.hwpx', '--preset', '보고서', '--font', 'myeongjo', '--pt', '13', '--silent']);
   assert.deepEqual([r.validated, r.lint, r.readback.path, r.previews], [true, { errors: 0, warnings: 1 }, '보고서.hwpx.md', ['보고서.hwpx.svg', '보고서.hwpx.html']]);
   assert.equal((await maker.make(cwd, { from: '보고서.md', preset: '아무거나' }, new Set(['보고서.hwpx']))).preset, '보고서', 'unknown preset falls back to 보고서; a file the engine made may be made again');
 });
@@ -283,4 +283,19 @@ test('미리보기: an HWPX whose all-pages SVG is too big keeps its first page 
   assert.deepEqual(made.previews, ['보고서.hwpx.svg', '보고서.hwpx.html']);
   assert.deepEqual(calls.filter(c => c[0] === 'render' && !c.includes('html')).map(c => c.includes('--pages') ? c[c.indexOf('--pages') + 1] : 'all'), ['all', '1']);
   assert.equal(readFileSync(path.join(cwd, '보고서.hwpx.svg'), 'utf8'), '<svg/>');
+});
+
+test('보고서·계획서 본문은 기본 13pt, 요청하면 10~16pt, 회의록은 서식 기본 크기', async () => {
+  const cwd = ws();
+  writeFileSync(path.join(cwd, '주간보고.md'), '# 주간 보고\n> 요약\n## 개요\n- 항목\n');
+  const { maker, calls } = fakeMaker(cwd);
+  const size = name => { const g = calls.find(c => c[0] === 'generate' && c[3] === name); const i = g.indexOf('--pt'); return i < 0 ? null : g[i + 1]; };
+  const r = await maker.make(cwd, { from: '주간보고.md', preset: '보고서' });
+  assert.deepEqual([size('주간보고.hwpx'), r.pt], ['13', 13]);
+  await maker.make(cwd, { from: '주간보고.md', to: '큰글씨.hwpx', preset: '계획서', pt: 15 });
+  assert.equal(size('큰글씨.hwpx'), '15');
+  await maker.make(cwd, { from: '주간보고.md', to: '이상한값.hwpx', preset: '보고서', pt: 40 });
+  assert.equal(size('이상한값.hwpx'), '13', 'out of range falls back to the default');
+  await maker.make(cwd, { from: '주간보고.md', to: '회의록.hwpx', preset: '회의록' });
+  assert.equal(size('회의록.hwpx'), null);
 });
