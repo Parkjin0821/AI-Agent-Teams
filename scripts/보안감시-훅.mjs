@@ -3,7 +3,7 @@
 let input = '';
 try {
   for await (const chunk of process.stdin) { input += chunk; if (input.length > 5_000_000) throw new Error('input too large'); }
-  const { decide, logDecision } = await import('../src/보안감시.js');
+  const { decide, logDecision, hookOutput } = await import('../src/보안감시.js');
   const { readGrants } = await import('../src/승인.js');
   const { readRules } = await import('../src/규칙.js');
   const call = JSON.parse(input);
@@ -28,6 +28,8 @@ try {
     process.stderr.write(`AGENT HQ 감시 에이전트가 막았습니다: ${verdict.reason}. 다른 방법을 쓰거나 보고서에 필요한 것을 적으세요.`);
     process.exit(2);
   }
+  const answer = hookOutput(call, verdict);
+  if (answer) (await import('node:fs')).writeSync(1, JSON.stringify(answer)); // sync: process.exit must not cut it off
   process.exit(0);
 } catch (error) {
   process.stderr.write(`AGENT HQ 감시 에이전트 오류로 이 동작을 막았습니다 (${error.message}).`);

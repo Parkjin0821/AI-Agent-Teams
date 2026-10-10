@@ -6,8 +6,9 @@ import { ruleFor } from './규칙.js';
 
 // 감시 에이전트 (Sentinel): a separate program Claude Code calls before every tool use (official
 // PreToolUse hook). It decides from fixed rules, not from a model, so text on a web page or in a file
-// cannot talk it out of a decision. Allowed calls get no answer (Claude Code's own permission rules
-// still apply); blocked calls end with exit code 2, which Claude Code always honours.
+// cannot talk it out of a decision. Allowed web reads get an explicit "allow" answer (see hookOutput); other
+// allowed calls get no answer (Claude Code's own permission rules still apply); blocked calls end with exit
+// code 2, which Claude Code always honours.
 // Every decision on an outward or file-changing action is logged without secret values.
 
 const SECRET = [
@@ -124,6 +125,15 @@ export function logDecision(file, entry) {
   if (!file) return;
   mkdirSync(path.dirname(file), { recursive: true });
   appendFileSync(file, `${JSON.stringify(entry)}\n`);
+}
+
+// What the hook prints on stdout for a passed call. A web read the Sentinel allowed is answered with an explicit
+// PreToolUse "allow": in a run without a screen (-p) Claude Code would otherwise refuse a site that is not in its
+// own permission list, even though the Sentinel already checked it. Every other passed call gets no answer, so
+// Claude Code's own permission rules still apply to files and connectors.
+export function hookOutput(call, verdict) {
+  if (verdict?.decision !== 'allow' || !['WebFetch', 'WebSearch'].includes(call?.tool_name)) return null;
+  return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: `AGENT HQ 감시 에이전트: ${verdict.reason}` } };
 }
 
 // Claude Code hook settings that run the Sentinel before every tool call (exec form: no shell quoting).

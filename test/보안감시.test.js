@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { decide, sentinelSettings } from '../src/보안감시.js';
+import { decide, hookOutput, sentinelSettings } from '../src/보안감시.js';
 import { buildCommand } from '../src/실행어댑터.js';
 
 const ws = path.resolve('C:/work/p-1');
@@ -66,20 +66,42 @@ test('the hook program blocks with exit code 2, logs without secrets, and fails 
   const env = { ...process.env, AGENT_HQ_WORKSPACE: ws, AGENT_HQ_SENTINEL_LOG: log, AGENT_HQ_PROJECT: 'p-1', AGENT_HQ_TEAM: 'research' };
   const run = (input, extra = {}) => spawnSync(process.execPath, [script], { input, env: { ...env, ...extra }, encoding: 'utf8' });
   const fetchCall = url => JSON.stringify({ tool_name: 'WebFetch', tool_input: { url } });
-  assert.equal(run(fetchCall('https://nodejs.org/'), { AGENT_HQ_SENTINEL_WEB: 'open' }).status, 0);
+  const opened = run(fetchCall('https://nodejs.org/'), { AGENT_HQ_SENTINEL_WEB: 'open' });
+  assert.equal(opened.status, 0);
+  assert.equal(JSON.parse(opened.stdout).hookSpecificOutput.permissionDecision, 'allow', 'an allowed web read tells Claude Code to allow it (-p runs)');
   const held = run(fetchCall('https://nodejs.org/'));
   assert.equal(held.status, 2, 'default web mode asks first');
   assert.match(held.stderr, /승인 요청을 올렸습니다/);
+  assert.equal(held.stdout, '', 'a held call never carries an allow answer');
   const grantsFile = path.join(path.dirname(log), 'grants.json');
   writeFileSync(grantsFile, JSON.stringify({ grants: [{ kind: 'web', target: 'nodejs.org', scope: 'project', project: 'p-1' }] }));
   assert.equal(run(fetchCall('https://nodejs.org/'), { AGENT_HQ_SENTINEL_GRANTS: grantsFile }).status, 0, 'a granted site passes');
   const blocked = run(fetchCall('https://127.0.0.1:4311/api/engine'));
   assert.equal(blocked.status, 2);
   assert.match(blocked.stderr, /감시 에이전트가 막았습니다/);
+  assert.equal(blocked.stdout, '');
   assert.equal(run('not json').status, 2, 'fails closed');
   const entries = readFileSync(log, 'utf8').trim().split('\n').map(l => JSON.parse(l));
   assert.deepEqual(entries.map(e => [e.project, e.team, e.decision]), [['p-1', 'research', 'allow'], ['p-1', 'research', 'ask'], ['p-1', 'research', 'allow'], ['p-1', 'research', 'deny']]);
   assert.deepEqual(entries[1].ask, { kind: 'web', target: 'nodejs.org' });
+});
+
+test('only web reads the Sentinel allowed get an explicit allow answer; files, connectors and blocked calls get none', () => {
+  const answer = (tool_name, tool_input, opts = {}) => {
+    const c = { tool_name, tool_input };
+    return hookOutput(c, decide(c, { workspace: ws, ...opts }));
+  };
+  assert.deepEqual(answer('WebFetch', { url: 'https://github.com/x/y' }).hookSpecificOutput, {
+    hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: 'AGENT HQ 감시 에이전트: 공개 https 주소' });
+  assert.equal(answer('WebSearch', { query: 'node test runner' }).hookSpecificOutput.permissionDecision, 'allow');
+  assert.equal(answer('WebFetch', { url: 'https://github.com/' }, { webMode: 'ask' }), null, 'a first visit waiting for 대장 is not allowed');
+  assert.equal(answer('WebFetch', { url: 'https://localhost/' }), null, 'local addresses stay blocked');
+  assert.equal(answer('WebSearch', { query: 'x'.repeat(400) }), null);
+  const rules = [{ kind: 'site', target: 'github.com', action: 'deny', project: null }];
+  assert.equal(answer('WebFetch', { url: 'https://github.com/' }, { rules }), null, '대장 규칙 금지 still wins');
+  assert.equal(answer('Write', { file_path: path.join(ws, 'a.js'), content: 'x' }), null, 'file writes keep Claude Code permissions');
+  assert.equal(answer('mcp__notion__notion-search', { query: 'x' }), null, 'connectors keep Claude Code permissions');
+  assert.equal(answer('Read', { file_path: path.join(ws, 'a.js') }), null);
 });
 
 test('every Claude run carries the Sentinel hook; Codex runs are sandboxed without network instead', () => {
