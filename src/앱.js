@@ -197,7 +197,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   };
 
   // 반복 실행: projects that run again on a schedule (반복작업.js).
-  const routines = new Routines({ store, scheduler, workspaces, clock });
+  // 첨부 계기: a dropped 한글·오피스 document is converted like an upload (kordoc in the sandbox, no model call).
+  const routines = new Routines({ store, scheduler, workspaces, clock, maxMB: () => setting('attach.maxMB', DEFAULT_MAX_MB),
+    convert: async (cwd, rel) => { const d = docs(); return d.available ? d.convert(cwd, rel) : null; } });
   // 템플릿: finished projects saved as reusable recipes (템플릿.js).
   const templates = new Templates({ store, registry, clock });
   // The same view for every page and poller until the store changes, and at most 3 s old (live activity, usage
@@ -535,6 +537,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
           if (done.ok) Object.assign(saved, { converted: done.path, convertedSize: done.size, ...(done.warning ? { warning: done.warning } : {}) });
           else saved.convertError = done.error;
         }
+        // A file 대장 attached in the conversation belongs to it; it does not start a 첨부 계기 round.
+        routines.markSeen(validateProjectId(uploadMatch[1]), [path.basename(saved.path)]);
         return sendJson(response, 201, saved);
       }
       const artifactMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/preview$/);

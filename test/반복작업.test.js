@@ -64,7 +64,7 @@ test('a round is skipped while the previous one is open; after the PC was off on
 test('bad schedules are refused; turning it off stops rounds', async () => {
   const { store, clock, routines } = setup();
   try {
-    assert.throws(() => routines.set('weekly', { enabled: true, kind: 'hourly', time: '09:00' }), /daily or weekly/);
+    assert.throws(() => routines.set('weekly', { enabled: true, kind: 'hourly', time: '09:00' }), /daily, weekly or files/);
     assert.throws(() => routines.set('weekly', { enabled: true, kind: 'daily', time: '9:00' }), /HH:MM/);
     assert.throws(() => routines.set('weekly', { enabled: true, kind: 'weekly', time: '09:00', weekday: 'monday' }), /weekday/);
     assert.throws(() => routines.set('nope', { enabled: true, kind: 'daily', time: '09:00' }), /not found/);
@@ -193,5 +193,60 @@ test('the routine card shows how the last round ended', async () => {
     assert.equal(routines.view('weekly').lastResult, '1회차 완료 (2026. 9. 28. 09:40)');
     scheduler.update(store.getGoal(started.goalId), { status: 'review_required', reason: 'needs_decision' });
     assert.equal(routines.view('weekly').lastResult, '1회차 멈춤 · 대장 확인 필요');
+  } finally { store.close(); }
+});
+
+test('첨부 계기: a settled new file in attachments/ starts a round with that file; old, unsettled, engine and chat files do not', async () => {
+  const { utimesSync, mkdirSync } = await import('node:fs');
+  const { store, clock, scheduler, workspaces, routines } = setup();
+  const cwd = workspaces.resolve('weekly'), dir = path.join(cwd, 'attachments');
+  mkdirSync(dir, { recursive: true });
+  const put = (name, text, ageMs = 60_000) => {
+    writeFileSync(path.join(dir, name), text);
+    const t = (clock.now() - ageMs) / 1000;
+    utimesSync(path.join(dir, name), t, t);
+  };
+  try {
+    put('지난주.csv', 'a,b\n1,2');
+    const r = routines.set('weekly', { enabled: true, kind: 'files' });
+    assert.deepEqual([r.kind, r.time, routines.view('weekly').label, routines.view('weekly').nextRunAt], ['files', undefined, '첨부 폴더에 새 파일이 들어오면', null]);
+    assert.deepEqual(await routines.tick(), [], 'a file already there when the trigger was set does not count');
+    put('이번주.csv', 'a,b\n3,4', 2_000);
+    assert.deepEqual(await routines.tick(), [], 'still being copied: waits until it has not changed for a while');
+    clock.t += 20_000;
+    const [started] = await routines.tick();
+    assert.equal(started.round, 1);
+    const goal = store.getGoal(started.goalId);
+    assert.match(goal.objective, /\[반복 실행 1회차 · 첨부 계기 · [^\]]+\] 첨부 폴더에 새로 들어온 파일을 반영해/);
+    assert.match(goal.objective, /attachments\/이번주\.csv \(글\)/);
+    assert.doesNotMatch(goal.objective, /지난주/);
+    assert.deepEqual(goal.completionCriteria, ['research.md에 가격표가 있다', FRESH_CRITERION]);
+    assert.match(goal.messages.at(-1).text, /첨부 폴더에 새 파일이 들어오면 · 이번주\.csv/);
+    assert.deepEqual(await routines.tick(), [], 'a file starts one round only');
+
+    // While that round is open a new file waits; it starts the next round once the round ends.
+    put('다음.csv', 'a,b\n5,6');
+    assert.deepEqual(await routines.tick(), []);
+    assert.match(routines.view('weekly').lastResult, /대기 · 진행 중인 회차가 끝나면 새 첨부 1개로 시작/);
+    scheduler.update(store.getGoal(started.goalId), { status: 'verified' });
+    const [second] = await routines.tick();
+    assert.equal(second.round, 2);
+    assert.match(store.getGoal(second.goalId).objective, /attachments\/다음\.csv/);
+    scheduler.update(store.getGoal(second.goalId), { status: 'verified' });
+
+    // The engine's conversion beside a document, a hidden file, a file attached in the conversation: none starts a round.
+    put('양식.hwp.md', '# 변환본'); writeFileSync(path.join(dir, '양식.hwp'), Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]));
+    put('.임시', 'x');
+    routines.markSeen('weekly', ['양식.hwp']);
+    clock.t += 20_000;
+    assert.deepEqual(await routines.tick(), []);
+
+    // A renamed program or a secret in a text file is refused, recorded once, and never retried until it changes.
+    put('설명.pdf', 'MZ not a pdf');
+    put('키.txt', `token ${'ghp_' + 'c'.repeat(36)}`);
+    assert.deepEqual(await routines.tick(), []);
+    assert.match(routines.view('weekly').lastResult, /건너뜀 · 받을 수 없는 파일 2개/);
+    assert.equal(store.listGoals().filter(g => g.projectId === 'weekly').length, 3, 'no round for refused files');
+    assert.deepEqual(await routines.tick(), []);
   } finally { store.close(); }
 });

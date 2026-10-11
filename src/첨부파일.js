@@ -43,19 +43,30 @@ export function safeName(name) {
 const stamp = ms => { const d = new Date(ms), p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; };
 
-export function saveAttachment(cwd, name, bytes, now = Date.now(), { maxMB = DEFAULT_MAX_MB } = {}) {
-  const file = safeName(name);
-  const ext = path.extname(file).toLowerCase();
+export const attachmentKind = name => KINDS[path.extname(String(name ?? '')).toLowerCase()] ?? null;
+
+// The checks every attachment passes, whether 대장 uploaded it or it was dropped into the folder (첨부 계기, 반복작업.js).
+// Returns what is wrong, or null.
+export function attachmentProblem(name, bytes, { maxMB = DEFAULT_MAX_MB } = {}) {
+  const ext = path.extname(String(name ?? '')).toLowerCase();
   const kind = KINDS[ext];
-  if (!kind) throw new Error('unsupported attachment type (images, PDF, text and HWP·HWPX·DOCX·XLSX documents only)');
-  if (!bytes?.length) throw new Error('attachment is empty');
-  if (bytes.length > maxMB * 1024 * 1024) throw new Error(`attachment is larger than ${maxMB}MB`);
-  if (MAGIC[ext] && !MAGIC[ext](bytes)) throw new Error('file content does not match its type');
+  if (!kind) return 'unsupported attachment type (images, PDF, text and HWP·HWPX·DOCX·XLSX documents only)';
+  if (!bytes?.length) return 'attachment is empty';
+  if (bytes.length > maxMB * 1024 * 1024) return `attachment is larger than ${maxMB}MB`;
+  if (MAGIC[ext] && !MAGIC[ext](bytes)) return 'file content does not match its type';
   if (kind === 'text') {
     const text = bytes.toString('utf8');
-    if (text.includes('\u0000') || text.includes('�')) throw new Error('text attachment must be UTF-8 text');
-    if (hasSecret(text)) throw new Error('attachment looks like it contains a secret (key or token); remove it first');
+    if (text.includes('\u0000') || text.includes('�')) return 'text attachment must be UTF-8 text';
+    if (hasSecret(text)) return 'attachment looks like it contains a secret (key or token); remove it first';
   }
+  return null;
+}
+
+export function saveAttachment(cwd, name, bytes, now = Date.now(), { maxMB = DEFAULT_MAX_MB } = {}) {
+  const file = safeName(name);
+  const kind = attachmentKind(file);
+  const problem = attachmentProblem(file, bytes, { maxMB });
+  if (problem) throw new Error(problem);
   const dir = path.join(cwd, ATTACH_DIR);
   mkdirSync(dir, { recursive: true });
   if (lstatSync(dir).isSymbolicLink()) throw new Error('attachments folder cannot be a link');

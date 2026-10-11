@@ -1085,6 +1085,7 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
         <p class="hint" style="margin: 0 0 12px">정해진 때마다 이 프로젝트를 새 회차로 다시 돌립니다. 이전 회차가 끝나지 않았으면 건너뛰고, 회차마다 "결과 파일을 새로 갱신했다"를 엔진이 확인합니다. PC가 켜져 있어야 돌고, 꺼져 있던 동안 놓친 회차는 켠 뒤 한 번만 돕니다.</p>
         <div class="seg" role="group" aria-label="반복 주기"><sc-for list="{{rt.kinds}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div>
         <sc-if value="{{rt.weekly}}"><div class="seg wrap" role="group" aria-label="요일" style="margin-top: 8px"><sc-for list="{{rt.days}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.l}}</button></sc-for></div></sc-if>
+        <sc-if value="{{rt.files}}"><p class="hint" style="margin-top: 8px">이 프로젝트 폴더의 attachments/ 에 새 파일이 들어와 15초 동안 바뀌지 않으면 새 회차를 시작합니다. 이미 있던 파일, 대화에서 첨부한 파일, 엔진의 변환본은 세지 않습니다. 형식이 맞지 않거나 비밀정보가 든 파일은 받지 않습니다. 진행 중인 회차가 있으면 끝난 뒤 시작합니다.</p></sc-if>
         <sc-if value="{{rt.timed}}"><div class="row-f" style="margin-top: 8px"><label class="hint" for="rt-time">시각</label><input class="input" id="rt-time" type="time" style="max-width: 130px" value="{{rt.time}}" onChange="{{rt.onTime}}"></div></sc-if>
         <div class="row-f" style="margin-top: 10px"><button class="btn pri sm" onClick="{{rt.save}}">저장</button><button class="btn sm" onClick="{{rt.runNow}}">지금 한 번 실행</button></div>
         <dl class="facts" style="margin-top: 12px"><dt>지금</dt><dd>{{rt.status}}</dd><dt>다음 실행</dt><dd>{{rt.next}}</dd><dt>최근</dt><dd>{{rt.last}}</dd></dl>
@@ -2927,17 +2928,18 @@ class Component extends DCLogic {
     const chip = (on, l, pick) => ({ l: l, cls: on ? 'on' : '', pressed: on ? 'true' : 'false', pick: pick });
     const DAYS = [['mon', '월'], ['tue', '화'], ['wed', '수'], ['thu', '목'], ['fri', '금'], ['sat', '토'], ['sun', '일']];
     const when = (iso) => iso ? fmt(iso) : '없음';
-    return { show: true, weekly: d.kind === 'weekly', timed: d.kind !== 'off', time: d.time, saveTemplate: () => this.saveTemplate(wp),
-      kinds: [['off', '끔'], ['daily', '매일'], ['weekly', '매주']].map(([k, l]) => chip(d.kind === k, l, () => setD({ kind: k }))),
+    return { show: true, weekly: d.kind === 'weekly', timed: d.kind === 'daily' || d.kind === 'weekly', files: d.kind === 'files', time: d.time, saveTemplate: () => this.saveTemplate(wp),
+      kinds: [['off', '끔'], ['daily', '매일'], ['weekly', '매주'], ['files', '첨부 폴더에 파일이 들어오면']].map(([k, l]) => chip(d.kind === k, l, () => setD({ kind: k }))),
       days: DAYS.map(([k, l]) => chip(d.weekday === k, l, () => setD({ weekday: k }))),
       onTime: (e) => setD({ time: e.target.value }),
       status: saved && saved.enabled ? saved.label + ' · ' + (saved.round || 0) + '회차까지 실행' : '꺼짐',
       next: saved && saved.enabled ? when(saved.nextRunAt) : '없음', last: (saved && saved.lastResult) || '없음',
       save: () => {
-        const body = d.kind === 'off' ? { enabled: false } : { enabled: true, kind: d.kind, time: d.time, weekday: d.weekday };
+        const body = d.kind === 'off' ? { enabled: false } : d.kind === 'files' ? { enabled: true, kind: 'files' } : { enabled: true, kind: d.kind, time: d.time, weekday: d.weekday };
         this.act(this.api('PUT', '/api/projects/' + encodeURIComponent(wp.id) + '/routine', body)
           .then((r) => { const all = Object.assign({}, this.state.rtDraft); delete all[wp.id]; this.setState({ rtDraft: all }); return r; }),
-          d.kind === 'off' ? '반복 실행을 껐습니다' : '반복 실행을 저장했습니다 · ' + (d.kind === 'weekly' ? '매주 ' + DAYS.find((x) => x[0] === d.weekday)[1] + '요일 ' : '매일 ') + d.time);
+          d.kind === 'off' ? '반복 실행을 껐습니다' : d.kind === 'files' ? '저장했습니다 · 작업 폴더 attachments/ 에 새 파일이 들어오면 새 회차를 시작합니다'
+            : '반복 실행을 저장했습니다 · ' + (d.kind === 'weekly' ? '매주 ' + DAYS.find((x) => x[0] === d.weekday)[1] + '요일 ' : '매일 ') + d.time);
       },
       runNow: async () => {
         if (!await ask('지금 새 회차를 시작할까요? 실제 AI 사용량을 씁니다.')) return;
