@@ -40,6 +40,9 @@ export const SETTINGS = Object.freeze({
   'design.canva': { type: 'boolean', default: false },
   'design.higgsfield': { type: 'boolean', default: false },
   'tools.npmAudit': { type: 'boolean', default: false },
+  // 읽기 전용 커넥터 (커넥터.js): a reading team gets Notion's search/read tools only after the gate is approved.
+  'connectors.notion.research': { type: 'boolean', default: false },
+  'connectors.notion.plan': { type: 'boolean', default: false },
   // Steps per project per day (all projects). Usage stops (5h 20% / weekly 10%) still apply on top.
   'limits.maxRoundsPerDay': { type: 'number', default: 10, min: 1, max: 100 },
   // 한도 자동 전환: a step whose tool hit its usage stop runs on the other subscription when that one has room.
@@ -88,6 +91,38 @@ export function parseMcpList(stdout) {
     out.push({ name: m[1], status });
   }
   return out;
+}
+
+// Every MCP server `claude mcp list` names, by kind. A connector run cannot use --strict-mcp-config (Claude Code
+// 2.1.296 then drops the claude.ai connectors too, checked 2026-10-11), so it must know every other server it would load.
+export function parseMcpServers(stdout) {
+  const plugins = new Set(), others = [];
+  for (const line of String(stdout || '').split(/\r?\n/)) {
+    const t = line.trim();
+    if (!/ - /.test(t) || t.startsWith('claude.ai ')) continue;
+    if (t.startsWith('plugin:')) { plugins.add(t.split(':')[1]); continue; }
+    const name = /^(.+?): /.exec(t)?.[1];
+    if (name) others.push(name);
+  }
+  return { plugins: [...plugins], others };
+}
+
+// "  > design@synced" lines of `claude plugin list` → ['design@synced', …]; null when the list could not be read.
+export function parsePluginList(stdout, code = 0) {
+  if (code === -1) return null;
+  const text = String(stdout || '');
+  const ids = [...text.matchAll(/^\s*>\s+(\S+@\S+)\s*$/gm)].map(m => m[1]);
+  if (ids.length) return ids;
+  return /no plugins/i.test(text) ? [] : null;
+}
+
+// A connector run turns every installed plugin off with --settings; it is refused (null) unless every plugin MCP
+// server is covered by that list and no other local MCP server would start.
+export function connectorPlugins(snapshot) {
+  const list = snapshot?.plugins, servers = snapshot?.mcpServers;
+  if (!Array.isArray(list) || !servers || servers.others?.length) return null;
+  const names = new Set(list.map(id => id.split('@')[0]));
+  return (servers.plugins ?? []).every(p => names.has(p)) ? list : null;
 }
 
 export function designConnectors(snapshot, settings) {
@@ -161,9 +196,10 @@ export class EnvironmentMonitor {
     const base = childEnv(this.env);
     const call = (bin, args, extra = {}) => this.run(bin.file, [...bin.prefix, ...args], { ...base, ...extra }).catch(() => ({ code: -1, stdout: '' }));
     const lookup = (name) => this.run(process.platform === 'win32' ? 'where.exe' : 'which', [name], base).catch(() => ({ code: -1 }));
-    const [auth, mcp, codex, sandbox, ...found] = await Promise.all([
+    const [auth, mcp, plugins, codex, sandbox, ...found] = await Promise.all([
       call(this.bins.claude, ['auth', 'status']),
       call(this.bins.claude, ['mcp', 'list'], { ENABLE_CLAUDEAI_MCP_SERVERS: 'true' }),
+      call(this.bins.claude, ['plugin', 'list']),
       call(this.bins.codex, ['login', 'status']),
       // A harmless program run inside the sandbox: it must start and print its marker.
       call(this.bins.codex, ['sandbox', '-P', ':workspace', '-C', tmpdir(), '--', process.execPath, '-e', 'process.stdout.write("AGENT_HQ_SANDBOX_OK")']),
@@ -179,6 +215,8 @@ export class EnvironmentMonitor {
       codex: { installed: codex.code !== -1, loggedIn: codex.code === 0 && /logged in/i.test(`${codex.stdout}\n${codex.stderr ?? ''}`),
         subscription: codex.code === 0 && /logged in using ChatGPT/i.test(`${codex.stdout}\n${codex.stderr ?? ''}`) },
       connectors: parseMcpList(mcp.stdout),
+      mcpServers: mcp.code === -1 ? null : parseMcpServers(mcp.stdout),
+      plugins: parsePluginList(plugins.stdout, plugins.code),
       sandbox: { available: sandbox.code === 0 && String(sandbox.stdout).includes('AGENT_HQ_SANDBOX_OK') },
       programs: Object.fromEntries(MISSING_BINS.map((bin, i) => [bin, found[i].code === 0])),
       apiKeys: { PERPLEXITY_API_KEY: Boolean(this.env.PERPLEXITY_API_KEY), OPENAI_API_KEY: Boolean(this.env.OPENAI_API_KEY) },

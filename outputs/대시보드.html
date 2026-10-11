@@ -1198,6 +1198,18 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
       </sc-for>
       <sc-if value="{{ib.hasSkillsHeld}}"><p class="hint">자세한 검토가 필요한 후보 {{ib.skillsHeld}}건(라이선스 확인·위험 문구·외부 프로그램 필요)은 스킬 화면에 있습니다.</p></sc-if>
     </section></sc-if>
+    <sc-if value="{{ib.hasConnectors}}"><section class="card">
+      <div class="lbl">커넥터 연결 요청 · {{ib.connectorsN}}건</div>
+      <p class="hint" style="margin: 0 0 8px">엔진이 도구 목록을 확인하고(발견), 검색·읽기 도구만 열도록 검토한 뒤, 빈 폴더에서 한 번 시험했습니다. 승인해도 팀 화면에서 팀마다 켜야 쓰입니다.</p>
+      <sc-for list="{{ib.connectors}}" as="c">
+        <div class="ib-row col">
+          <div class="row-f"><b>{{c.name}} · 읽기 전용</b><span class="kind">{{c.teams}}</span><span class="small muted">{{c.when}}</span></div>
+          <div class="small">{{c.what}}</div>
+          <sc-for list="{{c.checks}}" as="x"><div class="small muted">{{x.t}}</div></sc-for>
+          <div class="row-f"><button class="btn pri sm" onClick="{{c.approve}}">연결 승인</button><button class="btn sm" onClick="{{c.refuse}}">거절</button></div>
+        </div>
+      </sc-for>
+    </section></sc-if>
     <sc-if value="{{ib.hasProposals}}"><section class="card">
       <div class="lbl">기억 제안 · {{ib.proposalsN}}건</div>
       <sc-for list="{{ib.proposals}}" as="p">
@@ -1345,6 +1357,16 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
       </div>
     </sc-for>
   </div>
+  <sc-for list="{{rc.items}}" as="c">
+    <section class="card" style="margin-top: 16px">
+      <div class="sec-h"><h2>{{c.name}} · 읽기 전용 커넥터</h2><span class="{{c.pillCls}}"><i></i>{{c.stL}}</span></div>
+      <p class="hint">{{c.what}} · 여는 도구: {{c.read}} (검색·읽기만). 만들기·고치기·댓글·이동 도구는 Claude Code 권한과 감시 에이전트가 함께 막습니다. 연결 시험 → 승인함에서 승인 → 아래에서 팀마다 켜야 쓰입니다.</p>
+      <sc-if value="{{c.hasReason}}"><p class="small" style="color: var(--stop, #b42318)">{{c.reason}}</p></sc-if>
+      <sc-if value="{{c.hasChecks}}"><details><summary class="small">시험 결과</summary><sc-for list="{{c.checks}}" as="x"><div class="small muted">{{x.t}}</div></sc-for></details></sc-if>
+      <div class="seg wrap" role="group" aria-label="{{c.name}}을 쓸 팀" style="margin-top: 10px"><sc-for list="{{c.teams}}" as="o"><button class="{{o.cls}}" aria-pressed="{{o.pressed}}" disabled="{{o.disabled}}" onClick="{{o.toggle}}">{{o.l}}</button></sc-for></div>
+      <div class="row-f" style="margin-top: 10px"><button class="btn sm" disabled="{{c.noCheck}}" onClick="{{c.check}}">{{c.checkL}}</button><sc-if value="{{c.isConnected}}"><button class="btn ghost sm" onClick="{{c.revoke}}">연결 끊기</button></sc-if></div>
+    </section>
+  </sc-for>
   <details class="card team-rules">
     <summary>모델 배정 규칙 · 제어팀 {{control.stL}} · 기록팀</summary>
     <div class="sec-h" style="margin-top: 14px"><h2>제어팀 · AI 없이 엔진이 직접</h2><span class="{{control.pillCls}}"><i></i>{{control.stL}}</span></div>
@@ -1738,7 +1760,7 @@ class Component extends DCLogic {
     if (hit) this.setState({ eng: Object.assign({}, eng, { projects: projects }) });
   }
   go(view) { this.setState({ view: view }); window.scrollTo(0, 0); if (view === 'connect') this.loadEnvs(); if(view === 'skills') this.loadSkills();
-    if (view === 'inbox') this.loadInbox(); if (view === 'memory') this.loadMemory(); }
+    if (view === 'inbox') this.loadInbox(); if (view === 'memory') this.loadMemory(); if (view === 'teams') this.loadConnectors(); }
   loadInbox() {
     return fetch('/api/inbox').then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) this.setState({ inbox: d }); }).catch(() => {});
   }
@@ -1838,7 +1860,7 @@ class Component extends DCLogic {
       ago: ago(p.last), flow: flowOf(p), open: () => this.openProject(p.id) });
 
     // ── 대장 결정: 승인 요청·결과 확인은 홈·프로젝트·승인함 어디서나 같은 버튼으로 바로 처리한다 ──
-    const ibd = Object.assign({ approvals: [], reviews: [], memoryProposals: [], skillCandidates: [], skillsHeld: 0, grants: [], decided: [], trust: { required: 3, teams: [] }, scopes: {}, webMode: 'ask', permissionMode: 'auto' }, s.inbox || {});
+    const ibd = Object.assign({ approvals: [], reviews: [], memoryProposals: [], skillCandidates: [], connectorRequests: [], skillsHeld: 0, grants: [], decided: [], trust: { required: 3, teams: [] }, scopes: {}, webMode: 'ask', permissionMode: 'auto' }, s.inbox || {});
     const grantAct = (a, scope, anySite) => async () => {
       if (scope === 'always' && !await ask(a.target + '을(를) 모든 프로젝트에서 계속 허용할까요?')) return;
       if (anySite && !await ask('이 프로젝트에서 모든 공개 사이트를 허용할까요? 내부 주소·유출 의심 주소는 계속 막습니다.')) return;
@@ -1921,6 +1943,36 @@ class Component extends DCLogic {
     if (ibd.memoryProposals.length) inbox.push({ icon: ICON.proposal, icoCls: 'ico', title: '기억 제안 ' + ibd.memoryProposals.length + '건', project: '모든 프로젝트',
       body: '팀이 기억해 두자고 제안했습니다 · 예: ' + clip(ibd.memoryProposals[0].text, 80), isIssue: true, held: true,
       actions: [{ l: '승인함에서 보기', cls: 'btn pri sm', go: () => this.go('inbox') }] });
+    if (ibd.connectorRequests.length) inbox.push({ icon: ICON.proposal, icoCls: 'ico', title: '커넥터 연결 요청 ' + ibd.connectorRequests.length + '건', project: '모든 프로젝트',
+      body: ibd.connectorRequests.map((c) => c.name).join(', ') + ' 읽기 전용 연결 · 격리 시험 통과 · 대장 승인 필요', isIssue: true, held: true,
+      actions: [{ l: '승인함에서 보기', cls: 'btn pri sm', go: () => this.go('inbox') }] });
+
+    // 읽기 전용 커넥터 (팀 화면): 연결 시험 → 승인함 → 팀별 켜기
+    const connChecks = (st) => [].concat((st && st.review && st.review.checks) || [], (st && st.trial && st.trial.checks) || []).map((c) => ({ t: (c.ok ? '✓ ' : '✗ ') + c.text }));
+    const STAGE_L = { discovered: ['발견', 'wait'], reviewed: ['검토 통과', 'wait'], tested: ['격리 시험 통과 · 승인함에서 승인 대기', 'attn'], connected: ['연결됨', 'done'],
+      refused: ['거절함', 'stop'], revoked: ['연결 끊음', 'idle'], failed: ['시험 실패', 'stop'] };
+    const rc = { items: (s.connectorItems || []).map((c) => {
+      const st = c.running ? ['연결 시험 중…', 'wait'] : STAGE_L[c.stage] || [c.available ? '연결 전 · claude.ai에 연결됨' : 'claude.ai에 연결 안 됨', 'idle'];
+      const last = c.state && c.state.history && c.state.history.length ? c.state.history[c.state.history.length - 1] : null;
+      const connected = c.stage === 'connected';
+      return { name: c.name, what: c.what, read: c.read.join(', '), stL: st[0], pillCls: pillCls(st[1]),
+        reason: last && last.reason ? '실패 이유: ' + last.reason : '', hasReason: !!(last && last.reason),
+        checks: connChecks(c.state), hasChecks: connChecks(c.state).length > 0,
+        noCheck: !c.available || !!c.running, checkL: c.stage ? '다시 시험하기' : '연결 시험 시작',
+        check: async () => {
+          if (!await ask(c.name + ' 연결 시험을 시작할까요?\n\n엔진이 빈 임시 폴더에서 작은 실행(Haiku) 두 번으로 도구 목록을 확인하고 검색을 한 번 해 봅니다. 구독 사용량이 조금 듭니다. 읽은 내용은 저장하지 않습니다.'
+            + (connected ? '\n\n다시 시험하면 지금 연결은 승인 전까지 꺼집니다.' : ''))) return;
+          this.setState({ connectorItems: (s.connectorItems || []).map((x) => (x.id === c.id ? Object.assign({}, x, { running: true }) : x)) });
+          this.api('POST', '/api/connectors/' + c.id + '/check', {}).then((v) => { this.say(v.stage === 'tested' ? c.name + ' 격리 시험 통과 · 승인함에서 승인하세요' : c.name + ' 연결 시험 실패 · 이유를 확인하세요'); })
+            .catch((e) => this.say(korErr(e.message))).then(() => Promise.all([this.loadConnectors(), this.loadInbox()]));
+        },
+        isConnected: connected,
+        revoke: async () => { if (await ask(c.name + ' 연결을 끊을까요? 모든 팀에서 꺼집니다.'))
+          this.api('POST', '/api/connectors/' + c.id + '/revoke', {}).then(() => this.say(c.name + ' 연결을 끊었습니다')).catch((e) => this.say(korErr(e.message))).then(() => this.loadConnectors()); },
+        teams: c.teams.map((t) => ({ l: t.name + (t.on ? ' · 켜짐' : ' · 꺼짐'), cls: t.on ? 'on' : '', pressed: t.on ? 'true' : 'false', disabled: !connected,
+          toggle: () => this.api('PUT', '/api/settings', { key: 'connectors.' + c.id + '.' + t.team, value: !t.on })
+            .then(() => this.say(t.name + ' · ' + c.name + ' 읽기를 ' + (t.on ? '껐습니다' : '켰습니다') + ' (다음 단계부터 적용)')).catch((e) => this.say(korErr(e.message))).then(() => this.loadConnectors()) })) };
+    }) };
 
     // 팀 현황 (실행 기록에서 계산)
     const allRuns = [].concat.apply([], P.map((p) => p.runs.map((r) => Object.assign({}, r, { project: p }))));
@@ -2303,7 +2355,7 @@ class Component extends DCLogic {
     const ptabDefs = [['over', '개요', ''], ['artifacts', '결과물', ''], ['activity', '활동', wp ? wp.runs.length : ''], ['verify', '검증', wp ? wp.proven + '/' + wp.total : ''], ['settings', '설정', '']];
     // 결정 대기는 승인함 한곳에서 센다 (홈 목록과 겹치지 않게: 승인 요청·결과 확인·기억 제안 + 그 밖의 질문·개선안·멈춤).
     const othersN = inbox.filter((it) => !it.held).length;
-    const pendingTotal = ibd.approvals.length + ibd.reviews.length + ibd.memoryProposals.length + ibd.skillCandidates.length + othersN;
+    const pendingTotal = ibd.approvals.length + ibd.reviews.length + ibd.memoryProposals.length + ibd.skillCandidates.length + ibd.connectorRequests.length + othersN;
     const docTitle = (pendingTotal ? '(' + pendingTotal + ') ' : '') + 'AGENT HQ';
     if (document.title !== docTitle) document.title = docTitle;
     const navDefs = [['home', '홈', 0], ['projects', '프로젝트', 0], ['inbox', '승인함', pendingTotal], ['teams', '팀', 0]];
@@ -2311,7 +2363,14 @@ class Component extends DCLogic {
     // ── 승인함 ──
     const KIND_L = { web: '웹사이트 열기', connector: '커넥터 동작', path: '승인 필요 경로에 쓰기' };
     // Kinds with nothing waiting are listed on one line ("감시 승인 0 · 결과 확인 0 …") instead of an empty card each.
-    const ibKinds = [['감시 승인', ibd.approvals.length], ['결과 확인', ibd.reviews.length], ['스킬 후보', ibd.skillCandidates.length], ['기억 제안', ibd.memoryProposals.length]];
+    const ibKinds = [['감시 승인', ibd.approvals.length], ['결과 확인', ibd.reviews.length], ['스킬 후보', ibd.skillCandidates.length], ['커넥터 연결', ibd.connectorRequests.length], ['기억 제안', ibd.memoryProposals.length]];
+    // 읽기 전용 커넥터: 시험 결과를 한 줄씩 보여 주고 연결 승인·거절.
+    const connApprove = (c) => async () => {
+      if (!await ask(c.name + ' 연결을 승인할까요?\n\n열리는 도구: ' + c.read.join(', ') + ' (검색·읽기만)\n막히는 도구: ' + ((c.state && c.state.review && c.state.review.deny.length) || 0) + '개\n\n승인한 뒤 팀 화면에서 조사팀·기획팀마다 켜야 실제로 쓰입니다.')) return;
+      this.inboxAct(this.api('POST', '/api/connectors/' + c.id + '/approve', { confirm: true }).then((v) => { this.loadConnectors(); return v; }), c.name + ' 연결을 승인했습니다 · 팀 화면에서 팀마다 켜세요');
+    };
+    const connRefuse = (c) => async () => { if (await ask(c.name + ' 연결 요청을 거절할까요? 팀에게 열리지 않습니다.'))
+      this.inboxAct(this.api('POST', '/api/connectors/' + c.id + '/refuse', {}).then((v) => { this.loadConnectors(); return v; }), c.name + ' 연결 요청을 거절했습니다'); };
     const ibZero = ibKinds.filter((k) => !k[1]);
     const ib = {
       reload: () => this.loadInbox(),
@@ -2357,6 +2416,9 @@ class Component extends DCLogic {
             this.inboxAct(this.api('POST', '/api/goals/' + r.goalId + '/trust-review', { accept: true, trustFully: true }), '확인했습니다 · ' + (TEAM_NAME[r.team] || r.team) + ' 결과는 이제 바로 이어집니다');
           } };
       }),
+      hasConnectors: ibd.connectorRequests.length > 0, connectorsN: ibd.connectorRequests.length,
+      connectors: ibd.connectorRequests.map((c) => ({ name: c.name, what: c.what, teams: c.teams.map((t) => t.name).join('·'),
+        checks: connChecks(c.state), approve: connApprove(c), refuse: connRefuse(c), when: c.state ? ago(c.state.updatedAt) : '' })),
       skillsN: ibd.skillCandidates.length, noSkills: !ibd.skillCandidates.length, skillsHeld: ibd.skillsHeld, hasSkillsHeld: ibd.skillsHeld > 0,
       skills: ibd.skillCandidates.map((k) => ({ name: k.name, description: clip(k.description || '', 220), trusted: !!k.trusted,
         source: (k.source || '').replace(/^https:\/\/github\.com\//, '').replace(/\/blob\/[a-f0-9]{40}\//, ' · '),
@@ -2672,7 +2734,7 @@ class Component extends DCLogic {
       inbox: inbox, inboxEmpty: inbox.length === 0,
       homeProjects: activeP.slice(0, 6).map(rowOf), homeNoActive: P.length > 0 && !activeP.length, allProjects: P.map(rowOf),
       activeProjects: activeP.map(rowOf), hasActiveProjects: activeP.length > 0, doneProjects: doneP.map(rowOf), hasDoneProjects: doneP.length > 0,
-      doneOpen: s.doneOpen !== false, onDoneToggle: (e) => { const open = e.target.open; if (open !== (s.doneOpen !== false)) this.setState({ doneOpen: open }); }, teams: teams, control: control,
+      doneOpen: s.doneOpen !== false, onDoneToggle: (e) => { const open = e.target.open; if (open !== (s.doneOpen !== false)) this.setState({ doneOpen: open }); }, teams: teams, control: control, rc: rc,
       recentActivity: P.flatMap(p => (p.runs || []).map(r => ({ project:p.name, team:TEAM_NAME[r.team] || r.team || '팀', when:ago(r.startedAt), result:r.simulated ? '모의 실행' : r.outcome === 'completed' ? '완료' : r.status === 'running' ? '실행 중' : '종료', at:r.startedAt || '' }))).sort((a,b) => b.at.localeCompare(a.at)).slice(0,3),
       noRecentActivity: !P.some(p => (p.runs || []).length),
       projectTeams: wp ? TEAMS.map(t => {
@@ -2757,7 +2819,12 @@ class Component extends DCLogic {
   loadTeams() {
     return fetch('/api/teams').then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then((d) => { const by = {}; d.teams.forEach((t) => { by[t.id] = t.tools; }); this.setState({ teamTools: by }); })
-      .catch(() => {});
+      .catch(() => {})
+      .then(() => this.loadConnectors());
+  }
+  // 읽기 전용 커넥터: 연결 시험 상태와 팀별 켜기 (팀 화면)
+  loadConnectors() {
+    return fetch('/api/connectors').then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) this.setState({ connectorItems: d.items }); }).catch(() => {});
   }
   refreshEnvs() {
     if (this.state.envBusy) return;

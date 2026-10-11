@@ -41,12 +41,34 @@ test('web access adds only the built-in web search and fetch tools', () => {
 });
 
 test('selected claude.ai connectors are allowed by name and every other connector is denied', () => {
-  const cmd = buildCommand('claude', { cwd: 'C:/w', bins, connectors: ['Figma', 'Canva'], knownConnectors: ['Figma', 'Canva', 'Gmail', 'Google Drive', 'AWS MCP'] });
+  const plugins = ['design@synced', 'desktop-commander@synced'];
+  const cmd = buildCommand('claude', { cwd: 'C:/w', bins, connectors: ['Figma', 'Canva'], knownConnectors: ['Figma', 'Canva', 'Gmail', 'Google Drive', 'AWS MCP'], plugins });
   assert.equal(cmd.env.ENABLE_CLAUDEAI_MCP_SERVERS, undefined, 'connectors stay loaded');
+  assert.ok(!cmd.args.includes('--strict-mcp-config'), 'strict MCP would drop the claude.ai connectors too (Claude Code 2.1.296)');
+  assert.deepEqual(JSON.parse(cmd.args[cmd.args.indexOf('--settings') + 1]).enabledPlugins, { 'design@synced': false, 'desktop-commander@synced': false },
+    'every installed plugin is off, so no plugin MCP server starts');
   assert.ok(cmd.args.includes('--allowedTools=mcp__claude_ai_Figma,mcp__claude_ai_Canva'));
   assert.ok(cmd.args.includes('--disallowedTools=mcp__claude_ai_Gmail,mcp__claude_ai_Google_Drive,mcp__claude_ai_AWS_MCP'));
-  assert.throws(() => buildCommand('claude', { cwd: 'C:/w', bins, connectors: ['Figma'], knownConnectors: [] }), /connector/,
+  assert.throws(() => buildCommand('claude', { cwd: 'C:/w', bins, connectors: ['Figma'], knownConnectors: [], plugins }), /connector/,
     'without the current connector list we cannot deny the rest, so connectors are refused');
+  assert.throws(() => buildCommand('claude', { cwd: 'C:/w', bins, connectors: ['Figma'], knownConnectors: ['Figma'] }), /plugin list/,
+    'without the plugin list plugin servers could start, so connectors are refused');
+});
+
+test('a read-only connector opens single tools; the rest of it is denied and the Sentinel gets the exact list', () => {
+  const allow = ['mcp__claude_ai_Notion__notion-search', 'mcp__claude_ai_Notion__notion-fetch'];
+  const deny = ['mcp__claude_ai_Notion__notion-create-pages', 'mcp__claude_ai_Notion__notion-update-page'];
+  const sentinel = { script: 'C:/hq/scripts/보안감시-훅.mjs', log: 'C:/hq/l.jsonl', project: 'p', team: 'research' };
+  const cmd = buildCommand('claude', { cwd: 'C:/w', bins, access: 'read', readOnly: [{ name: 'Notion', allow, deny }],
+    knownConnectors: ['Notion', 'Gmail'], plugins: [], sentinel });
+  assert.ok(cmd.args.includes(`--allowedTools=${allow.join(',')}`));
+  assert.ok(cmd.args.includes(`--disallowedTools=mcp__claude_ai_Gmail,${deny.join(',')}`));
+  assert.deepEqual(JSON.parse(cmd.env.AGENT_HQ_MCP_ALLOW), { prefixes: [], tools: allow });
+  const settings = JSON.parse(cmd.args[cmd.args.indexOf('--settings') + 1]);
+  assert.ok(settings.hooks.PreToolUse, 'the Sentinel hook stays with the plugin switch-off');
+  assert.throws(() => buildCommand('claude', { cwd: 'C:/w', bins, readOnly: [{ name: 'Notion', allow: ['mcp__claude_ai_Gmail__send'], deny: [] }],
+    knownConnectors: ['Notion', 'Gmail'], plugins: [] }), /belong to Notion/);
+  assert.equal(JSON.parse(buildCommand('claude', { cwd: 'C:/w', bins, sentinel }).env.AGENT_HQ_MCP_ALLOW).tools.length, 0, 'no connector, no MCP tool');
 });
 
 test('read-only access gives Claude only the Read tool and Codex the read-only sandbox', () => {

@@ -24,7 +24,7 @@ import { makeSpreadsheet, spreadsheetRecords } from './엑셀.js';
 // In simulation mode nothing is executed, so a round reports no evidence and no model.
 const PROVIDER = { 'claude-code': 'claude', codex: 'codex' };
 
-// toolsFor(team) → { connectors, knownConnectors }: which claude.ai connectors 대장 opened for that team.
+// toolsFor(team) → { connectors, knownConnectors, readOnly, plugins }: which claude.ai connectors 대장 opened for that team.
 export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, visualChecker = null, slideMaker = null, settings = () => ({}),
   onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, docMaker = null, onActivity = () => {}, heldDir = null,
   webModeFor = () => (settings()['sentinel.web'] === 'open' ? 'open' : 'ask'),
@@ -58,14 +58,15 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       if (runRecord) store.saveRun({ ...runRecord, checkpoint: { before, state: 'started', guard } });
       const team = goal.kind === 'team' ? run.team : null;
       const extra = team ? toolsFor(team) : {};
-      const tools = { web: Boolean(team && TEAMS[team]?.web), connectors: extra.connectors ?? [], knownConnectors: extra.knownConnectors ?? [] };
+      const tools = { web: Boolean(team && TEAMS[team]?.web), connectors: extra.connectors ?? [], knownConnectors: extra.knownConnectors ?? [],
+        readOnly: extra.readOnly ?? [], plugins: extra.plugins ?? null };
       const engineTools = team && !simulated ? await runTeamTools(team, cwd, { sandbox, visualChecker, slideMaker, settings: settings() }) : [];
       // The documents and spreadsheets the engine built (the teams wrote only their .md/.json sources).
       const engineMade = [...Object.keys(documentRecords(records)), ...Object.keys(spreadsheetRecords(records))];
       if (team === 'qa' && !simulated && Object.keys(documentRecords(records)).length)
         engineTools.push(documentQuality(cwd, documentRecords(records)));
       let prompt = team
-        ? teamPrompt(team, { goal, team: goal.team, files: listWorkspaceFiles(cwd), engineMade, connectors: tools.connectors, toolText: toolReport(engineTools),
+        ? teamPrompt(team, { goal, team: goal.team, files: listWorkspaceFiles(cwd), engineMade, connectors: tools.connectors, readOnly: tools.readOnly, toolText: toolReport(engineTools),
           memory: memory?.forTeam(team) ?? null,
           candidates: catalog().filter(e => e.usable).map(e => ({ id: e.id, executor: e.executor, capabilities: e.capabilities ?? [] })) })
         : [`Goal: ${goal.objective}`, '', reportInstructions(goal.completionCriteria)].join('\n');

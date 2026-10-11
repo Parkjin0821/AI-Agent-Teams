@@ -11,7 +11,11 @@ export const connectorTool = (name) => `mcp__claude_ai_${name.replace(/[^A-Za-z0
 // access: 'write' (default) lets the tool change files in the workspace; 'read' only lets it look.
 // web: adds Claude Code's built-in WebSearch/WebFetch. connectors: claude.ai connectors this team may use;
 // every other connector in knownConnectors is denied. Without connectors, all MCP is switched off.
-export function buildCommand(provider, { cwd, model = null, effort = null, bins, access = 'write', web = false, connectors = [], knownConnectors = [], sentinel = null, images = [] }) {
+// readOnly: claude.ai connectors a reading team may use only through the listed tools
+// ([{ name: 'Notion', allow: [full tool names], deny: [full tool names] }], see 커넥터.js).
+// plugins: every installed plugin id; a connector run turns them all off (it cannot use --strict-mcp-config, which
+// also drops claude.ai connectors in Claude Code 2.1.296), and is refused without that list.
+export function buildCommand(provider, { cwd, model = null, effort = null, bins, access = 'write', web = false, connectors = [], knownConnectors = [], readOnly = [], plugins = null, sentinel = null, images = [] }) {
   if (connectors.some(c => /higgsfield/i.test(c))) throw new Error('subscription-only: paid image credits are blocked');
   if (effort && !['low','medium','high','xhigh','max','ultra'].includes(effort)) throw new Error('invalid reasoning effort');
   if (provider === 'claude' && effort === 'ultra') throw new Error('unsupported Claude reasoning effort');
@@ -22,24 +26,38 @@ export function buildCommand(provider, { cwd, model = null, effort = null, bins,
     // read, list and search inside it.
     const tools = [...(access === 'read' ? ['Read', 'Glob', 'Grep'] : ['Read', 'Glob', 'Grep', 'Write', 'Edit']), ...(web ? ['WebSearch', 'WebFetch'] : [])];
     // acceptEdits: file edits inside the workspace only; no shell tool is offered at all.
-    // --strict-mcp-config drops local/project MCP servers; claude.ai connectors need their own switch.
     const args = ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits',
-      `--tools=${tools.join(',')}`, '--no-session-persistence', '--setting-sources', 'user', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}'];
-    if (connectors.length) {
-      const unknown = connectors.filter(c => !knownConnectors.includes(c));
-      if (!knownConnectors.length || unknown.length) throw new Error(`connector not available: ${unknown.join(', ') || connectors.join(', ')}`);
-      args.push(`--allowedTools=${connectors.map(connectorTool).join(',')}`);
-      const others = knownConnectors.filter(c => !connectors.includes(c));
-      if (others.length) args.push(`--disallowedTools=${others.map(connectorTool).join(',')}`);
+      `--tools=${tools.join(',')}`, '--no-session-persistence', '--setting-sources', 'user'];
+    const reading = (readOnly ?? []).filter(r => r?.name);
+    const names = [...connectors, ...reading.map(r => r.name)];
+    const settings = sentinel ? sentinelSettings(sentinel.script) : {};
+    // The MCP tools this run may call, for the Sentinel: whole connectors (design) and single tools (read-only).
+    const mcpAllow = { prefixes: connectors.map(connectorTool), tools: reading.flatMap(r => r.allow ?? []) };
+    if (names.length) {
+      const unknown = names.filter(c => !knownConnectors.includes(c));
+      if (!knownConnectors.length || unknown.length) throw new Error(`connector not available: ${unknown.join(', ') || names.join(', ')}`);
+      if (!Array.isArray(plugins)) throw new Error('connector run refused: the installed plugin list is unknown, so plugin servers could start');
+      for (const r of reading) {
+        const prefix = `${connectorTool(r.name)}__`;
+        if ([...(r.allow ?? []), ...(r.deny ?? [])].some(t => !String(t).startsWith(prefix))) throw new Error(`read-only tools must belong to ${r.name}`);
+      }
+      // No --strict-mcp-config here (it drops the claude.ai connectors); plugins are turned off instead.
+      settings.enabledPlugins = Object.fromEntries(plugins.map(id => [id, false]));
+      const allowed = [...mcpAllow.prefixes, ...mcpAllow.tools];
+      if (allowed.length) args.push(`--allowedTools=${allowed.join(',')}`);
+      const denied = [...knownConnectors.filter(c => !names.includes(c)).map(connectorTool), ...reading.flatMap(r => r.deny ?? [])];
+      if (denied.length) args.push(`--disallowedTools=${denied.join(',')}`);
     } else {
+      // --strict-mcp-config drops local/project MCP servers; claude.ai connectors need their own switch.
+      args.push('--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}');
       env.ENABLE_CLAUDEAI_MCP_SERVERS = 'false'; // official switch: mail, drive and other account connectors stay off
     }
     if (model) args.push('--model', model);
     if (effort) args.push('--effort', effort);
     // 감시 에이전트: hooks given with --settings always load, even with --setting-sources user.
+    if (Object.keys(settings).length) args.push('--settings', JSON.stringify(settings));
     if (sentinel) {
-      args.push('--settings', JSON.stringify(sentinelSettings(sentinel.script)));
-      Object.assign(env, { AGENT_HQ_WORKSPACE: cwd, AGENT_HQ_SENTINEL_LOG: sentinel.log,
+      Object.assign(env, { AGENT_HQ_WORKSPACE: cwd, AGENT_HQ_SENTINEL_LOG: sentinel.log, AGENT_HQ_MCP_ALLOW: JSON.stringify(mcpAllow),
         AGENT_HQ_PROJECT: sentinel.project ?? '', AGENT_HQ_TEAM: sentinel.team ?? '',
         AGENT_HQ_SENTINEL_GRANTS: sentinel.grants ?? '', AGENT_HQ_SENTINEL_RULES: sentinel.rules ?? '',
         AGENT_HQ_LANE: sentinel.lane ?? '', AGENT_HQ_LANE_DENY: (sentinel.laneDeny ?? []).join('|'), AGENT_HQ_SENTINEL_WEB: sentinel.webMode === 'open' ? 'open' : 'ask' });
@@ -254,14 +272,14 @@ export class CliAgentAdapter {
     Object.assign(this, { enabled, cwd, bins, timeoutMs });
   }
 
-  async run(provider, prompt, onEvent, { cwd, model = null, effort = null, access = 'write', web = false, connectors = [], knownConnectors = [], sentinel = null, images = [] } = {}) {
+  async run(provider, prompt, onEvent, { cwd, model = null, effort = null, access = 'write', web = false, connectors = [], knownConnectors = [], readOnly = [], plugins = null, sentinel = null, images = [] } = {}) {
     if (!this.enabled) {
       onEvent({ type: 'provider.notice', provider, message: 'Safe mode: CLI execution is disabled' });
       return { outcome: 'simulated', summary: `${provider} dry-run only; no work executed`, model: null };
     }
     if (!cwd) throw new Error('Project workspace is required for CLI execution');
     assertWorkspaceConfigurationSafe(cwd);
-    const command = buildCommand(provider, { cwd, model, effort, access, web, connectors, knownConnectors, sentinel, images, bins: this.bins ?? resolveBins() });
+    const command = buildCommand(provider, { cwd, model, effort, access, web, connectors, knownConnectors, readOnly, plugins, sentinel, images, bins: this.bins ?? resolveBins() });
     return new Promise((resolve) => {
       const child = spawn(command.file, command.args, { cwd: command.cwd, shell: false, windowsHide: true, env: command.env });
       let head = '', partial = '', model = null, answer = null, stderr = '', timedOut = false, settled = false;

@@ -3,7 +3,8 @@ import { readFile, writeFile, rename, unlink } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { CliAgentAdapter, resolveBins } from './실행어댑터.js';
-import { designConnectors, EnvironmentMonitor, environmentView, validateSetting } from './연결환경.js';
+import { connectorPlugins, designConnectors, EnvironmentMonitor, environmentView, validateSetting } from './연결환경.js';
+import { ConnectorGate, cliProbe } from './커넥터.js';
 import { createGoalRunner } from './목표실행.js';
 import { ModelRegistry } from './모델정책.js';
 import { Orchestrator } from './작업조율.js';
@@ -45,7 +46,7 @@ const iso = ms => new Date(ms).toISOString();
 export function createApp({ root, dataDir, projectsDir, enableExec = false, clock = { now: () => Date.now() }, tickMs = null,
   adapter: injectedAdapter = null, monitor: injectedMonitor = null, sandbox: injectedSandbox = null, detectEnvironments = false,
   enforceSafety = false, usageReader = readUsage, saveTransport = undefined, modelChoices = new ModelChoices({ clock }), docConverter = null,
-  keepAwake: injectedKeepAwake = null }) {
+  keepAwake: injectedKeepAwake = null, connectorProbe = null }) {
   const store = new PersistentStore({ dataDir });
   const skills = new SkillLibrary({ store });
   const approvals = new Approvals({ store, grantsFile: path.join(dataDir, 'sentinel-grants.json'), clock });
@@ -86,10 +87,19 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   // Connection status comes from the tools' own commands (run only when asked, never in tests by default).
   const monitor = injectedMonitor ?? (detectEnvironments ? new EnvironmentMonitor({ bins: resolveBins(), clock }) : null);
   if (monitor && !monitor.snapshot) monitor.refresh().catch(() => {});
-  // Only the design team gets claude.ai connectors, and only the ones 대장 turned on; the rest are denied.
-  const toolsFor = (team) => (team === 'design'
-    ? { connectors: designConnectors(monitor?.snapshot, store.getSettings()), knownConnectors: (monitor?.snapshot?.connectors ?? []).map(c => c.name) }
-    : {});
+  // 읽기 전용 커넥터 (커넥터.js): 발견 → 검토 → 격리 시험 → 승인함 → 팀별 켜기. Checks spend a little usage (real execution only).
+  const connectorGate = new ConnectorGate({ store, clock, snapshot: () => monitor?.snapshot ?? null, plugins: () => connectorPlugins(monitor?.snapshot),
+    probe: connectorProbe ?? (executing ? cliProbe({ bins: resolveBins(), sentinel: { script: path.join(root, 'scripts', '보안감시-훅.mjs'), rules: rules.file } }) : null) });
+  // The design team gets the design connectors 대장 turned on; a reading team gets the read-only connectors 대장 approved
+  // and turned on for it. All other connectors are denied, and installed plugins are turned off for that run. Without a
+  // known plugin list (or with another MCP server that would start) no connector is given at all.
+  const toolsFor = (team) => {
+    const plugins = connectorPlugins(monitor?.snapshot);
+    const connectors = team === 'design' ? designConnectors(monitor?.snapshot, store.getSettings()) : [];
+    const readOnly = connectorGate.readOnlyFor(team);
+    if (!plugins || (!connectors.length && !readOnly.length)) return {};
+    return { connectors, readOnly, plugins, knownConnectors: (monitor?.snapshot?.connectors ?? []).map(c => c.name) };
+  };
   // Project tests run in the Codex sandbox (no model call, no network); only used in real execution.
   const sandbox = injectedSandbox ?? (executing ? new SandboxRunner({ codex: resolveBins().codex, resolve: () => resolveBins().codex }) : null);
   const visualChecker = new VisualChecker({ root, sandbox });
@@ -153,7 +163,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     codexModels: () => { if (executing) void modelChoices.get().catch(() => {}); return (modelChoices.codex ?? []).filter(m => !HIDDEN_CODEX_MODELS.some(re => re.test(m.id))); },
     trust,
     capabilities: team => ({ 'claude-code': ['text','code', ...(TEAMS[team]?.web ? ['web'] : []),
-      ...(toolsFor(team).connectors?.length ? ['connectors'] : [])], codex: ['text','code'] }),
+      ...(toolsFor(team).connectors?.length || toolsFor(team).readOnly?.length ? ['connectors'] : [])], codex: ['text','code'] }),
     runner: createGoalRunner({ adapter, workspaces, store, toolsFor, sandbox, visualChecker, slideMaker, settings: () => store.getSettings(),
       onRateLimits: async limits => {
         try { await recordRateLimits(dataDir, limits); }
@@ -306,13 +316,26 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       return { checkedAt: monitor.snapshot.checkedAt, items: environmentView(monitor.snapshot, store.getSettings()), settings: store.getSettings() };
     }],
     ['GET', /^\/api\/teams$/, () => teamsView()],
+    // ── 읽기 전용 커넥터: 연결 시험(발견·검토·격리 시험) → 승인함 → 팀별 켜기 ──
+    ['GET', /^\/api\/connectors$/, () => ({ items: connectorGate.view() })],
+    ['POST', /^\/api\/connectors\/([a-z]+)\/check$/, async m => {
+      if (monitor) await monitor.refresh();
+      const state = await connectorGate.check(m[1]);
+      void store.emit({ type: 'connector.checked', connector: m[1], stage: state.stage });
+      return state;
+    }],
+    ['POST', /^\/api\/connectors\/([a-z]+)\/approve$/, (m, body) => { const s = connectorGate.approve(m[1], body); void store.emit({ type: 'connector.approved', connector: m[1], by: '대장' }); return s; }],
+    ['POST', /^\/api\/connectors\/([a-z]+)\/refuse$/, (m, body) => connectorGate.refuse(m[1], body.note)],
+    ['POST', /^\/api\/connectors\/([a-z]+)\/revoke$/, m => { const s = connectorGate.revoke(m[1]); void store.emit({ type: 'connector.revoked', connector: m[1], by: '대장' }); return s; }],
     ['GET', /^\/api\/models$/, () => ({ items: registry.catalog(), verificationMode: 'manual_official_ui', automaticAccountVerification: false })],
     ['POST', /^\/api\/models$/, (m, body) => [201, registry.registerModel(body)]],
     ['POST', /^\/api\/models\/attest$/, (m, body) => registry.attestModel(body.executor, body.id, body)],
     ['GET', /^\/api\/projects\/([^/]+)\/records$/, m => projectRecord(store, validateProjectId(m[1]))],
     ['PUT', /^\/api\/settings$/, (m, body) => {
       const key = String(body.key);
-      const settings = store.setSetting(key, validateSetting(key, body.value));
+      const value = validateSetting(key, body.value);
+      if (value === true) connectorGate.canTurnOn(key);
+      const settings = store.setSetting(key, value);
       // A changed daily limit is re-checked now: projects held until midnight try again at the next tick
       // (and go back to waiting if they are still over the new limit).
       if (key === 'limits.maxRoundsPerDay') {
@@ -409,6 +432,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
         // Skill candidates whose engine checks are clean wait here for one decision; the rest stay on the skills page.
         skillCandidates: skills.list().filter(k => k.status === 'pending' && quickApprovable(k)),
         skillsHeld: skills.list().filter(k => k.status === 'pending' && !quickApprovable(k)).length,
+        // A read-only connector whose isolated trial passed waits here for 대장's connection approval.
+        connectorRequests: connectorGate.requests(),
         trust: { required: trust.required(), teams: ['research', 'dev', 'design'].map(t => ({ team: t, name: TEAMS[t].name, count: trust.count(t) })) },
       };
     }],

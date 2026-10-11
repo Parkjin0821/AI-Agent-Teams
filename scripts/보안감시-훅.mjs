@@ -12,7 +12,9 @@ try {
     grants: process.env.AGENT_HQ_SENTINEL_GRANTS ? readGrants(process.env.AGENT_HQ_SENTINEL_GRANTS) : [],
     rules: process.env.AGENT_HQ_SENTINEL_RULES ? readRules(process.env.AGENT_HQ_SENTINEL_RULES) : [],
     lane: process.env.AGENT_HQ_LANE || null, laneDeny: (process.env.AGENT_HQ_LANE_DENY || '').split('|').filter(Boolean),
-    webMode: process.env.AGENT_HQ_SENTINEL_WEB === 'open' ? 'open' : 'ask' });
+    webMode: process.env.AGENT_HQ_SENTINEL_WEB === 'open' ? 'open' : 'ask',
+    // No list = no connector was opened for this step, so every MCP tool is denied (a bad list throws: fails closed).
+    mcpAllow: process.env.AGENT_HQ_MCP_ALLOW ? JSON.parse(process.env.AGENT_HQ_MCP_ALLOW) : { prefixes: [], tools: [] } });
   if (verdict.decision !== 'ignore') {
     try {
       logDecision(process.env.AGENT_HQ_SENTINEL_LOG, { at: new Date().toISOString(), project, team: process.env.AGENT_HQ_TEAM ?? null,

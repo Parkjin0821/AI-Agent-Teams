@@ -284,7 +284,8 @@ test('environments show connection status; design connectors turn on only by a v
     return { outcome: 'completed', answer: 'AGENT_HQ_PLAN {"next_task":"로고 시안","team":"design","reviews":[]}' };
   } };
   const monitor = { snapshot: { checkedAt: 'x', claude: { installed: true, loggedIn: true }, codex: { installed: true, loggedIn: true },
-    connectors: [{ name: 'Figma', status: 'connected' }, { name: 'Gmail', status: 'connected' }], apiKeys: {} }, refresh: async () => monitor.snapshot };
+    connectors: [{ name: 'Figma', status: 'connected' }, { name: 'Gmail', status: 'connected' }], apiKeys: {},
+    plugins: ['design@synced'], mcpServers: { plugins: ['design'], others: [] } }, refresh: async () => monitor.snapshot };
   const { app, call } = await start({ adapter, monitor });
   t.after(() => app.close());
   const env = (await call('GET', '/api/environments')).body;

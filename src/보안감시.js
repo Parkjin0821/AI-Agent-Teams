@@ -32,7 +32,8 @@ function privateHost(host) {
 // Returns { decision: 'allow' | 'ask' | 'deny' | 'ignore', reason, target, ask? } for one tool call.
 // 'ask' = not allowed yet, becomes an approval request for 대장 (see src/승인.js).
 // webMode 'ask': a public site needs a grant first; 'open': any public https site passes the fixed rules.
-export function decide(input, { workspace, grants = [], project = null, webMode = 'open', now = Date.now(), rules = [], lane = null, laneDeny = [] } = {}) {
+// mcpAllow { prefixes, tools }: the connector tools this step was given (실행어댑터.js); any other MCP tool is denied.
+export function decide(input, { workspace, grants = [], project = null, webMode = 'open', now = Date.now(), rules = [], lane = null, laneDeny = [], mcpAllow = null } = {}) {
   const tool = String(input?.tool_name ?? '');
   const args = input?.tool_input ?? {};
   if (tool === 'WebFetch') {
@@ -103,6 +104,10 @@ export function decide(input, { workspace, grants = [], project = null, webMode 
     return { decision: 'allow', reason: '작업 폴더 안 파일', target: rel };
   }
   if (tool.startsWith('mcp__')) {
+    // Read-only connectors (Notion) open single tools; everything else under them — create, update, comment — is denied.
+    if (mcpAllow && !(mcpAllow.tools ?? []).includes(tool) && !(mcpAllow.prefixes ?? []).some(p => tool.startsWith(`${p}__`))) {
+      return { decision: 'deny', reason: '이 단계에 열리지 않은 연결 도구 (읽기 전용 커넥터는 검색·읽기 도구만)', target: tool };
+    }
     const rule = ruleFor(rules, { kind: 'connector', target: tool, project });
     if (rule?.action === 'deny') return { decision: 'deny', reason: `대장 규칙으로 금지된 연결 도구${rule.note ? ` (${rule.note})` : ''}`, target: tool };
     if (rule?.action === 'allow') return { decision: 'allow', reason: '대장 규칙으로 허용된 연결 도구', target: tool };
