@@ -10,6 +10,7 @@ import { hasSecret, readAsks } from './보안감시.js';
 import { concernSignals } from './검사.js';
 import { readGrants } from './승인.js';
 import { saveSources, sourceRecords } from './웹원문.js';
+import { readRendered } from './브라우저읽기.js';
 import { guardDenied, pathViolations, readRules, restoreDenied, rulesPrompt } from './규칙.js';
 import { copyKitFonts, fontsPrompt, installedKoreanFonts, kitPrompt } from './글꼴.js';
 import { slidesPrompt, slideTextRecords, slideTool } from './슬라이드.js';
@@ -26,7 +27,7 @@ const PROVIDER = { 'claude-code': 'claude', codex: 'codex' };
 
 // toolsFor(team) → { connectors, knownConnectors, readOnly, plugins }: which claude.ai connectors 대장 opened for that team.
 export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, visualChecker = null, slideMaker = null, settings = () => ({}),
-  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, docMaker = null, onActivity = () => {}, heldDir = null,
+  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, browserRead = {}, docMaker = null, onActivity = () => {}, heldDir = null,
   webModeFor = () => (settings()['sentinel.web'] === 'open' ? 'open' : 'ask'),
   fonts = () => (adapter.enabled === false ? [] : installedKoreanFonts()) }) {
   const simulated = adapter.enabled === false;
@@ -219,6 +220,14 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           grants: stepGrants, webMode: webModeFor(goal.projectId), ...webSources });
         await store.emit({ type: 'sources.saved', goalId: goal.id, team, saved: sources.saved.map(s => ({ path: s.path, url: s.url, bytes: s.bytes })),
           reused: reused.map(s => ({ path: s.path, url: s.url, fetchedAt: s.fetchedAt })), skipped: sources.skipped });
+      }
+      // 브라우저 읽기: pages that need a real browser are opened by the engine in Edge, read-only (브라우저읽기.js); their
+      // visible text and capture join the saved originals (source_contains compares with them the same way).
+      if (team && TEAMS[team]?.web && Array.isArray(report?.rendered) && report.rendered.length && sentinel && !simulated) {
+        const rendered = await readRendered({ urls: report.rendered, cwd, project: goal.projectId, grants: stepGrants, rules: stepRules, webMode: webModeFor(goal.projectId), ...browserRead });
+        sources = { saved: [...(sources?.saved ?? []), ...rendered.saved], skipped: [...(sources?.skipped ?? []), ...rendered.skipped] };
+        await store.emit({ type: 'sources.rendered', goalId: goal.id, team, saved: rendered.saved.map(s => ({ path: s.path, url: s.url, capture: s.capture ?? null, title: s.title })),
+          skipped: rendered.skipped });
       }
       // 엔진 글꼴 묶음: the fonts a screen team chose are copied into the work folder with their licenses (글꼴.js).
       if (team && ['design', 'dev'].includes(team) && Array.isArray(report?.fonts) && report.fonts.length && !simulated) {
