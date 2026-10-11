@@ -695,6 +695,23 @@ test('완료 조건 사전 점검: planning rewrites a list that would stall onc
     assert.equal(plans, 2, 'one rewrite only');
   } finally { store.close(); }
 });
+test('자율 시험 5차: a team-report criterion still there after the rewrite is left out before 대장 approves', async () => {
+  const list = ['조사결과.md 가 있다', '팀 보고에 확인 못 한 항목이 적혀 있다'];
+  let plans = 0;
+  const { store, scheduler, add } = setup(team => team === 'plan'
+    ? (++plans, { outcome: 'completed', plan: { nextTask: '조사', team: 'research', reviews: [], completionCriteria: list } })
+    : { outcome: 'completed' });
+  try {
+    const g = add({ conversation: true, completionCriteria: [] });
+    await scheduler.runGoal(g.id);
+    assert.match(store.getGoal(g.id).team.feedback, /2번: 팀 보고·답변에 적힌 것은 근거가 아니어서/);
+    await scheduler.runGoal(g.id);
+    const goal = store.getGoal(g.id);
+    assert.deepEqual([goal.reason, goal.completionCriteria], ['criteria_approval_required', ['조사결과.md 가 있다']]);
+    assert.match(goal.question, /증명할 수 없는 조건이라 뺐습니다 \(팀 보고는 근거가 아님\): 팀 보고에 확인 못 한 항목이 적혀 있다/);
+    assert.doesNotMatch(goal.question, /2번: 팀 보고/, 'the dropped criterion is not listed as a remaining issue');
+  } finally { store.close(); }
+});
 test('only the proof failed: the verifier gets those criteria back once, no work team is called', async () => {
   let qa = 0;
   const unrelated = { criterion: C[1], claimed: true, check: 'unrelated', detail: 'x — 관련 없는 검사' };

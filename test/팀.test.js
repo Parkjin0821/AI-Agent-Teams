@@ -4,10 +4,11 @@ import { nextStep, parsePlan, parseReview, qaFindings, TEAMS, teamPrompt } from 
 
 const goal = { objective: '가계부 웹앱을 만든다', completionCriteria: ['index.html 파일이 있다', '합계 계산 테스트 통과'] };
 
-test('pages get one living element, and example marks stay one per section (team vs direct build comparison)', () => {
+test('pages get one living element, and example-mark criteria only ask that a mark exists (자율 시험 5차)', () => {
   const input = {goal,files:[],team:{task:'화면 제작'}};
   assert.match(teamPrompt('plan',input), /살아 있는 요소 하나/);
-  assert.match(teamPrompt('plan',input), /예시 내용이 든 구역마다 한 번/);
+  assert.match(teamPrompt('plan',input), /"예시 표시가 있다"[^\n]*로만 적는다/);
+  assert.match(teamPrompt('plan',input), /"팀 보고에 ○○이 적혀 있다"/);
   assert.match(teamPrompt('design',input), /지금 영업 중/);
   assert.match(teamPrompt('design',input), /항목·카드마다 배지를 붙이면/);
   assert.match(teamPrompt('qa',input), /예시 배지 과잉/);

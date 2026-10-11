@@ -177,10 +177,18 @@ function engineCheckFor(criterion, ctx) {
 //   - "only these files are new" with no word about the engine's own files (previews, PDF, captures).
 const JUDGEMENT = /설득력|읽기\s*편|보기\s*좋|자연스럽|깔끔|세련|매력|어색하지|이해하기\s*쉽|친절|좋은\s*인상/;
 const PERSON_MARK = /\(대장이[^)]*확인\)/;
+// 자율 시험 5차: "예시 표시가 슬라이드마다 정확히 한 번" — no text check can count "exactly once per slide".
+const EXACT_COUNT = /정확히\s*(?:한|1|하나)\s*(?:번|개|회|곳|줄)?|딱\s*한\s*(?:번|개)|exactly\s+once/i;
+// 자율 시험 5차: "팀 보고에 ○○이 적혀 있다" — a team's report is its own word, never evidence. "보고서" (a document) is not
+// this, nor a criterion that names a file.
+const TEAM_REPORT = /(?:[가-힣]*팀|AI)\s*(?:의\s*)?(?:최종\s*)?(?:보고|답변|응답|메모)(?!서)|(?:^|[\s"'“(])(?:최종\s*)?(?:보고|답변)(?!서)\s*(?:내용\s*)?(?:에|에서)\s/;
+export const unprovableCriterion = c => TEAM_REPORT.test(String(c)) && !/\.[a-z0-9]{2,5}\b/i.test(String(c)) && !PERSON_MARK.test(String(c));
 export function lintCriteria(criteria) {
   const issues = [];
   (criteria ?? []).forEach((raw, i) => {
     const c = String(raw), at = `${i + 1}번`;
+    if (unprovableCriterion(c)) issues.push(`${at}: 팀 보고·답변에 적힌 것은 근거가 아니어서 증명할 수 없다 · 결과 파일에 적게 하고 "○○.md 에 … 이 적혀 있다" 로 쓰거나 뺀다 (남아 있으면 엔진이 뺀다)`);
+    if (EXACT_COUNT.test(c)) issues.push(`${at}: "정확히 한 번" 같은 개수는 확인으로 셀 수 없다 · "예시 표시가 있다" 처럼 있음만 적는다`);
     if (JUDGEMENT.test(c) && !PERSON_MARK.test(c)) issues.push(`${at}: 사람만 판단할 수 있는 말("${JUDGEMENT.exec(c)[0]}")이 있다 · 그 부분을 따로 떼어 "… (대장이 화면에서 확인)" 조건으로`);
     if (/담당|기한/.test(c) && CLAIMS_ABSENCE.test(c) && !/미정/.test(c)) issues.push(`${at}: 담당·기한이 "없다"고 하면 (미정) 칸까지 금지로 읽힌다 · "지어낸 담당·기한이 없다 (빈 칸은 (미정)으로 둔다)" 로`);
     // 자율 시험 minutes (2026-10-01): even with the engine's files left out, the verifier had no record of what was
@@ -234,7 +242,17 @@ export function verifyReport(report, criteria, cwd, ctx = {}) {
 // One check, or several that must all pass. A passing check that is about something else (e.g. "IMG-5390 is in
 // result.md" for "nothing was guessed") proves nothing.
 function runChecks(list, criterion, cwd, ctx, claimed) {
-  if (list.length > 1 && list.some(c => c?.type === 'stayed_inside')) return { status: 'invalid', reason: 'stayed_inside 는 다른 확인과 묶지 않고 따로 낸다' };
+  // 자율 시험 5차: stayed_inside sent together with other checks voided the whole criterion ("묶지 않고 따로 낸다").
+  // It is judged on its own from the engine's records, and the rest of the set must pass as before.
+  if (list.length > 1 && list.some(c => c?.type === 'stayed_inside')) {
+    const inside = runCheck({ type: 'stayed_inside' }, cwd, ctx);
+    if (inside.status !== 'pass') return inside;
+    const rest = list.filter(c => c?.type !== 'stayed_inside');
+    // A criterion about the folder boundary is spoken to by stayed_inside, so the rest need not share its words.
+    const others = runChecks(rest, criterion, cwd, ctx, claimed && !BOUNDARY_TOPIC.test(String(criterion).toLowerCase()));
+    if (others.status !== 'pass') return others;
+    return { status: 'pass', proof: `엔진 확인 · ${inside.proof.replace(/^엔진 확인 · /, '')} / ${others.proof.replace(/^엔진 확인 · /, '')}` };
+  }
   const proofs = [];
   for (const [i, check] of list.entries()) {
     const at = list.length > 1 ? `${i + 1}번째 확인: ` : '';

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { attachmentNote } from './첨부파일.js';
 import { validateCriteria } from './업무도메인.js';
-import { lintCriteria } from './완료근거.js';
+import { lintCriteria, unprovableCriterion } from './완료근거.js';
 import { isUsable, resolveModel, validateExecutor } from './모델.js';
 import { levelChoice, levelFor } from './모델수준.js';
 import { DEFAULT_POLICY } from './정책.js';
@@ -582,9 +582,16 @@ export class GoalScheduler {
           team.feedback = `[엔진] 완료 조건 사전 점검 · 승인 요청 전에 고쳐 주세요:\n- ${issues.join('\n- ')}`;
           return goTo('plan');
         }
-        this.update(goal, { completionCriteria: derived, criteriaApprovalPending: true });
-        return review('criteria_approval_required', { question: issues.length
-          ? `도출한 완료 조건을 확인하고 승인해 주세요. 엔진 사전 점검에서 남은 점:\n- ${issues.join('\n- ')}`
+        // 자율 시험 5차: a criterion about what a team's report says can never be proven; still there after the rewrite,
+        // the engine leaves it out (unless nothing else is left) and says so.
+        const provable = derived.filter(c => !unprovableCriterion(c));
+        const dropped = provable.length ? derived.filter(c => unprovableCriterion(c)) : [];
+        const kept = dropped.length ? provable : derived;
+        const left = dropped.length ? lintCriteria(kept) : issues;
+        const notes = [...left, ...dropped.map(c => `증명할 수 없는 조건이라 뺐습니다 (팀 보고는 근거가 아님): ${c}`)];
+        this.update(goal, { completionCriteria: kept, criteriaApprovalPending: true });
+        return review('criteria_approval_required', { question: notes.length
+          ? `도출한 완료 조건을 확인하고 승인해 주세요. 엔진 사전 점검에서 남은 점:\n- ${notes.join('\n- ')}`
           : '도출한 완료 조건을 확인하고 승인해 주세요.' });
       }
       // After 대장's message planning may propose a changed list; only a real change needs approval again.

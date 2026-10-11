@@ -244,9 +244,9 @@ test('checks (all must pass) and file_excludes: what the verifier confirmed by r
     ['메뉴 표 구역이 있다'], cwd).claims[0].check, 'pass');
   assert.equal(verifyReport({ criteria: [{ index: 1, done: true, checks: [{ type: 'file_contains', path: 'index.html', text: 'h2' }, { type: 'file_contains', path: 'index.html', text: '<h2>' }] }] },
     ['메뉴 표 구역이 있다'], cwd).claims[0].check, 'unrelated');
-  // stayed_inside is never bundled
+  // stayed_inside in a set is judged on its own (자율 시험 5차); the rest of the set still decides the criterion
   assert.equal(verifyReport({ criteria: [{ index: 1, done: true, checks: [sections[3], { type: 'stayed_inside' }] }] },
-    ['index.html에 메뉴 표 구역이 있다'], cwd, { boundary: () => ({ status: 'pass', proof: 'x' }) }).claims[0].check, 'invalid');
+    ['index.html에 메뉴 표 구역이 있다'], cwd, { boundary: () => ({ status: 'pass', proof: 'x' }) }).claims[0].check, 'pass');
 });
 
 test('an "internet loads nothing" criterion is proven by an absence check of loading patterns (flea market run)', () => {
@@ -316,6 +316,31 @@ test('자율 시험 2차: "밖에 쓴 파일이 없다" is fully proven by the e
     { test: { label: 'node --test', passed: true }, verifying: true });
   assert.deepEqual([person.evidence.length, person.claims[0].check, person.claims[0].person], [0, 'none', true]);
   assert.match(person.claims[0].detail, /^참고 · /);
+});
+
+test('자율 시험 5차: stayed_inside counts inside a set, "정확히 한 번" is flagged, team-report criteria are caught', async () => {
+  const { lintCriteria, unprovableCriterion } = await import('../src/완료근거.js');
+  const cwd = ws();
+  writeFileSync(path.join(cwd, '요약.md'), '# 요약\n출처: 공식 문서');
+  const boundary = () => ({ status: 'pass', proof: '엔진 확인 · 모든 단계가 쓰기 제한 아래 실행됨' });
+  const set = [{ type: 'file_exists', path: '요약.md' }, { type: 'stayed_inside' }];
+  const both = verifyReport({ criteria: [{ index: 1, done: true, checks: set }] }, ['요약.md 가 있고 작업 폴더 밖에 쓴 파일이 없다'], cwd, { boundary });
+  assert.deepEqual([both.claims[0].check, both.evidence.length], ['pass', 1], JSON.stringify(both.claims));
+  assert.match(both.evidence[0].proof, /쓰기 제한 아래 실행됨 \/ /);
+  const outside = verifyReport({ criteria: [{ index: 1, done: true, checks: set }] }, ['요약.md 가 있고 작업 폴더 밖에 쓴 파일이 없다'], cwd,
+    { boundary: () => ({ status: 'fail', reason: '쓰기 제한 없이 실행된 단계가 있음' }) });
+  assert.equal(outside.claims[0].check, 'fail', 'a failed boundary still fails the set');
+  const missing = verifyReport({ criteria: [{ index: 1, done: true, checks: [{ type: 'file_exists', path: '없음.md' }, { type: 'stayed_inside' }] }] },
+    ['없음.md 가 있고 작업 폴더 밖에 쓴 파일이 없다'], cwd, { boundary });
+  assert.equal(missing.claims[0].check, 'fail', 'the rest of the set must still pass');
+  const exact = lintCriteria(['예시 표시가 슬라이드마다 정확히 한 번 있다', '예시 표시가 있다']);
+  assert.equal(exact.length, 1);
+  assert.match(exact[0], /^1번: "정확히 한 번"/);
+  for (const c of ['팀 보고에 확인 못 한 항목이 적혀 있다', '조사팀 보고에 출처 날짜가 적혀 있다', '검증팀의 답변에 테스트 결과가 있다', '최종 보고에 남은 문제를 밝힌다'])
+    assert.equal(unprovableCriterion(c), true, c);
+  for (const c of ['보고서.md 에 출처가 적혀 있다', '업무보고 한글 문서를 엔진이 만들었다', '조사결과.md 에 확인 못 한 항목이 적혀 있다', '보고서에 결론이 있다',
+    '팀 보고에 남은 문제를 적는다 (대장이 확인)']) assert.equal(unprovableCriterion(c), false, c);
+  assert.match(lintCriteria(['팀 보고에 확인 못 한 항목이 적혀 있다'])[0], /팀 보고·답변에 적힌 것은 근거가 아니어서/);
 });
 
 test('자율 시험 3차: a build-only criterion is decided by the engine build, even against "not done" or no check', () => {
