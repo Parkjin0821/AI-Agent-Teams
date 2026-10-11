@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node --watch src/서버.js",
     "start": "node src/서버.js",
-    "test": "node --test"
+    "test": "node --test \"test/**/*.test.js\""
   },
   "engines": {
     "node": ">=22"

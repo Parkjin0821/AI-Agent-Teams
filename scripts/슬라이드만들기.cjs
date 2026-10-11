@@ -90,11 +90,16 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   if (new Set(alias.values()).size !== ids.length) throw new Error('deck names collide');
   for (const id of ids) copyTree(path.join(root, 'slides', id), path.join(work, 'slides', alias.get(id)), budget);
   copyTree(path.join(root, 'assets'), path.join(work, 'assets'), budget);
+  // The engine font kit (글꼴/, copied by 글꼴.js): a deck imports '../../글꼴/글꼴.css' (자율 시험 6차: without this
+  // folder the build failed with "Module not found" and the deck never got a PDF).
+  copyTree(path.join(root, '글꼴'), path.join(work, '글꼴'), budget);
   const built = spawnSync(process.execPath, [path.join(tools, 'node_modules', '@open-slide', 'core', 'bin.js'), 'build'],
     { cwd: work, encoding: 'utf8', timeout: 180_000, windowsHide: true, env: { ...process.env, NO_COLOR: '1', CI: '1' } });
   const dist = path.join(work, 'dist');
   if (built.status !== 0 || !fs.existsSync(path.join(dist, 'index.html'))) {
-    const tail = String((built.stderr || '') + (built.stdout || '')).replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/).filter(Boolean).slice(-12).join('\n');
+    // stderr last: it holds the error, and only the last lines are kept (자율 시험 6차: stderr first left only Vite's
+    // "transforming…" progress lines in the record, and the cause was cut off).
+    const tail = String((built.stdout || '') + '\n' + (built.stderr || '')).replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/).filter(Boolean).slice(-12).join('\n');
     console.log('AGENT_HQ_SLIDES ' + JSON.stringify({ decks: ids.map(id => ({ id, error: '빌드 실패', detail: tail.slice(-1500) })) }));
     return;
   }
@@ -136,13 +141,16 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
       const ev = async expression => (await s('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })).result.value;
       for (let i = 0; i < 80 && !(await ev("document.readyState === 'complete' && !!document.querySelector('[aria-label=\"Download\"]')")); i++) await wait(250);
       // open-slide's own export: Download → PDF lays every page out in a print root, then calls print().
-      const clicked = await ev(`(async () => {
-        const find = re => [...document.querySelectorAll('button,[role=menuitem]')].find(b => re.test((b.getAttribute('aria-label') || '') + ' ' + b.textContent));
-        const menu = find(/^download/i); if (!menu) return 'no download menu';
-        menu.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); menu.click();
-        await new Promise(r => setTimeout(r, 600));
-        const pdf = find(/pdf/i); if (!pdf) return 'no pdf item'; pdf.click(); return 'ok';
-      })()`);
+      // Two plain calls with the wait on this side (자율 시험 6차: one async call that waited inside the page failed with
+      // "Promise was collected" on a 6-page deck, although the export itself had run — the wait was lost while the page
+      // laid out every slide).
+      const FIND = "const find = re => [...document.querySelectorAll('button,[role=menuitem]')].find(b => re.test((b.getAttribute('aria-label') || '') + ' ' + b.textContent));";
+      let clicked = await ev(`(() => { ${FIND} const menu = find(/^download/i); if (!menu) return 'no download menu';
+        menu.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); menu.click(); return 'ok'; })()`);
+      if (clicked === 'ok') {
+        await wait(600);
+        clicked = await ev(`(() => { ${FIND} const pdf = find(/pdf/i); if (!pdf) return 'no pdf item'; setTimeout(() => pdf.click(), 0); return 'ok'; })()`);
+      }
       if (clicked !== 'ok') { decks.push({ id, error: 'PDF 내보내기를 찾지 못함 (' + clicked + ')' }); continue; }
       for (let i = 0; i < 120 && !(await ev('window.__hqPrinted')); i++) await wait(250);
       const pages = await ev("document.querySelectorAll('#os-print-root .os-print-frame').length");

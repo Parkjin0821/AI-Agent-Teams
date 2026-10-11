@@ -266,7 +266,8 @@ function runChecks(list, criterion, cwd, ctx, claimed) {
   }
   // Every check must pass, so a set is at least as strong as the one about the criterion; a technical extra
   // (an id, a class name) need not share its words (seen in a real run: id="total-ratio" spoiled a proven set).
-  if (claimed && !list.some(c => relatesTo(c, criterion)) && !countsFor(list, criterion) && !koreanNames(list, criterion)) {
+  if (claimed && !list.some(c => relatesTo(c, criterion)) && !countsFor(list, criterion) && !koreanNames(list, criterion)
+    && !quotedPhrase(list, criterion) && !inNamedSection(list, criterion, cwd)) {
     return { status: 'unrelated', reason: `${proofs.join(' / ')} — 이 조건과 관련 없는 검사라 근거로 치지 않음 · 조건의 낱말(구역 제목 등)이 든 확인을 하나 함께 내면 인정` };
   }
   return { status: 'pass', proof: `엔진 확인 · ${proofs.join(' / ')}` };
@@ -347,6 +348,40 @@ function koreanNames(list, criterion) {
   if (!/파일\s*이름|파일명|이름이/.test(criterion) || !/한글|한국어/.test(criterion)) return false;
   const bases = list.map(k => k?.type === 'file_exists' ? path.basename(String(k.path ?? '').replace(/\\/g, '/')) : null);
   return bases.every(b => b && (/[가-힣]/.test(b) || FIXED_NAMES.has(b.toLowerCase()))) && bases.some(b => /[가-힣]/.test(b));
+}
+// 자율 시험 6차: "공식 출처 어디에도 없는 값은 '확인 못 함' 으로 적혀 있으면 충족" lost a check that found '확인 못 함'
+// (its words are too short to count). A phrase the criterion quotes, found by a text check, speaks to it — unless the
+// criterion says that phrase must not be there ("'TODO' 가 없다").
+const QUOTED = /['"‘“「]([^'"’”」\n]{2,40})['"’”」]/g;
+function quotedPhrase(list, criterion) {
+  const c = String(criterion);
+  const phrases = [...c.matchAll(QUOTED)].filter(m => !/^\s*[가-힣]{0,3}\s*(없|않|금지)/.test(c.slice(m.index + m[0].length)))
+    .map(m => m[1].trim().toLowerCase());
+  return phrases.length > 0 && list.some(k => ['file_contains', 'source_contains'].includes(k?.type)
+    && phrases.some(p => String(k.text ?? '').toLowerCase().includes(p)));
+}
+// 자율 시험 6차: "오시는 길 구역에 주소와 찾아오는 방법 안내가 글로 있다" lost the address and directions found in the page,
+// since they share no word with it. Text checks on one page that all lie inside the section the criterion names (from
+// that heading to the next heading of the same or a higher level) speak to it.
+function inNamedSection(list, criterion, cwd) {
+  const words = String(criterion).split(/\s+/);
+  const at = words.findIndex(w => /^(구역|섹션)/.test(w));
+  if (at < 1 || !list.length || !list.every(k => k?.type === 'file_contains') || new Set(list.map(k => k.path)).size !== 1) return false;
+  const target = insideWorkspace(list[0].path, cwd);
+  if (!target || !/\.(html?|md|tsx)$/i.test(target)) return false;
+  let text;
+  try { text = readFileSync(target, 'utf8'); } catch { return false; }
+  const heads = [...text.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1\s*>|^(#{1,6})\s+(.+)$/gim)].map(m => ({ at: m.index, end: m.index + m[0].length,
+    level: m[1] ? Number(m[1]) : m[3].length, title: (m[2] ?? m[4] ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() }));
+  for (let n = Math.min(3, at); n >= 1; n--) {
+    const name = words.slice(at - n, at).join(' ');
+    const i = heads.findIndex(h => h.title.includes(name));
+    if (i < 0) continue;
+    const next = heads.slice(i + 1).find(h => h.level <= heads[i].level);
+    const from = heads[i].end, to = next?.at ?? text.length;
+    return list.every(k => { const p = text.indexOf(String(k.text ?? ''), from); return k.text && p >= from && p < to; });
+  }
+  return false;
 }
 // 양식 채우기 재시험 (2026-10-02): "엔진의 document_made 증명이 있다: 결과가 원본과 같은 .hwp 형식이고 목차·표 구조가
 // 양식과 같다" lost a passing document_made to "관련 없는 검사" — a filled form is an .hwp, and the criterion says 양식.

@@ -493,7 +493,12 @@ export class GoalScheduler {
     const roundEvidence = this.evidenceFor(goal, result.evidence);
     // Planning and the read-only reviews (security, policy) check no criteria and cannot change files, so they keep
     // the evidence gathered so far (otherwise the proven count drops to 0 after every review).
-    const evidence = run.team === 'plan' || REVIEWS.includes(run.team) ? (goal.evidence ?? []) : mergeEvidence(roundEvidence, goal.confirmed);
+    // 자율 시험 6차: a proof-only retry hands the verifier just the criteria whose check was not accepted, and it sent
+    // nothing for the rest — six proven criteria dropped to one (Node.js) and eleven to two (web page). No work ran in
+    // between, so the proofs it was not asked to resend stand.
+    const kept = run.team === 'qa' && goal.team?.proofRetry
+      ? (goal.evidence ?? []).filter(e => !roundEvidence.some(r => r.criterion === e.criterion)) : [];
+    const evidence = run.team === 'plan' || REVIEWS.includes(run.team) ? (goal.evidence ?? []) : mergeEvidence([...kept, ...roundEvidence], goal.confirmed);
     // Only the tool's own report says which model actually ran; the requested model is not proof.
     const actualModel = typeof result.model === 'string' && result.model ? result.model : null;
     // Raw provider output is not persisted. The final answer is kept (capped) because it is the result

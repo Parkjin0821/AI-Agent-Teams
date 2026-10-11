@@ -343,6 +343,23 @@ test('자율 시험 5차: stayed_inside counts inside a set, "정확히 한 번"
   assert.match(lintCriteria(['팀 보고에 확인 못 한 항목이 적혀 있다'])[0], /팀 보고·답변에 적힌 것은 근거가 아니어서/);
 });
 
+test('자율 시험 6차: a quoted phrase found by a check, and text inside the named section, speak to the criterion', () => {
+  const cwd = ws();
+  writeFileSync(path.join(cwd, '조사결과.md'), '# 조사\n| v26 | 코드네임 | 확인 못 함 |\n');
+  writeFileSync(path.join(cwd, 'index.html'), '<h1>아침결</h1><h2>대표 메뉴</h2><h3>우유식빵</h3><p>3,800원</p>'
+    + '<h2>오시는 길 <span>예시</span></h2><p>서울 ○○구 아침길 12</p><p>○○역 2번 출구에서 7분</p><h2>주문 문의</h2><p>010-0000-0000</p>');
+  const run = (criterion, checks) => verifyReport({ criteria: [{ index: 1, done: true, checks }] }, [criterion], cwd).claims[0].check;
+  const notFound = "공식 출처 어디에도 없는 값은 '확인 못 함' 으로 적혀 있으면 충족으로 본다";
+  assert.equal(run(notFound, [{ type: 'file_contains', path: '조사결과.md', text: '확인 못 함' }]), 'pass');
+  assert.equal(run("'확인 못 함' 이 없다", [{ type: 'file_contains', path: '조사결과.md', text: '확인 못 함' }]), 'unrelated', 'present text never proves an absence');
+  const way = '오시는 길 구역에 주소와 찾아오는 방법 안내가 글로 있다';
+  const inside = [{ type: 'file_contains', path: 'index.html', text: '서울 ○○구 아침길 12' }, { type: 'file_contains', path: 'index.html', text: '○○역 2번 출구에서 7분' }];
+  assert.equal(run(way, inside), 'pass');
+  assert.equal(run(way, [inside[0], { type: 'file_contains', path: 'index.html', text: '010-0000-0000' }]), 'unrelated', 'text from the next section does not count');
+  assert.equal(run(way, [{ type: 'file_contains', path: 'index.html', text: '3,800원' }]), 'unrelated', 'text from another section does not count');
+  assert.equal(run('대표 메뉴 구역에 가격이 있다', [{ type: 'file_contains', path: 'index.html', text: '3,800원' }]), 'pass', 'a sub-heading stays inside its section');
+});
+
 test('자율 시험 3차: a build-only criterion is decided by the engine build, even against "not done" or no check', () => {
   const cwd = ws();
   const slides = { decks: [{ id: '여름-독서-교실-안내', pages: 6, pdf: '발표자료/여름-독서-교실-안내.pdf', overflowPages: [], scriptErrors: 0 }] };

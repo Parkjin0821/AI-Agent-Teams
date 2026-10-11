@@ -735,6 +735,27 @@ test('only the proof failed: the verifier gets those criteria back once, no work
   } finally { store.close(); }
 });
 
+test('자율 시험 6차: the proof-only retry keeps what was already proven; the verifier resends only the asked criteria', async () => {
+  let qa = 0;
+  const { store, scheduler, add } = setup(team => {
+    if (team === 'plan') return { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } };
+    if (team === 'qa') {
+      // first: C[0] proven, C[1] sent with a check about something else; retry: only C[1], now proven, nothing for C[0]
+      return ++qa === 1
+        ? { outcome: 'completed', evidence: ev(0), claims: [{ criterion: C[0], claimed: true, check: 'pass' }, { criterion: C[1], claimed: true, check: 'unrelated', detail: 'x' }], findings: { feedback: '' } }
+        : { outcome: 'completed', evidence: ev(1), claims: [{ criterion: C[0], claimed: false, check: 'none' }, { criterion: C[1], claimed: true, check: 'pass' }], findings: { feedback: '' } };
+    }
+    return { outcome: 'completed', diffHash: 'd', evidence: [] };
+  });
+  try {
+    const g = add();
+    for (let i = 0; i < 4; i++) await scheduler.runGoal(g.id); // plan, dev, qa, qa (proof retry)
+    const goal = store.getGoal(g.id);
+    assert.deepEqual(goal.evidence.map(e => e.criterion).sort(), [C[0], C[1]].sort(), 'C[0] was not dropped by the retry');
+    assert.equal(goal.status, 'verified');
+  } finally { store.close(); }
+});
+
 // 반복 검토 생략 (2026-10-02): a fake work folder whose snapshots the runner records on each step, like 목표실행.js does.
 function reviewRig(change, { securityBlocksFirst = false, allDoneAt = 0 } = {}) {
   const ws = { sig: { 'index.html': 'v0' }, signals: {} };
