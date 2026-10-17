@@ -208,3 +208,33 @@ test('the permission-model command really keeps test code out of the home folder
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /ℹ pass 3/);
 });
+
+test('8차 검증: escape attempts under the engine test command — links, file handles, programs, workers, addons all blocked', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { testCommand } = await import('../src/검사도구.js');
+  const attack = [
+    "const test = require('node:test'); const fs = require('node:fs'); const os = require('node:os'); const path = require('node:path');",
+    "const target = path.join(os.homedir(), '.claude', 'settings.json');",
+    "const ok = e => e && ['ERR_ACCESS_DENIED', 'EPERM', 'EACCES', 'ERR_DLOPEN_DISABLED'].includes(e.code);",
+    "const t = (n, f) => test(n, () => { try { f(); } catch (e) { if (ok(e)) return; } console.log('LEAK:' + n); });",
+    "t('read', () => fs.readFileSync(target));",
+    "t('relative', () => fs.readFileSync(path.relative(process.cwd(), target)));",
+    "t('symlink', () => { fs.symlinkSync(path.dirname(target), 'l1', 'dir'); fs.readFileSync(path.join('l1', 'settings.json')); });",
+    "t('junction', () => { fs.symlinkSync(path.dirname(target), 'l2', 'junction'); fs.readFileSync(path.join('l2', 'settings.json')); });",
+    "t('hardlink', () => { fs.linkSync(target, 'h1'); fs.readFileSync('h1'); });",
+    "t('open fd', () => fs.readFileSync(fs.openSync(target, 'r')));",
+    "t('child process', () => require('node:child_process').execFileSync(process.execPath, ['-v']));",
+    "t('worker', () => new (require('node:worker_threads').Worker)('1', { eval: true }));",
+    "t('addon', () => process.dlopen({ exports: {} }, path.resolve('x.node')));",
+    "t('wasi', () => new (require('node:wasi').WASI)({ version: 'preview1' }));",
+    "t('inspector', () => require('node:inspector').open(0));",
+    "t('readdir home', () => fs.readdirSync(os.homedir()));",
+    "t('write home', () => fs.writeFileSync(path.join(os.homedir(), 'hq-escape-test.txt'), 'x'));",
+  ].join('\n');
+  const dir = folder({ 'a.test.js': attack });
+  const [file, ...args] = testCommand(detectTests(dir), dir);
+  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+  const r = spawnSync(file, args, { cwd: dir, env, encoding: 'utf8', timeout: 60_000 });
+  assert.deepEqual(r.stdout.split(/\r?\n/).filter(l => l.startsWith('LEAK:')), [], r.stdout.slice(-800));
+  assert.match(r.stdout, /ℹ pass 13/);
+});
