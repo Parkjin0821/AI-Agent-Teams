@@ -218,7 +218,11 @@ Claude Code 대화나 Codex 앱을 켜 둘 필요가 없습니다. 팀은 설치
 node scripts/에이전트-관리.mjs status
 node scripts/에이전트-관리.mjs restart   # 새 코드 적용
 node scripts/에이전트-관리.mjs stop
+node scripts/에이전트-관리.mjs autostart on    # Windows 로그인 때 저절로 켜기 (끄기: autostart off)
 ```
+
+- **자동 시작**: `autostart on`은 대장 계정의 시작 프로그램 폴더에 `AGENT-HQ-자동시작.cmd` 하나를 둡니다(관리자 권한·서비스·시스템 설정 없음).
+  재시작 복구와 함께 쓰면 PC가 재부팅돼도 끊긴 단계를 스스로 이어 갑니다. 엔진은 이 설정을 스스로 켜지 않습니다.
 
 - `restart`는 팀 단계가 도는 중이면 거절하고, 페이지를 새로 열지 않습니다.
 - 켜고 끈 기록과 이유는 `data/real-test/server.log`에, 서버 출력은 `server-output.log`에 남습니다.

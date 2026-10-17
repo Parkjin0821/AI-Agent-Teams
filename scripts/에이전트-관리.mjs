@@ -4,6 +4,7 @@
 //   node scripts/에이전트-관리.mjs restart [--force]   stop and start again without opening a page; refuses while a
 //                                                 team step is running unless --force
 //   node scripts/에이전트-관리.mjs status
+//   node scripts/에이전트-관리.mjs autostart on|off|status   start by itself at Windows sign-in (대장's choice)
 // The server runs with no console window of its own; its output goes to data/real-test/server-output.log and every
 // start and end to data/real-test/server.log. 에이전트-시작.cmd / 에이전트-종료.cmd call this script.
 import { spawn } from 'node:child_process';
@@ -78,6 +79,13 @@ else if (command === 'restart') {
   const busy = await runningSteps();
   if (busy && !has('--force')) { say(`팀 단계 ${busy}개가 실행 중이라 다시 켜지 않았습니다. 끝난 뒤 다시 하세요.`); code = 2; }
   else { code = await stop('새 코드 적용을 위해 재시작'); if (code === 0) code = await start({ open: false }); }
+} else if (command === 'autostart') {
+  // 자동 시작 (9차 5번): 대장 turns it on or off; the engine never does.
+  const auto = await import('../src/자동시작.js');
+  const sub = flags[0] ?? 'status';
+  const st = sub === 'on' ? auto.enableAutostart(root) : sub === 'off' ? auto.disableAutostart() : auto.autostartStatus();
+  say(st.on ? `자동 시작 켜짐 · Windows 로그인 때 AGENT HQ가 켜집니다 (${st.file})` : `자동 시작 꺼짐${st.note ? ` · ${st.note}` : ''}`);
+  code = 0;
 } else if (command === 'status') { const ok = await up(); say(ok ? `켜짐 · ${URL_} · pid ${serverPid() ?? '확인 못 함'}` : '꺼짐'); code = ok ? 0 : 1; }
-else { say('사용법: node scripts/에이전트-관리.mjs start|stop|restart|status'); code = 64; }
+else { say('사용법: node scripts/에이전트-관리.mjs start|stop|restart|status|autostart [on|off|status]'); code = 64; }
 process.exit(code);
