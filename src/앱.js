@@ -5,6 +5,7 @@ import path from 'node:path';
 import { CliAgentAdapter, resolveBins } from './실행어댑터.js';
 import { connectorPlugins, designConnectors, EnvironmentMonitor, environmentView, validateSetting } from './연결환경.js';
 import { ConnectorGate, cliProbe } from './커넥터.js';
+import { observe } from './관측.js';
 import { changedSince, createGoalRunner } from './목표실행.js';
 import { ModelRegistry } from './모델정책.js';
 import { Orchestrator } from './작업조율.js';
@@ -341,6 +342,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     ['GET', /^\/api\/teams$/, () => teamsView()],
     // ── 읽기 전용 커넥터: 연결 시험(발견·검토·격리 시험) → 승인함 → 팀별 켜기 ──
     ['GET', /^\/api\/connectors$/, () => ({ items: connectorGate.view() })],
+    // 관측 (9차 6번): the last days counted from the engine's own records (no model call).
+    ['GET', /^\/api\/observability$/, () => observe({ goals: store.listGoals(), runsOf: id => store.listRuns(id), events: store.recentEvents(5000),
+      sentinelLog, now: clock.now(), days: 7 })],
     // ── 외부 저장: 요청 → 승인함 → 전송 ──
     ['GET', /^\/api\/publish$/, () => ({ items: publisher.list().slice(0, 50), github: { repo: github.repo, hasToken: github.hasToken },
       notionParent: setting('publish.notionParent', DEFAULT_NOTION_PARENT), notionConnected: connectorGate.get('notion')?.stage === 'connected' })],

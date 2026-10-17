@@ -4,10 +4,13 @@
 //   node scripts/자율시험.mjs start     creates and starts the five projects, then watches them
 //   node scripts/자율시험.mjs watch     watches the last set again (e.g. after a restart)
 //   node scripts/자율시험.mjs report    prints the table of the last set
+//   --chaos (with start/watch): once a work step is running, the server is killed hard and started again (장애 주입),
+//     and the report says whether that step resumed on its own (9차 6번).
 // The harness itself approves each project's completion criteria (that is part of every run) and nothing else: any
 // other stop for 대장 (a question, a decision, a result check) counts as an intervention and is left for 대장.
 // Results: data/자율시험/<date>.json (data/ stays out of the repository).
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -76,7 +79,23 @@ async function watch(file, hours = 6) {
         const final = unmet.length > 0 && unmet.every(c => /\(대장이[^)]*확인\)/.test(c));
         if (stop && !it.interventions.some(x => x.key === stop)) it.interventions.push({ key: stop, reason: g.reason, round: g.round, final, unmet,
           at: new Date().toISOString(), question: String(g.question?.text ?? g.question ?? '').slice(0, 400) });
-        Object.assign(it, { status: g.status, reason: g.reason, round: g.round, met: g.evidence?.length ?? 0, total: g.completionCriteria?.length ?? 0 });
+        const runs = g.runs ?? [];
+        Object.assign(it, { status: g.status, reason: g.reason, round: g.round, met: g.evidence?.length ?? 0, total: g.completionCriteria?.length ?? 0,
+          steps: runs.length, modelCalls: runs.filter(r => r.actualModel).length,
+          engineOnly: runs.filter(r => String(r.answer ?? '').startsWith('엔진 단독 검증')).length,
+          interrupted: runs.filter(r => r.status === 'interrupted').length, resumed: (g.recoveries ?? []).length });
+        // 장애 주입: the first time a work step runs, kill the server hard and start it again.
+        const last = runs.at(-1);
+        if (CHAOS && !rec.chaos && g.status === 'running' && last?.status === 'running' && ['research', 'dev', 'design'].includes(last.team)) {
+          rec.chaos = { at: new Date().toISOString(), kind: it.kind, goalId: g.id, team: last.team };
+          let pid = null;
+          try { pid = readFileSync(path.join(root, 'data', 'real-test', 'server.pid'), 'utf8').trim(); } catch { /* no pid */ }
+          if (pid) spawnSync('taskkill', ['/F', '/T', '/PID', pid], { stdio: 'ignore' });
+          spawnSync(process.execPath, [path.join(root, 'scripts', '에이전트-관리.mjs'), 'start', '--no-open'], { stdio: 'ignore' });
+          console.log('장애 주입 · 서버를 강제 종료하고 다시 켬 ·', it.kind, last.team);
+          save(file, rec);
+          break;
+        }
       }
       save(file, rec);
       const line = rec.items.map(it => `${it.kind}:${it.status ?? '?'}${it.reason ? '/' + it.reason : ''} ${it.met ?? 0}/${it.total ?? 0}`).join(' | ');
@@ -96,6 +115,13 @@ function report(file) {
   const real = it => it.interventions.filter(x => !x.final);
   const alone = rec.items.filter(it => !real(it).length && (it.status === 'verified' || it.interventions.some(x => x.final))).length;
   console.log(`\n자율 완료 ${alone}/${rec.items.length} (대장 최종 확인만 남은 것 포함) · 시작 ${rec.startedAt}${rec.endedAt ? ' · 끝 ' + rec.endedAt : ''}`);
+  const sum = k => rec.items.reduce((n, it) => n + (it[k] ?? 0), 0);
+  const minutes = rec.endedAt ? Math.round((Date.parse(rec.endedAt) - Date.parse(rec.startedAt)) / 60000) : null;
+  console.log(`단계 ${sum('steps')} · 모델 호출 ${sum('modelCalls')} · 엔진 단독 검증 ${sum('engineOnly')} · 끊긴 단계 ${sum('interrupted')} · 스스로 복구 ${sum('resumed')}${minutes != null ? ` · ${minutes}분` : ''}`);
+  if (rec.chaos) {
+    const hit = rec.items.find(it => it.goalId === rec.chaos.goalId);
+    console.log(`장애 주입: ${rec.chaos.kind} ${rec.chaos.team} 단계 중 서버 강제 종료 → ${hit?.resumed ? '스스로 복구함' : '복구 기록 없음'}`);
+  }
   for (const it of rec.items) {
     const finalOnly = it.interventions.some(x => x.final) && !real(it).length;
     console.log(`- ${it.kind}: ${it.status ?? '?'}${it.reason ? ' (' + it.reason + ')' : ''} · 조건 ${it.met ?? 0}/${it.total ?? 0} · 단계 ${it.round ?? 0}`
@@ -105,7 +131,9 @@ function report(file) {
 }
 
 const cmd = process.argv[2];
-if (cmd === 'start') await watch(await start(), Number(process.argv[3] ?? 6));
-else if (cmd === 'watch') await watch(latest(), Number(process.argv[3] ?? 6));
+const CHAOS = process.argv.includes('--chaos');
+const hours = Number(process.argv.slice(3).find(a => /^\d+(\.\d+)?$/.test(a)) ?? 6);
+if (cmd === 'start') await watch(await start(), hours);
+else if (cmd === 'watch') await watch(latest(), hours);
 else if (cmd === 'report') report(latest());
 else console.log('사용법: node scripts/자율시험.mjs start | watch | report');

@@ -1284,6 +1284,24 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
   </div>
 </sc-if>
 
+<!-- ================= 관측 ================= -->
+<sc-if value="{{vObserve}}">
+  <div class="page-h"><div><h1>관측</h1><p class="lede">엔진 기록만으로 센 최근 일주일입니다. 모델을 부르지 않고, 추정한 숫자는 없습니다.</p></div><button class="btn sm" onClick="{{ob.reload}}">새로고침</button></div>
+  <sc-if value="{{ob.ready}}">
+  <p class="hint">{{ob.since}}</p>
+  <div class="stack">
+    <section class="card"><dl class="facts"><sc-for list="{{ob.tiles}}" as="t"><dt>{{t.l}}</dt><dd>{{t.v}}</dd></sc-for></dl></section>
+    <section class="card"><div class="lbl">팀별 단계</div>
+      <sc-for list="{{ob.teams}}" as="t"><div class="row-f small" style="margin-bottom:4px"><b style="min-width:72px">{{t.name}}</b><span>단계 {{t.steps}}</span><span>모델 호출 {{t.model}}</span><span>엔진 단독 {{t.engine}}</span><span>평균 {{t.avg}}</span><span>끊김 {{t.cut}}</span></div></sc-for>
+      <sc-if value="{{ob.noTeams}}"><p class="hint">최근 일주일에 실행한 단계가 없습니다.</p></sc-if></section>
+    <section class="card"><div class="lbl">검증이 끝내지 못한 원인 (모델은 구현 결함일 때만 올림)</div>
+      <sc-for list="{{ob.causes}}" as="c"><div class="row-f small"><b style="min-width:200px">{{c.l}}</b><span>{{c.n}}번</span></div></sc-for>
+      <sc-if value="{{ob.noCauses}}"><p class="hint">기록된 원인이 없습니다.</p></sc-if></section>
+    <section class="card"><dl class="facts"><sc-for list="{{ob.others}}" as="o"><dt>{{o.l}}</dt><dd>{{o.v}}</dd></sc-for></dl></section>
+  </div>
+  </sc-if>
+</sc-if>
+
 <!-- ================= 기억 ================= -->
 <sc-if value="{{vMemory}}">
   <div class="page-h"><div><h1>기억</h1><p class="lede">대장의 선호와 규칙입니다. 승인한 기억만 팀 지시에 들어가며, 프로젝트가 바뀌어도 유지됩니다. 언제든 고치거나 잊게 할 수 있습니다.</p></div></div>
@@ -1778,7 +1796,7 @@ class Component extends DCLogic {
     if (hit) this.setState({ eng: Object.assign({}, eng, { projects: projects }) });
   }
   go(view) { this.setState({ view: view }); window.scrollTo(0, 0); if (view === 'connect') this.loadEnvs(); if(view === 'skills') this.loadSkills();
-    if (view === 'inbox') this.loadInbox(); if (view === 'memory') this.loadMemory(); if (view === 'teams') this.loadConnectors(); }
+    if (view === 'inbox') this.loadInbox(); if (view === 'memory') this.loadMemory(); if (view === 'teams') this.loadConnectors(); if (view === 'observe') this.loadObserve(); }
   loadInbox() {
     return fetch('/api/inbox').then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) this.setState({ inbox: d }); }).catch(() => {});
   }
@@ -2377,7 +2395,7 @@ class Component extends DCLogic {
     const docTitle = (pendingTotal ? '(' + pendingTotal + ') ' : '') + 'AGENT HQ';
     if (document.title !== docTitle) document.title = docTitle;
     const navDefs = [['home', '홈', 0], ['projects', '프로젝트', 0], ['inbox', '승인함', pendingTotal], ['teams', '팀', 0]];
-    const navMoreDefs = [['memory', '기억'], ['skills', '스킬'], ['connect', '연결'], ['usage', '사용량 상세']];
+    const navMoreDefs = [['memory', '기억'], ['skills', '스킬'], ['connect', '연결'], ['usage', '사용량 상세'], ['observe', '관측']];
     // ── 승인함 ──
     const KIND_L = { web: '웹사이트 열기', connector: '커넥터 동작', path: '승인 필요 경로에 쓰기' };
     // Kinds with nothing waiting are listed on one line ("감시 승인 0 · 결과 확인 0 …") instead of an empty card each.
@@ -2632,7 +2650,7 @@ class Component extends DCLogic {
       modeCls: 'mode' + (s.offline ? ' off' : real ? ' real' : ''), modeL: s.offline ? '연결 끊김' : real ? '실제 실행' : '모의 실행',
       modeTitle: real ? '시작한 프로젝트는 실제 AI가 실행하며 구독 사용량이 쓰입니다' : '실제 AI를 호출하지 않는 모의 실행 모드입니다',
       offline: s.offline,
-      vInbox: s.view === 'inbox', vMemory: s.view === 'memory', ib: ib, mem: mem, dg: dg, mg: mg,
+      vInbox: s.view === 'inbox', vMemory: s.view === 'memory', vObserve: s.view === 'observe', ob: this.observeView(), ib: ib, mem: mem, dg: dg, mg: mg,
       vSkills:s.view === 'skills', refreshSkills:()=>this.loadSkills(), skillsMessage:s.skillsMessage || '', skillsEmpty:Array.isArray(s.skillEntries) && !s.skillEntries.length,
       skillBusy:!!s.skillBusy,skillFormMessage:s.skillFormMessage || '',importSkill:()=>this.saveSkill('import'),draftSkill:()=>this.saveSkill('draft'),
       skillCounts:Array.isArray(s.skillEntries) ? `전체 ${s.skillEntries.length}개 · 사용 가능 ${s.skillEntries.filter(k=>k.status==='active').length}개 · 검토 대기 ${s.skillEntries.filter(k=>k.status==='pending').length}개 · 비활성 ${s.skillEntries.filter(k=>k.status==='disabled').length}개` : '등록 목록을 불러오는 중…',
@@ -2945,6 +2963,26 @@ class Component extends DCLogic {
     this.api('POST', '/api/templates', { projectId: wp.id, name: name })
       .then((t) => { this.loadTemplates(); this.say('‘' + t.name + '’ 템플릿으로 저장했습니다 · 새 프로젝트에서 고를 수 있습니다'); })
       .catch((e) => this.say(korErr(e.message)));
+  }
+  // 관측 page (9차 6번): the engine's own counts over the last 7 days.
+  loadObserve() {
+    return fetch('/api/observability').then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) this.setState({ observe: d }); }).catch(() => {});
+  }
+  observeView() {
+    const d = this.state.observe;
+    if (!d) return { ready: false };
+    const pct = (a, b) => (b ? Math.round(a / b * 100) + '%' : '—');
+    return { ready: true, reload: () => this.loadObserve(),
+      tiles: [['단계', d.steps], ['모델 호출', d.modelCalls + ' (' + pct(d.modelCalls, d.steps) + ')'], ['엔진 단독 검증', d.engineOnly],
+        ['완료 확인 프로젝트', d.projects.verified + ' / ' + d.projects.total], ['대장 확인 대기', d.projects.waitingForDaejang], ['재시작 복구', d.recovery.resumed + ' / 끊김 ' + d.recovery.interrupted]]
+        .map(([l, v]) => ({ l: l, v: String(v) })),
+      teams: d.teams.map((t) => ({ name: t.name, steps: t.steps, model: t.modelCalls, engine: t.engineOnly, avg: t.avgMinutes == null ? '—' : t.avgMinutes + '분', cut: t.interrupted })),
+      noTeams: !d.teams.length,
+      causes: d.causes.map((c) => ({ l: c.label, n: c.n })), noCauses: !d.causes.length,
+      others: [['근거 무효화 (증명 뒤 파일 바뀜)', d.evidence.stale], ['작업 도구 호출', d.workbench.calls + '번 · ' + d.workbench.steps + '단계'],
+        ['외부 저장', '보냄 ' + d.publish.sent + ' · 실패·확인 필요 ' + d.publish.failed],
+        ['감시 에이전트', '허용 ' + d.sentinel.allow + ' · 차단 ' + d.sentinel.deny + ' · 승인 요청 ' + d.sentinel.ask]].map(([l, v]) => ({ l: l, v: String(v) })),
+      since: '최근 ' + d.days + '일 · ' + fmt(d.since) + '부터' };
   }
   // 외부 저장 card (9차 2번): request an upload; it waits in 승인함 until 대장 approves.
   loadPublish() {
