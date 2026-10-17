@@ -37,6 +37,7 @@ import { listWorkspaceFiles } from './완료근거.js';
 import { hasSecret } from './보안감시.js';
 import { Routines } from './반복작업.js';
 import { Templates } from './템플릿.js';
+import { BLANK_MARK, secretaryTemplate, SECRETARY_TEMPLATES } from './비서템플릿.js';
 import { Rules } from './규칙.js';
 import { KeepAwake, needsAwake } from './절전방지.js';
 
@@ -394,10 +395,14 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       // 템플릿: a saved recipe fills in what 대장 left empty; 대장's edited objective and criteria win.
       const tpl = body.templateId ? templates.get(String(body.templateId)) : null;
       if (body.templateId && !tpl) throw new Error('template not found');
+      // 비서 템플릿: a built-in starter fills the name and objective only; the teams derive the criteria in the conversation.
+      const sec = body.presetId ? secretaryTemplate(String(body.presetId)) : null;
+      if (body.presetId && !sec) throw new Error('template not found');
+      if (sec && String(body.objective || sec.objective).includes(BLANK_MARK)) throw new Error('fill in the template blanks');
       const criteria = Array.isArray(body.completionCriteria) && body.completionCriteria.length ? body.completionCriteria : tpl?.completionCriteria;
       const goal = scheduler.addGoal({
       projectId: `p-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, kind: 'team',
-      title: body.title || tpl?.name, objective: body.objective || tpl?.objective, conversation: body.conversation === true && !criteria?.length,
+      title: body.title || tpl?.name || sec?.name, objective: body.objective || tpl?.objective || sec?.objective, conversation: body.conversation === true && !criteria?.length,
       completionCriteria: criteria, autoRun: body.start === true });
       workspaces.resolve(goal.projectId);
       // New projects start on each app's default model (or 제어팀); a template brings 대장's per-team picks along.
@@ -407,12 +412,15 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
         scheduler.update(store.getGoal(goal.id), { template: { id: tpl.id, name: tpl.name },
           messages: scheduler.withControl(store.getGoal(goal.id), `템플릿으로 시작 · ${tpl.name}`) });
       }
+      // The suggested routine is only pre-selected on the 반복 실행 card; nothing repeats until 대장 saves it.
+      if (sec) scheduler.update(store.getGoal(goal.id), { preset: { id: sec.id, name: sec.name, routine: sec.routine },
+        messages: scheduler.withControl(store.getGoal(goal.id), `비서 템플릿으로 시작 · ${sec.name}`) });
       return [201, store.getGoal(goal.id)];
     }],
     ['GET', /^\/api\/rules$/, () => ({ items: rules.list() })],
     ['POST', /^\/api\/rules$/, (m, body) => { if (body.project) existingWorkspace(String(body.project)); return [201, rules.add(body)]; }],
     ['DELETE', /^\/api\/rules\/([0-9a-f-]{36})$/, m => rules.remove(m[1])],
-    ['GET', /^\/api\/templates$/, () => ({ items: templates.list() })],
+    ['GET', /^\/api\/templates$/, () => ({ items: templates.list(), presets: SECRETARY_TEMPLATES })],
     ['POST', /^\/api\/templates$/, (m, body) => { existingWorkspace(String(body.projectId ?? '')); return [201, templates.save({ projectId: String(body.projectId), name: body.name })]; }],
     ['DELETE', /^\/api\/templates\/([0-9a-f-]{36})$/, m => templates.remove(m[1])],
     ['POST', /^\/api\/goals\/([^/]+)\/messages$/, (m, body) => scheduler.message(m[1], body.text, attachmentsFor(m[1], body.attachments))],

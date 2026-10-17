@@ -1480,6 +1480,10 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
   <aside class="sheet" role="dialog" aria-modal="true" aria-labelledby="new-h">
     <div class="sheet-h"><h2 id="new-h">새 프로젝트</h2><button class="btn ghost sm" onClick="{{closeNew}}" aria-label="닫기">닫기</button></div>
     <div class="sheet-b">
+      <sc-if value="{{np.hasPresets}}"><div class="field"><label>비서 템플릿에서 시작 <span class="opt">(선택)</span></label>
+        <div class="seg wrap" role="group" aria-label="비서 템플릿"><sc-for list="{{np.presets}}" as="t"><button class="{{t.cls}}" aria-pressed="{{t.pressed}}" onClick="{{t.pick}}" title="{{t.title}}">{{t.name}}</button></sc-for></div>
+        <sc-if value="{{np.hasPreset}}"><p class="hint">{{np.presetSummary}} 준비할 것: {{np.presetNeeds}}. 완료 조건은 대화에서 팀이 도출하고, 추천 반복({{np.presetRoutine}})은 프로젝트의 반복 실행 카드에 미리 골라 둡니다. 저장해야 반복합니다.</p></sc-if>
+      </div></sc-if>
       <sc-if value="{{np.hasTemplates}}"><div class="field"><label>템플릿에서 시작 <span class="opt">(선택)</span></label>
         <div class="seg wrap" role="group" aria-label="템플릿"><sc-for list="{{np.templates}}" as="t"><button class="{{t.cls}}" aria-pressed="{{t.pressed}}" onClick="{{t.pick}}" title="{{t.title}}">{{t.name}}</button></sc-for></div>
         <sc-if value="{{np.hasTemplate}}"><p class="hint">목표와 완료 조건을 템플릿에서 채웠습니다. 새 내용에 맞게 고쳐서 시작하세요. 팀별 모델 선택도 함께 적용됩니다. <button class="link small" onClick="{{np.removeTemplate}}">이 템플릿 삭제</button></p></sc-if>
@@ -1632,7 +1636,7 @@ const cleanAnswer = (text) => {
   for (const mark of ['AGENT_HQ_REPORT', 'AGENT_HQ_PLAN']) { const at = t.lastIndexOf(mark); if (at >= 0) t = t.slice(0, at); }
   return t.replace(/\s+$/, '') || '(답변 없음)';
 };
-const ERRORS = [[/completion criteria|completionCriteria/, '완료 조건을 한 줄 이상 적어 주세요.'], [/objective/, '목표를 적어 주세요.'], [/title/, '이름은 100자 이내로 적어 주세요.'],
+const ERRORS = [[/fill in the template blanks/, '목표의 "(여기에 …)" 칸을 채워 주세요.'], [/completion criteria|completionCriteria/,'완료 조건을 한 줄 이상 적어 주세요.'], [/objective/, '목표를 적어 주세요.'], [/title/, '이름은 100자 이내로 적어 주세요.'],
   [/pinned policy requires a model/, '고정할 모델 ID를 적어 주세요.'], [/running round/, '실행 중인 단계가 끝난 뒤에 삭제할 수 있습니다.'],
   [/already verified/, '이미 완료된 목표입니다.'], [/not waiting for an answer/, '지금은 답변을 기다리는 상태가 아닙니다.'], [/answer is empty/, '답변을 적어 주세요.'],
   [/no pending proposal/, '처리할 개선안이 없습니다.'], [/Failed to fetch|NetworkError/, '서버에 연결할 수 없습니다.'],
@@ -1641,6 +1645,9 @@ const ERRORS = [[/completion criteria|completionCriteria/, '완료 조건을 한
   [/skill review and approval required/, '보안·정책·호환성 검토를 모두 통과해야 켤 수 있습니다.'], [/invalid skill text/, '내용을 적어 주세요.'],
   [/unsupported attachment type/, '이미지·PDF·글 파일만 첨부할 수 있습니다.'], [/does not match its type/, '파일 내용이 확장자와 맞지 않아 받지 않았습니다.'],
   [/contains a secret/, '키나 토큰으로 보이는 내용이 있어 받지 않았습니다. 지우고 다시 올려 주세요.'], [/attachment is larger than (\d+)MB/, '첨부 파일이 너무 큽니다 (사용량 화면에서 한도 변경).']];
+// A routine as 대장 reads it (비서 템플릿's suggestion): 매일 08:00 / 매주 월요일 09:00 / 첨부 폴더에 파일이 들어오면.
+const routineL = (r) => !r ? '' : r.kind === 'files' ? '첨부 폴더에 파일이 들어오면'
+  : r.kind === 'weekly' ? '매주 ' + ({ sun: '일', mon: '월', tue: '화', wed: '수', thu: '목', fri: '금', sat: '토' }[r.weekday] || '') + '요일 ' + r.time : '매일 ' + r.time;
 const korErr = (m) => { const hit = ERRORS.find((x) => x[0].test(m)); return hit ? hit[1] : m; };
 const ICON = {
   question: 'M6 6.2a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9v.6M8 11.2v.1M8 14.5A6.5 6.5 0 1 0 8 1.5a6.5 6.5 0 0 0 0 13z',
@@ -2607,9 +2614,9 @@ class Component extends DCLogic {
       if (start && !await this.confirmStart(name)) return;
       if (np.templateId && !lines.length) { this.setState({ np: Object.assign({}, np, { error: '완료 조건을 한 줄 이상 적어 주세요.' }) }); return; }
       this.api('POST', '/api/projects', Object.assign({ title: np.title.trim(), objective: np.goal.trim(), conversation: true, start: start },
-        np.templateId ? { templateId: np.templateId, completionCriteria: lines } : {}))
+        np.templateId ? { templateId: np.templateId, completionCriteria: lines } : np.presetId ? { presetId: np.presetId } : {}))
         .then((g) => this.refresh().then(() => {
-          this.setState({ showNew: false, np: { title: '', goal: '', crit: '', error: '', templateId: '' } });
+          this.setState({ showNew: false, np: { title: '', goal: '', crit: '', error: '', templateId: '', presetId: '' } });
           this.openProject(g.projectId);
           this.say(start ? '프로젝트를 만들고 시작했습니다 · 기획팀부터 진행합니다' : '프로젝트를 만들었습니다');
         }))
@@ -2837,7 +2844,16 @@ class Component extends DCLogic {
         templates: (s.templates || []).map((t) => ({ name: t.name, title: '만든 곳: ' + (t.fromTitle || t.fromProject) + ' · 사용 ' + (t.used || 0) + '회',
           cls: np.templateId === t.id ? 'on' : '', pressed: np.templateId === t.id ? 'true' : 'false',
           pick: () => this.setState({ np: np.templateId === t.id ? Object.assign({}, np, { templateId: '', error: '' })
-            : Object.assign({}, np, { templateId: t.id, title: np.title || t.name, goal: t.objective, crit: (t.completionCriteria || []).join('\n'), error: '' }) }) })),
+            : Object.assign({}, np, { templateId: t.id, presetId: '', title: np.title || t.name, goal: t.objective, crit: (t.completionCriteria || []).join('\n'), error: '' }) }) })),
+        // 비서 템플릿: fills the name and objective; criteria come from the conversation as for a blank project.
+        presets: (s.presets || []).map((t) => ({ name: t.name, title: t.summary + ' (세팅표 ' + t.guide + '번)',
+          cls: np.presetId === t.id ? 'on' : '', pressed: np.presetId === t.id ? 'true' : 'false',
+          pick: () => this.setState({ np: np.presetId === t.id ? Object.assign({}, np, { presetId: '', error: '' })
+            : Object.assign({}, np, { presetId: t.id, templateId: '', title: t.name, goal: t.objective, crit: '', error: '' }) }) })),
+        hasPreset: !!np.presetId, hasPresets: (s.presets || []).length > 0,
+        presetSummary: ((s.presets || []).find((t) => t.id === np.presetId) || {}).summary || '',
+        presetNeeds: ((s.presets || []).find((t) => t.id === np.presetId) || {}).needs || '',
+        presetRoutine: routineL(((s.presets || []).find((t) => t.id === np.presetId) || {}).routine),
         removeTemplate: async () => {
           const t = (s.templates || []).find((x) => x.id === np.templateId);
           if (!t || !await ask('‘' + t.name + '’ 템플릿을 삭제할까요? 이미 만든 프로젝트에는 영향이 없습니다.', { okL: '삭제', danger: true })) return;
@@ -2950,7 +2966,7 @@ class Component extends DCLogic {
       } };
   }
   loadTemplates() {
-    return this.api('GET', '/api/templates').then((r) => this.setState({ templates: r.items || [] })).catch(() => {});
+    return this.api('GET', '/api/templates').then((r) => this.setState({ templates: r.items || [], presets: r.presets || [] })).catch(() => {});
   }
   // 템플릿으로 저장: this project's objective, criteria and per-team model picks, reusable from 새 프로젝트.
   async saveTemplate(wp) {
@@ -3001,7 +3017,10 @@ class Component extends DCLogic {
   routineView(wp) {
     if (!wp || !wp.isTeam) return { show: false };
     const saved = wp.routine;
-    const d = Object.assign({ kind: saved && saved.enabled ? saved.kind : 'off', weekday: (saved && saved.weekday) || 'mon', time: (saved && saved.time) || '09:00' },
+    // A project started from a 비서 템플릿 shows its suggested routine pre-selected until 대장 saves a choice (nothing runs before).
+    const pre = !saved && ((wp.goals || []).find((x) => x.preset && x.preset.routine) || {}).preset;
+    const d = Object.assign(pre ? { kind: pre.routine.kind, weekday: pre.routine.weekday || 'mon', time: pre.routine.time || '09:00' }
+      : { kind: saved && saved.enabled ? saved.kind : 'off', weekday: (saved && saved.weekday) || 'mon', time: (saved && saved.time) || '09:00' },
       (this.state.rtDraft || {})[wp.id] || {});
     const setD = (patch) => { const all = Object.assign({}, this.state.rtDraft); all[wp.id] = Object.assign({}, d, patch); this.setState({ rtDraft: all }); };
     const chip = (on, l, pick) => ({ l: l, cls: on ? 'on' : '', pressed: on ? 'true' : 'false', pick: pick });
@@ -3011,7 +3030,7 @@ class Component extends DCLogic {
       kinds: [['off', '끔'], ['daily', '매일'], ['weekly', '매주'], ['files', '첨부 폴더에 파일이 들어오면']].map(([k, l]) => chip(d.kind === k, l, () => setD({ kind: k }))),
       days: DAYS.map(([k, l]) => chip(d.weekday === k, l, () => setD({ weekday: k }))),
       onTime: (e) => setD({ time: e.target.value }),
-      status: saved && saved.enabled ? saved.label + ' · ' + (saved.round || 0) + '회차까지 실행' : '꺼짐',
+      status: saved && saved.enabled ? saved.label + ' · ' + (saved.round || 0) + '회차까지 실행' : pre ? '꺼짐 · 비서 템플릿 추천(' + routineL(pre.routine) + ')을 골라 두었습니다. 저장하면 반복합니다' : '꺼짐',
       next: saved && saved.enabled ? when(saved.nextRunAt) : '없음', last: (saved && saved.lastResult) || '없음',
       save: () => {
         const body = d.kind === 'off' ? { enabled: false } : d.kind === 'files' ? { enabled: true, kind: 'files' } : { enabled: true, kind: d.kind, time: d.time, weekday: d.weekday };
