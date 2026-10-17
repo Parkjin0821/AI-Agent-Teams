@@ -23,7 +23,7 @@ test('teams that judge work never go below "보통"; repeated failure moves one 
   assert.deepEqual(pick('security', { complexity: 'simple', risk: 'low' }, 0, 'codex'), ['normal', 'gpt-6-luna', 'high']);
   assert.deepEqual(pick('dev', { complexity: 'simple', risk: 'low' }, 2), ['normal', 'claude-sonnet-5-5', 'xhigh']);
   assert.deepEqual(pick('dev', { complexity: 'complex', risk: 'high' }, 3), ['max', 'claude-fable-5-1', 'high']);
-  assert.match(levelFor({ team: 'dev', profile: { complexity: 'complex', risk: 'high' }, failures: 3 }).why, /복잡한 작업 · 진전 없음·실패 3번/);
+  assert.match(levelFor({ team: 'dev', profile: { complexity: 'complex', risk: 'high' }, failures: 3 }).why, /복잡한 작업 · 구현 결함 3번 연속/);
 });
 
 test('Codex: Luna (medium–high) for easy and normal work, Sol (low–medium) for hard work, never Astra on its own', () => {
@@ -49,4 +49,21 @@ test('나눠 쓰기: the first design step of a goal sets the direction on the d
   assert.equal(levelFor({ team: 'design', profile: simple }).id, 'light', 'a later design step');
   assert.equal(levelFor({ team: 'dev', profile: simple, firstDesign: true }).id, 'light', 'only the design team');
   assert.equal(levelFor({ team: 'design', profile: simple, firstDesign: true, failures: 3 }).id, 'max', 'failures still raise it');
+});
+
+test('9차 4번: only defects in the work raise the model; a check about something else, an approval or a limit does not', async () => {
+  const { failureCause, defectStreak } = await import('../src/모델수준.js');
+  const qa = (extra) => ({ team: 'qa', status: 'finished', outcome: 'completed', ...extra });
+  assert.equal(failureCause(qa({ tools: [{ id: 'tests', status: 'fail' }] })), 'defect', 'the engine\'s tests failed');
+  assert.equal(failureCause(qa({ claims: [{ check: 'fail' }] })), 'defect');
+  assert.equal(failureCause(qa({ claims: [{ check: 'unrelated' }, { check: 'invalid' }] })), 'proof');
+  assert.equal(failureCause(qa({ approvalRequests: ['a'] })), 'approval');
+  assert.equal(failureCause({ team: 'dev', outcome: 'limited', errorKind: 'limit' }), 'limit');
+  assert.equal(failureCause(qa({ claims: [{ check: 'none' }] })), 'missing');
+  assert.equal(failureCause(qa({ claims: [{ check: 'none', person: true }] })), 'none', '대장\'s own criteria are no failure');
+  assert.equal(defectStreak([qa({ claims: [{ check: 'fail' }] }), { team: 'dev' }, qa({ tools: [{ id: 'tests', status: 'fail' }] })]), 2);
+  assert.equal(defectStreak([qa({ claims: [{ check: 'fail' }] }), qa({ claims: [{ check: 'unrelated' }] })]), 0, 'the newest one was a proof problem');
+  const held = levelFor({ team: 'dev', profile: { complexity: 'normal', risk: 'normal' }, failures: 0, heldBack: '진전이 없지만 원인이 확인 방법 문제이라 모델을 올리지 않음' });
+  assert.equal(held.label, '보통');
+  assert.match(held.why, /모델을 올리지 않음/);
 });

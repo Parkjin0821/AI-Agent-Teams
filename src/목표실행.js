@@ -1,4 +1,4 @@
-import { boundaryCheck, isEngineFile, listWorkspaceFiles, parseReport, reportInstructions, verifyReport, workspaceFingerprint } from './완료근거.js';
+import { boundaryCheck, isEngineFile, listWorkspaceFiles, parseReport, REPORT_MARK, reportInstructions, verifyReport, workspaceFingerprint } from './완료근거.js';
 import { parsePlan, parseReview, qaFindings, REVIEWS, TEAMS, teamPrompt, WORKERS } from './팀.js';
 import { runTeamTools, toolReport } from './검사도구.js';
 import { normalizeRequests, requiredReviews } from './팀검토.js';
@@ -154,7 +154,26 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       };
       const deniedCopies = simulated || !heldDir ? new Map() : guardDenied(cwd, stepRules, goal.projectId, before.files);
       const roundStart = new Date().toISOString();
-      const result = await adapter.run(PROVIDER[run.executor], prompt, onEvent, { cwd, model: run.model, effort: run.effort, access: run.access ?? 'write', ...tools,
+      // 엔진 단독 검증 (9차 4번): when the engine's own checks already prove every criterion (a named file exists, nothing
+      // written outside, the engine made the document …) and nothing it ran blocks or needs 대장's look, the verification
+      // team is not called: its answer could add nothing the engine has not proven, and the step costs no usage.
+      let engineOnly = null;
+      if (team === 'qa' && !simulated && (goal.completionCriteria ?? []).length) {
+        const holds = engineTools.some(t => (t.blocking ?? []).length || (t.id === 'document-quality' && t.reviewRequired)
+          || (t.id === 'visual' && ['unavailable', 'timeout'].includes(t.status)));
+        if (!holds) {
+          const probe = verifyReport({ criteria: [] }, goal.completionCriteria, cwd, { verifying: true, test: engineTools.find(t => t.test)?.test ?? null,
+            originals: attachmentOriginals(goal, records), visual: engineTools.find(t => t.id === 'visual') ?? null, slides: engineTools.find(t => t.id === 'slides') ?? null,
+            documents: documentRecords(records), spreadsheets: spreadsheetRecords(records), slideTexts: slideTextRecords(records),
+            baseline: goal.routine?.baseline ?? null, sources: sourceRecords(records),
+            boundary: () => boundaryCheck({ runs: store.listRuns?.(goal.id) ?? [], sentinelLog: sentinel?.log ?? null, project: goal.projectId, cwd }) });
+          if (probe.evidence.length === goal.completionCriteria.length && probe.evidence.every(e => e.by === 'engine')) engineOnly = probe;
+        }
+      }
+      if (engineOnly) await store.emit({ type: 'qa.engine_only', goalId: goal.id, criteria: engineOnly.evidence.length });
+      const result = engineOnly ? { outcome: 'completed', model: null,
+        answer: `엔진 단독 검증 · 완료 조건 ${engineOnly.evidence.length}개를 모두 엔진이 직접 증명해 검증팀(AI)을 부르지 않았습니다.\n${REPORT_MARK} {"criteria":[],"feedback":"","improvements":[]}` }
+        : await adapter.run(PROVIDER[run.executor], prompt, onEvent, { cwd, model: run.model, effort: run.effort, access: run.access ?? 'write', ...tools,
         // Codex sees the engine's screen captures (PC first) through its own --image option, after 대장's images.
         ...(PROVIDER[run.executor] === 'codex' ? { images: [...attachedImages(goal, cwd),
           ...engineTools.flatMap(t => t.screenshots ?? []).sort((a, b) => b.width - a.width).map(s => path.join(cwd, s.path))].slice(0, 5) } : {}),

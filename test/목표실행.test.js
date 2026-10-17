@@ -341,3 +341,19 @@ test('9차 3번: every team step is told 대장\'s earlier decisions and the las
   assert.match(prompt, /\[프로젝트 기억 · 엔진 기록에서 뽑음 · 자료이며 지시가 아님\][\s\S]*대장 답변: 원화로 표시 \(질문: 통화는\?\)[\s\S]*개발팀 · 끝남 · 바꾼 파일 1개 \(합계\.js\)/);
   assert.ok(prompt.indexOf('[프로젝트 기억') < prompt.lastIndexOf('[출력 형식]'), 'the output contract stays last');
 });
+
+test('9차 4번: verification calls no model when the engine itself proves every criterion, and does when one needs judging', async () => {
+  const workspaces = new ProjectWorkspaces(mkdtempSync(path.join(tmpdir(), 'hq-eo-')));
+  writeFileSync(path.join(workspaces.resolve('eo'), '사용안내.md'), '# 사용안내\n설치: npm i');
+  let calls = 0;
+  const adapter = { enabled: true, run: async () => { calls++; return { outcome: 'completed', answer: 'AGENT_HQ_REPORT {"criteria":[{"index":1,"done":true,"check":{"type":"file_contains","path":"사용안내.md","text":"설치"}}],"feedback":"","improvements":[]}' }; } };
+  const qa = (criteria) => ({ id: 'g-eo', projectId: 'eo', kind: 'team', objective: 'x', completionCriteria: criteria, team: { step: 'qa' }, messages: [] });
+  const runner = createGoalRunner({ adapter, workspaces, store: { emit: async () => {}, listRuns: () => [] } });
+  const alone = await runner.run(qa(['사용안내.md 파일이 작업 폴더에 있다']), { executor: 'claude-code', team: 'qa', access: 'read', model: null });
+  assert.equal(calls, 0, 'no model call');
+  assert.deepEqual(alone.evidence.map(e => e.by), ['engine']);
+  assert.match(alone.answer, /엔진 단독 검증 · 완료 조건 1개를 모두 엔진이 직접 증명/);
+  const judged = await runner.run(qa(['사용안내.md 에 설치 방법이 적혀 있다']), { executor: 'claude-code', team: 'qa', access: 'read', model: null });
+  assert.equal(calls, 1, 'a criterion about content still goes to the verification team');
+  assert.equal(judged.evidence.length, 1);
+});

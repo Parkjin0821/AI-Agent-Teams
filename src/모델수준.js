@@ -20,7 +20,7 @@ const REVIEWERS = ['plan', 'security', 'policy', 'qa'];
 // profile: the planning team's { complexity, risk } for this cycle (none before the first plan).
 // firstDesign: the design team's first step on this goal, where the page's direction is set. 대장 chose (2026-10-01,
 // after a four-way comparison) to run that one on the deep level (Opus) and the later fixes as usual.
-export function levelFor({ team, profile = null, failures = 0, firstDesign = false }) {
+export function levelFor({ team, profile = null, failures = 0, firstDesign = false, heldBack = '' }) {
   const complexity = profile?.complexity ?? 'normal', risk = profile?.risk ?? 'normal';
   let n = complexity === 'simple' ? 0 : complexity === 'complex' ? 2 : 1;
   const why = [complexity === 'simple' ? '간단한 작업' : complexity === 'complex' ? '복잡한 작업' : '보통 작업'];
@@ -29,7 +29,8 @@ export function levelFor({ team, profile = null, failures = 0, firstDesign = fal
   // Planning, reviews and verification judge other work: never below "보통".
   if (REVIEWERS.includes(team) && n < 1) { n = 1; why.push('판단하는 팀이라 보통 이상'); }
   if (firstDesign && team === 'design' && n < 2) { n = 2; why.push('첫 디자인이라 방향을 잡는 단계 (깊게)'); }
-  if (failures >= 2) { n = Math.min(3, n + 1); why.push(`진전 없음·실패 ${failures}번이라 한 단계 올림`); }
+  if (failures >= 2) { n = Math.min(3, n + 1); why.push(`구현 결함 ${failures}번 연속이라 한 단계 올림`); }
+  else if (heldBack) why.push(heldBack);
   return { ...LEVELS[n], why: why.join(' · ') };
 }
 
@@ -50,4 +51,31 @@ export function levelChoice(executor, level, { codexModels = [] } = {}) {
   const effort = [...m.efforts].sort((a, b) => Math.abs(order.indexOf(a) - want) - Math.abs(order.indexOf(b) - want)
     || order.indexOf(a) - order.indexOf(b))[0];
   return { model: m.id, effort };
+}
+
+// 실패 원인 (9차 4번): why a verification step did not finish the work, from the engine's own record of it. Only a
+// defect in the work (the engine's tests failed, or a check the team gave failed on the files) is something a heavier
+// model may fix; a check about something else, a held approval, a blocking review or a limit is not, so the level is
+// not raised for those.
+export const CAUSE_L = { defect: '구현 결함', proof: '확인 방법 문제', approval: '승인 대기', review: '검토가 막음',
+  limit: '실행 오류 (한도·네트워크·인증 등)', missing: '아직 안 한 일', none: '' };
+export function failureCause(run) {
+  if (!run) return 'none';
+  if (['limit', 'network', 'auth', 'timeout', 'permission'].includes(run.errorKind) || ['limited', 'failed', 'error'].includes(run.outcome)) return 'limit';
+  if ((run.approvalRequests ?? []).length) return 'approval';
+  if (['security', 'policy'].includes(run.team)) return (run.tools ?? []).some(t => ['found', 'fail'].includes(t.status)) ? 'review' : 'none';
+  const testsFailed = (run.tools ?? []).some(t => t.id === 'tests' && ['fail', 'timeout'].includes(t.status));
+  const claims = (run.claims ?? []).filter(c => c.check !== 'pass' && !c.person);
+  if (testsFailed || claims.some(c => c.check === 'fail')) return 'defect';
+  if (claims.length && claims.every(c => ['unrelated', 'invalid'].includes(c.check))) return 'proof';
+  return claims.length ? 'missing' : 'none';
+}
+// Verification steps in a row, newest first, that ended on a defect in the work.
+export function defectStreak(runs = []) {
+  let n = 0;
+  for (const r of [...runs].filter(r => r.team === 'qa' && r.status === 'finished' && !r.simulated).reverse()) {
+    if (failureCause(r) !== 'defect') break;
+    n++;
+  }
+  return n;
 }

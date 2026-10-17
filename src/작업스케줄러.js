@@ -3,7 +3,7 @@ import { attachmentNote } from './첨부파일.js';
 import { validateCriteria } from './업무도메인.js';
 import { engineGateSummary, lintCriteria, unprovableCriterion } from './완료근거.js';
 import { isUsable, resolveModel, validateExecutor } from './모델.js';
-import { levelChoice, levelFor } from './모델수준.js';
+import { CAUSE_L, defectStreak, failureCause, levelChoice, levelFor } from './모델수준.js';
 import { DEFAULT_POLICY } from './정책.js';
 import { nextStep, REVIEWS, TEAMS, WORKERS } from './팀.js';
 import { validateProjectId } from './작업공간.js';
@@ -912,8 +912,15 @@ export class GoalScheduler {
       .some(f => (/\.html?$/i.test(f) && !/\.hwpx\.html$/i.test(f)) || /^slides\/[^/]+\/index\.tsx$/.test(f));
     const firstDesign = goal.team?.step === 'design'
       && !this.store.listRuns(goal.id).some(r => r.team === 'design' && r.outcome === 'completed' && !r.simulated && pageWork(r));
-    const level = levelFor({ team: goal.team?.step ?? 'plan', profile: goal.team?.profile ?? null, firstDesign,
-      failures: Math.max(goal.noProgressRounds ?? 0, goal.testFixAttempts ?? 0) });
+    // 9차 4번: the level goes up only for defects in the work, two verifications in a row (모델수준.js failureCause);
+    // stalls from a check about something else, a held approval, a review or a limit do not raise it.
+    const runs = this.store.listRuns(goal.id);
+    const streak = defectStreak(runs);
+    const lastQa = runs.filter(r => r.team === 'qa' && r.status === 'finished').at(-1);
+    const cause = failureCause(lastQa);
+    const stalled = Math.max(goal.noProgressRounds ?? 0, goal.testFixAttempts ?? 0) >= 2;
+    const level = levelFor({ team: goal.team?.step ?? 'plan', profile: goal.team?.profile ?? null, firstDesign, failures: streak,
+      heldBack: stalled && streak < 2 && cause !== 'none' && cause !== 'defect' ? `진전이 없지만 원인이 ${CAUSE_L[cause]}이라 모델을 올리지 않음` : '' });
     const choice = levelChoice(executor, level, { codexModels: this.codexModels?.() ?? [] });
     if (!choice) return null;
     return { state: 'ready', model: choice.model, effort: choice.effort, source: 'auto_level', reason: 'auto_level',
