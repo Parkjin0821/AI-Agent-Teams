@@ -957,3 +957,21 @@ test('8차 P0-3: no automatic resume for a project 대장 drives by hand, or whe
     assert.equal(store.getGoal(manual).status, 'recovery_required');
   } finally { store.close(); }
 });
+
+test('8차 측정: what a step just proved is never voided by that step\'s own (earlier) fingerprints', async () => {
+  let store;
+  // the checkpoint is taken before the engine builds the document, so it still shows the old bytes
+  const stamp = () => { const r = store.listRuns(store.listGoals()[0].id).find(x => x.status === 'running'); store.saveRun({ ...r, checkpoint: { after: { signatures: { '회의록.hwpx': 'o'.repeat(64) } } } }); };
+  const rig = setup(team => {
+    stamp();
+    if (team === 'plan') return { outcome: 'completed', plan: { nextTask: '작성', team: 'dev', reviews: [] } };
+    return { outcome: 'completed', diffHash: 'd1', evidence: [{ criterion: C[0], proof: '엔진이 만든 회의록.hwpx', by: 'engine', files: { '회의록.hwpx': 'n'.repeat(64) } }] };
+  });
+  store = rig.store;
+  try {
+    const goal = rig.add();
+    await rig.scheduler.runGoal(goal.id); // plan
+    await rig.scheduler.runGoal(goal.id); // dev: proves C[0] on the freshly built document
+    assert.deepEqual(store.getGoal(goal.id).evidence.map(e => e.criterion), [C[0]]);
+  } finally { store.close(); }
+});

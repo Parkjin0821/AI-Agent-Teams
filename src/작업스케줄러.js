@@ -540,7 +540,11 @@ export class GoalScheduler {
     const after = point?.after?.signatures ?? null;
     // A file missing from a cut-off listing (over 2,000 files) is not taken as gone.
     const changed = (f, sha) => (after[f] === undefined ? !point.truncated : after[f] !== sha);
-    const stale = after ? merged.filter(e => e.files && Object.entries(e.files).some(([f, sha]) => changed(f, sha))) : [];
+    // Only evidence carried over from earlier steps: what this step just proved was checked against the files as they
+    // are now, while its checkpoint was taken before the engine made documents and slides (8차 측정: a hwpx and a
+    // slide text proved in a step were voided by that same step's earlier fingerprints).
+    const fresh = new Set(roundEvidence.map(e => e.criterion));
+    const stale = after ? merged.filter(e => !fresh.has(e.criterion) && e.files && Object.entries(e.files).some(([f, sha]) => changed(f, sha))) : [];
     const evidence = stale.length ? merged.filter(e => !stale.includes(e)) : merged;
     if (stale.length) void this.store.emit({ type: 'goal.evidence_stale', goalId: goal.id, criteria: stale.map(e => e.criterion) });
     // Only the tool's own report says which model actually ran; the requested model is not proof.
