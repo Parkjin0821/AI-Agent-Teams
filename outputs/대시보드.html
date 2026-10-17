@@ -2456,11 +2456,7 @@ class Component extends DCLogic {
       publishes: ibd.publishRequests.map((j) => ({ what: (j.provider === 'notion' ? 'Notion 작업 기록' : 'GitHub 결과물') + ' · ' + j.destination,
         detail: j.provider === 'notion' ? (j.title + ' · ' + j.length + '자') : ((j.files || []).length + '개 파일 · ' + Math.round((j.bytes || 0) / 1024) + 'KB · ' + (j.files || []).slice(0, 6).join(', ')),
         preview: j.preview || '', hasPreview: !!j.preview, when: ago(j.createdAt),
-        approve: async () => { if (await ask((j.provider === 'notion' ? 'Notion' : 'GitHub') + ' 에 올릴까요?
-
-대상: ' + j.destination + '
-
-승인하면 바로 보냅니다. 되돌리려면 상대 서비스에서 직접 지워야 합니다.'))
+        approve: async () => { if (await ask((j.provider === 'notion' ? 'Notion' : 'GitHub') + ' 에 올릴까요?\n\n대상: ' + j.destination + '\n\n승인하면 바로 보냅니다. 되돌리려면 상대 서비스에서 직접 지워야 합니다.'))
           this.inboxAct(this.api('POST', '/api/publish/' + j.id + '/approve', { confirm: true }).then((v) => { this.loadPublish(); if (v.status !== 'sent') throw new Error(v.reason || v.status); return v; }), '보냈습니다'); },
         refuse: () => this.inboxAct(this.api('POST', '/api/publish/' + j.id + '/refuse', {}), '거절했습니다') })),
       hasConnectors: ibd.connectorRequests.length > 0, connectorsN: ibd.connectorRequests.length,
