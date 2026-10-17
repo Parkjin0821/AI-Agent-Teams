@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { checkHtml, checkSources, detectTests, licenseReport, scanPrivacy, scanSecrets } from './검사.js';
@@ -173,16 +174,19 @@ export function testCommand(tests, cwd) {
 export const UNCONFINED_NOTE = '작업 폴더 밖 읽기를 막을 수 없는 테스트라 실행하지 않음 · package.json 의 test 를 "node --test <파일>" 로 쓰면 엔진이 막고 돌림 (대장이 연결 화면에서 "격리 약한 테스트 실행"을 켜면 그대로 실행)';
 
 function testResult(tests, run) {
+  // Tied to the evidence (8차 P0-2): how the tests ran and a fingerprint of their output (the output itself is not kept).
+  const meta = { runner: tests.confined ? `node ${process.version} --permission` : `${tests.runner} (격리 약함)`,
+    logSha: createHash('sha256').update(String(run.output ?? '')).digest('hex').slice(0, 16) };
   const lines = run.output.split(/\r?\n/).filter(Boolean);
   // The summary at the end says only how many failed; the reason is above it. Keep both.
   const reasons = lines.filter(l => /not ok|✖|Error|assert|expected|actual|Cannot find|is not defined|SyntaxError/i.test(l)
     && !/^ℹ|failing tests:/.test(l.trim())).slice(0, 12);
   const tail = run.status === 'pass' ? lines.slice(-12) : [...new Set([...reasons, ...lines.slice(-6)])].slice(-18);
-  if (run.status === 'pass') return { id: 'tests', name: '테스트 실행', status: 'pass', summary: `${tests.label} 통과 (샌드박스)`, details: tail.slice(-6), test: { label: tests.label, passed: true } };
+  if (run.status === 'pass') return { id: 'tests', name: '테스트 실행', status: 'pass', summary: `${tests.label} 통과 (샌드박스)`, details: tail.slice(-6), test: { label: tests.label, passed: true, ...meta } };
   if (run.status === 'unavailable') return { id: 'tests', name: '테스트 실행', status: 'unavailable', summary: `${tests.label} · 실행 못 함 (${run.output || '샌드박스 오류'})` };
   const why = run.status === 'timeout' ? '시간 초과' : `실패 (종료 코드 ${run.code})`;
   return { id: 'tests', name: '테스트 실행', status: run.status === 'timeout' ? 'timeout' : 'fail', summary: `${tests.label} ${why}`, details: tail,
-    blocking: [`테스트 ${why}: ${tests.label}\n${(reasons.length ? reasons.slice(0, 6) : tail.slice(-6)).join('\n')}`], test: { label: tests.label, passed: false } };
+    blocking: [`테스트 ${why}: ${tests.label}\n${(reasons.length ? reasons.slice(0, 6) : tail.slice(-6)).join('\n')}`], test: { label: tests.label, passed: false, ...meta } };
 }
 
 function auditResult(run) {

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { attachmentNote } from './첨부파일.js';
 import { validateCriteria } from './업무도메인.js';
-import { lintCriteria, unprovableCriterion } from './완료근거.js';
+import { engineGateSummary, lintCriteria, unprovableCriterion } from './완료근거.js';
 import { isUsable, resolveModel, validateExecutor } from './모델.js';
 import { levelChoice, levelFor } from './모델수준.js';
 import { DEFAULT_POLICY } from './정책.js';
@@ -504,7 +504,16 @@ export class GoalScheduler {
     // between, so the proofs it was not asked to resend stand.
     const kept = run.team === 'qa' && goal.team?.proofRetry
       ? (goal.evidence ?? []).filter(e => !roundEvidence.some(r => r.criterion === e.criterion)) : [];
-    const evidence = run.team === 'plan' || REVIEWS.includes(run.team) ? (goal.evidence ?? []) : mergeEvidence([...kept, ...roundEvidence], goal.confirmed);
+    const merged = run.team === 'plan' || REVIEWS.includes(run.team) ? (goal.evidence ?? []) : mergeEvidence([...kept, ...roundEvidence], goal.confirmed);
+    // 8차 P0-2: evidence bound to files is void once one of them changed since it was proven (compared with the
+    // fingerprints the runner took when this step ended). 대장's own confirmations carry no files and always stand.
+    const point = this.store.listRuns(goal.id).find(r => r.id === run.id)?.checkpoint ?? null;
+    const after = point?.after?.signatures ?? null;
+    // A file missing from a cut-off listing (over 2,000 files) is not taken as gone.
+    const changed = (f, sha) => (after[f] === undefined ? !point.truncated : after[f] !== sha);
+    const stale = after ? merged.filter(e => e.files && Object.entries(e.files).some(([f, sha]) => changed(f, sha))) : [];
+    const evidence = stale.length ? merged.filter(e => !stale.includes(e)) : merged;
+    if (stale.length) void this.store.emit({ type: 'goal.evidence_stale', goalId: goal.id, criteria: stale.map(e => e.criterion) });
     // Only the tool's own report says which model actually ran; the requested model is not proof.
     const actualModel = typeof result.model === 'string' && result.model ? result.model : null;
     // Raw provider output is not persisted. The final answer is kept (capped) because it is the result
@@ -601,9 +610,12 @@ export class GoalScheduler {
         const left = dropped.length ? lintCriteria(kept) : issues;
         const notes = [...left, ...dropped.map(c => `증명할 수 없는 조건이라 뺐습니다 (팀 보고는 근거가 아님): ${c}`)];
         this.update(goal, { completionCriteria: kept, criteriaApprovalPending: true });
-        return review('criteria_approval_required', { question: notes.length
+        // 8차 P0-2: what the engine will check on its own, whatever check a team later chooses.
+        const own = engineGateSummary(kept);
+        const ownText = own.length ? `\n엔진이 팀과 별개로 직접 확인할 것:\n- ${own.join('\n- ')}` : '';
+        return review('criteria_approval_required', { question: (notes.length
           ? `도출한 완료 조건을 확인하고 승인해 주세요. 엔진 사전 점검에서 남은 점:\n- ${notes.join('\n- ')}`
-          : '도출한 완료 조건을 확인하고 승인해 주세요.' });
+          : '도출한 완료 조건을 확인하고 승인해 주세요.') + ownText });
       }
       // After 대장's message planning may propose a changed list; only a real change needs approval again.
       if (team.criteriaCheck) {
@@ -807,7 +819,14 @@ export class GoalScheduler {
     const byCriterion = new Map();
     for (const item of Array.isArray(list) ? list : []) {
       if (goal.completionCriteria.includes(item?.criterion) && typeof item.proof === 'string' && item.proof.trim()) {
-        byCriterion.set(item.criterion, { criterion: item.criterion, proof: item.proof.trim().slice(0, 2000) });
+        // Provenance (8차 P0-2): who chose the check, when, the files it read with their fingerprints, the test run.
+        const files = item.files && typeof item.files === 'object'
+          ? Object.fromEntries(Object.entries(item.files).filter(([f, sha]) => typeof f === 'string' && /^[0-9a-f]{64}$/.test(String(sha))).slice(0, 40)) : null;
+        byCriterion.set(item.criterion, { criterion: item.criterion, proof: item.proof.trim().slice(0, 2000),
+          ...(['engine', 'team', 'team+engine'].includes(item.by) ? { by: item.by } : {}),
+          ...(typeof item.at === 'string' ? { at: item.at.slice(0, 40) } : {}),
+          ...(files && Object.keys(files).length ? { files } : {}),
+          ...(item.test && typeof item.test === 'object' ? { test: { label: String(item.test.label ?? '').slice(0, 120), runner: item.test.runner ?? null, logSha: item.test.logSha ?? null } } : {}) });
       }
     }
     return [...byCriterion.values()];

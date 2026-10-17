@@ -856,3 +856,48 @@ test('reviewSkip runs the review again for a changed inline script or a non-deli
   const withNote = { ...a, files: ['index.html', '메모.md', '글꼴/LICENSE'], signatures: { ...a.signatures, '메모.md': 'm', '글꼴/LICENSE': 'l' } };
   assert.match(reviewSkip([review('security', a), after(a, withNote)], 'security'), /바뀐 파일 2개/);
 });
+
+test('8차 P0-2: evidence bound to a file is void once that file changed after it was proven', async () => {
+  const sha = c => c.repeat(64);
+  let store;
+  // the runner records the work folder's fingerprints at the end of each step, as 목표실행.js does
+  const stamp = (signatures) => { const r = store.listRuns(store.listGoals()[0].id).find(x => x.status === 'running'); store.saveRun({ ...r, checkpoint: { after: { signatures } } }); };
+  let reviewSees = sha('a');
+  const rig = setup(team => {
+    if (team === 'plan') { stamp({ 'a.md': sha('a') }); return { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: ['policy'] } }; }
+    if (team === 'dev') { stamp({ 'a.md': sha('a') }); return { outcome: 'completed', diffHash: 'd1',
+      evidence: [{ criterion: C[0], proof: '엔진 확인 · a.md', by: 'team', files: { 'a.md': sha('a') } }] }; }
+    // a review keeps the evidence gathered so far — unless the file it was bound to changed meanwhile
+    stamp({ 'a.md': reviewSees });
+    return { outcome: 'completed', review: { verdict: 'pass', issues: [], blocking: false } };
+  });
+  store = rig.store;
+  try {
+    const goal = rig.add();
+    await rig.scheduler.runGoal(goal.id); // plan
+    await rig.scheduler.runGoal(goal.id); // dev
+    assert.deepEqual(store.getGoal(goal.id).evidence.map(e => [e.criterion, e.by]), [[C[0], 'team']], 'provenance is kept');
+    assert.ok(store.getGoal(goal.id).evidence[0].files['a.md']);
+    reviewSees = sha('b'); // a.md changed after dev proved C[0]
+    await rig.scheduler.runGoal(goal.id); // policy review
+    assert.deepEqual(store.getGoal(goal.id).evidence, [], 'the stale proof was dropped');
+  } finally { store.close(); }
+});
+
+test('8차 P0-2: an unchanged file keeps its evidence through a review', async () => {
+  const sha = 'a'.repeat(64);
+  let store;
+  const stamp = () => { const r = store.listRuns(store.listGoals()[0].id).find(x => x.status === 'running'); store.saveRun({ ...r, checkpoint: { after: { signatures: { 'a.md': sha } } } }); };
+  const rig = setup(team => {
+    stamp();
+    if (team === 'plan') return { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: ['policy'] } };
+    if (team === 'dev') return { outcome: 'completed', diffHash: 'd1', evidence: [{ criterion: C[0], proof: 'p', by: 'team', files: { 'a.md': sha } }] };
+    return { outcome: 'completed', review: { verdict: 'pass', issues: [], blocking: false } };
+  });
+  store = rig.store;
+  try {
+    const goal = rig.add();
+    for (let i = 0; i < 3; i++) await rig.scheduler.runGoal(goal.id);
+    assert.deepEqual(store.getGoal(goal.id).evidence.map(e => e.criterion), [C[0]]);
+  } finally { store.close(); }
+});

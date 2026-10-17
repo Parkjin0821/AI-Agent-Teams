@@ -89,10 +89,11 @@ test('verification runs the project tests in the sandbox; failing tests block', 
   const pass = sandboxReturning({ status: 'pass', code: 0, output: 'ℹ pass 3\nℹ fail 0' });
   const ok = await runTeamTools('qa', dir, { sandbox: pass });
   assert.deepEqual(ok.map(r => [r.id, r.status]), [['tests', 'pass'], ['secrets', 'pass'], ['html', 'found'], ['visual', 'unavailable']]);
-  assert.deepEqual(ok[0].test, { label: 'npm test', passed: true });
+  assert.deepEqual([ok[0].test.label, ok[0].test.passed, ok[0].test.runner], ['npm test', true, `node ${process.version} --permission`]);
+  assert.match(ok[0].test.logSha, /^[0-9a-f]{16}$/, 'a fingerprint of the output is kept, not the output');
   assert.equal(pass.calls[0].opts, undefined, 'tests never get network');
   const failed = await runTeamTools('qa', dir, { sandbox: sandboxReturning({ status: 'fail', code: 1, output: 'not ok 1 - adds' }) });
-  assert.deepEqual(failed[0].test, { label: 'npm test', passed: false });
+  assert.deepEqual([failed[0].test.label, failed[0].test.passed], ['npm test', false]);
   assert.match(failed[0].blocking[0], /실패 \(종료 코드 1\)[\s\S]*not ok 1/);
   const none = await runTeamTools('qa', dir, { sandbox: null });
   assert.equal(none[0].status, 'unavailable');

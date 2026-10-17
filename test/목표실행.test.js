@@ -166,8 +166,15 @@ test('in verification, tests_pass counts only when the engine ran the tests in t
   const adapter = { enabled: true, run: async () => ({ outcome: 'completed', answer }) };
   const qa = { ...teamGoal, team: { ...teamGoal.team, step: 'qa' } };
   const run = (sandbox) => createGoalRunner({ adapter, workspaces, store, sandbox }).run(qa, { executor: 'codex', team: 'qa', access: 'write', model: null });
+  // 8차 P0-2: passing tests do not prove "사용안내.md 파일이 있다" — the engine checks the named file itself.
+  const noFile = await run({ available: true, run: async () => ({ status: 'pass', code: 0, output: 'ok' }) });
+  assert.deepEqual(noFile.evidence, [], 'tests passed but the file the criterion names is missing');
+  assert.match(noFile.claims[0].detail, /엔진 독립 확인: 파일 사용안내\.md 없음/);
+  writeFileSync(path.join(workspaces.resolve('hello'), '사용안내.md'), '# 사용안내');
   const passing = await run({ available: true, run: async () => ({ status: 'pass', code: 0, output: 'ok' }) });
-  assert.deepEqual(passing.evidence, [{ criterion: '사용안내.md 파일이 있다', proof: '엔진 확인 · 샌드박스에서 npm test 통과' }]);
+  assert.deepEqual(passing.evidence.map(e => [e.criterion, e.proof, e.by]),
+    [['사용안내.md 파일이 있다', '엔진 확인 · 샌드박스에서 npm test 통과 · 엔진 독립 확인 통과 (사용안내.md 있음)', 'team+engine']]);
+  assert.match(passing.evidence[0].files['사용안내.md'], /^[0-9a-f]{64}$/, 'the evidence is bound to the file it relied on');
   assert.deepEqual(passing.findings.blocking, []);
   const failing = await run({ available: true, run: async () => ({ status: 'fail', code: 1, output: 'not ok' }) });
   assert.equal(failing.evidence.length, 0);

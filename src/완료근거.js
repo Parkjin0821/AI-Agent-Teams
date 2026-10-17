@@ -149,8 +149,79 @@ const BUILD_ONLY = c => /넘침|넘치|잘림|잘린|겹침|겹친|깨진/.test(
 // A criterion only the engine's records can prove, sent with no check at all ("엔진 기록을 확인하지 못함"; 자율 시험
 // minutes, 2026-10-01): the engine runs its own check in verification. Only for what such a check fully covers —
 // "the engine made x.hwpx" and "nothing written outside the folder" — never for a criterion about content.
-function engineCheckFor(criterion, ctx) {
+// 엔진 독립 확인 (8차 개편 P0-2): files an approved criterion names, read from its own words — never from a team.
+// A name the criterion says must NOT exist ("x.md 는 만들지 않는다") is left out.
+const NAMED_FILE = /([A-Za-z0-9가-힣_.\/-]*[A-Za-z0-9가-힣_-]\.(?:md|html?|m?js|cjs|ts|tsx|json|csv|txt|py|hwpx|hwp|xlsx|docx|pdf|svg|png|css))(?![A-Za-z0-9])/gi;
+const PRODUCT_NAME = /^(?:node|vue|next|nuxt|three|d3|react|express|chart|p5|socket\.io|moment|day|ember|backbone|angular|svelte|deno|bun|alpine|htmx)\.(?:js|ts)$/i;
+export function namedFiles(criterion) {
+  const c = String(criterion);
+  const out = [];
+  for (const m of c.matchAll(NAMED_FILE)) {
+    const name = m[1].replace(/^\.\//, '');
+    if (/:\/\//.test(c.slice(Math.max(0, m.index - 12), m.index + m[0].length)) || name.startsWith('/') || name.split('/').includes('..')) continue;
+    if (/^\s*(?:파일)?\s*(?:은|는|이|가|을|를)?\s*(?:없|만들지|생기지|지우|지운|삭제)/.test(c.slice(m.index + m[0].length))) continue;
+    if (PRODUCT_NAME.test(name)) continue; // "Node.js의 LTS 버전" names a product, not a file
+    if (!out.includes(name)) out.push(name);
+  }
+  return out;
+}
+// The checks the engine runs for a criterion on its own: each named file exists (a bare name may sit in any folder),
+// and "테스트 통과" means the engine's own test run passed. [{ check, label, status, reason }]
+// A bare name ("합계.test.js") may sit in any folder of the work folder; a path is taken as written.
+function resolveNamed(name, cwd) {
+  if (name.includes('/') || !cwd) return name;
+  const files = listWorkspaceFiles(cwd, 2000);
+  return files.find(f => f === name) ?? files.find(f => path.basename(f) === name) ?? name;
+}
+export function engineGate(criterion, cwd, ctx = {}) {
+  if (PERSON_MARK.test(String(criterion))) return [];
+  const gate = [];
+  for (const name of namedFiles(criterion)) {
+    const rel = resolveNamed(name, cwd);
+    const check = { type: 'file_exists', path: rel };
+    const r = runCheck(check, cwd, ctx);
+    gate.push({ check, label: `${rel} 있음`, status: r.status, reason: r.reason ?? '' });
+  }
+  if (/테스트[^.。]{0,12}(?:통과|성공)|tests?\s+pass/i.test(String(criterion)) && !CLAIMS_ABSENCE.test(String(criterion))) {
+    const check = { type: 'tests_pass' };
+    const r = runCheck(check, cwd, ctx);
+    gate.push({ check, label: '엔진이 돌린 테스트 통과', status: r.status, reason: r.reason ?? '' });
+  }
+  return gate;
+}
+// What the engine will check on its own for a list of criteria, in words, shown to 대장 with the approval request.
+export function engineGateSummary(criteria) {
+  return (criteria ?? []).flatMap((c, i) => {
+    if (PERSON_MARK.test(String(c))) return [];
+    const parts = [...namedFiles(c).map(f => `${f} 있음`),
+      ...(/테스트[^.。]{0,12}(?:통과|성공)|tests?\s+pass/i.test(String(c)) && !CLAIMS_ABSENCE.test(String(c)) ? ['엔진이 돌린 테스트 통과'] : [])];
+    return parts.length ? [`${i + 1}번: ${parts.join(', ')}`] : [];
+  });
+}
+// Fingerprints of the files a passing set of checks read (2 MB at most each), bound to the evidence.
+export function bindFiles(list, cwd) {
+  const out = {};
+  for (const k of list ?? []) {
+    const rels = [k?.path, k?.source, ...(Array.isArray(k?.paths) ? k.paths : []), ...(k?.type === 'folder_only' && Array.isArray(k.files) ? k.files.map(f => path.posix.join(String(k.path ?? ''), String(f))) : [])];
+    for (const rel of rels) {
+      if (typeof rel !== 'string' || !rel) continue;
+      const full = insideWorkspace(rel, cwd);
+      try {
+        if (!full || !statSync(full).isFile() || statSync(full).size > MAX_READ) continue;
+        out[path.relative(realpathSync(cwd), full).split(path.sep).join('/')] = createHash('sha256').update(readFileSync(full)).digest('hex');
+      } catch { /* gone */ }
+    }
+  }
+  return out;
+}
+
+function engineCheckFor(criterion, ctx, cwd = null) {
   const c = String(criterion).toLowerCase();
+  // "x.md 파일이 (작업 폴더에) 있다" and nothing more: the engine checks it itself in verification.
+  const names = namedFiles(criterion);
+  if (names.length === 1 && /^\s*\S+\s*(?:파일)?\s*(?:이|가)\s*(?:작업\s*폴더에\s*)?(?:있다|만들어져\s*있다|생겼다)\.?\s*$/.test(String(criterion))) {
+    return [{ type: 'file_exists', path: resolveNamed(names[0], cwd) }];
+  }
   const sheets = Object.keys(ctx.spreadsheets ?? {});
   const namedSheets = sheets.filter(p => c.includes(path.basename(p).toLowerCase()));
   // "집계.xlsx 에 막대 차트가 2개 들어 있다": the engine's record of the charts it put in covers it; a criterion about
@@ -219,14 +290,22 @@ export function verifyReport(report, criteria, cwd, ctx = {}) {
     // A plan that named "document_made" for an Excel file (엑셀 차트 시험, 2026-10-02) means the engine's proof for it.
     const asSheet = k => k?.type === 'document_made' && /\.xlsx$/i.test(String(k.path ?? '')) ? { ...k, type: 'spreadsheet_made' } : k;
     const given = (Array.isArray(item?.checks) && item.checks.length ? item.checks.slice(0, 8) : item?.check ? [item.check] : []).map(asSheet);
-    const list = given.length ? given : ctx.verifying ? engineCheckFor(criterion, ctx) : [];
+    const list = given.length ? given : ctx.verifying ? engineCheckFor(criterion, ctx, cwd) : [];
     // The verifier cannot see the engine's records, so it sent "not done · 확인 못 함" for a 한글 document the engine
     // made and for a confined run (minutes re-test, 2026-10-01: both stayed unmet for ten steps). When every check is
     // one only the engine can run (a file_exists beside it is fine), the engine's result decides, not that guess.
     const owned = [...ENGINE_OWNED, ...(BUILD_ONLY(criterion) ? ['slides_ok', 'screen_ok'] : [])];
     const engineOnly = list.some(c => owned.includes(c?.type)) && list.every(c => [...owned, 'file_exists'].includes(c?.type));
-    const done = item?.done === true || engineOnly;
+    const fileOnly = !given.length && list.length > 0 && list.every(c => c?.type === 'file_exists');
+    const done = item?.done === true || engineOnly || fileOnly;
     let result = list.length ? runChecks(list, criterion, cwd, ctx, done) : { status: 'none' };
+    // 엔진 독립 확인 (8차 개편 P0-2): what the approved criterion itself says the engine can check — a file it names
+    // exists, the tests pass — must hold too, whatever check the team chose. A team check never outvotes it.
+    const gate = done ? engineGate(criterion, cwd, ctx) : [];
+    if (result.status === 'pass' && gate.length) {
+      const failed = gate.find(g => g.status !== 'pass');
+      if (failed) result = { status: failed.status === 'later' ? 'later' : 'fail', reason: `엔진 독립 확인: ${failed.reason}` };
+    }
     // A criterion 대장 judges by design ("… (대장이 화면에서 확인)") is never proven by a check: 자율 시험 2차 had "the page
     // looks warm (대장이 확인)" proven by an unrelated test run. It waits for 대장, with what the verifier saw as a note.
     if (PERSON_MARK.test(criterion)) result = { status: 'none', reason: result.proof ? `참고 · ${result.proof.replace(/^엔진 확인 · /, '')}` : '' };
@@ -236,7 +315,16 @@ export function verifyReport(report, criteria, cwd, ctx = {}) {
       if (rest.length) result = { status: 'partial', reason: `${result.proof.replace(/^엔진 확인 · /, '')} — 엔진은 이 부분만 확인함 · “${rest.join(' ')}” 부분은 대장 판단` };
     }
     // A check only counts for a criterion the tool itself reports as done.
-    if (result.status === 'pass' && done) evidence.push({ criterion, proof: result.proof });
+    // The evidence carries where it came from: who chose the check (engine / team, with the engine gate), the files it
+    // read with their fingerprints (a later change voids it, see the scheduler), when, and the test run it relied on.
+    if (result.status === 'pass' && done) {
+      const by = !given.length || engineOnly ? 'engine' : gate.length ? 'team+engine' : 'team';
+      const files = bindFiles([...list, ...gate.map(g => g.check)], cwd);
+      const usesTests = [...list, ...gate.map(g => g.check)].some(c => c?.type === 'tests_pass');
+      evidence.push({ criterion, proof: gate.length && by === 'team+engine' ? `${result.proof} · 엔진 독립 확인 통과 (${gate.map(g => g.label).join(', ')})` : result.proof,
+        by, at: new Date().toISOString(), ...(Object.keys(files).length ? { files } : {}),
+        ...(usesTests && ctx.test ? { test: { label: ctx.test.label, runner: ctx.test.runner ?? null, logSha: ctx.test.logSha ?? null } } : {}) });
+    }
     claims.push({ criterion, claimed: done, check: result.status, note, detail: result.proof ?? result.reason ?? '',
       ...((item?.person === true || PERSON_MARK.test(criterion)) && result.status !== 'pass' ? { person: true } : {}) });
   });

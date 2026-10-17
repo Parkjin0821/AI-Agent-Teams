@@ -376,3 +376,35 @@ test('자율 시험 3차: a build-only criterion is decided by the engine build,
   const broken = { decks: [{ ...slides.decks[0], overflowPages: [3] }] };
   assert.equal(verifyReport({ criteria: [] }, [crit], cwd, { slides: broken, verifying: true }).claims[0].check, 'fail');
 });
+
+test('8차 P0-2: the engine checks what the criterion names on its own; a team check never outvotes it', async () => {
+  const { namedFiles, engineGate, engineGateSummary } = await import('../src/완료근거.js');
+  assert.deepEqual(namedFiles('research/노션요약.md 에 제목과 링크가 있다'), ['research/노션요약.md']);
+  assert.deepEqual(namedFiles('Node.js의 LTS 버전이 조사결과.md에 있다'), ['조사결과.md'], 'a product name is not a file');
+  assert.deepEqual(namedFiles('출처는 https://nodejs.org/dist/index.json 이다'), [], 'an address is not a file');
+  assert.deepEqual(namedFiles('임시.md 는 만들지 않는다'), [], 'a file that must not exist is not required');
+  assert.deepEqual(namedFiles('../밖.md 가 있다'), []);
+  const cwd = ws();
+  mkdirSync(path.join(cwd, 'test'));
+  writeFileSync(path.join(cwd, 'test', '합계.test.js'), '');
+  writeFileSync(path.join(cwd, '설명.md'), '# 설명\n합계 함수');
+  assert.deepEqual(engineGate('합계.test.js 로 합계를 검사한다', cwd).map(g => [g.label, g.status]), [['test/합계.test.js 있음', 'pass']], 'a bare name may sit in a folder');
+  // the team proved "README.md 에 사용법이 있다" with a check on another file: the engine's own file check fails it
+  const r = verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'file_contains', path: '설명.md', text: '합계 함수' } }] },
+    ['README.md 에 합계 함수 사용법이 있다'], cwd);
+  assert.deepEqual([r.claims[0].check, r.evidence.length], ['fail', 0]);
+  assert.match(r.claims[0].detail, /엔진 독립 확인: 파일 README\.md 없음/);
+  // "테스트 통과" waits for the engine's own run, and fails when there was none in verification
+  const t = c => verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'file_exists', path: '설명.md' } }] }, [c], cwd, { verifying: true });
+  assert.equal(t('설명.md 가 있고 합계 테스트가 통과한다').claims[0].check, 'fail');
+  const ok = verifyReport({ criteria: [{ index: 1, done: true, check: { type: 'file_exists', path: '설명.md' } }] }, ['설명.md 가 있고 합계 테스트가 통과한다'], cwd,
+    { verifying: true, test: { label: 'node --test', passed: true, runner: 'node v24 --permission', logSha: 'abcd' } });
+  assert.deepEqual([ok.evidence[0].by, ok.evidence[0].test.runner, ok.evidence[0].test.logSha], ['team+engine', 'node v24 --permission', 'abcd']);
+  assert.match(ok.evidence[0].files['설명.md'], /^[0-9a-f]{64}$/);
+  assert.ok(ok.evidence[0].at);
+  // a plain "x 파일이 있다" is proven by the engine alone in verification, even with no check from the team
+  const alone = verifyReport({ criteria: [] }, ['설명.md 파일이 작업 폴더에 있다'], cwd, { verifying: true });
+  assert.deepEqual([alone.claims[0].check, alone.evidence[0]?.by], ['pass', 'engine']);
+  assert.deepEqual(engineGateSummary(['README.md 에 사용법이 있다', '빵집 분위기다 (대장이 확인)', '합계 테스트 통과']),
+    ['1번: README.md 있음', '3번: 엔진이 돌린 테스트 통과']);
+});
