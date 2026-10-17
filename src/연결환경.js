@@ -6,13 +6,17 @@ import { MISSING_BINS } from './검사도구.js';
 // Where each team's work can run, how it is paid for, and whether it is connected on this machine.
 // Only official connection paths are listed; statuses come from the tools' own commands.
 export const ENVIRONMENTS = [
-  { id: 'claude-code', name: 'Claude Code', kind: '구독 CLI', billing: 'Claude 구독', usedBy: ['기획팀', '조사팀', '개발팀', '디자인팀', '정책팀'],
+  { id: 'claude-code', name: 'Claude Code', kind: '구독 CLI', billing: 'Claude 구독', usedBy: ['기획팀', '조사팀', '개발팀', '디자인팀', '보안팀', '정책팀', '검증팀'],
     docs: 'https://code.claude.com/docs/en/cli-usage', how: 'claude auth login' },
-  { id: 'codex', name: 'Codex', kind: '구독 CLI', billing: 'ChatGPT 구독', usedBy: ['보안팀', '검증팀'],
-    docs: 'https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan', how: 'Codex 앱에서 로그인' },
+  { id: 'codex', name: 'Codex', kind: '구독 CLI', billing: 'ChatGPT 구독', usedBy: ['대장이 다른 구독을 허용한 프로젝트만'],
+    docs: 'https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan', how: 'Codex 앱에서 로그인',
+    note: 'Codex 샌드박스는 이 PC에서 작업 폴더 밖 파일 읽기를 막지 못합니다(2026-10-17 확인, 쓰기·네트워크는 차단). 그래서 기본으로는 어느 팀도 Codex 로 돌지 않습니다.' },
   { id: 'sandbox', name: '격리 실행 (Codex 샌드박스)', kind: 'Codex 내장 명령', billing: '사용량 없음 (모델을 부르지 않음)', usedBy: ['검증팀'],
     docs: 'https://learn.chatgpt.com/docs/developer-commands?surface=cli',
-    note: '엔진이 테스트를 여기서 돌립니다. 이 컴퓨터에서 확인: 프로젝트 폴더 밖 쓰기·홈 폴더 읽기·네트워크 차단.' },
+    note: '엔진이 테스트를 여기서 돌립니다. 막는 것: 프로젝트 폴더 밖 쓰기·네트워크. 홈 폴더 읽기는 샌드박스만으로 막히지 않아(2026-10-17 확인), node --test 는 Node 권한 모델로 작업 폴더만 읽게 해서 돌립니다.' },
+  { id: 'tests-unconfined', name: '격리 약한 테스트 실행 (npm 스크립트·파이썬)', kind: '엔진 설정', setting: 'tests.unconfined', billing: '사용량 없음', usedBy: ['검증팀'],
+    docs: 'https://nodejs.org/api/permissions.html',
+    note: '켜면 node --test 가 아닌 npm 스크립트와 파이썬 테스트도 샌드박스에서 돌립니다. 이 테스트 코드는 작업 폴더 밖 파일을 읽을 수 있습니다(쓰기·네트워크는 차단).' },
   { id: 'npm-audit', name: 'npm audit (의존성 취약점 조회)', kind: '공식 조회 도구', setting: 'tools.npmAudit', billing: '무료', usedBy: ['보안팀'],
     docs: 'https://docs.npmjs.com/cli/commands/npm-audit',
     note: '켜면 의존성 이름·버전 목록을 npm 공식 저장소(registry.npmjs.org)로 보내 알려진 취약점을 조회합니다.' },
@@ -40,6 +44,8 @@ export const SETTINGS = Object.freeze({
   'design.canva': { type: 'boolean', default: false },
   'design.higgsfield': { type: 'boolean', default: false },
   'tools.npmAudit': { type: 'boolean', default: false },
+  // Tests the engine cannot hold to the work folder (npm scripts other than "node --test", Python): off until 대장 allows.
+  'tests.unconfined': { type: 'boolean', default: false },
   // 읽기 전용 커넥터 (커넥터.js): a reading team gets Notion's search/read tools only after the gate is approved.
   'connectors.notion.research': { type: 'boolean', default: false },
   'connectors.notion.plan': { type: 'boolean', default: false },
@@ -144,6 +150,9 @@ export function environmentView(snapshot, settings = {}) {
       } else if (env.id === 'npm-audit') {
         enabled = settings[env.setting] === true;
         [statusL, tone] = enabled ? ['켜짐 · 보안팀 사용', 'done'] : ['꺼짐', 'idle'];
+      } else if (env.id === 'tests-unconfined') {
+        enabled = settings[env.setting] === true;
+        [statusL, tone] = enabled ? ['켜짐 · 폴더 밖 읽기 가능', 'attn'] : ['꺼짐 · node --test 만 실행', 'idle'];
       } else if (env.id === 'web') {
         [statusL, tone] = snapshot.claude?.loggedIn ? ['사용 가능', 'done'] : ['Claude Code 로그인 필요', 'attn'];
       } else if (env.connector) {

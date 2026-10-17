@@ -17,14 +17,13 @@ import { TEAMS } from './팀.js';
 import { Digests } from './요약.js';
 import { checkAttachments, DEFAULT_MAX_MB, saveAttachment } from './첨부파일.js';
 import { DocConverter } from './문서변환.js';
-import { toolkitView } from './검사도구.js';
+import { testCommand, toolkitView, UNCONFINED_NOTE } from './검사도구.js';
 import { ProjectWorkspaces, validateProjectId } from './작업공간.js';
 import { readUsage, recordRateLimits } from './사용량.js';
 import { projectRecord } from './작업기록.js';
 import { capacityBasis, capacityWhy } from './구독안전.js';
 import { artifactList, readArtifact, isDownloadOnly, slidePagesHtml } from './결과물.js';
 import { detectTests } from './검사.js';
-import { npmCommand } from './격리환경.js';
 import { AutoSave } from './자동저장.js';
 import { HIDDEN_CODEX_MODELS, ModelChoices } from './모델선택.js';
 import { kindOf, quickApprovable, SkillLibrary } from './스킬.js';
@@ -276,7 +275,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       if (!sandbox?.available) throw new Error('sandbox unavailable; no fallback outside sandbox');
       const spec = detectTests(cwd);
       if (!spec) throw new Error('no project test command found');
-      const command = spec.runner === 'npm' ? npmCommand(['test']) : spec.runner === 'node' ? [process.execPath, '--test'] : ['python', '-m', 'unittest'];
+      if (!spec.confined && setting('tests.unconfined', false) !== true) throw new Error(UNCONFINED_NOTE);
+      const command = testCommand(spec, cwd);
       testConsoleBusy.add(id);
       try {
         const result = await sandbox.run(cwd, command);

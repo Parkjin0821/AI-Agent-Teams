@@ -170,3 +170,40 @@ test('the HTML check and the screen check leave out the engine previews of HWP, 
   await runTeamTools('qa', dir, { visualChecker });
   assert.deepEqual(seen, ['index.html']);
 });
+
+test('2026-10-17: node tests run under Node\'s permission model (work folder only); other npm scripts and Python wait for 대장', async () => {
+  const { testCommand, UNCONFINED_NOTE } = await import('../src/검사도구.js');
+  const js = folder({ 'package.json': '{"scripts":{"test":"node --test 가계부합계.test.js"}}', '가계부합계.test.js': '' });
+  const spec = detectTests(js);
+  assert.deepEqual([spec.runner, spec.label, spec.files, spec.confined], ['node', 'npm test', ['가계부합계.test.js'], true]);
+  const cmd = testCommand(spec, js);
+  assert.ok(cmd.includes('--permission') && cmd.includes('--test-isolation=none'), cmd.join(' '));
+  assert.ok(cmd.includes(`--allow-fs-read=${path.join(path.resolve(js), '*')}`));
+  assert.equal(cmd.at(-1), '가계부합계.test.js');
+  for (const script of ['jest', 'node --test a.js && curl https://evil.example', 'node --test ../outside.test.js', 'node --test --import=./x.js'])
+    assert.equal(detectTests(folder({ 'package.json': JSON.stringify({ scripts: { test: script } }) })).confined, false, script);
+  assert.equal(detectTests(folder({ 'test_sum.py': '' })).confined, false, 'Python cannot be held to the folder');
+  const other = folder({ 'package.json': '{"scripts":{"test":"jest"}}' });
+  const sandbox = sandboxReturning({ status: 'pass', code: 0, output: 'ok' });
+  const held = await runTeamTools('qa', other, { sandbox });
+  assert.deepEqual([held[0].status, sandbox.calls.length], ['unavailable', 0], 'not run at all');
+  assert.ok(held[0].summary.endsWith(UNCONFINED_NOTE));
+  const allowed = await runTeamTools('qa', other, { sandbox, settings: { 'tests.unconfined': true } });
+  assert.deepEqual([allowed[0].status, sandbox.calls.length], ['pass', 1], '대장 allowed it');
+});
+
+test('the permission-model command really keeps test code out of the home folder and from starting programs', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { testCommand } = await import('../src/검사도구.js');
+  const dir = folder({ 'a.test.js': [
+    "const test = require('node:test'); const fs = require('node:fs'); const os = require('node:os'); const path = require('node:path');",
+    "test('inside', () => { fs.writeFileSync('x.txt', 'ok'); if (fs.readFileSync('x.txt', 'utf8') !== 'ok') throw new Error('no'); });",
+    "test('home', () => { try { fs.readdirSync(os.homedir()); } catch (e) { if (e.code === 'ERR_ACCESS_DENIED') return; } throw new Error('HOME READ'); });",
+    "test('program', () => { try { require('node:child_process').execFileSync(process.execPath, ['-v']); } catch (e) { if (e.code === 'ERR_ACCESS_DENIED') return; } throw new Error('CHILD'); });",
+  ].join('\n') });
+  const [file, ...args] = testCommand(detectTests(dir), dir);
+  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT; // a plain run, not a child of this test runner
+  const r = spawnSync(file, args, { cwd: dir, env, encoding: 'utf8', timeout: 60_000 });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /ℹ pass 3/);
+});

@@ -361,6 +361,9 @@ export class GoalScheduler {
     if (goal.team?.profile?.risk === 'high') return null;
     if (this.registry?.getPolicy(`project:${goal.projectId}`).allowProviderSwitch === false) return null;
     const other = planned === 'codex' ? 'claude-code' : 'codex';
+    // Codex's sandbox does not hold reads to the work folder on this PC (2026-10-17): a step moves to Codex for quota
+    // only in a project where 대장 allowed another subscription, never by the global 한도 자동 전환 alone.
+    if (other === 'codex' && this.registry?.getPolicy(`project:${goal.projectId}`).allowProviderSwitch !== true) return null;
     const step = goal.team?.step ?? 'plan';
     if (other === 'codex' && (TEAMS[step]?.web || this.capabilities?.(step)?.['claude-code']?.includes('connectors'))) return null;
     return this.capacity(other) ? other : null;
@@ -466,7 +469,10 @@ export class GoalScheduler {
           requestedEffort: model.effort ?? null, selectionReason: model.reason ?? model.source,
           assignmentComparison: model.comparison ?? [], requiredCapabilities: model.needs ?? [], proposalReason: model.proposalReason ?? null,
           policyVersion: model.policyVersion, ...(model.level ? { level: model.level } : {}) });
-        this.update(goal, { status: GoalStatus.RUNNING, waitingFrom: null, reason: null });
+        // A Codex step can read outside the work folder (its writes and network stay blocked): said once per goal.
+        const codexNote = run.executor === 'codex' && goal.kind === 'team' && !goal.codexReadNoted
+          ? { codexReadNoted: true, messages: this.withControl(goal, 'Codex 로 실행하는 단계 · Codex 샌드박스는 작업 폴더 밖 파일 읽기를 막지 못함 (쓰기·네트워크는 차단)') } : {};
+        this.update(goal, { status: GoalStatus.RUNNING, waitingFrom: null, reason: null, ...codexNote });
         return run;
       });
     } catch (error) {

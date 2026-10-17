@@ -340,8 +340,9 @@ test('each team picks a named model and reasoning level from the official list; 
     const g = (await call('POST', '/api/projects', { objective: '가계부', completionCriteria: ['a.md 있음'] })).body;
     const put = teamModel => call('PUT', `/api/projects/${g.projectId}/model-policy`, { teamModel });
     assert.equal((await put({ team: 'plan', model: 'claude-fable-5-1', effort: 'max' })).status, 200);
-    assert.equal((await put({ team: 'qa', model: 'gpt-5.5', effort: 'medium' })).status, 200);
-    assert.match((await put({ team: 'qa', model: 'gpt-5.5', effort: 'ultra' })).body.error, /not offered/, 'ultra is not offered for GPT-5.5');
+    // Verification runs on Claude Code since 2026-10-17 (Codex's sandbox reads outside the work folder on this PC).
+    assert.equal((await put({ team: 'qa', model: 'claude-sonnet-5-5', effort: 'high' })).status, 200);
+    assert.match((await put({ team: 'qa', model: 'gpt-5.5', effort: 'medium' })).body.error, /not offered by claude-code/, 'no Codex model for verification');
     assert.match((await put({ team: 'qa', model: 'gpt-5.6-sol' })).body.error, /not offered/, 'hidden models cannot be picked');
     assert.match((await put({ team: 'plan', model: 'gpt-5.5' })).body.error, /not offered by claude-code/, 'a Codex model cannot go to a Claude team');
     assert.match((await put({ team: 'dev', model: 'opus' })).body.error, /not offered/, 'aliases are not accepted, only exact models');

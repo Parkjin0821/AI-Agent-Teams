@@ -132,7 +132,8 @@ export async function runTeamTools(step, cwd, { sandbox = null, settings = {}, v
     const tests = detectTests(cwd);
     if (!tests) add({ id: 'tests', name: '테스트 실행', status: 'skipped', summary: '테스트 파일 없음' });
     else if (!sandbox?.available) add({ id: 'tests', name: '테스트 실행', status: 'unavailable', summary: `${tests.label} · 샌드박스를 쓸 수 없어 실행하지 않음` });
-    else add(testResult(tests, await sandbox.run(cwd, testCommand(tests))));
+    else if (!tests.confined && settings?.['tests.unconfined'] !== true) add({ id: 'tests', name: '테스트 실행', status: 'unavailable', summary: `${tests.label} · ${UNCONFINED_NOTE}` });
+    else add(testResult(tests, await sandbox.run(cwd, testCommand(tests, cwd))));
     secrets();
     const html = checkHtml(cwd).pages.filter(p => !isEngineFile(p.file));
     if (html.length) {
@@ -158,11 +159,18 @@ export async function runTeamTools(step, cwd, { sandbox = null, settings = {}, v
   return results;
 }
 
-export function testCommand(tests) {
+// Node tests run inside the sandbox AND under Node's permission model: files only in the work folder, no child
+// processes, in one process (--test-isolation=none, so the runner itself needs no child process).
+export function testCommand(tests, cwd) {
+  if (tests.runner === 'node') {
+    const root = path.resolve(cwd);
+    return [process.execPath, '--permission', `--allow-fs-read=${path.join(root, '*')}`, `--allow-fs-write=${path.join(root, '*')}`,
+      '--test', '--test-isolation=none', ...(tests.files ?? [])];
+  }
   if (tests.runner === 'npm') return npmCommand(['test']);
-  if (tests.runner === 'node') return [process.execPath, '--test'];
   return ['python', '-m', 'unittest', 'discover'];
 }
+export const UNCONFINED_NOTE = '작업 폴더 밖 읽기를 막을 수 없는 테스트라 실행하지 않음 · package.json 의 test 를 "node --test <파일>" 로 쓰면 엔진이 막고 돌림 (대장이 연결 화면에서 "격리 약한 테스트 실행"을 켜면 그대로 실행)';
 
 function testResult(tests, run) {
   const lines = run.output.split(/\r?\n/).filter(Boolean);

@@ -191,7 +191,7 @@ test('teams rotate plan → dev → qa → plan, each with its own tool, passing
   })[team]);
   const g = add();
   await ticks(scheduler, 4);
-  assert.deepEqual(calls.map(c => [c.team, c.executor]), [['plan', 'claude-code'], ['dev', 'claude-code'], ['qa', 'codex'], ['plan', 'claude-code']]);
+  assert.deepEqual(calls.map(c => [c.team, c.executor]), [['plan', 'claude-code'], ['dev', 'claude-code'], ['qa', 'claude-code'], ['plan', 'claude-code']]);
   assert.equal(calls[1].task, '작업1');
   assert.equal(calls[3].feedback, '합계 테스트 실패');
   const saved = store.getGoal(g.id);
@@ -300,7 +300,7 @@ test('the planning team can hand a task to the design team', async () => {
   })[team]);
   add();
   await ticks(scheduler, 3);
-  assert.deepEqual(calls.map(c => [c.team, c.executor]), [['plan', 'claude-code'], ['design', 'claude-code'], ['qa', 'codex']]);
+  assert.deepEqual(calls.map(c => [c.team, c.executor]), [['plan', 'claude-code'], ['design', 'claude-code'], ['qa', 'claude-code']]);
   store.close();
 });
 
@@ -314,7 +314,7 @@ test('requested reviews run between the work and verification; blocking issues g
   const g = add();
   await ticks(scheduler, 4);
   assert.deepEqual(calls.map(c => c.team), ['plan', 'dev', 'security', 'dev'], 'blocking review goes directly to the worker for correction');
-  assert.equal(calls[2].executor, 'codex');
+  assert.equal(calls[2].executor, 'claude-code', 'security reviews on Claude Code (Codex cannot hold reads to the folder)');
   assert.match(calls[3].feedback, /보안팀.*\n- API 키가 코드에 있음/);
   assert.equal(store.getGoal(g.id).team.cycle, 2);
   const runs = store.listRuns(g.id);
@@ -517,24 +517,21 @@ test('an answer lets planning propose changed criteria, which need 대장 approv
     assert.deepEqual([g.reason, g.criteriaApprovalPending, g.completionCriteria], ['criteria_approval_required', true, [C[0]]]);
   } finally { store.close(); }
 });
-test('a step whose tool hit its usage stop runs on the other subscription, and the run says so', async () => {
-  // Codex (security, qa) out of room, Claude has room: the reviews run on Claude, marked as not independent
-  const { store, scheduler, add, calls } = setup(team => {
-    if (team === 'plan') return { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: ['security'] } };
-    if (team === 'dev') return { outcome: 'completed', diffHash: 'd1', evidence: ev(0, 1) };
-    if (team === 'qa') return { outcome: 'completed', evidence: ev(0, 1), findings: { feedback: '', improvements: [] } };
-    return { outcome: 'completed', review: { blocking: false, issues: [] } };
-  });
+test('Claude out of room: a step moves to Codex only where 대장 allowed another subscription, says so, and warns about reads', async () => {
+  // 2026-10-17: Codex's sandbox reads outside the work folder on this PC, so the global 한도 자동 전환 alone never moves
+  // a step there; every team now runs on Claude Code.
+  const { store, scheduler, add, calls } = setup(team => (team === 'dev'
+    ? { outcome: 'completed', diffHash: 'd1', evidence: ev(0, 1) } : { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } }));
   try {
-    scheduler.capacity = executor => executor === 'claude-code';
+    scheduler.capacity = executor => executor === 'codex';
     const goal = add();
-    for (let i = 0; i < 8 && store.getGoal(goal.id).status !== 'verified'; i++) await scheduler.runGoal(goal.id);
-    assert.deepEqual(calls.map(c => `${c.team}:${c.executor}`), ['plan:claude-code', 'dev:claude-code', 'security:claude-code', 'qa:claude-code']);
-    const runs = store.listRuns(goal.id);
-    const qa = runs.find(r => r.team === 'qa');
-    assert.deepEqual([qa.switchedFrom, qa.sameAsWorker], ['codex', true]);
-    assert.equal(runs.find(r => r.team === 'dev').switchedFrom, undefined, 'a step on its planned tool is not marked');
-    assert.equal(store.getGoal(goal.id).status, 'verified');
+    goal.team.step = 'dev'; goal.team.task = '구현'; store.saveGoal(goal);
+    assert.equal(scheduler.stepExecutor(store.getGoal(goal.id)), 'claude-code', 'no project opt-in: the step waits for Claude');
+    scheduler.registry = { getPolicy: () => ({ mode: 'auto', allowProviderSwitch: true, version: 1 }), catalog: () => [] };
+    assert.equal(scheduler.stepExecutor(store.getGoal(goal.id)), 'codex', 'a project where 대장 allowed another subscription');
+    await scheduler.runGoal(goal.id);
+    assert.deepEqual(calls.map(c => `${c.team}:${c.executor}`), ['dev:codex']);
+    assert.match(store.getGoal(goal.id).messages.map(m => m.text).join('\n'), /Codex 샌드박스는 작업 폴더 밖 파일 읽기를 막지 못함/);
   } finally { store.close(); }
 });
 test('no switch when 대장 turned it off, for high-risk work, for web work onto Codex, or when both are out', () => {
@@ -542,24 +539,25 @@ test('no switch when 대장 turned it off, for high-risk work, for web work onto
   try {
     const goal = add();
     goal.team.step = 'qa';
-    scheduler.capacity = executor => executor === 'claude-code';
-    assert.equal(scheduler.stepExecutor(goal), 'claude-code');
-    scheduler.autoSwitch = () => false;
-    assert.equal(scheduler.stepExecutor(goal), 'codex');
-    scheduler.autoSwitch = () => true;
+    scheduler.capacity = executor => executor === 'codex'; // Claude out of room, Codex has room
+    assert.equal(scheduler.stepExecutor(goal), 'claude-code', 'verification runs on Claude Code and waits for it');
+    const allowed = { getPolicy: () => ({ mode: 'auto', allowProviderSwitch: true }), catalog: () => [] };
     scheduler.registry = { getPolicy: () => ({ mode: 'auto', allowProviderSwitch: false }), catalog: () => [] };
-    assert.equal(scheduler.stepExecutor(goal), 'codex', 'project opt-out');
-    scheduler.registry = null;
+    assert.equal(scheduler.stepExecutor(goal), 'claude-code', 'project opt-out');
+    scheduler.registry = allowed;
+    scheduler.autoSwitch = () => false;
+    assert.equal(scheduler.stepExecutor(goal), 'claude-code', '한도 자동 전환 off');
+    scheduler.autoSwitch = () => true;
     goal.team.profile = { risk: 'high', complexity: 'normal', effects: [] };
-    assert.equal(scheduler.stepExecutor(goal), 'codex', 'high-risk work waits for its tool');
+    assert.equal(scheduler.stepExecutor(goal), 'claude-code', 'high-risk work waits for its tool');
     goal.team.profile = { risk: 'normal', complexity: 'normal', effects: [] };
+    goal.team.step = 'dev';
+    assert.equal(scheduler.stepExecutor(goal), 'codex', 'opted-in project, normal work');
     goal.team.step = 'research';
-    scheduler.capacity = executor => executor === 'codex';
     assert.equal(scheduler.stepExecutor(goal), 'claude-code', 'research needs the web, which Codex does not have');
     goal.team.step = 'dev';
-    assert.equal(scheduler.stepExecutor(goal), 'codex');
     scheduler.capacity = () => false;
-    assert.equal(scheduler.stepExecutor(goal), 'claude-code');
+    assert.equal(scheduler.stepExecutor(goal), 'claude-code', 'both out: waits for its own tool');
   } finally { store.close(); }
 });
 test('제어팀 fills in unpicked teams; a team pick, a pin or turning it off wins', () => {
@@ -602,7 +600,7 @@ test('제어팀 keeps the deep level for design until a design step has built th
     assert.equal(scheduler.resolveFor(goal).level.label, '가벼움', 'a slide deck is the page of a slide project');
   } finally { store.close(); }
 });
-test('a limit hit during a step waits, and the next step moves to the other subscription (no stop for 대장)', async () => {
+test('a limit hit during a step waits and goes on when its subscription has room again (no stop for 대장)', async () => {
   let limited = true;
   const { store, scheduler, add, calls } = setup(team => {
     if (team === 'plan') return { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } };
@@ -614,9 +612,12 @@ test('a limit hit during a step waits, and the next step moves to the other subs
     const goal = add();
     for (let i = 0; i < 3; i++) await scheduler.runGoal(goal.id);
     assert.deepEqual([store.getGoal(goal.id).status, store.getGoal(goal.id).reason], ['model_wait', 'usage_unavailable_or_limited']);
-    scheduler.capacity = executor => executor === 'claude-code'; // Codex is now over its limit
+    scheduler.capacity = executor => executor === 'codex'; // Claude still out: no move to Codex without a project opt-in
     await scheduler.runGoal(goal.id);
-    assert.deepEqual(calls.map(c => `${c.team}:${c.executor}`), ['plan:claude-code', 'dev:claude-code', 'qa:codex', 'qa:claude-code']);
+    assert.equal(calls.length, 3, 'the step keeps waiting');
+    scheduler.capacity = executor => executor === 'claude-code'; // Claude has room again
+    await scheduler.runGoal(goal.id);
+    assert.deepEqual(calls.map(c => `${c.team}:${c.executor}`), ['plan:claude-code', 'dev:claude-code', 'qa:claude-code', 'qa:claude-code']);
     assert.equal(store.getGoal(goal.id).status, 'verified');
     scheduler.autoSwitch = () => false;
     const other = add({ projectId: 'other' });

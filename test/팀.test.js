@@ -43,8 +43,8 @@ test('UI prompts establish a 화면설계, hand it to developers, and distinguis
 test('seven teams, each with its own tool and access; only research gets the web', () => {
   assert.deepEqual(Object.values(TEAMS).map(t => [t.id, t.executor, t.access, Boolean(t.web)]), [
     ['plan', 'claude-code', 'read', false], ['research', 'claude-code', 'write', true], ['dev', 'claude-code', 'write', false],
-    ['design', 'claude-code', 'write', false], ['security', 'codex', 'read', false], ['policy', 'claude-code', 'read', false],
-    ['qa', 'codex', 'read', false]]);
+    ['design', 'claude-code', 'write', false], ['security', 'claude-code', 'read', false], ['policy', 'claude-code', 'read', false],
+    ['qa', 'claude-code', 'read', false]]);
 });
 
 test('the design team is told which design tools it may use, and to record what it made', () => {

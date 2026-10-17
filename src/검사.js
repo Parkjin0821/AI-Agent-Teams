@@ -161,12 +161,22 @@ export function checkSources(cwd) {
 }
 
 // Which test command fits the project. Only these fixed commands are ever run, inside the sandbox.
+// confined: the engine can hold the test run to the work folder with Node's permission model (2026-10-17: the Codex
+// sandbox alone let test code read the home folder). An npm script that is exactly "node --test <files>" runs as that
+// node command; any other npm script, and Python, cannot be held and run only when 대장 allows it (tests.unconfined).
+const NODE_TEST_SCRIPT = /^node\s+--test((?:\s+[^\s&|;<>`$%^"'*?()]+)*)\s*$/;
 export function detectTests(cwd) {
   const pkg = readJson(path.join(cwd, 'package.json'));
   const script = pkg?.scripts?.test;
-  if (typeof script === 'string' && script.trim() && !/no test specified/.test(script)) return { runner: 'npm', label: 'npm test' };
+  if (typeof script === 'string' && script.trim() && !/no test specified/.test(script)) {
+    const m = NODE_TEST_SCRIPT.exec(script.trim());
+    const files = m ? m[1].trim().split(/\s+/).filter(Boolean) : null;
+    if (files && files.every(f => !f.startsWith('-') && !path.isAbsolute(f) && !f.split(/[\\/]/).includes('..')))
+      return { runner: 'node', label: 'npm test', files, confined: true };
+    return { runner: 'npm', label: 'npm test', confined: false };
+  }
   const files = textFiles(cwd);
-  if (files.some(f => /(^|\/)(test|tests|__tests__)\/.+\.(c|m)?js$|\.test\.(c|m)?js$/.test(f))) return { runner: 'node', label: 'node --test' };
-  if (files.some(f => /(^|\/)test_[^/]+\.py$|_test\.py$/.test(f))) return { runner: 'python', label: 'python -m unittest' };
+  if (files.some(f => /(^|\/)(test|tests|__tests__)\/.+\.(c|m)?js$|\.test\.(c|m)?js$/.test(f))) return { runner: 'node', label: 'node --test', files: [], confined: true };
+  if (files.some(f => /(^|\/)test_[^/]+\.py$|_test\.py$/.test(f))) return { runner: 'python', label: 'python -m unittest', confined: false };
   return null;
 }

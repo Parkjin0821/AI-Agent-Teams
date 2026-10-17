@@ -11,11 +11,14 @@ export const TEAMS = Object.freeze({
   research: { id: 'research', name: '조사팀', executor: 'claude-code', access: 'write', web: true },
   dev: { id: 'dev', name: '개발팀', executor: 'claude-code', access: 'write' },
   design: { id: 'design', name: '디자인팀', executor: 'claude-code', access: 'write' },
-  // Reviews never change files. Security runs in Codex's read-only sandbox for a second model's view.
-  security: { id: 'security', name: '보안팀', executor: 'codex', access: 'read' },
+  // Reviews never change files. Security and verification ran on Codex until 2026-10-17: a real run showed Codex's
+  // Windows sandbox (0.163, read-only and workspace-write alike) reads any file in the home folder, and its permission
+  // profiles could not narrow that on this PC. Claude Code has no shell here and the Sentinel holds Read/Glob/Grep to
+  // the work folder, so both now run there; Codex runs a step only where 대장 allowed another subscription for a project.
+  security: { id: 'security', name: '보안팀', executor: 'claude-code', access: 'read' },
   policy: { id: 'policy', name: '정책팀', executor: 'claude-code', access: 'read' },
-  // Codex's own sandbox lets the verification team run tests inside the project folder.
-  qa: { id: 'qa', name: '검증팀', executor: 'codex', access: 'read' },
+  // The verification team reads and judges; the engine itself runs the project tests in the sandbox before its step.
+  qa: { id: 'qa', name: '검증팀', executor: 'claude-code', access: 'read' },
 });
 export const WORKERS = ['research', 'dev', 'design'];
 export const REVIEWS = ['security', 'policy'];
@@ -208,7 +211,7 @@ export const TEAM_BRIEFS = Object.freeze({
       '표·집계·예산은 엑셀이 필요하면 spreadsheets 로 요청한다: 집계.json 에 시트·열(형식 text·number·money·percent·date)·행·합계를 적고 "spreadsheets":[{"from":"집계.json","to":"집계.xlsx"}] 를 낸다. .xlsx 파일을 직접 쓰거나 고치지 않는다. 엔진이 만들고 다시 읽어 시트·행·열 제목·합계를 대조하며, spreadsheet_made 로 증명한다. 차트가 필요하면 시트에 "charts":[{"type":"column|bar|line|pie","title":"…","category":"항목 열","values":["값 열"]}] 를 적는다. 엔진이 엑셀 고유 차트로 넣는다. 다른 열로 계산하는 열(이익 = 매출 - 비용 등)은 값을 직접 적지 말고 열에 "formula":"{매출}-{비용}" 을 적는다 (왼쪽 열 제목·숫자·+ - * / 괄호만, 행 칸은 null). 엔진이 행마다 엑셀 수식으로 넣는다.',
       '제출할 때 note 에 바꾼 기능, 기대 결과, 엔진이 돌릴 검사, 실패하면 볼 곳을 적는다. 검사가 실패해 돌아오면 그 실패를 직접 고치는 가장 작은 수정부터 하고, 관련 없는 재설계는 하지 않는다.',
       '화면 구현은 design/화면설계.md 와 design/화면검토.md 를 먼저 읽고 글자·색·간격·컴포넌트 기준을 그대로 연결한다. 기준이 없으면 임의 시안을 만들지 말고 디자인팀에 requests 로 요청한다. 기존 UI와 무관한 스타일로 전면 교체하지 않는다.',
-      '코드에는 자동 테스트를 함께 만든다 (package.json 의 "test" 스크립트, test/*.test.js, test_*.py 중 하나). 검증 단계에서 엔진이 네트워크 없는 샌드박스에서 돌리고, 실패하면 완료되지 않는다.',
+      '코드에는 자동 테스트를 함께 만든다: node:test 로 쓴 test/*.test.js 또는 *.test.js, package.json 이 있으면 "test": "node --test <테스트 파일>" 처럼 node --test 만 쓴다. 검증 단계에서 엔진이 네트워크 없는 샌드박스에서 작업 폴더만 읽게 해서 돌리고, 실패하면 완료되지 않는다. 테스트 안에서 다른 프로그램을 띄우거나 작업 폴더 밖 파일을 읽지 않는다 (엔진이 막아 실패한다). jest 같은 다른 실행기·npm 스크립트·파이썬 테스트는 폴더 밖 읽기를 막을 수 없어 대장이 허용해야만 돈다.',
       '외부 패키지 추가는 설치가 필요하므로 하지 않는다. 필요하면 needs_decision 으로 묻는다.',
       '이전 시도가 중단됐다는 기록이 있으면 기존 파일을 먼저 읽고 이어서 한다. 되돌려졌다고 가정하지 않는다.',
       '끝내기 전에 만든 파일을 다시 열어 작업 지시·완료 조건과 대조한다. 빠진 경우(빈 값·잘못된 입력·긴 글·0건)와 어색한 곳을 한 번 더 다듬고 넘긴다. 작업 범위는 넓히지 않는다.',
