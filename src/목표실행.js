@@ -3,7 +3,7 @@ import { parsePlan, parseReview, qaFindings, REVIEWS, TEAMS, teamPrompt, WORKERS
 import { runTeamTools, toolReport } from './검사도구.js';
 import { normalizeRequests, requiredReviews } from './팀검토.js';
 import { createHash } from 'node:crypto';
-import { readFileSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { SkillLibrary } from './스킬.js';
 import { hasSecret, readAsks } from './보안감시.js';
@@ -43,7 +43,7 @@ export function changedSince(cwd, before) {
 
 // toolsFor(team) → { connectors, knownConnectors, readOnly, plugins }: which claude.ai connectors 대장 opened for that team.
 export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, visualChecker = null, slideMaker = null, settings = () => ({}),
-  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, browserRead = {}, docMaker = null, onActivity = () => {}, heldDir = null,
+  onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, browserRead = {}, workbenchScript = null, workbenchCodex = () => null, docMaker = null, onActivity = () => {}, heldDir = null,
   webModeFor = () => (settings()['sentinel.web'] === 'open' ? 'open' : 'ask'),
   fonts = () => (adapter.enabled === false ? [] : installedKoreanFonts()) }) {
   const simulated = adapter.enabled === false;
@@ -77,13 +77,24 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       const extra = team ? toolsFor(team) : {};
       const tools = { web: Boolean(team && TEAMS[team]?.web), connectors: extra.connectors ?? [], knownConnectors: extra.knownConnectors ?? [],
         readOnly: extra.readOnly ?? [], plugins: extra.plugins ?? null };
+      // 작업 도구 (9차 1번): dev and design steps may run the engine's fixed tools (tests, syntax, page check) while they
+      // work; the calls are logged next to the Sentinel log and recorded on the step.
+      const benchLog = sentinel?.log ? path.join(path.dirname(sentinel.log), 'workbench', `${goal.id}-${run.round ?? 0}-${run.attempt ?? 0}.jsonl`) : null;
+      const codexBin = !simulated && workbenchScript && ['dev', 'design'].includes(team) && settings()['tools.workbench'] !== false ? workbenchCodex() : null;
+      if (codexBin) {
+        mkdirSync(path.dirname(benchLog), { recursive: true });
+        tools.workbench = { script: workbenchScript, env: { AGENT_HQ_WORKSPACE: cwd, AGENT_HQ_CODEX_BIN: codexBin.file,
+          ...(codexBin.windowsSandbox ? { AGENT_HQ_CODEX_SANDBOX: codexBin.windowsSandbox } : {}),
+          AGENT_HQ_TESTS_UNCONFINED: settings()['tests.unconfined'] === true ? '1' : '0', AGENT_HQ_WORKBENCH_LOG: benchLog,
+          SYSTEMROOT: process.env.SYSTEMROOT ?? '', PATH: process.env.PATH ?? '' } };
+      }
       const engineTools = team && !simulated ? await runTeamTools(team, cwd, { sandbox, visualChecker, slideMaker, settings: settings() }) : [];
       // The documents and spreadsheets the engine built (the teams wrote only their .md/.json sources).
       const engineMade = [...Object.keys(documentRecords(records)), ...Object.keys(spreadsheetRecords(records))];
       if (team === 'qa' && !simulated && Object.keys(documentRecords(records)).length)
         engineTools.push(documentQuality(cwd, documentRecords(records)));
       let prompt = team
-        ? teamPrompt(team, { goal, team: goal.team, files: listWorkspaceFiles(cwd), engineMade, connectors: tools.connectors, readOnly: tools.readOnly, toolText: toolReport(engineTools),
+        ? teamPrompt(team, { goal, team: goal.team, files: listWorkspaceFiles(cwd), engineMade, connectors: tools.connectors, readOnly: tools.readOnly, workbench: Boolean(tools.workbench), toolText: toolReport(engineTools),
           memory: memory?.forTeam(team) ?? null,
           candidates: catalog().filter(e => e.usable).map(e => ({ id: e.id, executor: e.executor, capabilities: e.capabilities ?? [] })) })
         : [`Goal: ${goal.objective}`, '', reportInstructions(goal.completionCriteria)].join('\n');
@@ -200,6 +211,18 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           findings: team === 'qa' ? { feedback: '모의 실행이라 확인한 것이 없습니다', improvements: [], blocking: [] } : undefined };
       }
       const toolsSaved = engineTools.map(({ id, name, status, summary, details }) => ({ id, name, status, summary, details: details.slice(0, 10) }));
+      // 작업 도구 calls this step made (help while working, never evidence).
+      if (tools.workbench && benchLog) {
+        let calls = [];
+        try { calls = readFileSync(benchLog, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)); } catch { /* none */ }
+        if (calls.length) {
+          const by = {};
+          for (const c of calls) { const k = String(c.tool); by[k] ??= { n: 0, ok: 0 }; by[k].n++; if (c.ok) by[k].ok++; }
+          toolsSaved.push({ id: 'workbench', name: '작업 도구 (팀이 작업 중 실행)', status: 'info',
+            summary: Object.entries(by).map(([k, v]) => `${k} ${v.n}번 (성공 ${v.ok})`).join(' · '), details: [] });
+          await store.emit({ type: 'workbench.used', goalId: goal.id, team, calls: calls.length, by });
+        }
+      }
       const base = { model: result.model ?? null, answer: result.answer ?? null, tools: toolsSaved, approvalRequests: approvalRequests.map(r => r.id),
         ...(ruleViolations.length ? { ruleViolations } : {}) };
       if (result.outcome === 'limited') return { ...base, outcome: 'error', errorKind: 'limit' };

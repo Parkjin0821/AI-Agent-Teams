@@ -14,6 +14,9 @@ export const ENVIRONMENTS = [
   { id: 'sandbox', name: '격리 실행 (Codex 샌드박스)', kind: 'Codex 내장 명령', billing: '사용량 없음 (모델을 부르지 않음)', usedBy: ['검증팀'],
     docs: 'https://learn.chatgpt.com/docs/developer-commands?surface=cli',
     note: '엔진이 테스트를 여기서 돌립니다. 막는 것: 프로젝트 폴더 밖 쓰기·네트워크. 홈 폴더 읽기는 샌드박스만으로 막히지 않아(2026-10-17 확인), node --test 는 Node 권한 모델로 작업 폴더만 읽게 해서 돌립니다.' },
+  { id: 'workbench', name: '작업 도구 (작업 중 테스트·문법·화면 검사)', kind: '엔진 도구', setting: 'tools.workbench', billing: '사용량 없음 (모델을 부르지 않음)', usedBy: ['개발팀', '디자인팀'],
+    docs: 'https://modelcontextprotocol.io/specification',
+    note: '개발·디자인팀이 작업하는 동안 run_tests·check_syntax·check_page·list_dependencies 를 부를 수 있습니다. 명령은 엔진이 고르고 검증과 같은 격리(샌드박스 + Node 권한 모델)에서 돕니다. 셸·임의 명령·설치는 없습니다.' },
   { id: 'tests-unconfined', name: '격리 약한 테스트 실행 (npm 스크립트·파이썬)', kind: '엔진 설정', setting: 'tests.unconfined', billing: '사용량 없음', usedBy: ['검증팀'],
     docs: 'https://nodejs.org/api/permissions.html',
     note: '켜면 node --test 가 아닌 npm 스크립트와 파이썬 테스트도 샌드박스에서 돌립니다. 이 테스트 코드는 작업 폴더 밖 파일을 읽을 수 있습니다(쓰기·네트워크는 차단).' },
@@ -46,6 +49,8 @@ export const SETTINGS = Object.freeze({
   'tools.npmAudit': { type: 'boolean', default: false },
   // Tests the engine cannot hold to the work folder (npm scripts other than "node --test", Python): off until 대장 allows.
   'tests.unconfined': { type: 'boolean', default: false },
+  // 작업 도구 (9차 1번): dev and design steps may run tests, syntax and page checks while they work (no usage).
+  'tools.workbench': { type: 'boolean', default: true },
   // 읽기 전용 커넥터 (커넥터.js): a reading team gets Notion's search/read tools only after the gate is approved.
   'connectors.notion.research': { type: 'boolean', default: false },
   'connectors.notion.plan': { type: 'boolean', default: false },
@@ -150,6 +155,9 @@ export function environmentView(snapshot, settings = {}) {
       } else if (env.id === 'npm-audit') {
         enabled = settings[env.setting] === true;
         [statusL, tone] = enabled ? ['켜짐 · 보안팀 사용', 'done'] : ['꺼짐', 'idle'];
+      } else if (env.id === 'workbench') {
+        enabled = settings[env.setting] !== false;
+        [statusL, tone] = enabled ? ['켜짐 · 개발·디자인팀 사용', 'done'] : ['꺼짐', 'idle'];
       } else if (env.id === 'tests-unconfined') {
         enabled = settings[env.setting] === true;
         [statusL, tone] = enabled ? ['켜짐 · 폴더 밖 읽기 가능', 'attn'] : ['꺼짐 · node --test 만 실행', 'idle'];

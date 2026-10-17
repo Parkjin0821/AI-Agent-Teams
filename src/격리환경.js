@@ -4,8 +4,9 @@ import path from 'node:path';
 
 // Runs a program the engine chose (never one an agent typed) inside Codex's Windows sandbox:
 //   codex sandbox -P :workspace -C <project> -- <program> <args>
-// Checked on this machine (codex-cli 0.158.0-alpha): writes only inside the project folder (and temp),
-// the user's home folder cannot be read, and network access is refused. No model is called, so it
+// Checked on this machine: writes only inside the project folder (and temp) and network access is refused. Reads are
+// NOT held to the folder (codex-cli 0.163, 2026-10-17: the home folder was readable), so Node tests also run under
+// Node's permission model (검사도구.js testCommand). No model is called, so it
 // uses no subscription usage. The sandbox passes the environment through, so only a short list of
 // system variables goes in: tokens and keys in the user's environment never reach project code.
 const KEEP_ENV = ['PATH', 'PATHEXT', 'SYSTEMROOT', 'SYSTEMDRIVE', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP', 'OS',

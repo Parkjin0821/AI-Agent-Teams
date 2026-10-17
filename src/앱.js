@@ -175,6 +175,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       }, catalog: () => registry.catalog(),
       // 감시 에이전트: checks every Claude tool call before it runs (see src/보안감시.js).
       sentinel: { script: path.join(root, 'scripts', '보안감시-훅.mjs'), log: sentinelLog, grants: approvals.grantsFile, rules: rules.file },
+      // 작업 도구 (9차 1번): the engine's own MCP server for dev and design steps; the Codex CLI only runs its sandbox.
+      workbenchScript: path.join(root, 'scripts', '작업도구-mcp.mjs'), workbenchCodex: () => resolveBins().codex,
       approvals, memory,
       // 금지 경로 되돌리기: what a team wrote under a 금지 path is kept here, outside the work folder (규칙.js).
       heldDir: path.join(dataDir, 'held'),
