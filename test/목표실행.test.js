@@ -314,3 +314,16 @@ test('병렬 작업: files the lane wrote while the parent step ran are not the 
   // a read-only step changes nothing itself
   assert.deepEqual(await check([], 'read'), []);
 });
+
+test('8차 P0-3: changedSince lists what a cut-off step changed, or null when it cannot tell', async () => {
+  const { changedSince } = await import('../src/목표실행.js');
+  const { createHash } = await import('node:crypto');
+  const cwd = mkdtempSync(path.join(tmpdir(), 'hq-changed-'));
+  writeFileSync(path.join(cwd, 'a.md'), 'A'); writeFileSync(path.join(cwd, 'b.md'), 'B');
+  const sha = t => createHash('sha256').update(t).digest('hex');
+  const before = { files: ['a.md', 'b.md', 'c.md'], signatures: { 'a.md': sha('A'), 'b.md': sha('old'), 'c.md': sha('C') } };
+  assert.deepEqual(changedSince(cwd, before).sort(), ['b.md', 'c.md (지워짐)']);
+  writeFileSync(path.join(cwd, 'new.md'), 'N');
+  assert.ok(changedSince(cwd, before).includes('new.md'));
+  assert.equal(changedSince(cwd, null), null);
+});

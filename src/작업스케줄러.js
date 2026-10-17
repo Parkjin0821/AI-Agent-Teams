@@ -58,6 +58,35 @@ export class GoalScheduler {
     }
   }
 
+  // 재시작 복구 (8차 개편 P0-3): a step cut off by a restart runs again on its own when that is safe — the project was
+  // running on its own (autoRun), this step was not already cut off once, and the engine can tell what the cut-off try
+  // changed in the work folder (changesFor(goal, run) → changed file list, or null when it cannot tell). The team is told
+  // which files the try already changed, so it checks and finishes instead of starting over. A second cut on the same
+  // step, a project 대장 drives by hand, or an unknown state stays with 대장 (recovery_required), as before.
+  // No team step writes outside the work folder or to an outside service, so running a step again has no outside effect.
+  autoRecover(changesFor) {
+    const resumed = [];
+    for (const goal of this.store.listGoals().filter(g => g.status === GoalStatus.RECOVERY_REQUIRED && g.reason === 'interrupted_by_restart')) {
+      const run = this.store.listRuns(goal.id).filter(r => r.status === 'interrupted').at(-1);
+      if (!run || goal.autoRun !== true || goal.kind !== 'team') continue;
+      const key = `${run.team}:${run.round}:${run.attempt ?? 0}`;
+      if ((goal.recoveries ?? []).some(r => r.team === run.team && r.round === run.round)) continue;
+      let changed = null;
+      try { changed = changesFor(goal, run); } catch { changed = null; }
+      if (!Array.isArray(changed)) continue;
+      const at = iso(this.clock.now());
+      const shown = changed.slice(0, 8).join(', ') + (changed.length > 8 ? ` 외 ${changed.length - 8}개` : '');
+      const team = { ...goal.team, ...(changed.length && WORKERS.includes(run.team) ? { feedback: `[엔진] 지난 시도가 서버 재시작으로 중간에 끊겼습니다. 그 시도가 이미 바꾼 파일: ${shown}. `
+        + '처음부터 다시 쓰지 말고, 그 파일들을 열어 맞게 됐는지 확인하고 남은 부분을 끝냅니다.\n' + (goal.team?.feedback ?? '') } : {}) };
+      this.update(goal, { status: GoalStatus.RETRY_WAIT, reason: 'resumed_after_restart', nextRunAt: at, team,
+        recoveries: [...(goal.recoveries ?? []), { team: run.team, round: run.round, key, changed: changed.slice(0, 40), at }].slice(-20),
+        messages: this.withControl(goal, `재시작 복구 · 끊긴 ${TEAMS[run.team]?.name ?? run.team} 단계를 다시 실행${changed.length ? ` (이미 바뀐 파일 ${changed.length}개: ${shown})` : ' (바뀐 파일 없음)'}`) });
+      void this.store.emit({ type: 'goal.resumed_after_restart', goalId: goal.id, team: run.team, round: run.round, changed: changed.length });
+      resumed.push(goal.id);
+    }
+    return resumed;
+  }
+
   addGoal(input) {
     // team = the AI team works it in rotation until done; task = one-off; research/improvement repeat on a timer.
     const intervals = { team: null, task: null, research: this.policy.researchIntervalMs, improvement: this.policy.improvementIntervalMs };

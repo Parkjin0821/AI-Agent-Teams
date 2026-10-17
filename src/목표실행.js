@@ -25,6 +25,22 @@ import { makeSpreadsheet, spreadsheetRecords } from './엑셀.js';
 // In simulation mode nothing is executed, so a round reports no evidence and no model.
 const PROVIDER = { 'claude-code': 'claude', codex: 'codex' };
 
+// 재시작 복구 (8차 P0-3): files a cut-off step changed, from the fingerprints the engine took when it started
+// (the same signatures as the step checkpoint). null when it cannot tell (no record, or a folder over 2,000 files).
+export function changedSince(cwd, before) {
+  if (!before?.signatures || !Array.isArray(before.files) || before.files.length >= 2000) return null;
+  const files = listWorkspaceFiles(cwd, 2000);
+  if (files.length >= 2000) return null;
+  const changed = [];
+  for (const file of files) {
+    const full = path.join(cwd, file), stat = statSync(full);
+    const sig = stat.size > 2000000 ? `metadata:${stat.size}:${stat.mtimeMs}` : createHash('sha256').update(readFileSync(full)).digest('hex');
+    if (before.signatures[file] !== sig) changed.push(file);
+  }
+  for (const file of before.files) if (!files.includes(file)) changed.push(`${file} (지워짐)`);
+  return changed;
+}
+
 // toolsFor(team) → { connectors, knownConnectors, readOnly, plugins }: which claude.ai connectors 대장 opened for that team.
 export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => ({}), sandbox = null, visualChecker = null, slideMaker = null, settings = () => ({}),
   onRateLimits = () => {}, catalog = () => [], sentinel = null, approvals = null, memory = null, webSources = {}, browserRead = {}, docMaker = null, onActivity = () => {}, heldDir = null,

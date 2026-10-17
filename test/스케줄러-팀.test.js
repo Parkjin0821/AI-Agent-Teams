@@ -901,3 +901,59 @@ test('8차 P0-2: an unchanged file keeps its evidence through a review', async (
     assert.deepEqual(store.getGoal(goal.id).evidence.map(e => e.criterion), [C[0]]);
   } finally { store.close(); }
 });
+
+test('8차 P0-3: a step cut off by a restart runs again on its own once, told what the cut-off try already changed', async () => {
+  const dataDir = mkdtempSync(path.join(tmpdir(), 'hq-recover-'));
+  const clock = { t: T0, now() { return this.t; } };
+  let store = new PersistentStore({ dataDir });
+  const calls = [];
+  const make = (s, runner) => new GoalScheduler({ store: s, clock, policy: DEFAULT_POLICY, runner });
+  let scheduler = make(store, { run: async (goal, run) => { calls.push({ team: run.team, feedback: goal.team.feedback }); return { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } }; } });
+  const goal = scheduler.addGoal({ projectId: 'budget', kind: 'team', autoRun: true, objective: '가계부', completionCriteria: C });
+  await scheduler.runGoal(goal.id); // plan → next step dev
+  // the dev step is running when the server stops (the run never settles)
+  let release;
+  const hung = new Promise(r => { release = r; });
+  scheduler.runner = { run: async () => { await hung; return { outcome: 'completed' }; } };
+  const pending = scheduler.runGoal(goal.id);
+  await new Promise(r => setImmediate(r));
+  assert.equal(store.getGoal(goal.id).status, 'running');
+  store.close();
+  // restart: a new store and scheduler on the same data
+  store = new PersistentStore({ dataDir });
+  const runner = { run: async (g, run) => { calls.push({ team: run.team, feedback: g.team.feedback, attempt: run.attempt }); return { outcome: 'completed', diffHash: 'x', evidence: [] }; } };
+  scheduler = make(store, runner);
+  assert.deepEqual([store.getGoal(goal.id).status, store.getGoal(goal.id).reason], ['recovery_required', 'interrupted_by_restart']);
+  assert.deepEqual(scheduler.autoRecover(() => ['합계.js']), [goal.id]);
+  let g = store.getGoal(goal.id);
+  assert.deepEqual([g.status, g.reason, g.team.step], ['retry_wait', 'resumed_after_restart', 'dev']);
+  assert.match(g.messages.at(-1).text, /재시작 복구 · 끊긴 개발팀 단계를 다시 실행 \(이미 바뀐 파일 1개: 합계\.js\)/);
+  await scheduler.runGoal(goal.id);
+  assert.equal(calls.at(-1).team, 'dev', 'the same step runs again');
+  assert.match(calls.at(-1).feedback, /서버 재시작으로 중간에 끊겼습니다[\s\S]*합계\.js[\s\S]*처음부터 다시 쓰지 말고/);
+  // a second cut on the same step stays with 대장
+  const before = store.getGoal(goal.id);
+  store.saveGoal({ ...before, status: 'recovery_required', reason: 'interrupted_by_restart' });
+  const r = store.listRuns(goal.id).at(-1);
+  store.saveRun({ ...r, status: 'interrupted', round: before.recoveries[0].round, team: 'dev' });
+  assert.deepEqual(scheduler.autoRecover(() => []), [], 'the same step was already resumed once');
+  release(); await pending.catch(() => {});
+  store.close();
+});
+
+test('8차 P0-3: no automatic resume for a project 대장 drives by hand, or when the engine cannot tell what changed', () => {
+  const store = new PersistentStore({ dataDir: mkdtempSync(path.join(tmpdir(), 'hq-recover2-')) });
+  try {
+    const scheduler = new GoalScheduler({ store, clock: { now: () => T0 }, policy: DEFAULT_POLICY, runner: { run: async () => ({}) } });
+    const mk = (autoRun) => {
+      const g = scheduler.addGoal({ projectId: `p${autoRun}`, kind: 'team', autoRun, objective: 'x', completionCriteria: C });
+      store.saveGoal({ ...store.getGoal(g.id), status: 'recovery_required', reason: 'interrupted_by_restart' });
+      store.insertRun({ id: `r-${autoRun}`, goalId: g.id, round: 1, attempt: 0, status: 'interrupted', team: 'dev', executor: 'claude-code', startedAt: new Date(T0).toISOString() });
+      return g.id;
+    };
+    const manual = mk(false), auto = mk(true);
+    assert.deepEqual(scheduler.autoRecover(() => null), [], 'unknown state');
+    assert.deepEqual(scheduler.autoRecover(() => []), [auto], 'only the project running on its own');
+    assert.equal(store.getGoal(manual).status, 'recovery_required');
+  } finally { store.close(); }
+});

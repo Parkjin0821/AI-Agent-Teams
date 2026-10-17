@@ -5,7 +5,7 @@ import path from 'node:path';
 import { CliAgentAdapter, resolveBins } from './실행어댑터.js';
 import { connectorPlugins, designConnectors, EnvironmentMonitor, environmentView, validateSetting } from './연결환경.js';
 import { ConnectorGate, cliProbe } from './커넥터.js';
-import { createGoalRunner } from './목표실행.js';
+import { changedSince, createGoalRunner } from './목표실행.js';
 import { ModelRegistry } from './모델정책.js';
 import { Orchestrator } from './작업조율.js';
 import { PersistentStore } from './영구저장소.js';
@@ -188,6 +188,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       },
       // 문서 만들기: kordoc in the sandbox (no network, no model call), the same tool that converts attachments.
       docMaker: () => { const d = docs(); return d.available ? d : null; } }) });
+  // 재시작 복구 (8차 P0-3): steps cut off by the last shutdown run again when that is safe (see GoalScheduler.autoRecover).
+  const resumedAfterRestart = scheduler.autoRecover((goal, run) => changedSince(workspaces.resolve(goal.projectId), run.checkpoint?.before));
+  if (resumedAfterRestart.length) console.log(`restart recovery: ${resumedAfterRestart.length} step(s) resumed`);
   const teamsView = () => {
     const settings = store.getSettings();
     const tools = toolkitView(monitor?.snapshot ?? null, settings, environmentView(monitor?.snapshot ?? null, settings));
