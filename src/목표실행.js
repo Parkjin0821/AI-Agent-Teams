@@ -11,6 +11,7 @@ import { concernSignals } from './검사.js';
 import { readGrants } from './승인.js';
 import { saveSources, sourceRecords } from './웹원문.js';
 import { readRendered } from './브라우저읽기.js';
+import { projectMemoryBlock } from './프로젝트기억.js';
 import { guardDenied, pathViolations, readRules, restoreDenied, rulesPrompt } from './규칙.js';
 import { copyKitFonts, fontsPrompt, installedKoreanFonts, kitPrompt } from './글꼴.js';
 import { slidesPrompt, slideTextRecords, slideTool } from './슬라이드.js';
@@ -124,6 +125,9 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       }
       const rulesBlock = team ? rulesPrompt(stepRules, goal.projectId) : '';
       if (rulesBlock) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + rulesBlock + prompt.slice(at) : prompt + rulesBlock; }
+      // 프로젝트 기억 (9차 3번): 대장's decisions, the last steps and what already failed, from the engine's records.
+      const memoryBlockText = team ? projectMemoryBlock({ goal, runs: records, approvals: approvals?.list?.() ?? [] }) : '';
+      if (memoryBlockText) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + memoryBlockText + prompt.slice(at) : prompt + memoryBlockText; }
       // 화면을 만드는 팀에는 이 PC에 실제로 설치된 한글 글꼴과 쓸 CSS 이름 (글꼴.js).
       const fontBlock = ['design', 'dev'].includes(team) ? fontsPrompt(fonts()) + kitPrompt() + (slideMaker?.available ? slidesPrompt() : '') : '';
       if (fontBlock) { const at = prompt.lastIndexOf('\n[출력 형식]'); prompt = at >= 0 ? prompt.slice(0, at) + fontBlock + prompt.slice(at) : prompt + fontBlock; }
@@ -235,6 +239,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
         const plan = parsePlan(result.answer);
         if (plan && store.getSettings) new SkillLibrary({store}).requestNeeds(plan.skill_needs, {team, project: goal.projectId});
         memory?.propose(plan?.remember, { team, project: goal.projectId });
+        memory?.propose(plan?.lessons, { team, project: goal.projectId, kind: 'lesson' });
         return { ...base, outcome: 'completed', evidence: [], claims: [], diffHash: null, plan };
       }
       const blocking = engineTools.flatMap(t => t.blocking);
@@ -247,6 +252,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       if (team && report && store.getSettings) new SkillLibrary({store}).requestNeeds(report.skill_needs, {team, project: goal.projectId});
       // A team may suggest something to remember; it waits for 대장 in the approval inbox.
       memory?.propose(report?.remember, { team, project: goal.projectId });
+      memory?.propose(report?.lessons, { team, project: goal.projectId, kind: 'lesson' });
       const test = engineTools.find(t => t.test)?.test ?? null;
       // 원문 저장: pages a web team read are fetched again by the engine and saved under sources/ (웹원문.js).
       let sources = null;

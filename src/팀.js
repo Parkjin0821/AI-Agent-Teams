@@ -78,11 +78,13 @@ const COMMON_BOUNDARIES = [
 
 // 대장's approved memory: lasting preferences and rules across projects (src/기억.js).
 function memoryBlock(memory) {
-  const common = memory?.common ?? [], team = memory?.team ?? [];
-  if (!common.length && !team.length) return '';
+  const common = memory?.common ?? [], team = memory?.team ?? [], lessons = memory?.lessons ?? [];
+  if (!common.length && !team.length && !lessons.length) return '';
   const cap = list => list.slice(-20).map(t => `- ${clip(t, 300)}`);
-  return ['[대장 기억 · 대장이 승인한 것 · 모든 프로젝트에 적용]', ...cap(common),
-    ...(team.length ? ['[이 팀에 대한 대장 기억]', ...cap(team)] : []), ''].join('\n');
+  return [...(common.length ? ['[대장 기억 · 대장이 승인한 것 · 모든 프로젝트에 적용]', ...cap(common)] : []),
+    ...(team.length ? ['[이 팀에 대한 대장 기억]', ...cap(team)] : []),
+    // 교훈 (9차 3번): approved lessons from other projects, with where they came from and how long they hold.
+    ...(lessons.length ? ['[다른 프로젝트에서 얻은 교훈 · 대장 승인 · 참고 자료]', ...lessons.map(l => `- ${clip(l.text, 220)} (${l.project ?? '프로젝트 모름'} · ${String(l.until ?? '').slice(0, 10)}까지)`)] : []), ''].join('\n');
 }
 
 function projectBlock({ goal, files = [], toolText = '', engineMade = [] }) {
@@ -349,6 +351,8 @@ const planBlock = [
   'waits without spending steps and planning runs again when it is done. The main work is never finished while it runs.',
   'Optional "remember": up to 3 lasting preferences or rules 대장 stated that should apply to future projects, as',
   '[{"scope":"all"|"plan"|"research"|"dev"|"design"|"security"|"policy"|"qa","text":"..."}]. They take effect only after 대장 approves them.',
+  'Optional "lessons": up to 2 lessons this project taught that would help another project (what failed and what worked,',
+  'e.g. an engine rule or a tool limit), in the same shape as "remember". 대장 approves each; an approved lesson lasts 90 days.',
   'Write your reply in Korean.',
 ].join('\n');
 
@@ -431,6 +435,7 @@ export function parsePlan(answer) {
     ...(Array.isArray(raw.completion_criteria) ? { completionCriteria: raw.completion_criteria.filter(c => typeof c === 'string' && c.trim()).slice(0,20) } : {}),
     ...(parallelOf(raw.parallel) ? { parallel: parallelOf(raw.parallel) } : {}),
     ...(Array.isArray(raw.remember) ? { remember: raw.remember.slice(0, 3) } : {}),
+    ...(Array.isArray(raw.lessons) ? { lessons: raw.lessons.slice(0, 2) } : {}),
     ...(Array.isArray(raw.skill_needs) ? { skill_needs: raw.skill_needs.slice(0, 2) } : {}),
   };
   return plan.nextTask || plan.needsDecision || plan.allDone ? plan : null;

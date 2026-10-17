@@ -2457,7 +2457,7 @@ class Component extends DCLogic {
         drop: async () => { if (await ask(k.name + ' 후보를 버릴까요?')) this.inboxAct(this.api('DELETE', '/api/skills/' + k.id), k.name + ' 후보를 버렸습니다'); },
         open: () => this.go('skills') })),
       proposalsN: ibd.memoryProposals.length, noProposals: !ibd.memoryProposals.length,
-      proposals: ibd.memoryProposals.map((p) => ({ text: p.text, scope: p.scope === 'all' ? '모든 팀' : (TEAM_NAME[p.scope] || p.scope), by: p.by, when: ago(p.at),
+      proposals: ibd.memoryProposals.map((p) => ({ text: (p.kind === 'lesson' ? '[교훈 · 승인하면 90일 동안 다른 프로젝트에도 참고] ' : '') + p.text + (p.kind === 'lesson' && p.project ? ' (출처 ' + p.project + ')' : ''), scope: p.scope === 'all' ? '모든 팀' : (TEAM_NAME[p.scope] || p.scope), by: p.by, when: ago(p.at),
         approve: () => this.inboxAct(this.api('POST', '/api/memory/' + p.id + '/approve', {}), '기억했습니다 · 다음 단계부터 팀 지시에 들어갑니다'),
         reject: () => this.inboxAct(this.api('DELETE', '/api/memory/' + p.id, {}), '제안을 버렸습니다') })),
       noGrants: !ibd.grants.length,

@@ -6,7 +6,10 @@ import { TEAMS } from './팀.js';
 //   scope <team> — applies to one team (e.g. 디자인팀: "색은 남색 계열")
 // Teams may only propose a memory in their report; it takes effect after 대장 approves it.
 const KEY = 'memory.items';
-const MAX_ITEMS = 60;
+const MAX_ITEMS = 100;
+// 교훈 (9차 3번): what a team learned in one project that may help another ("open-slide 덱에서 글꼴은 ../../글꼴/글꼴.css").
+// Proposed by a team, active only once 대장 approves it, shown with the project it came from, and gone after 90 days.
+export const LESSON_DAYS = 90;
 
 const clean = (text, max) => {
   const t = typeof text === 'string' ? text.trim().replace(/\s+/g, ' ') : '';
@@ -58,7 +61,7 @@ export class Memory {
   }
 
   // A team's suggestions from its report (at most 3 per round, deduplicated). Never active until approved.
-  propose(raw, { team, project }) {
+  propose(raw, { team, project, kind = 'memory' }) {
     if (!Array.isArray(raw)) return [];
     const items = this.list();
     const seen = new Set(items.map(i => createHash('sha256').update(`${i.scope}|${i.text}`).digest('hex')));
@@ -70,7 +73,8 @@ export class Memory {
       const h = createHash('sha256').update(`${scope}|${t}`).digest('hex');
       if (seen.has(h)) continue;
       seen.add(h);
-      added.push({ id: randomUUID(), scope, text: t, by: TEAMS[team]?.name ?? team, project, status: 'pending', at: this.at() });
+      added.push({ id: randomUUID(), scope, text: t, by: TEAMS[team]?.name ?? team, project, status: 'pending', at: this.at(),
+        ...(kind === 'lesson' ? { kind: 'lesson', expiresAt: new Date(this.clock.now() + LESSON_DAYS * 86_400_000).toISOString() } : {}) });
     }
     if (added.length) this.save([...items, ...added]);
     return added;
@@ -78,7 +82,11 @@ export class Memory {
 
   // What one team is told: 대장's approved memory for everyone and for that team.
   forTeam(team) {
-    const active = this.list().filter(i => i.status === 'active');
-    return { common: active.filter(i => i.scope === 'all').map(i => i.text), team: active.filter(i => i.scope === team).map(i => i.text) };
+    const now = this.clock.now();
+    const active = this.list().filter(i => i.status === 'active' && !(i.expiresAt && Date.parse(i.expiresAt) <= now));
+    const plain = active.filter(i => i.kind !== 'lesson');
+    const lessons = active.filter(i => i.kind === 'lesson' && (i.scope === 'all' || i.scope === team));
+    return { common: plain.filter(i => i.scope === 'all').map(i => i.text), team: plain.filter(i => i.scope === team).map(i => i.text),
+      lessons: lessons.slice(-8).map(i => ({ text: i.text, project: i.project ?? null, by: i.by, until: i.expiresAt })) };
   }
 }
