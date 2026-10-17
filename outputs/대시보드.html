@@ -1075,6 +1075,13 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
           <p class="hint">켜 두면 모델을 고르지 않은 팀은 간단한 일과 보통 일에 가벼운 모델(Claude Sonnet 5.5 · Codex GPT-6-Luna 중간~높음), 복잡하거나 위험한 일에 무거운 모델(Opus 5.5 · GPT-6.1-Sol 낮음~중간)을 씁니다. Codex Astra는 자동으로 쓰지 않습니다. 끄면 고르지 않은 팀은 목록의 기본 모델로 돕니다.</p></div>
         <dl class="facts" style="margin-top: 16px"><dt>최근 실제 모델</dt><dd class="mono small">{{m.actual}}</dd></dl>
       </div>
+      <sc-if value="{{pb.show}}"><div class="card">
+        <div class="lbl">외부 저장 · 매번 대장 승인</div>
+        <p class="hint" style="margin: 0 0 12px">요청하면 승인함에 올라가고, 승인해야 보냅니다. Notion 에는 엔진이 쓴 작업 기록(대화 원문·답변·파일 경로 없음)을 새 하위 페이지로, GitHub 에는 결과물 텍스트 파일(비밀정보·라이선스 검사 통과분)을 커밋 하나로 올립니다.</p>
+        <div class="row-f"><button class="btn sm" disabled="{{pb.noNotion}}" onClick="{{pb.notion}}">Notion 에 기록 올리기</button><button class="btn sm" disabled="{{pb.noGithub}}" onClick="{{pb.github}}">GitHub 에 올리기</button></div>
+        <p class="hint" style="margin-top: 8px">{{pb.status}}</p>
+        <sc-for list="{{pb.jobs}}" as="j"><div class="small muted">{{j.line}}</div></sc-for>
+      </div></sc-if>
       <sc-if value="{{rt.show}}"><div class="card">
         <div class="lbl">템플릿</div>
         <p class="hint" style="margin: 0 0 12px">이 프로젝트의 목표·완료 조건·팀별 모델 선택을 저장해 두고, 새 프로젝트에서 새 내용으로 다시 씁니다. 파일과 대화는 옮기지 않습니다.</p>
@@ -1198,6 +1205,16 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
           <div class="row-f ib-acts"><button class="btn pri sm" onClick="{{k.approve}}">켜기</button><button class="btn sm" onClick="{{k.drop}}">버리기</button><button class="link small" onClick="{{k.open}}">자세히</button></div></div>
       </sc-for>
       <sc-if value="{{ib.hasSkillsHeld}}"><p class="hint">자세한 검토가 필요한 후보 {{ib.skillsHeld}}건(라이선스 확인·위험 문구·외부 프로그램 필요)은 스킬 화면에 있습니다.</p></sc-if>
+    </section></sc-if>
+    <sc-if value="{{ib.hasPublish}}"><section class="card">
+      <div class="lbl">외부 저장 요청 · {{ib.publishN}}건</div>
+      <p class="hint" style="margin: 0 0 8px">승인하면 엔진이 바로 보냅니다. Notion 은 승인된 제목·본문·부모 페이지 그대로만 감시 에이전트가 통과시킵니다.</p>
+      <sc-for list="{{ib.publishes}}" as="p"><div class="ib-row col">
+        <div class="row-f"><b>{{p.what}}</b><span class="small muted">{{p.when}}</span></div>
+        <div class="small">{{p.detail}}</div>
+        <sc-if value="{{p.hasPreview}}"><details><summary class="small">보낼 내용 미리보기</summary><pre class="answer" style="max-height: 40vh">{{p.preview}}</pre></details></sc-if>
+        <div class="row-f"><button class="btn pri sm" onClick="{{p.approve}}">승인하고 보내기</button><button class="btn sm" onClick="{{p.refuse}}">거절</button></div>
+      </div></sc-for>
     </section></sc-if>
     <sc-if value="{{ib.hasConnectors}}"><section class="card">
       <div class="lbl">커넥터 연결 요청 · {{ib.connectorsN}}건</div>
@@ -1797,7 +1814,7 @@ class Component extends DCLogic {
     catch(e){this.setState({skillFormMessage:'등록 실패: '+korErr(e.message)});}
     finally{this.setState({skillBusy:false});}
   }
-  openProject(id, tab) { this.setState({ view: 'project', pid: id, ptab: tab || 'over', artifactItems: [], previewUrl: '', artifactMessage: '', testMessage: '', testBusy: false }); window.scrollTo(0, 0); this.loadSentinel(id); }
+  openProject(id, tab) { this.setState({ view: 'project', pid: id, ptab: tab || 'over', artifactItems: [], previewUrl: '', artifactMessage: '', testMessage: '', testBusy: false }); window.scrollTo(0, 0); this.loadSentinel(id); this.loadPublish(); }
   isReal() { return !!(this.state.eng && this.state.eng.mode === 'execution'); }
   limits() {
     const l = (this.state.eng && this.state.eng.limits) || {};
@@ -1861,7 +1878,7 @@ class Component extends DCLogic {
       ago: ago(p.last), flow: flowOf(p), open: () => this.openProject(p.id) });
 
     // ── 대장 결정: 승인 요청·결과 확인은 홈·프로젝트·승인함 어디서나 같은 버튼으로 바로 처리한다 ──
-    const ibd = Object.assign({ approvals: [], reviews: [], memoryProposals: [], skillCandidates: [], connectorRequests: [], skillsHeld: 0, grants: [], decided: [], trust: { required: 3, teams: [] }, scopes: {}, webMode: 'ask', permissionMode: 'auto' }, s.inbox || {});
+    const ibd = Object.assign({ approvals: [], reviews: [], memoryProposals: [], skillCandidates: [], connectorRequests: [], publishRequests: [], skillsHeld: 0, grants: [], decided: [], trust: { required: 3, teams: [] }, scopes: {}, webMode: 'ask', permissionMode: 'auto' }, s.inbox || {});
     const grantAct = (a, scope, anySite) => async () => {
       if (scope === 'always' && !await ask(a.target + '을(를) 모든 프로젝트에서 계속 허용할까요?')) return;
       if (anySite && !await ask('이 프로젝트에서 모든 공개 사이트를 허용할까요? 내부 주소·유출 의심 주소는 계속 막습니다.')) return;
@@ -2356,7 +2373,7 @@ class Component extends DCLogic {
     const ptabDefs = [['over', '개요', ''], ['artifacts', '결과물', ''], ['activity', '활동', wp ? wp.runs.length : ''], ['verify', '검증', wp ? wp.proven + '/' + wp.total : ''], ['settings', '설정', '']];
     // 결정 대기는 승인함 한곳에서 센다 (홈 목록과 겹치지 않게: 승인 요청·결과 확인·기억 제안 + 그 밖의 질문·개선안·멈춤).
     const othersN = inbox.filter((it) => !it.held).length;
-    const pendingTotal = ibd.approvals.length + ibd.reviews.length + ibd.memoryProposals.length + ibd.skillCandidates.length + ibd.connectorRequests.length + othersN;
+    const pendingTotal = ibd.approvals.length + ibd.reviews.length + ibd.memoryProposals.length + ibd.skillCandidates.length + ibd.connectorRequests.length + ibd.publishRequests.length + othersN;
     const docTitle = (pendingTotal ? '(' + pendingTotal + ') ' : '') + 'AGENT HQ';
     if (document.title !== docTitle) document.title = docTitle;
     const navDefs = [['home', '홈', 0], ['projects', '프로젝트', 0], ['inbox', '승인함', pendingTotal], ['teams', '팀', 0]];
@@ -2417,6 +2434,17 @@ class Component extends DCLogic {
             this.inboxAct(this.api('POST', '/api/goals/' + r.goalId + '/trust-review', { accept: true, trustFully: true }), '확인했습니다 · ' + (TEAM_NAME[r.team] || r.team) + ' 결과는 이제 바로 이어집니다');
           } };
       }),
+      hasPublish: ibd.publishRequests.length > 0, publishN: ibd.publishRequests.length,
+      publishes: ibd.publishRequests.map((j) => ({ what: (j.provider === 'notion' ? 'Notion 작업 기록' : 'GitHub 결과물') + ' · ' + j.destination,
+        detail: j.provider === 'notion' ? (j.title + ' · ' + j.length + '자') : ((j.files || []).length + '개 파일 · ' + Math.round((j.bytes || 0) / 1024) + 'KB · ' + (j.files || []).slice(0, 6).join(', ')),
+        preview: j.preview || '', hasPreview: !!j.preview, when: ago(j.createdAt),
+        approve: async () => { if (await ask((j.provider === 'notion' ? 'Notion' : 'GitHub') + ' 에 올릴까요?
+
+대상: ' + j.destination + '
+
+승인하면 바로 보냅니다. 되돌리려면 상대 서비스에서 직접 지워야 합니다.'))
+          this.inboxAct(this.api('POST', '/api/publish/' + j.id + '/approve', { confirm: true }).then((v) => { this.loadPublish(); if (v.status !== 'sent') throw new Error(v.reason || v.status); return v; }), '보냈습니다'); },
+        refuse: () => this.inboxAct(this.api('POST', '/api/publish/' + j.id + '/refuse', {}), '거절했습니다') })),
       hasConnectors: ibd.connectorRequests.length > 0, connectorsN: ibd.connectorRequests.length,
       connectors: ibd.connectorRequests.map((c) => ({ name: c.name, what: c.what, teams: c.teams.map((t) => t.name).join('·'),
         checks: connChecks(c.state), approve: connApprove(c), refuse: connRefuse(c), when: c.state ? ago(c.state.updatedAt) : '' })),
@@ -2769,7 +2797,7 @@ class Component extends DCLogic {
       pinDraft: s.pinDraft, onPin: (e) => this.setState({ pinDraft: e.target.value }),
       autoLevelOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: autoOn === v ? 'on' : '', pressed: autoOn === v ? 'true' : 'false',
         pick: () => { if (autoOn === v) return; this.act(this.api('PUT', '/api/settings', { key: 'models.auto', value: v }), v ? '모델 자동 선택을 켰습니다 · 다음 단계부터' : '모델 자동 선택을 껐습니다 · 고르지 않은 팀은 기본 모델로'); } })),
-      rt: this.routineView(wp), ru: this.rulesView(P),
+      rt: this.routineView(wp), pb: this.publishView(wp), ru: this.rulesView(P),
       parallelOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: lim.parallel === v ? 'on' : '', pressed: lim.parallel === v ? 'true' : 'false',
         pick: () => { if (lim.parallel === v) return; this.act(this.api('PUT', '/api/settings', { key: 'parallel.enabled', value: v }), v ? '병렬 작업을 켰습니다' : '병렬 작업을 껐습니다 · 진행 중인 병렬 작업은 끝까지 갑니다'); } })),
       projModeOpts: !wp ? [] : (() => {
@@ -2917,6 +2945,23 @@ class Component extends DCLogic {
     this.api('POST', '/api/templates', { projectId: wp.id, name: name })
       .then((t) => { this.loadTemplates(); this.say('‘' + t.name + '’ 템플릿으로 저장했습니다 · 새 프로젝트에서 고를 수 있습니다'); })
       .catch((e) => this.say(korErr(e.message)));
+  }
+  // 외부 저장 card (9차 2번): request an upload; it waits in 승인함 until 대장 approves.
+  loadPublish() {
+    return fetch('/api/publish').then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) this.setState({ publish: d }); }).catch(() => {});
+  }
+  publishView(wp) {
+    if (!wp || !wp.isTeam) return { show: false };
+    const d = this.state.publish || { items: [], github: {}, notionConnected: false };
+    const ST = { approval_required: '승인 대기', sending: '보내는 중', sent: '보냄', failed: '실패', refused: '거절함', unknown: '확인 필요' };
+    const ask2 = (provider) => this.act(this.api('POST', '/api/projects/' + encodeURIComponent(wp.id) + '/publish', { provider: provider })
+      .then((v) => { this.loadPublish(); this.loadInbox(); return v; }), (provider === 'notion' ? 'Notion' : 'GitHub') + ' 올리기 요청을 승인함에 올렸습니다');
+    return { show: true, noNotion: !d.notionConnected, noGithub: !(d.github && d.github.repo && d.github.hasToken),
+      status: (d.notionConnected ? 'Notion: 연결됨 · 부모 페이지 ' + d.notionParent : 'Notion: 연결 승인 필요 (팀 화면)') + ' · '
+        + (d.github && d.github.repo && d.github.hasToken ? 'GitHub: ' + d.github.repo : 'GitHub: 전용 토큰 미설정 (AGENT_HQ_GITHUB_TOKEN · AGENT_HQ_GITHUB_REPO)'),
+      notion: () => ask2('notion'), github: () => ask2('github'),
+      jobs: (d.items || []).filter((j) => j.projectId === wp.id).slice(0, 5).map((j) => ({ line: (j.provider === 'notion' ? 'Notion' : 'GitHub') + ' · ' + (ST[j.status] || j.status)
+        + ' · ' + fmt(j.createdAt) + (j.url ? ' · ' + j.url : '') + (j.reason ? ' · ' + j.reason : '') })) };
   }
   // 반복 실행 card: the saved routine, or 대장's unsaved choice (draft) for this project.
   routineView(wp) {

@@ -24,7 +24,8 @@ import { projectRecord } from './작업기록.js';
 import { capacityBasis, capacityWhy } from './구독안전.js';
 import { artifactList, readArtifact, isDownloadOnly, slidePagesHtml } from './결과물.js';
 import { detectTests } from './검사.js';
-import { AutoSave } from './자동저장.js';
+import { AutoSave, DEFAULT_NOTION_PARENT } from './자동저장.js';
+import { githubConfig, githubPush, notionRelay, Publisher } from './외부저장.js';
 import { HIDDEN_CODEX_MODELS, ModelChoices } from './모델선택.js';
 import { kindOf, quickApprovable, SkillLibrary } from './스킬.js';
 import { Approvals, SCOPES } from './승인.js';
@@ -191,6 +192,21 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       // 문서 만들기: kordoc in the sandbox (no network, no model call), the same tool that converts attachments.
       docMaker: () => { const d = docs(); return d.available ? d : null; } }) });
   // 재시작 복구 (8차 P0-3): steps cut off by the last shutdown run again when that is safe (see GoalScheduler.autoRecover).
+  // 외부 저장 (9차 2번): Notion 작업 기록 · GitHub 결과물, 매번 대장 승인 (외부저장.js).
+  const github = githubConfig();
+  const publisher = new Publisher({ store, clock,
+    record: id => { const g = store.listGoals().find(x => x.projectId === id && !x.parentGoalId); return { title: g?.title || id, notionMarkdown: projectRecord(store, id).notionMarkdown }; },
+    files: id => autoSave.prepare(id), notionParent: () => setting('publish.notionParent', DEFAULT_NOTION_PARENT), github: () => github,
+    notionRelay: async (args) => {
+      if (!executing) throw new Error('실제 실행 서버에서만 올림');
+      const state = connectorGate.get('notion');
+      if (state?.stage !== 'connected') throw new Error('Notion 연결이 승인되지 않음 (팀 화면에서 연결 시험·승인)');
+      const plugins = connectorPlugins(monitor?.snapshot);
+      if (!plugins) throw new Error('플러그인 목록을 몰라 커넥터 실행을 거부');
+      return notionRelay({ bins: resolveBins(), sentinel: { script: path.join(root, 'scripts', '보안감시-훅.mjs'), rules: rules.file },
+        knownConnectors: (monitor?.snapshot?.connectors ?? []).map(c => c.name), plugins, deny: state.review?.deny ?? [] })(args);
+    },
+    githubPush: github.hasToken && github.repo ? githubPush({ token: github.token }) : null });
   const resumedAfterRestart = scheduler.autoRecover((goal, run) => changedSince(workspaces.resolve(goal.projectId), run.checkpoint?.before));
   if (resumedAfterRestart.length) console.log(`restart recovery: ${resumedAfterRestart.length} step(s) resumed`);
   const teamsView = () => {
@@ -325,6 +341,20 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     ['GET', /^\/api\/teams$/, () => teamsView()],
     // ── 읽기 전용 커넥터: 연결 시험(발견·검토·격리 시험) → 승인함 → 팀별 켜기 ──
     ['GET', /^\/api\/connectors$/, () => ({ items: connectorGate.view() })],
+    // ── 외부 저장: 요청 → 승인함 → 전송 ──
+    ['GET', /^\/api\/publish$/, () => ({ items: publisher.list().slice(0, 50), github: { repo: github.repo, hasToken: github.hasToken },
+      notionParent: setting('publish.notionParent', DEFAULT_NOTION_PARENT), notionConnected: connectorGate.get('notion')?.stage === 'connected' })],
+    ['POST', /^\/api\/projects\/([^/]+)\/publish$/, (m, body) => {
+      existingWorkspace(m[1]);
+      if (!['notion', 'github'].includes(body.provider)) throw new Error('provider must be notion or github');
+      return [201, publisher.request(validateProjectId(m[1]), body.provider)];
+    }],
+    ['POST', /^\/api\/publish\/([0-9a-f-]{36})\/approve$/, async (m, body) => {
+      const job = await publisher.approve(m[1], body);
+      void store.emit({ type: `publish.${job.status}`, projectId: job.projectId, provider: job.provider });
+      return job;
+    }],
+    ['POST', /^\/api\/publish\/([0-9a-f-]{36})\/refuse$/, m => publisher.refuse(m[1])],
     ['POST', /^\/api\/connectors\/([a-z]+)\/check$/, async m => {
       if (monitor) await monitor.refresh();
       const state = await connectorGate.check(m[1]);
@@ -441,6 +471,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
         skillsHeld: skills.list().filter(k => k.status === 'pending' && !quickApprovable(k)).length,
         // A read-only connector whose isolated trial passed waits here for 대장's connection approval.
         connectorRequests: connectorGate.requests(),
+        // 외부 저장 요청: 대장이 승인해야 Notion·GitHub 에 올라감.
+        publishRequests: publisher.requests(),
         trust: { required: trust.required(), teams: ['research', 'dev', 'design'].map(t => ({ team: t, name: TEAMS[t].name, count: trust.count(t) })) },
       };
     }],

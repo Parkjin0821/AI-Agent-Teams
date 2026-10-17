@@ -16,7 +16,7 @@ export const connectorTool = (name) => `mcp__claude_ai_${name.replace(/[^A-Za-z0
 // ([{ name: 'Notion', allow: [full tool names], deny: [full tool names] }], see 커넥터.js).
 // plugins: every installed plugin id; a connector run turns them all off (it cannot use --strict-mcp-config, which
 // also drops claude.ai connectors in Claude Code 2.1.296), and is refused without that list.
-export function buildCommand(provider, { cwd, model = null, effort = null, bins, access = 'write', web = false, connectors = [], knownConnectors = [], readOnly = [], plugins = null, workbench = null, sentinel = null, images = [] }) {
+export function buildCommand(provider, { cwd, model = null, effort = null, bins, access = 'write', web = false, connectors = [], knownConnectors = [], readOnly = [], plugins = null, workbench = null, notionWrite = null, sentinel = null, images = [] }) {
   if (connectors.some(c => /higgsfield/i.test(c))) throw new Error('subscription-only: paid image credits are blocked');
   if (effort && !['low','medium','high','xhigh','max','ultra'].includes(effort)) throw new Error('invalid reasoning effort');
   if (provider === 'claude' && effort === 'ultra') throw new Error('unsupported Claude reasoning effort');
@@ -68,7 +68,7 @@ export function buildCommand(provider, { cwd, model = null, effort = null, bins,
       Object.assign(env, { AGENT_HQ_WORKSPACE: cwd, AGENT_HQ_SENTINEL_LOG: sentinel.log, AGENT_HQ_MCP_ALLOW: JSON.stringify(mcpAllow),
         AGENT_HQ_PROJECT: sentinel.project ?? '', AGENT_HQ_TEAM: sentinel.team ?? '',
         AGENT_HQ_SENTINEL_GRANTS: sentinel.grants ?? '', AGENT_HQ_SENTINEL_RULES: sentinel.rules ?? '',
-        AGENT_HQ_LANE: sentinel.lane ?? '', AGENT_HQ_LANE_DENY: (sentinel.laneDeny ?? []).join('|'), AGENT_HQ_SENTINEL_WEB: sentinel.webMode === 'open' ? 'open' : 'ask' });
+        AGENT_HQ_NOTION_WRITE: notionWrite ? JSON.stringify(notionWrite) : '', AGENT_HQ_LANE: sentinel.lane ?? '', AGENT_HQ_LANE_DENY: (sentinel.laneDeny ?? []).join('|'), AGENT_HQ_SENTINEL_WEB: sentinel.webMode === 'open' ? 'open' : 'ask' });
     }
     return { file: bins.claude.file, args: [...bins.claude.prefix, ...args], cwd, env };
   }

@@ -51,6 +51,8 @@ export const SETTINGS = Object.freeze({
   'tests.unconfined': { type: 'boolean', default: false },
   // 작업 도구 (9차 1번): dev and design steps may run tests, syntax and page checks while they work (no usage).
   'tools.workbench': { type: 'boolean', default: true },
+  // 외부 저장: the Notion page new work-record pages go under (32 hex).
+  'publish.notionParent': { type: 'string', default: '2d96029496a28095b8e6d6a7db5b8208', pattern: /^[0-9a-f]{32}$/ },
   // 읽기 전용 커넥터 (커넥터.js): a reading team gets Notion's search/read tools only after the gate is approved.
   'connectors.notion.research': { type: 'boolean', default: false },
   'connectors.notion.plan': { type: 'boolean', default: false },

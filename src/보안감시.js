@@ -1,4 +1,5 @@
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { isIP } from 'node:net';
 import path from 'node:path';
 import { granted } from './승인.js';
@@ -16,6 +17,8 @@ const SECRET = [
   /\bgithub_pat_[A-Za-z0-9_]{50,}/, /\bsk-ant-[A-Za-z0-9_-]{20,}/, /\bsk-(proj-)?[A-Za-z0-9_-]{32,}/, /\bxox[baprs]-[A-Za-z0-9-]{10,}/,
   /\bAIza[0-9A-Za-z_-]{35}\b/,
 ];
+// The fingerprint of a text with whitespace runs collapsed (a relayed copy may differ in line breaks only).
+export const textSha = text => createHash('sha256').update(String(text ?? '').replace(/\s+/g, ' ').trim()).digest('hex');
 export const hasSecret = text => typeof text === 'string' && SECRET.some(re => re.test(text));
 export const FORBIDDEN_NAMES = /^(\.claude|\.codex|\.mcp\.json|CLAUDE(\.local)?\.md|AGENTS(\.override)?\.md|\.env(\..+)?|\.git)$/i;
 const RISKY_CONNECTOR = /(delete|remove|trash|share|publish|send|invite|transfer|purchase|payment|pay_|checkout|upload_to|post_)/i;
@@ -33,7 +36,7 @@ function privateHost(host) {
 // 'ask' = not allowed yet, becomes an approval request for 대장 (see src/승인.js).
 // webMode 'ask': a public site needs a grant first; 'open': any public https site passes the fixed rules.
 // mcpAllow { prefixes, tools }: the connector tools this step was given (실행어댑터.js); any other MCP tool is denied.
-export function decide(input, { workspace, grants = [], project = null, webMode = 'open', now = Date.now(), rules = [], lane = null, laneDeny = [], mcpAllow = null } = {}) {
+export function decide(input, { workspace, grants = [], project = null, webMode = 'open', now = Date.now(), rules = [], lane = null, laneDeny = [], mcpAllow = null, notionWrite = null } = {}) {
   const tool = String(input?.tool_name ?? '');
   const args = input?.tool_input ?? {};
   if (tool === 'WebFetch') {
@@ -104,6 +107,24 @@ export function decide(input, { workspace, grants = [], project = null, webMode 
     return { decision: 'allow', reason: '작업 폴더 안 파일', target: rel };
   }
   if (tool.startsWith('mcp__')) {
+    // 외부 저장 (9차 2번): a Notion page is created only by the engine's approved report upload, and only with exactly the
+    // approved parent, title and text (whitespace aside), once per upload (외부저장.js).
+    if (/__notion-create-pages$/.test(tool)) {
+      if (!notionWrite) return { decision: 'deny', reason: 'Notion 페이지 만들기는 대장이 승인한 보고서 올리기에서만', target: tool };
+      const pages = Array.isArray(args.pages) ? args.pages : [];
+      const page = pages[0] ?? {};
+      const ok = Object.keys(args).every(k => ['parent', 'pages', 'allow_async'].includes(k))
+        && String(args.parent?.page_id ?? '').replace(/-/g, '').toLowerCase() === notionWrite.parent
+        && pages.length === 1 && Object.keys(page).every(k => ['properties', 'content'].includes(k))
+        && Object.keys(page.properties ?? {}).join(',') === 'title' && page.properties.title === notionWrite.title
+        && textSha(page.content) === notionWrite.contentSha;
+      if (!ok) return { decision: 'deny', reason: 'Notion 쓰기 인수가 대장이 승인한 내용과 다름 (부모 페이지·제목·본문)', target: tool };
+      if (notionWrite.once) {
+        try { writeFileSync(notionWrite.once, new Date().toISOString(), { flag: 'wx' }); }
+        catch { return { decision: 'deny', reason: '이 보고서는 이미 한 번 올림 (중복 방지)', target: tool }; }
+      }
+      return { decision: 'allow', reason: '대장이 승인한 보고서 올리기', target: tool };
+    }
     // Read-only connectors (Notion) open single tools; everything else under them — create, update, comment — is denied.
     if (mcpAllow && !(mcpAllow.tools ?? []).includes(tool) && !(mcpAllow.prefixes ?? []).some(p => tool.startsWith(`${p}__`))) {
       return { decision: 'deny', reason: '이 단계에 열리지 않은 연결 도구 (읽기 전용 커넥터는 검색·읽기 도구만)', target: tool };

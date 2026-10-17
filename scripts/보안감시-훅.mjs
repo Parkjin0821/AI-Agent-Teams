@@ -14,7 +14,9 @@ try {
     lane: process.env.AGENT_HQ_LANE || null, laneDeny: (process.env.AGENT_HQ_LANE_DENY || '').split('|').filter(Boolean),
     webMode: process.env.AGENT_HQ_SENTINEL_WEB === 'open' ? 'open' : 'ask',
     // No list = no connector was opened for this step, so every MCP tool is denied (a bad list throws: fails closed).
-    mcpAllow: process.env.AGENT_HQ_MCP_ALLOW ? JSON.parse(process.env.AGENT_HQ_MCP_ALLOW) : { prefixes: [], tools: [] } });
+    mcpAllow: process.env.AGENT_HQ_MCP_ALLOW ? JSON.parse(process.env.AGENT_HQ_MCP_ALLOW) : { prefixes: [], tools: [] },
+    // 외부 저장: the one approved Notion report upload (parent, title, text fingerprint, once-marker), else none.
+    notionWrite: process.env.AGENT_HQ_NOTION_WRITE ? JSON.parse(process.env.AGENT_HQ_NOTION_WRITE) : null });
   if (verdict.decision !== 'ignore') {
     try {
       logDecision(process.env.AGENT_HQ_SENTINEL_LOG, { at: new Date().toISOString(), project, team: process.env.AGENT_HQ_TEAM ?? null,
