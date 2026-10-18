@@ -109,6 +109,8 @@ test('the MCP and plugin listings decide whether a connector run may start at al
   assert.deepEqual(parseMcpServers('mine: node server.js - ✓ Connected').others, ['mine']);
   assert.deepEqual(parsePluginList('Synced from claude.ai:\n\n  > design@synced\n    Version: 1.2.0\n  > desktop-commander@synced\n'), ['design@synced', 'desktop-commander@synced']);
   assert.equal(parsePluginList('', -1), null);
+  // 2026-10-18: after a Claude Code update the marker became "❯"; the list was unreadable and the Notion relay refused.
+  assert.deepEqual(parsePluginList('Synced from claude.ai:\n\n  ❯ codex-dispatch@synced\n    Status: ✔ loaded\n\n  ❯ pdf-viewer@synced\n'), ['codex-dispatch@synced', 'pdf-viewer@synced']);
   assert.equal(parsePluginList('garbage'), null);
   const servers = parseMcpServers(mcp);
   assert.deepEqual(connectorPlugins({ plugins: ['design@synced', 'desktop-commander@synced'], mcpServers: servers }), ['design@synced', 'desktop-commander@synced']);

@@ -126,7 +126,8 @@ export function parseMcpServers(stdout) {
 export function parsePluginList(stdout, code = 0) {
   if (code === -1) return null;
   const text = String(stdout || '');
-  const ids = [...text.matchAll(/^\s*>\s+(\S+@\S+)\s*$/gm)].map(m => m[1]);
+  // Claude Code marks each plugin with ">" (2.1.2xx) or "❯" (later builds, seen 2026-10-18 after an update).
+  const ids = [...text.matchAll(/^\s*[>❯›]\s+(\S+@\S+)\s*$/gm)].map(m => m[1]);
   if (ids.length) return ids;
   return /no plugins/i.test(text) ? [] : null;
 }
