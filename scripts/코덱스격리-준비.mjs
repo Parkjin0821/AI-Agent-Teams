@@ -3,6 +3,7 @@
 //   node scripts/코덱스격리-준비.mjs              확인만 한다 (아무것도 바꾸지 않음)
 //   node scripts/코덱스격리-준비.mjs --provision  배포판 안에 패키지·사용자·설정을 만든다 (대장 승인 후, 배포판 안 root로)
 // Windows 관리자 권한이 필요한 일(WSL 설치, 재부팅)과 Codex 로그인은 하지 않는다 — 대장이 직접 한다.
+import path from 'node:path';
 import { DISTRO, JOB_ROOT, RUN_USER, WSL_CONF, checkWslConf, runCommand, wslCommand } from '../src/코덱스격리.js';
 
 const CODEX_VERSION = '0.163.0'; // npm @openai/codex, pinned (checked 2026-10-18); engines: node >= 16
@@ -15,6 +16,11 @@ RUN_USER="$1"; CODEX_VERSION="$2"; JOB_ROOT="$3"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends ca-certificates bubblewrap nodejs npm tar
+# No privilege-raising helper in this distro: the engine reaches root only with wsl -u root from Windows.
+# Debian's sudo refuses removal while root is locked unless told to (checked 2026-10-18).
+SUDO_FORCE_REMOVE=yes apt-get purge -y sudo >/dev/null 2>&1 || true
+# Empty folders left from the first start (drives were mounted before wsl.conf existed); never a mounted one.
+for d in /mnt/c /mnt/d /mnt/e /mnt/wslg; do mountpoint -q "$d" 2>/dev/null || rmdir "$d" 2>/dev/null || true; done
 npm install -g --no-fund --no-audit "@openai/codex@$CODEX_VERSION"
 id "$RUN_USER" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$RUN_USER"
 passwd -l "$RUN_USER" >/dev/null
@@ -40,6 +46,15 @@ async function provision() {
   console.log(`[준비] ${distro} 를 껐다 켭니다 (wsl.conf 적용). 이어서 확인합니다.\n`);
 }
 
+async function windowsProgramRuns() {
+  const { readFileSync } = await import('node:fs');
+  const exePath = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'whoami.exe');
+  const r = await runCommand(wslCommand({ distro, user: RUN_USER, argv: ['sh', '-c', 'f=$(mktemp) && cat > "$f" && chmod 700 "$f" && timeout 20 "$f" >/dev/null 2>&1; rc=$?; rm -f "$f"; echo "rc=$rc"'] }),
+    { input: readFileSync(exePath), timeoutMs: 60_000 });
+  const rc = /rc=(\d+)/.exec(r.output)?.[1];
+  return { ran: rc === '0', note: rc === undefined ? '판정 불가' : `종료 코드 ${rc}` };
+}
+
 async function check() {
   const rows = [];
   const add = (ok, what, note = '') => rows.push({ ok, what, note });
@@ -49,11 +64,14 @@ async function check() {
   const conf = await wsl('root', ['cat', '/etc/wsl.conf']);
   const problems = checkWslConf(conf.output);
   add(!problems.length, '/etc/wsl.conf (드라이브 자동 연결·Windows 프로그램·Windows PATH·GPU 공유 끔)', problems.join(', '));
-  add((await wsl(RUN_USER, ['test', '-e', '/mnt/c'])).code !== 0, '/mnt/c 없음');
-  const interop = await wsl(RUN_USER, ['sh', '-c', 'cat /proc/sys/fs/binfmt_misc/WSLInterop* 2>/dev/null | head -n 1']);
-  add(interop.output.trim() !== 'enabled', 'Windows 프로그램 실행 연동 꺼짐');
+  const mounts = (await wsl('root', ['sh', '-c', 'mount -t drvfs,9p,virtiofs 2>/dev/null; ls -A /mnt/c 2>/dev/null'])).output.trim();
+  add(!mounts, 'Windows 드라이브 연결 없음 (drvfs·9p·virtiofs, /mnt/c 비었거나 없음)', mounts.split(/\r?\n/)[0]);
+  // A real Windows program, handed in through stdin: it must not run (the binfmt flag alone says nothing).
+  const exe = await windowsProgramRuns();
+  add(!exe.ran, 'Windows 프로그램 실행 안 됨 (whoami.exe 실제 실행 시험)', exe.note);
   add((await wsl(RUN_USER, ['sh', '-c', 'command -v cmd.exe powershell.exe explorer.exe'])).code !== 0, 'PATH에 Windows 프로그램 없음');
   add((await wsl(RUN_USER, ['sudo', '-n', 'true'])).code !== 0, `${RUN_USER}: sudo 없음`);
+  add((await wsl('root', ['sh', '-c', 'command -v sudo'])).code !== 0, 'sudo 프로그램 자체가 없음');
   add(/^root\s+L/m.test((await wsl('root', ['passwd', '-S', 'root'])).output), 'root 잠김');
   const groups = (await wsl(RUN_USER, ['id', '-nG'])).output.trim();
   add(!/\b(sudo|wheel|adm|docker|lxd)\b/.test(groups), `${RUN_USER} 그룹에 관리 그룹 없음`, groups);

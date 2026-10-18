@@ -32,7 +32,8 @@ export const BOUNDARY_POLICY = [
   { id: 'windowsRead', expect: false, required: true, backends: ['wsl'], about: 'WSL 안에서 Windows 쪽 파일 읽기 (/mnt/c 경로)' },
   { id: 'procEscape', expect: false, required: true, backends: ['wsl'], about: '/proc/1/root 를 거쳐 밖 파일 읽기' },
   { id: 'mountEscape', expect: false, required: true, backends: ['wsl'], about: 'Windows 드라이브 직접 연결(mount -t drvfs)' },
-  { id: 'interopExec', expect: false, required: true, backends: ['wsl'], about: 'Windows 프로그램 실행 (cmd.exe·interop 소켓)' },
+  { id: 'interopExec', expect: false, required: true, backends: ['wsl'], about: 'Windows 프로그램 실제 실행 (작업 폴더에 넣은 whoami.exe·cmd.exe)' },
+  { id: 'interopSocket', expect: false, required: false, backends: ['wsl'], about: 'WSL 연동 소켓(/run/WSL) 접속 — 2026-10-18 실측: 소켓은 열려 있으나 Windows 쪽이 실행을 받지 않음' },
   { id: 'sudo', expect: false, required: true, backends: ['wsl'], about: '비밀번호 없는 root 권한 (sudo -n)' },
   { id: 'tcp', expect: false, required: true, about: '외부 TCP 연결 (1.1.1.1:443)' },
   { id: 'dns', expect: false, required: false, about: 'DNS 조회 (이름에 내용을 실어 보낼 수 있음)' },
@@ -64,14 +65,18 @@ const connects = sock => within(3000, new Promise(res => { const s = net.connect
   tries(() => fs.unlinkSync('hq-link')) || tries(() => fs.rmdirSync('hq-link'));
   if (a.linux) {
     r.authRead = (a.authFiles || []).some(f => tries(() => oneByte(f)));
-    r.windowsRead = tries(() => has(a.windowsFile, a.token)) || tries(() => fs.readdirSync('/mnt/c').length >= 0);
+    // An empty /mnt/c can be left from the first start; only a readable Windows file or a populated /mnt/c counts.
+    r.windowsRead = tries(() => has(a.windowsFile, a.token)) || tries(() => fs.readdirSync('/mnt/c').length > 0);
     r.procEscape = tries(() => has('/proc/1/root' + a.outsideFile, a.token));
     r.mountEscape = tries(() => { fs.mkdirSync('hq-mnt', { recursive: true }); return cp.spawnSync('mount', ['-t', 'drvfs', 'C:', 'hq-mnt'], { timeout: 8000, stdio: 'ignore' }).status === 0; });
     tries(() => fs.rmSync('hq-mnt', { recursive: true, force: true }));
     const sockets = [process.env.WSL_INTEROP, ...(tries(() => fs.readdirSync('/run/WSL')) ? fs.readdirSync('/run/WSL').map(n => '/run/WSL/' + n) : [])].filter(Boolean);
-    let viaSocket = false;
-    for (const s of sockets) if (await connects(s)) viaSocket = true;
-    r.interopExec = viaSocket || runs('cmd.exe', ['/c', 'ver']) || runs('powershell.exe', ['-Command', 'exit 0']) || runs('/mnt/c/Windows/System32/cmd.exe', ['/c', 'ver']);
+    r.interopSocket = false;
+    for (const s of sockets) if (await connects(s)) r.interopSocket = true;
+    // A real Windows program copied into the job (the engine adds it): the binfmt flag alone says nothing.
+    const winExe = a.windowsExe && tries(() => { fs.chmodSync(a.windowsExe, 0o700); return true; }) && tries(() => cp.spawnSync('./' + a.windowsExe, [], { timeout: 25000, stdio: 'ignore' }).status === 0);
+    tries(() => fs.rmSync(a.windowsExe, { force: true }));
+    r.interopExec = Boolean(winExe) || runs('cmd.exe', ['/c', 'ver']) || runs('powershell.exe', ['-Command', 'exit 0']) || runs('/mnt/c/Windows/System32/cmd.exe', ['/c', 'ver']);
     r.sudo = runs('sudo', ['-n', 'true']);
   }
   if (a.network === false) { console.log('HQ_BOUNDARY ' + JSON.stringify(r)); process.exit(0); }

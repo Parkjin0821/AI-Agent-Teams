@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -22,6 +22,7 @@ import { buildCommand, finalAnswer, resolveBins } from '../src/실행어댑터.j
 const LIVE = process.env.AGENT_HQ_CODEX_ISOLATION_TEST ?? '';
 const EXEC = process.env.AGENT_HQ_CODEX_ISOLATION_EXEC === '1';
 const WSL_DISTRO = process.env.AGENT_HQ_WSL_DISTRO || DISTRO;
+const WHOAMI = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'whoami.exe');
 const skipUnless = backend => (LIVE === backend ? false : `실제 Codex 경계 시험 · AGENT_HQ_CODEX_ISOLATION_TEST=${backend} 일 때만`);
 const expected = Object.fromEntries(BOUNDARY_POLICY.map(r => [r.id, r.expect]));
 const all = (value = {}) => ({ ...expected, ...value });
@@ -40,12 +41,14 @@ test('boundary policy: inside write must work; every way out must not', () => {
   const { outsideRead, ...missing } = all();
   assert.deepEqual(evaluateBoundary(missing).failures.map(f => f.id), ['outsideRead']);
   // The Linux-only checks apply to the WSL backend and must all be reported there.
-  const linuxOnly = BOUNDARY_POLICY.filter(r => r.backends?.includes('wsl')).map(r => r.id);
+  const linuxOnly = BOUNDARY_POLICY.filter(r => r.backends?.includes('wsl') && r.required).map(r => r.id);
   assert.deepEqual(linuxOnly, ['authRead', 'windowsRead', 'procEscape', 'mountEscape', 'interopExec', 'sudo']);
-  const nativeView = Object.fromEntries(Object.entries(all()).filter(([k]) => !linuxOnly.includes(k)));
+  const nativeView = Object.fromEntries(Object.entries(all()).filter(([k]) => !BOUNDARY_POLICY.find(r => r.id === k)?.backends));
   assert.equal(evaluateBoundary(nativeView).ok, true);
   assert.deepEqual(evaluateBoundary(nativeView, { backend: 'wsl' }).failures.map(f => f.id), linuxOnly);
   for (const id of linuxOnly) assert.equal(evaluateBoundary(all({ [id]: true }), { backend: 'wsl' }).ok, false, id);
+  // An open WSL socket whose requests Windows refuses is reported, not blocking; running a Windows program is.
+  assert.deepEqual(evaluateBoundary(all({ interopSocket: true }), { backend: 'wsl' }).gaps.map(g => g.id), ['interopSocket']);
 });
 
 test('probe output: only the last HQ_BOUNDARY line counts; anything else is no result', () => {
@@ -155,9 +158,10 @@ const wsl = (argv, opts = {}) => runCommand(wslCommand({ distro: WSL_DISTRO, ...
 test('live wsl: the distro cannot see Windows, start Windows programs, or become root', { skip: skipUnless('wsl'), timeout: 120_000 }, async () => {
   const conf = await wsl(['cat', '/etc/wsl.conf'], { user: 'root' });
   assert.deepEqual(checkWslConf(conf.output), [], conf.output);
-  assert.notEqual((await wsl(['test', '-e', '/mnt/c'])).code, 0, '/mnt/c must not exist');
-  const interop = await wsl(['sh', '-c', 'cat /proc/sys/fs/binfmt_misc/WSLInterop* 2>/dev/null | head -n 1']);
-  assert.notEqual(interop.output.trim(), 'enabled', 'Windows programs can be started from inside the distro');
+  const mounts = await wsl(['sh', '-c', 'mount -t drvfs,9p,virtiofs 2>/dev/null; ls -A /mnt/c 2>/dev/null'], { user: 'root' });
+  assert.equal(mounts.output.trim(), '', 'a Windows drive is mounted or /mnt/c has files');
+  const exe = await wsl(['sh', '-c', 'f=$(mktemp) && cat > "$f" && chmod 700 "$f" && timeout 20 "$f" >/dev/null 2>&1; rc=$?; rm -f "$f"; echo "rc=$rc"'], { input: readFileSync(WHOAMI) });
+  assert.match(exe.output, /rc=(?!0\b)\d+/, `a Windows program ran inside the distro: ${exe.output}`);
   assert.notEqual((await wsl(['sh', '-c', 'command -v cmd.exe powershell.exe explorer.exe'])).code, 0, 'a Windows program is on PATH');
   assert.notEqual((await wsl(['sudo', '-n', 'true'])).code, 0, `${RUN_USER} must not have sudo`);
   const status = await wsl(['passwd', '-S', 'root'], { user: 'root' });
@@ -166,7 +170,7 @@ test('live wsl: the distro cannot see Windows, start Windows programs, or become
   assert.ok(!/\b(sudo|wheel|adm|docker|lxd)\b/.test(groups.output), groups.output);
 });
 
-test('live wsl: Codex in a job folder holds the boundary; the return refuses links', { skip: skipUnless('wsl'), timeout: 600_000 }, async () => {
+test('live wsl: Codex in a job folder holds the boundary; the return refuses links', { skip: skipUnless('wsl'), timeout: 600_000 }, async (t) => {
   const token = `HQ-BOUNDARY-${randomBytes(6).toString('hex')}`;
   const job = `t-${randomBytes(6).toString('hex')}`, other = `t-${randomBytes(6).toString('hex')}`;
   const a = jobCommands({ distro: WSL_DISTRO, jobId: job }), b = jobCommands({ distro: WSL_DISTRO, jobId: other });
@@ -177,7 +181,8 @@ test('live wsl: Codex in a job folder holds the boundary; the return refuses lin
     // A sibling job of the same user: file permissions allow it, so only Codex's sandbox can stop the probe.
     await wsl(['sh', '-c', 'printf %s "$1" > "$2/marker.txt"', 'sh', token, b.dir]);
     await wsl(['sh', '-c', 'mkdir -p "$HOME/.codex" && printf %s "$1" > "$HOME/$2" && printf %s "$1" > "$HOME/.hq-boundary-home"', 'sh', token, decoy]);
-    writeProbeArgs(win.work, { token, linux: true, outsideFile: `${b.dir}/marker.txt`, outsideWriteFile: `${b.dir}/written.txt`,
+    copyFileSync(WHOAMI, path.join(win.work, 'hq-win.exe'));
+    writeProbeArgs(win.work, { token, linux: true, windowsExe: 'hq-win.exe', outsideFile: `${b.dir}/marker.txt`, outsideWriteFile: `${b.dir}/written.txt`,
       homeFile: '~/.hq-boundary-home', authFiles: ['~/.codex/auth.json', `~/${decoy}`], windowsFile: wslAutomountPath(win.outsideFile) });
     const bundle = packFolder(win.work);
     const copied = await runCommand(a.copyIn, { input: bundle.tar });
@@ -185,6 +190,7 @@ test('live wsl: Codex in a job folder holds the boundary; the return refuses lin
     const r = await runCommand(wslProbeCommand({ distro: WSL_DISTRO, jobId: job }));
     const observed = parseProbeOutput(r.output);
     assert.ok(observed, `probe did not report: ${r.output.slice(-500)}`);
+    t.diagnostic(`관측(샌드박스): ${JSON.stringify(observed)}`);
     const verdict = evaluateBoundary(observed, { backend: 'wsl' });
     assert.ok(verdict.ok, report(verdict, observed));
     // What the step left comes back as plain files only…
@@ -199,6 +205,7 @@ test('live wsl: Codex in a job folder holds the boundary; the return refuses lin
       await wsl(['rm', '-f', `${a.dir}/planted-link`, `${a.dir}/hq-inside.txt`]);
       const e = await runCommand(wslCodexExec({ distro: WSL_DISTRO, jobId: job, effort: 'low' }), { input: execPrompt(), timeoutMs: 540_000 });
       const seen = parseProbeOutput(finalAnswer(e.output) ?? '');
+      t.diagnostic(`관측(실모델): ${JSON.stringify(seen)} · 출력 ${e.output.length}자`);
       assert.ok(seen, `Codex did not report the probe line: ${e.output.slice(-500)}`);
       const v = evaluateBoundary(seen, { backend: 'wsl' });
       assert.ok(v.ok, report(v, seen));
