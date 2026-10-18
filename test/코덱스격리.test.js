@@ -205,7 +205,17 @@ test('live wsl: Codex in a job folder holds the boundary; the return refuses lin
       await wsl(['rm', '-f', `${a.dir}/planted-link`, `${a.dir}/hq-inside.txt`]);
       const e = await runCommand(wslCodexExec({ distro: WSL_DISTRO, jobId: job, effort: 'low' }), { input: execPrompt(), timeoutMs: 540_000 });
       const seen = parseProbeOutput(finalAnswer(e.output) ?? '');
-      t.diagnostic(`관측(실모델): ${JSON.stringify(seen)} · 출력 ${e.output.length}자`);
+      // Usage as Codex itself reports it (turn.completed events of --json); nothing is estimated.
+      const usage = e.output.split(/\r?\n/).filter(l => l.startsWith('{')).map(l => { try { return JSON.parse(l); } catch { return null; } })
+        .filter(ev => ev?.type === 'turn.completed' && ev.usage).map(ev => ev.usage);
+      t.diagnostic(`관측(실모델): ${JSON.stringify(seen)} · 사용량 ${JSON.stringify(usage)} · 종료 코드 ${e.code}`);
+      // The line must come from a probe Codex really ran in the job, not from the model's own words: its command
+      // event names the probe, and the file the probe writes comes back with the job.
+      const events = e.output.split(/\r?\n/).filter(l => l.startsWith('{')).map(l => { try { return JSON.parse(l); } catch { return null; } });
+      assert.ok(events.some(ev => ev?.type === 'item.completed' && ev.item?.type === 'command_execution' && String(ev.item.command ?? '').includes(PROBE_FILE)),
+        'Codex reported a probe line without a matching command run');
+      const back = await runCommand(a.copyOut, { binary: true });
+      assert.ok(unpackReturn(back.stdout).files.some(f => f.path === 'hq-inside.txt'), 'the probe Codex ran left no trace in the job');
       assert.ok(seen, `Codex did not report the probe line: ${e.output.slice(-500)}`);
       const v = evaluateBoundary(seen, { backend: 'wsl' });
       assert.ok(v.ok, report(v, seen));
