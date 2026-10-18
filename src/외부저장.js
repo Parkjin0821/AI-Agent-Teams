@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { textSha } from './보안감시.js';
@@ -57,6 +57,23 @@ export class Publisher {
     this.waiting.add(projectId);
     this.syncing = this.syncing.then(() => this.syncNow(projectId)).catch(() => null).finally(() => this.waiting.delete(projectId));
     return this.syncing;
+  }
+  // 대장 resolves a page whose creation went unconfirmed: the page found in Notion (its address), or none there —
+  // then the next sync may make it. The engine never decides this on its own.
+  resolveNotionPage(projectId, { url = null } = {}) {
+    const was = this.notionPage(projectId);
+    if (!was || !['unknown', 'failed'].includes(was.status)) throw new Error('확인이 필요한 기록 페이지가 아님');
+    const key = NOTION_PAGE_KEY + projectId, at = new Date(this.clock.now()).toISOString();
+    if (url) {
+      const pageId = notionPageId(url);
+      if (!pageId) throw new Error('Notion 페이지 주소가 아님');
+      const next = { projectId, pageId, url: String(url).slice(0, 300), digest: null, status: 'idle', reason: null, at, syncs: 0 };
+      this.store.setSetting(key, next);
+      return next;
+    }
+    const next = { projectId, status: 'failed', reason: '대장 확인: Notion에 없음 · 다음 갱신 때 새로 만듦', at };
+    this.store.setSetting(key, next);
+    return next;
   }
   async syncNow(projectId) {
     const key = NOTION_PAGE_KEY + projectId, at = () => new Date(this.clock.now()).toISOString();
@@ -145,14 +162,19 @@ export function notionRelay({ bins, sentinel, knownConnectors, plugins, deny = [
     const cwd = mkdtempSync(path.join(tmpdir(), 'hq-publish-'));
     try {
       const log = path.join(cwd, '.sentinel.jsonl');
+      // The engine's exact input sits in a file the Sentinel hands to Notion; the model only names the page.
+      const payloadFile = path.join(cwd, `.payload-${jobId}.json`);
+      const payload = mode === 'update' ? { page_id: pageId, command: 'replace_content', new_str: content }
+        : { parent: { page_id: parent }, pages: [{ properties: { title }, content }] };
+      writeFileSync(payloadFile, JSON.stringify(payload));
       const command = buildCommand('claude', { cwd, model, access: 'read', bins, knownConnectors, plugins,
         readOnly: [{ name: 'Notion', allow: [create], deny: deny.filter(t => t !== create) }],
         sentinel: { ...sentinel, log, project: 'publish', team: 'publish', webMode: 'ask' },
-        notionWrite: mode === 'update' ? { pageId, contentSha: textSha(content), once: path.join(cwd, `.once-${jobId}`) }
-          : { parent, title, contentSha: textSha(content), once: path.join(cwd, `.once-${jobId}`) } });
-      const args = mode === 'update' ? { page_id: pageId, command: 'replace_content', new_str: content }
-        : { parent: { page_id: parent }, pages: [{ properties: { title }, content }] };
-      const prompt = `아래 JSON 을 인수로 ${create} 를 정확히 한 번 호출하라. 인수는 한 글자도 바꾸지 않는다. `
+        notionWrite: mode === 'update' ? { pageId, contentSha: textSha(content), once: path.join(cwd, `.once-${jobId}`), payload: payloadFile }
+          : { parent, title, contentSha: textSha(content), once: path.join(cwd, `.once-${jobId}`), payload: payloadFile } });
+      const args = mode === 'update' ? { page_id: pageId, command: 'replace_content', new_str: '(엔진이 채움)' }
+        : { parent: { page_id: parent }, pages: [{ properties: { title }, content: '(엔진이 채움)' }] };
+      const prompt = `아래 JSON 을 인수로 ${create} 를 정확히 한 번 호출하라. 본문 자리의 "(엔진이 채움)" 은 감시 에이전트가 엔진의 본문으로 바꿔 보낸다. `
         + '다른 도구는 쓰지 않는다. 호출이 끝나면 ' + (mode === 'update' ? '"갱신함" 한 단어만' : '만들어진 페이지 주소만 한 줄로') + ' 답한다.\n\n' + JSON.stringify(args);
       const out = await run(command, prompt, timeoutMs);
       const probe = readProbe(out.stdout);

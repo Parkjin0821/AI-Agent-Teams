@@ -111,6 +111,7 @@ export function decide(input, { workspace, grants = [], project = null, webMode 
     // approved parent, title and text (whitespace aside), once per upload (외부저장.js).
     if (/__notion-create-pages$/.test(tool)) {
       if (!notionWrite) return { decision: 'deny', reason: 'Notion 페이지 만들기는 대장이 승인한 보고서 올리기에서만', target: tool };
+      if (notionWrite.payload && notionWrite.parent) return enginePayload(tool, args, notionWrite, 'create');
       const pages = Array.isArray(args.pages) ? args.pages : [];
       const page = pages[0] ?? {};
       const ok = Object.keys(args).every(k => ['parent', 'pages', 'allow_async'].includes(k))
@@ -130,6 +131,7 @@ export function decide(input, { workspace, grants = [], project = null, webMode 
     // the option that deletes child pages. No other page can be changed.
     if (/__notion-update-page$/.test(tool)) {
       if (!notionWrite?.pageId) return { decision: 'deny', reason: 'Notion 페이지 고치기는 엔진의 자동 기록에서 그 프로젝트 기록 페이지만', target: tool };
+      if (notionWrite.payload) return enginePayload(tool, args, notionWrite, 'update');
       const ok = Object.keys(args).every(k => ['page_id', 'command', 'new_str', 'allow_async'].includes(k))
         && String(args.page_id ?? '').replace(/-/g, '').toLowerCase() === notionWrite.pageId
         && args.command === 'replace_content' && typeof args.new_str === 'string' && textSha(args.new_str) === notionWrite.contentSha;
@@ -172,7 +174,31 @@ export function logDecision(file, entry) {
 // PreToolUse "allow": in a run without a screen (-p) Claude Code would otherwise refuse a site that is not in its
 // own permission list, even though the Sentinel already checked it. Every other passed call gets no answer, so
 // Claude Code's own permission rules still apply to files and connectors.
+// 엔진 본문 끼워 넣기 (2026-10-18): a relay model copying 12,000 characters changed some of them, and the Sentinel rightly
+// refused the write. With a payload file, the model only names the page (parent for a new page, the page for an
+// update); the Sentinel checks that, checks the engine's payload against the approved parent/title/page and text
+// fingerprint, and hands Notion exactly that payload (updatedInput). Once per upload, as before.
+function enginePayload(tool, args, nw, mode) {
+  let payload;
+  try { payload = JSON.parse(readFileSync(nw.payload, 'utf8')); } catch { return { decision: 'deny', reason: '엔진 본문 파일을 읽을 수 없음', target: tool }; }
+  const id = v => String(v ?? '').replace(/-/g, '').toLowerCase();
+  const ok = mode === 'create'
+    ? id(args.parent?.page_id) === nw.parent && id(payload.parent?.page_id) === nw.parent && Array.isArray(payload.pages) && payload.pages.length === 1
+      && payload.pages[0].properties?.title === nw.title && textSha(payload.pages[0].content) === nw.contentSha && Object.keys(payload).every(k => ['parent', 'pages'].includes(k))
+    : id(args.page_id) === nw.pageId && id(payload.page_id) === nw.pageId && payload.command === 'replace_content' && textSha(payload.new_str) === nw.contentSha
+      && Object.keys(payload).every(k => ['page_id', 'command', 'new_str'].includes(k));
+  if (!ok) return { decision: 'deny', reason: mode === 'create' ? 'Notion 만들기 대상이 승인한 부모 페이지와 다름' : 'Notion 고치기 대상이 기록 페이지와 다름', target: tool };
+  if (nw.once) {
+    try { writeFileSync(nw.once, new Date().toISOString(), { flag: 'wx' }); }
+    catch { return { decision: 'deny', reason: '이 기록은 이미 한 번 보냄 (중복 방지)', target: tool }; }
+  }
+  return { decision: 'allow', reason: mode === 'create' ? '승인된 기록 페이지 만들기 (엔진 본문)' : '프로젝트 기록 페이지 자동 갱신 (엔진 본문)', target: tool, updatedInput: payload };
+}
+
 export function hookOutput(call, verdict) {
+  if (verdict?.decision === 'allow' && verdict.updatedInput) {
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: `AGENT HQ 감시 에이전트: ${verdict.reason}`, updatedInput: verdict.updatedInput } };
+  }
   if (verdict?.decision !== 'allow' || !['WebFetch', 'WebSearch'].includes(call?.tool_name)) return null;
   return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', permissionDecisionReason: `AGENT HQ 감시 에이전트: ${verdict.reason}` } };
 }

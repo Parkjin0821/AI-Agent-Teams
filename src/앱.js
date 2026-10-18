@@ -367,6 +367,12 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     ['GET', /^\/api\/publish$/, () => ({ items: publisher.list().slice(0, 50), github: { repo: github.repo, hasToken: github.hasToken },
       notionParent: setting('publish.notionParent', DEFAULT_NOTION_PARENT), notionConnected: connectorGate.get('notion')?.stage === 'connected',
       notionAuto: setting('publish.notionAuto', false) === true, notionPages: publisher.notionPages() })],
+    // Notion 자동 기록: 대장 settles a page whose creation went unconfirmed (the address found in Notion, or none there).
+    ['POST', /^\/api\/projects\/([^/]+)\/notion-page$/, (m, body) => {
+      existingWorkspace(m[1]);
+      if (body.confirm !== true) throw new Error('confirm required');
+      return publisher.resolveNotionPage(validateProjectId(m[1]), { url: body.url ? String(body.url) : null });
+    }],
     // Notion 자동 기록: bring one project's record page up to date now (대장's button; also works while auto is off).
     ['POST', /^\/api\/projects\/([^/]+)\/notion-sync$/, async m => {
       existingWorkspace(m[1]);

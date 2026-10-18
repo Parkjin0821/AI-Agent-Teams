@@ -40,8 +40,14 @@ async function runningSteps() {
   if (!existsSync(db)) return 0;
   const { DatabaseSync } = await import('node:sqlite');
   const conn = new DatabaseSync(db, { readOnly: true });
-  try { return conn.prepare('select body from goals').all().filter(r => JSON.parse(r.body).status === 'running').length; }
-  finally { conn.close(); }
+  try {
+    const steps = conn.prepare('select body from goals').all().filter(r => JSON.parse(r.body).status === 'running').length;
+    // A Notion or GitHub write in flight counts too (2026-10-18: a restart cut a Notion page off midway and left it
+    // unconfirmed).
+    const sends = conn.prepare("select value from settings where key like 'publish.%'").all()
+      .filter(r => { try { return JSON.parse(r.value)?.status === 'sending'; } catch { return false; } }).length;
+    return steps + sends;
+  } finally { conn.close(); }
 }
 
 async function start({ open }) {
@@ -77,7 +83,7 @@ if (command === 'start') code = await start({ open: !has('--no-open') });
 else if (command === 'stop') code = await stop('stop-agent-hq로 끔');
 else if (command === 'restart') {
   const busy = await runningSteps();
-  if (busy && !has('--force')) { say(`팀 단계 ${busy}개가 실행 중이라 다시 켜지 않았습니다. 끝난 뒤 다시 하세요.`); code = 2; }
+  if (busy && !has('--force')) { say(`팀 단계·외부 전송 ${busy}개가 진행 중이라 다시 켜지 않았습니다. 끝난 뒤 다시 하세요.`); code = 2; }
   else { code = await stop('새 코드 적용을 위해 재시작'); if (code === 0) code = await start({ open: false }); }
 } else if (command === 'autostart') {
   // 자동 시작 (9차 5번): 대장 turns it on or off; the engine never does.
