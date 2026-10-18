@@ -139,3 +139,35 @@ test('B · a Claude step in its own copy is applied with the same rules: non-con
     assert.equal(readFileSync(path.join(dir, 'CHANGELOG.md'), 'utf8'), '# 기록\n- Codex\n');
   } finally { rmSync(dir, { recursive: true, force: true }); rmSync(copy, { recursive: true, force: true }); }
 });
+
+test('excluded changes are kept and listed; the base check says when the project moved; metrics read the records', async () => {
+  const { collaborationMetrics } = await import('../src/협업하네스.js');
+  const dataDir = temp(), dir = project({ 'src/a.js': 'A', 'CHANGELOG.md': '# 기록\n' });
+  const copy = `${dir}-c`;
+  const h = new CollaborationHarness({ dataDir, claude: fakeClaude({ outcome: 'completed' }, cwd => writeFileSync(path.join(cwd, 'src', 'a.js'), 'A2')), codex: fakeCodex() });
+  try {
+    // A copy whose CHANGELOG change conflicts: it comes back with its content, and the base is reported as moved.
+    const sent = packFolder(dir);
+    cpSync(dir, copy, { recursive: true });
+    writeFileSync(path.join(copy, 'CHANGELOG.md'), '# 기록\n- 복사본\n');
+    writeFileSync(path.join(dir, 'CHANGELOG.md'), '# 기록\n- 먼저\n');
+    const r = applyCopy({ sent, copyDir: copy, projectDir: dir });
+    assert.equal(r.baseMoved, true);
+    assert.deepEqual(r.excluded.map(e => [e.path, e.data.toString('utf8')]), [['CHANGELOG.md', '# 기록\n- 복사본\n']]);
+    const goal = h.goal({ projectId: 'p', title: 't' });
+    const held = h.holdExcluded({ id: `${goal.id}-r9`, goalId: goal.id, round: 9, team: 'dev', executor: 'claude-code' }, r.excluded);
+    assert.equal(readFileSync(path.join(dataDir, held[0].held), 'utf8'), '# 기록\n- 복사본\n');
+    assert.ok(h.store.recentEvents().some(e => e.type === 'harness.excluded' && e.files[0].path === 'CHANGELOG.md'));
+    // Metrics: one accurate hand-off, then a second step that reworks the first step's file.
+    const c1 = await h.claudeStep(goal, { team: 'dev', kind: 'dev', prompt: 'x', projectDir: dir, key: 'm1' });
+    h.handoff(goal, { from: c1.run, to: { team: 'qa', executor: 'codex' }, text: handoffText({ title: 't', objective: 'o', criteria: [], from: 'claude', done: [], changed: ['src/a.js'], verification: [], next: 'n', to: 'codex', reason: 'r' }) });
+    await new Promise(res => setTimeout(res, 5));
+    const h2 = new CollaborationHarness({ dataDir: temp(), claude: fakeClaude({ outcome: 'completed' }, cwd => writeFileSync(path.join(cwd, 'src', 'a.js'), 'A3')), codex: fakeCodex() });
+    h.claude = h2.claude; h2.close();
+    await h.claudeStep(goal, { team: 'dev', kind: 'dev', prompt: 'x', projectDir: dir, key: 'm2' });
+    const m = collaborationMetrics(h.store, goal.id);
+    assert.equal(m.handoffs.length, 1);
+    assert.equal(m.handoffs[0].accuracy, 1);
+    assert.deepEqual(m.rework, { produced: 1, reworked: 1, ratio: 1 });
+  } finally { h.close(); for (const d of [dataDir, dir, copy]) rmSync(d, { recursive: true, force: true }); }
+});

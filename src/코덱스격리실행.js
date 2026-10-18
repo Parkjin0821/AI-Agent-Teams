@@ -143,9 +143,9 @@ export function planReturn({ sent, returned, current, allow = null }) {
     if (why) { rejected.push({ path: f.path, why }); continue; }
     const now = currentByKey.get(k);
     if (original !== undefined) {
-      if (now !== sent.hashes[original]) conflicts.push({ path: original, why: '작업 중 프로젝트 쪽에서도 바뀜' });
+      if (now !== sent.hashes[original]) conflicts.push({ path: original, why: '작업 중 프로젝트 쪽에서도 바뀜', data: f.data, hash });
       else changes.push({ path: original, action: 'modify', data: f.data, hash, before: now });
-    } else if (now !== undefined) conflicts.push({ path: f.path, why: '작업 중 프로젝트에 같은 이름이 생김' });
+    } else if (now !== undefined) conflicts.push({ path: f.path, why: '작업 중 프로젝트에 같은 이름이 생김', data: f.data, hash });
     else changes.push({ path: f.path, action: 'add', data: f.data, hash, before: null });
   }
   for (const [k, original] of sentByKey) {
@@ -290,10 +290,13 @@ export class CodexIsolatedRunner {
       }
       mark('copyOut', start);
       start = Date.now();
-      const plan = planReturn({ sent, returned, current: hashFolder(dir), allow });
+      const current = hashFolder(dir);
+      // Same base? The project may have moved since the job was given its copy (another step applied meanwhile).
+      const baseMoved = digestOf(current) !== digestOf(sent.hashes);
+      const plan = planReturn({ sent, returned, current, allow });
       const applied = apply ? applyPlan(dir, plan) : { applied: [], failed: [] };
       mark('apply', start);
-      return { outcome: 'completed', jobId: id, trust: pre.trust, sentDigest: digestOf(sent.hashes), plan: brief(plan), applied, timings: t, exec: summarize(result), returnedBytes: out.stdout.length, sentBytes: sent.tar.length };
+      return { outcome: 'completed', jobId: id, trust: pre.trust, sentDigest: digestOf(sent.hashes), baseMoved, plan: brief(plan), excluded: excludedOf(plan), applied, timings: t, exec: summarize(result), returnedBytes: out.stdout.length, sentBytes: sent.tar.length };
     } finally {
       await this.run(cmds.remove);
     }
@@ -301,7 +304,9 @@ export class CodexIsolatedRunner {
 }
 
 export const digestOf = hashes => sha256(Object.keys(hashes).sort().map(p => `${p}\0${hashes[p]}`).join('\n'));
-const brief = plan => ({ changes: plan.changes.map(c => ({ path: c.path, action: c.action })), conflicts: plan.conflicts, rejected: plan.rejected, unchanged: plan.unchanged });
+const brief = plan => ({ changes: plan.changes.map(c => ({ path: c.path, action: c.action })), conflicts: plan.conflicts.map(({ data, ...c }) => c), rejected: plan.rejected, unchanged: plan.unchanged });
+// What a step produced but could not apply (conflicts with content), for the caller to keep — never silently dropped.
+export const excludedOf = plan => plan.conflicts.filter(c => c.data).map(c => ({ path: c.path, why: c.why, hash: c.hash, data: c.data }));
 function summarize(result) {
   const events = String(result?.output ?? '').split(/\r?\n/).filter(l => l.startsWith('{')).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
   const usage = events.filter(e => e.type === 'turn.completed' && e.usage).map(e => e.usage);

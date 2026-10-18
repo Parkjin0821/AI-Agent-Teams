@@ -5,7 +5,7 @@ import { buildHandoff } from './업무도메인.js';
 import { routeStep } from './모델라우팅.js';
 import { PersistentStore } from './영구저장소.js';
 import { extractReturn, packFolder, sha256, unpackReturn } from './작업묶음.js';
-import { applyPlan, digestOf, hashFolder, planReturn } from './코덱스격리실행.js';
+import { applyPlan, digestOf, excludedOf, hashFolder, planReturn } from './코덱스격리실행.js';
 import { jobCommands, linuxProfileArgs, wslCommand } from './코덱스격리.js';
 
 // 협업 하네스 (docs/codex-격리-복원.md 15절, 대장 지시 2026-10-18): Claude Code와 Codex가 실제로 함께 일하는 시험을, 운영과
@@ -137,9 +137,10 @@ export class CollaborationHarness {
       const checkpoint = { added: changes.filter(c => c.action === 'add').map(c => c.path), modified: changes.filter(c => c.action === 'modify').map(c => c.path),
         removed: changes.filter(c => c.action === 'delete').map(c => c.path), state: result.outcome };
       this.journal.finish(key, status, { outcome: result.outcome });
+      const excluded = this.holdExcluded(run, merged?.excluded);
       const done = this.finishRun(run, { outcome: result.outcome, errorKind: result.errorKind ?? null, actualModel: result.model ?? null, answer: (result.answer ?? '').slice(0, 4000),
         checkpoint, usage: claudeUsage(stdout), guard: { by: this.sentinel ? 'sentinel' : 'none', denied: denied.length },
-        isolation: { backend: 'claude-copy', sentDigest, plan: merged?.plan ? { changes: merged.plan.changes.map(c => ({ path: c.path, action: c.action })), conflicts: merged.plan.conflicts, rejected: merged.plan.rejected, unchanged: merged.plan.unchanged } : null, applied: merged?.applied ?? null } });
+        isolation: { backend: 'claude-copy', sentDigest, baseMoved: merged?.baseMoved ?? null, excluded, plan: merged?.plan ? { changes: merged.plan.changes.map(c => ({ path: c.path, action: c.action })), conflicts: merged.plan.conflicts, rejected: merged.plan.rejected, unchanged: merged.plan.unchanged } : null, applied: merged?.applied ?? null } });
       return { outcome: status === 'held' ? 'held' : result.outcome, run: done, answer: result.answer ?? '', checkpoint, denied, route, plan: merged?.plan ?? null, applied: merged?.applied ?? null };
     } finally { rmSync(copy, { recursive: true, force: true }); }
   }
@@ -166,8 +167,9 @@ export class CollaborationHarness {
     if (r.outcome === 'return_rejected') this.store.emit({ type: 'codex.return_rejected', goalId: goal.id, team, problems: r.problems, names: r.names });
     if (r.plan?.conflicts?.length) this.store.emit({ type: 'codex.conflicts', goalId: goal.id, team, conflicts: r.plan.conflicts });
     if (r.applied?.aborted) this.store.emit({ type: 'codex.apply_aborted', goalId: goal.id, team, failed: r.applied.failed, rolledBack: r.applied.rolledBack });
+    const excluded = this.holdExcluded(run, r.excluded);
     const done = this.finishRun(run, { outcome: r.outcome, actualModel: r.exec?.model ?? (r.exec?.code === 0 && this.codexModel ? this.codexModel : null), modelSource: r.exec?.model ? 'reported' : this.codexModel ? 'pinned' : null, answer: (r.exec?.answer ?? '').slice(0, 4000), checkpoint,
-      usage: r.exec?.usage?.[0] ?? null, isolation: { backend: 'codex-wsl-isolated', jobId, trust: r.trust, sentDigest: r.sentDigest, plan: r.plan, applied: r.applied, problems: r.problems ?? [], timings: r.timings } });
+      usage: r.exec?.usage?.[0] ?? null, isolation: { backend: 'codex-wsl-isolated', jobId, trust: r.trust, sentDigest: r.sentDigest, baseMoved: r.baseMoved ?? null, excluded, plan: r.plan, applied: r.applied, problems: r.problems ?? [], timings: r.timings } });
     return { outcome: r.outcome, run: done, answer: r.exec?.answer ?? '', checkpoint, result: r, route };
   }
 
@@ -198,6 +200,20 @@ export class CollaborationHarness {
     return { ok, pass, fail, evidence, log };
   }
 
+  // Changes a step made that were not applied (conflicts) are kept under dataDir/held/<run>/ and listed on the run.
+  holdExcluded(run, excluded = []) {
+    if (!excluded.length) return [];
+    const dir = path.join(this.dataDir, 'held', run.id);
+    const list = excluded.map(e => {
+      const target = path.join(dir, ...e.path.split('/'));
+      mkdirSync(path.dirname(target), { recursive: true });
+      writeFileSync(target, e.data);
+      return { path: e.path, why: e.why, hash: e.hash, held: path.relative(this.dataDir, target) };
+    });
+    this.store.emit({ type: 'harness.excluded', goalId: run.goalId, round: run.round, team: run.team, executor: run.executor, files: list.map(({ path: p, why, hash }) => ({ path: p, why, hash })) });
+    return list;
+  }
+
   sentinelDecisions(since) {
     if (!existsSync(this.sentinelLog)) return [];
     return readFileSync(this.sentinelLog, 'utf8').split(/\r?\n/).filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } })
@@ -221,10 +237,34 @@ export class CollaborationHarness {
 // What a Claude step did in its own copy, judged and applied like a Codex return (same rules, same conflict handling).
 export function applyCopy({ sent, copyDir, projectDir, allow = null }) {
   const returned = unpackReturn(packFolder(copyDir).tar);
-  const plan = planReturn({ sent, returned, current: hashFolder(projectDir), allow });
-  return { plan, applied: applyPlan(projectDir, plan) };
+  const current = hashFolder(projectDir);
+  const plan = planReturn({ sent, returned, current, allow });
+  return { plan, applied: applyPlan(projectDir, plan), baseMoved: digestOf(current) !== digestOf(sent.hashes), excluded: excludedOf(plan) };
 }
 
 export function handoffText({ title, objective, criteria, from, done, changed, verification, next, to, reason }) {
   return buildHandoff({ title, completionCriteria: criteria, provider: from, checkpoint: { objective, completed: done, changedFiles: changed, verification, nextAction: next } }, reason, to);
+}
+
+// 인계 정확도와 재작업 비율 (대장 지시 2026-10-18), from the harness's own records:
+//   hand-off accuracy — the files a hand-off says were changed vs what the step before it actually changed (both ways)
+//   rework ratio — of the files steps produced, how many a later step of the same goal changed again
+export function collaborationMetrics(store, goalId) {
+  const runs = store.listRuns(goalId).sort((a, b) => a.round - b.round);
+  const changed = r => new Set([...(r.checkpoint?.added ?? []), ...(r.checkpoint?.modified ?? []), ...(r.checkpoint?.removed ?? [])]);
+  const handoffs = store.recentEvents(1000).filter(e => e.type === 'team.handoff' && e.goalId === goalId).reverse().map(e => {
+    const listed = new Set((/^Changed files: (.*)$/m.exec(e.text ?? '')?.[1] ?? '').split(',').map(s => s.trim()).filter(f => f && f !== 'none'));
+    const from = [...runs].reverse().find(r => r.executor === e.fromExecutor && r.team === e.from && Date.parse(r.finishedAt ?? 0) <= Date.parse(e.at));
+    const actual = from ? changed(from) : new Set();
+    const union = new Set([...listed, ...actual]), both = [...listed].filter(f => actual.has(f));
+    return { from: `${e.from}/${e.fromExecutor}`, to: `${e.to}/${e.toExecutor}`, listed: [...listed], actual: [...actual],
+      missing: [...actual].filter(f => !listed.has(f)), extra: [...listed].filter(f => !actual.has(f)), accuracy: union.size ? both.length / union.size : 1 };
+  });
+  const produced = new Map();
+  let reworked = 0;
+  for (const r of runs) for (const f of changed(r)) {
+    if (produced.has(f) && produced.get(f) !== r.id) reworked++;
+    if (!produced.has(f)) produced.set(f, r.id);
+  }
+  return { handoffs, rework: { produced: produced.size, reworked, ratio: produced.size ? reworked / produced.size : 0 } };
 }
