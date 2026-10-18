@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { BundleRejected, checkReturnedPath, extractReturn, packFolder, tarHeader, unpackReturn } from '../src/작업묶음.js';
+import { BundleRejected, checkReturnedPath, extractReturn, listNames, packFolder, tarHeader, unpackReturn } from '../src/작업묶음.js';
 
 // 작업 묶음: what goes into the Codex distro and what may come back (docs/codex-격리-복원.md 2차 설계).
 const temp = () => mkdtempSync(path.join(tmpdir(), 'hq-bundle-'));
@@ -86,6 +86,16 @@ test('return: links, devices and paths that climb out are refused — one bad en
     assert.throws(() => unpackReturn(craft([ok, entry])), e => e instanceof BundleRejected && why.test(e.message), entry.name);
   }
   assert.deepEqual(unpackReturn(craft([{ name: './', type: '5' }, ok])).files.map(f => f.path), ['ok.txt']);
+});
+
+test('return: an empty masked placeholder folder at the top is dropped; one with anything inside is refused', () => {
+  const ok = { name: 'ok.txt', data: 'fine' };
+  for (const p of ['.agents', '.codex', '.git', '.aws']) {
+    assert.deepEqual(unpackReturn(craft([{ name: `./${p}/`, type: '5' }, ok])).files.map(f => f.path), ['ok.txt'], p);
+    assert.throws(() => unpackReturn(craft([{ name: `./${p}/`, type: '5' }, { name: `./${p}/x`, data: 'x' }, ok])), BundleRejected, p);
+  }
+  assert.throws(() => unpackReturn(craft([{ name: 'sub/.codex/', type: '5' }, ok])), BundleRejected, 'only at the top');
+  assert.deepEqual(listNames(craft([{ name: 'a', data: 'x' }, { name: 'l', type: '2' }])), ['0:a', '2:l']);
 });
 
 test('return: broken or oversized streams are refused', () => {

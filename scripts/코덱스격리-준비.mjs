@@ -2,8 +2,11 @@
 // Codex 격리용 WSL 배포판 준비·확인 (docs/codex-wsl-설치안내.md).
 //   node scripts/코덱스격리-준비.mjs              확인만 한다 (아무것도 바꾸지 않음)
 //   node scripts/코덱스격리-준비.mjs --provision  배포판 안에 패키지·사용자·설정을 만든다 (대장 승인 후, 배포판 안 root로)
+//   node scripts/코덱스격리-준비.mjs --preflight        Codex 실행 전 점검: 규칙 + 승인된 기준과 비교 (실행기와 같은 판정)
+//   node scripts/코덱스격리-준비.mjs --record-baseline  지금 상태를 승인된 기준으로 기록 (대장 확인 후에만; 규칙 위반이면 거부)
 // Windows 관리자 권한이 필요한 일(WSL 설치, 재부팅)과 Codex 로그인은 하지 않는다 — 대장이 직접 한다.
 import path from 'node:path';
+import { BASELINE_FILE, environmentSnapshot, judgePreflight, readBaseline, writeBaseline } from '../src/코덱스격리실행.js';
 import { DISTRO, JOB_ROOT, RUN_USER, WSL_CONF, checkWslConf, runCommand, wslCommand } from '../src/코덱스격리.js';
 
 const CODEX_VERSION = '0.163.0'; // npm @openai/codex, pinned (checked 2026-10-18); engines: node >= 16
@@ -91,6 +94,22 @@ async function check() {
   return rows;
 }
 
+if (process.argv.includes('--preflight') || process.argv.includes('--record-baseline')) {
+  const snap = await environmentSnapshot({ distro });
+  const baseline = readBaseline(BASELINE_FILE);
+  if (process.argv.includes('--record-baseline')) {
+    const rules = judgePreflight(snap, { items: snap.items ?? {} });
+    if (!rules.ok) { console.log(`기준 기록 거부 — 규칙 위반:\n- ${rules.problems.join('\n- ')}`); process.exit(1); }
+    const note = process.argv.slice(process.argv.indexOf('--record-baseline') + 1).join(' ') || '대장 확인 후 기록';
+    writeBaseline(BASELINE_FILE, snap, note);
+    if (baseline?.items) console.log(`이전 기준(${baseline.recordedAt})을 바꿨습니다.`);
+    console.log(`기준 기록: ${BASELINE_FILE}`);
+    process.exit(0);
+  }
+  const r = judgePreflight(snap, baseline);
+  console.log(r.ok ? `✓ 실행 전 점검 통과 (기준 ${baseline.recordedAt})` : `✗ 실행 전 점검 실패 — Codex 실행 중단:\n- ${r.problems.join('\n- ')}`);
+  process.exit(r.ok ? 0 : 1);
+}
 if (process.argv.includes('--provision')) await provision();
 const rows = await check();
 for (const r of rows) console.log(`${r.ok ? '✓' : '✗'} ${r.what}${r.note ? ` · ${r.note}` : ''}`);

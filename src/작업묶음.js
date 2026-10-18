@@ -1,4 +1,5 @@
 import { lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 // 작업 묶음 (docs/codex-격리-복원.md 2차 설계): the files a Codex step may see go into the WSL distro as one tar
@@ -10,6 +11,7 @@ import path from 'node:path';
 export const EXCLUDED_DIRS = new Set(['.git', 'node_modules']);
 export const AGENT_CONFIG = /^(\.claude|\.codex|\.agents|\.mcp\.json|CLAUDE(?:\.local)?\.md|AGENTS(?:\.override)?\.md)$/i;
 export const SECRET_FILE = /^\.env(\..*)?$|\.(pem|key|p12|pfx|keystore)$|^id_(rsa|dsa|ecdsa|ed25519)(\.pub)?$|^\.npmrc$|^\.netrc$/i;
+export const PLACEHOLDERS = new Set(['.agents', '.codex', '.git', '.aws']);
 export const LIMITS = { maxFiles: 20_000, maxBytes: 200 * 1024 * 1024, maxFileBytes: 50 * 1024 * 1024 };
 
 export class BundleRejected extends Error {
@@ -56,9 +58,13 @@ function entry(parts, rel, type, data, mtime) {
   if (data.length) parts.push(data, pad(data.length));
 }
 
-// → { tar: Buffer, files: [relative paths], skipped: [{ path, why }] }
-export function packFolder(root, { limits = LIMITS } = {}) {
-  const parts = [], files = [], skipped = [];
+export const sha256 = data => createHash('sha256').update(data).digest('hex');
+
+// → { tar: Buffer, files: [relative paths], skipped: [{ path, why }], hashes: { path: sha256 } } — the hashes are what
+// the job was given, so a return can be judged against them (코덱스격리실행.js planReturn).
+// hashOnly: the same walk and the same choices, without building the stream (to judge a return against the project).
+export function packFolder(root, { limits = LIMITS, hashOnly = false } = {}) {
+  const parts = [], files = [], skipped = [], hashes = {};
   let total = 0;
   const walk = (dir, rel) => {
     for (const name of readdirSync(dir).sort()) {
@@ -68,15 +74,17 @@ export function packFolder(root, { limits = LIMITS } = {}) {
       if (AGENT_CONFIG.test(name)) { skipped.push({ path: relPath, why: '에이전트 설정' }); continue; }
       if (stat.isDirectory()) {
         if (EXCLUDED_DIRS.has(name)) { skipped.push({ path: relPath, why: '제외 폴더' }); continue; }
-        entry(parts, relPath, '5', Buffer.alloc(0), Math.floor(stat.mtimeMs / 1000));
+        if (!hashOnly) entry(parts, relPath, '5', Buffer.alloc(0), Math.floor(stat.mtimeMs / 1000));
         walk(full, relPath);
       } else if (stat.isFile()) {
         if (SECRET_FILE.test(name)) { skipped.push({ path: relPath, why: '비밀정보로 보이는 파일' }); continue; }
         if (stat.size > limits.maxFileBytes) reject(`파일이 너무 크다: ${relPath}`);
         if (files.length >= limits.maxFiles) reject('파일이 너무 많다');
         if ((total += stat.size) > limits.maxBytes) reject('작업 폴더가 너무 크다');
-        entry(parts, relPath, '0', readFileSync(full), Math.floor(stat.mtimeMs / 1000));
+        const data = readFileSync(full);
+        if (!hashOnly) entry(parts, relPath, '0', data, Math.floor(stat.mtimeMs / 1000));
         files.push(relPath);
+        hashes[relPath] = sha256(data);
       } else {
         skipped.push({ path: relPath, why: '일반 파일이 아님' });
       }
@@ -84,7 +92,7 @@ export function packFolder(root, { limits = LIMITS } = {}) {
   };
   walk(path.resolve(root), '');
   parts.push(Buffer.alloc(BLOCK * 2));
-  return { tar: Buffer.concat(parts), files, skipped };
+  return { tar: hashOnly ? null : Buffer.concat(parts), files, skipped, hashes };
 }
 
 // ── reading (distro → engine) ───────────────────────────────────────────────────────────────────────────────────
@@ -116,7 +124,7 @@ export function checkReturnedPath(raw) {
   const segments = rel.split('/');
   for (const s of segments) {
     if (!s || s === '.' || s === '..') reject(`허용되지 않는 경로: ${rel}`);
-    if (EXCLUDED_DIRS.has(s) || AGENT_CONFIG.test(s)) reject(`돌려받을 수 없는 파일: ${rel}`);
+    if (EXCLUDED_DIRS.has(s) || AGENT_CONFIG.test(s) || PLACEHOLDERS.has(s)) reject(`돌려받을 수 없는 파일: ${rel}`);
     if (/^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(s) || /[<>"|?*]|[. ]$/.test(s)) reject(`Windows에서 쓸 수 없는 이름: ${rel}`);
   }
   return segments.join('/');
@@ -148,6 +156,9 @@ export function unpackReturn(tar, { limits = LIMITS } = {}) {
     pax = {}; longName = null;
     if (type === '1' || type === '2') reject(`링크는 돌려받지 않는다: ${name}`);
     if (type !== '0' && type !== '5') reject(`일반 파일이 아니다(종류 ${type}): ${name}`);
+    // Codex's sandbox masks these names in the job with empty placeholders, and a real codex exec step leaves the
+    // folders behind (seen 2026-10-18: .agents). An empty one at the top is dropped; any file inside is still refused.
+    if (type === '5' && PLACEHOLDERS.has(String(name).replace(/^(\.\/)+/, '').replace(/\/+$/, ''))) continue;
     const rel = checkReturnedPath(name);
     if (rel === null) continue;
     if (type === '5') { dirs.push(rel); continue; }
@@ -158,6 +169,27 @@ export function unpackReturn(tar, { limits = LIMITS } = {}) {
   }
   if (!ended) reject('묶음이 잘렸다 (끝 표시 없음)');
   return { files, dirs };
+}
+
+// The entry names of a stream (never contents), to explain a refused return. Stops at the first unreadable header.
+export function listNames(tar, max = 50) {
+  const names = [];
+  let at = 0, pax = {}, longName = null;
+  while (at + BLOCK <= tar.length && names.length < max) {
+    const h = tar.subarray(at, at + BLOCK);
+    if (h.every(b => b === 0)) break;
+    const type = String.fromCharCode(h[156] || 0x30);
+    const size = parseInt(field(h, 124, 12).trim() || '0', 8) || 0;
+    const data = tar.subarray(at + BLOCK, at + BLOCK + size);
+    at += BLOCK + Math.ceil(size / BLOCK) * BLOCK;
+    if (type === 'x') { try { pax = parsePax(data); } catch { pax = {}; } continue; }
+    if (type === 'L') { longName = field(data, 0, data.length); continue; }
+    if (type === 'g') continue;
+    const prefix = field(h, 345, 155);
+    names.push(`${type}:${pax.path ?? longName ?? (prefix ? `${prefix}/${field(h, 0, 100)}` : field(h, 0, 100))}`);
+    pax = {}; longName = null;
+  }
+  return names;
 }
 
 // Writes an accepted return into a fresh folder (a staging copy; applying it to the project is a later step).

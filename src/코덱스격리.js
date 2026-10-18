@@ -201,11 +201,11 @@ export function wslProbeCommand({ distro = DISTRO, user = RUN_USER, jobId, codex
 }
 
 // input: a string or Buffer for stdin. binary: stdout comes back as a Buffer (tar), stderr as text.
-export function runCommand({ file, args }, { cwd = undefined, input = null, binary = false, timeoutMs = 120_000, spawnFn = spawn } = {}) {
+export function runCommand({ file, args }, { cwd = undefined, input = null, binary = false, timeoutMs = 120_000, env = {}, spawnFn = spawn } = {}) {
   return new Promise((resolve) => {
     let output = '', done = false;
     const chunks = [];
-    const child = spawnFn(file, args, { cwd, env: sandboxEnv(), shell: false, windowsHide: true });
+    const child = spawnFn(file, args, { cwd, env: { ...sandboxEnv(), ...env }, shell: false, windowsHide: true });
     const finish = value => { if (!done) { done = true; clearTimeout(timer); resolve({ ...value, ...(binary ? { stdout: Buffer.concat(chunks) } : {}) }); } };
     const timer = setTimeout(() => { child.kill(); finish({ code: null, output, timedOut: true }); }, timeoutMs);
     if (binary) child.stdout?.on('data', c => chunks.push(c));
