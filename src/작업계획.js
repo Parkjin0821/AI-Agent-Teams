@@ -94,6 +94,33 @@ export function finishStep(plan, id) {
   return { ...plan, tasks: plan.tasks.map(t => t.id === id && !t.criteria.length ? { ...t, status: 'done' } : t.id === id && t.status === 'running' ? { ...t, status: 'pending' } : t) };
 }
 
+// 표준 인계 (2단계): what a work team handed over, normalised; exists(path) is the engine's own check that a listed
+// file is really there (inside the work folder). { made: [{ path, ok }], decisions, openIssues, forNext }
+export function readHandoff(raw, exists = () => false) {
+  if (!raw || typeof raw !== 'object') return null;
+  const list = (v, n, len) => (Array.isArray(v) ? v : []).map(x => clip(x, len)).filter(Boolean).slice(0, n);
+  const made = list(raw.made, 20, 200).map(cleanPath).map(p => ({ path: p, ok: !p.startsWith('/') && !/^[A-Za-z]:/.test(p) && !p.split('/').includes('..') && exists(p) }));
+  const h = { made, decisions: list(raw.decisions, 8, 300), openIssues: list(raw.open_issues ?? raw.openIssues, 8, 300), forNext: clip(raw.for_next ?? raw.forNext, 600) };
+  return h.made.length || h.decisions.length || h.openIssues.length || h.forNext ? h : null;
+}
+// The task's handoff is kept with it.
+export function recordHandoff(plan, id, handoff, at) {
+  if (!plan?.tasks || !handoff) return plan;
+  return { ...plan, tasks: plan.tasks.map(t => t.id === id ? { ...t, handoff: { ...handoff, at } } : t) };
+}
+// What the team taking task gets from the tasks it depends on (their handoffs), for its prompt.
+export function upstreamText(plan, task) {
+  const ups = (plan?.tasks ?? []).filter(t => task?.dependsOn?.includes(t.id) && t.handoff);
+  return ups.map(t => {
+    const h = t.handoff;
+    return [`${t.id} ${t.title} (${TEAM_L[t.team] ?? t.team})`,
+      h.made.length ? `  만든 것: ${h.made.map(m => m.path + (m.ok ? '' : ' (엔진이 찾지 못함)')).join(', ')}` : '',
+      h.decisions.length ? `  결정: ${h.decisions.join(' / ')}` : '',
+      h.openIssues.length ? `  남은 문제: ${h.openIssues.join(' / ')}` : '',
+      h.forNext ? `  다음 팀에게: ${h.forNext}` : ''].filter(Boolean).join('\n');
+  }).join('\n');
+}
+
 // For the prompts: the whole graph with status (planning), or one task in full (the team doing it).
 export function planText(plan) {
   if (!plan?.tasks?.length) return '';

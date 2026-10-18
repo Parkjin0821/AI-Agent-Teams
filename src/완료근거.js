@@ -117,6 +117,10 @@ export function reportInstructions(criteria, { verifying = false } = {}) {
     'You may add "requests":[{"team":"dev|design|research","task":"specific follow-up within this project","criteria":["verifiable criterion"],"risk":"low|normal|high","complexity":"simple|normal|complex","effects":[]}] to propose collaboration. Requests are proposals, not permissions. Never expand the user scope.',
     'You may add "remember":[{"scope":"all"|"<team id>","text":"..."}] (at most 3) for lasting preferences or rules 대장 stated; they apply only after 대장 approves them.',
     'You may add "lessons":[{"scope":"all"|"<team id>","text":"..."}] (at most 2): what this work taught that would help another project (what failed and what worked). 대장 approves each; it lasts 90 days.',
+    // 자율 작업 조율 2단계: a standard handoff, so the next team builds on this step instead of finding it all again.
+    ...(verifying ? [] : ['Add "handoff":{"made":["files you created or changed"],"decisions":["a key choice and why"],"open_issues":["what is still missing or',
+      'uncertain"],"for_next":"what the team that continues must know"}. The engine checks that every "made" file exists and hands this',
+      'to the teams whose tasks depend on yours. Keep each item to one line; never paste file contents.']),
     'A criterion with several parts (four sections, three files, each field) may use "checks":[{...},{...}] instead of',
     '"check" (at most 8); it counts only when every check passes and at least one is about the criterion. Use null only when no',
     'combination of these checks can prove it — reading a file yourself and saying so is not proof.',

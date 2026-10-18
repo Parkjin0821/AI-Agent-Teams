@@ -2662,7 +2662,8 @@ class Component extends DCLogic {
         tasks: ((g.taskPlan && g.taskPlan.tasks) || []).map((t) => ({ id: t.id, title: t.title, who: TEAM_NAME[t.team] || t.team,
           st: { pending: '대기', running: '진행 중', done: '완료', failed: '실패' }[t.status] || t.status,
           pill: 'pill ' + ({ done: 'done', running: 'run', failed: 'stop' }[t.status] || 'idle'),
-          meta: '산출물 ' + t.outputs.join(', ') + (t.criteria.length ? ' · 조건 ' + t.criteria.join(',') + '번' : '') + (t.dependsOn.length ? ' · 선행 ' + t.dependsOn.join(',') : '') + (t.attempts > 1 ? ' · ' + t.attempts + '번째 시도' : '') })),
+          meta: '산출물 ' + t.outputs.join(', ') + (t.criteria.length ? ' · 조건 ' + t.criteria.join(',') + '번' : '') + (t.dependsOn.length ? ' · 선행 ' + t.dependsOn.join(',') : '') + (t.attempts > 1 ? ' · ' + t.attempts + '번째 시도' : '')
+            + (t.handoff ? ' · 인계: 만든 것 ' + t.handoff.made.filter((m) => m.ok).length + '/' + t.handoff.made.length + (t.handoff.openIssues.length ? ' · 남은 문제 ' + t.handoff.openIssues.length : '') : '') })),
         crit: g.completionCriteria.map((c) => {
           const ev = (g.evidence || []).find((e) => e.criterion === c);
           const claim = lastRun && (lastRun.claims || []).find((x) => x.criterion === c);

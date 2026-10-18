@@ -10,7 +10,7 @@ import { validateProjectId } from './작업공간.js';
 import { enqueueRequests, reviewSkip, taskProfile } from './팀검토.js';
 import { selectAssignment } from './작업배정.js';
 import { autonomyDecision } from './자율정책.js';
-import { lintTasks, markRunning, planSummary, readyTasks, settleTasks, startPlan } from './작업계획.js';
+import { lintTasks, markRunning, planSummary, readyTasks, recordHandoff, settleTasks, startPlan } from './작업계획.js';
 import { DEFAULT_CLAUDE_MODEL } from './모델선택.js';
 
 export const GoalStatus = Object.freeze({
@@ -774,6 +774,8 @@ export class GoalScheduler {
     }
     if (WORKERS.includes(step)) {
       team.workSinceQa = true;
+      // 표준 인계: the task keeps what its team handed over; the teams of the tasks that depend on it get it.
+      if (team.taskId && result.handoff && goal.taskPlan?.tasks?.length) this.update(goal, { taskPlan: recordHandoff(goal.taskPlan, team.taskId, result.handoff, iso(now)) });
       team.reviews = this.skipReviews(goal, team, [...new Set([...team.reviews, ...(result.requiredReviews ?? [])])].filter(r => REVIEWS.includes(r)),
         { sourcesSaved: Array.isArray(result.sources) && result.sources.length > 0 });
       // Progress means new evidence or a workspace change not seen before; only development rounds count.

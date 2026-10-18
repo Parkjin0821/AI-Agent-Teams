@@ -87,3 +87,38 @@ test('작업 계획: a graph still wrong after one rewrite is left out — the p
     assert.match(g.messages.map(m => m.text).join('\n'), /작업 계획은 점검을 통과하지 못해 쓰지 않습니다/);
   } finally { store.close(); }
 });
+
+test('표준 인계: what a team hands over is kept with its task (listed files checked by the engine) and given to the tasks after it', async () => {
+  const { readHandoff, recordHandoff, upstreamText } = await import('../src/작업계획.js');
+  const h = readHandoff({ made: ['요구사항.md', './없는파일.md', '../밖.md'], decisions: ['역할은 주최자·스태프·관리자 셋'], open_issues: ['정산 방식 미정'],
+    for_next: '요구사항.md 2장의 화면 목록을 그대로 쓴다' }, p => p === '요구사항.md' || p === '../밖.md');
+  assert.deepEqual(h.made, [{ path: '요구사항.md', ok: true }, { path: '없는파일.md', ok: false }, { path: '../밖.md', ok: false }], 'outside the folder never counts');
+  assert.equal(readHandoff({}), null);
+  let plan = startPlan(parseTasks(RAW), 't0');
+  plan = recordHandoff(plan, 'T1', h, 't1');
+  const text = upstreamText(plan, plan.tasks[1]);
+  assert.match(text, /T1 요구사항 정리 \(조사팀\)\n  만든 것: 요구사항.md, 없는파일.md \(엔진이 찾지 못함\), \.\.\/밖.md \(엔진이 찾지 못함\)\n  결정: 역할은 주최자·스태프·관리자 셋\n  남은 문제: 정산 방식 미정\n  다음 팀에게: 요구사항.md 2장의/);
+  assert.equal(upstreamText(plan, plan.tasks[0]), '', 'a task with no prerequisites gets nothing');
+  const { teamPrompt } = await import('../src/팀.js');
+  const prompt = teamPrompt('design', { goal: { objective: 'x', completionCriteria: C, taskPlan: plan, messages: [] }, team: { step: 'design', taskId: 'T2', task: 'T2 진행' }, files: [] });
+  assert.match(prompt, /선행 작업 인계[\s\S]*다음 팀에게: 요구사항.md 2장의/);
+  assert.match(prompt, /이번 작업 T2: 화면 설계·구현/);
+});
+
+test('표준 인계: the scheduler keeps a work step\'s handoff on its task', async () => {
+  const store = new PersistentStore({ dataDir: mkdtempSync(path.join(tmpdir(), 'hq-hand-')) });
+  let plans = 0;
+  const scheduler = new GoalScheduler({ store, clock: { now: () => Date.parse('2026-10-18T09:00:00Z') }, policy: DEFAULT_POLICY, autonomy: () => 'L2',
+    trust: { required: () => 0, count: () => 0, add: () => {} },
+    runner: { run: async (goal, run) => {
+      if (run.team === 'plan') return ++plans === 1 ? { outcome: 'completed', plan: { nextTask: 's', team: 'dev', reviews: [], completionCriteria: C, tasks: parseTasks(RAW) } }
+        : { outcome: 'completed', plan: { nextTask: 'T1', team: 'research', taskId: 'T1', reviews: [] } };
+      return { outcome: 'completed', diffHash: 'd', evidence: [], handoff: { made: [{ path: '요구사항.md', ok: true }], decisions: [], openIssues: ['정산 미정'], forNext: '' } };
+    } } });
+  const goal = scheduler.addGoal({ projectId: 'hand', kind: 'team', autoRun: true, objective: 'x', conversation: true, completionCriteria: [] });
+  try {
+    for (let i = 0; i < 3; i++) await scheduler.runGoal(goal.id);
+    const t1 = store.getGoal(goal.id).taskPlan.tasks[0];
+    assert.deepEqual([t1.handoff.made[0].path, t1.handoff.openIssues[0]], ['요구사항.md', '정산 미정']);
+  } finally { store.close(); }
+});

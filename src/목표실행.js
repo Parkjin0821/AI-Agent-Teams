@@ -3,7 +3,8 @@ import { parsePlan, parseReview, qaFindings, REVIEWS, TEAMS, teamPrompt, WORKERS
 import { runTeamTools, toolReport } from './검사도구.js';
 import { normalizeRequests, requiredReviews } from './팀검토.js';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
+import { readHandoff } from './작업계획.js';
 import path from 'node:path';
 import { SkillLibrary } from './스킬.js';
 import { hasSecret, readAsks } from './보안감시.js';
@@ -281,6 +282,10 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
       memory?.propose(report?.remember, { team, project: goal.projectId });
       memory?.propose(report?.lessons, { team, project: goal.projectId, kind: 'lesson' });
       const test = engineTools.find(t => t.test)?.test ?? null;
+      // 표준 인계 (자율 작업 조율 2단계): what the work team handed over, with the engine's own check that each listed file
+      // is really in the work folder.
+      const inside = rel => { const full = path.resolve(cwd, rel); return (full === cwd || full.startsWith(cwd + path.sep)) && existsSync(full); };
+      const handoff = WORKERS.includes(team) ? readHandoff(report?.handoff, inside) : null;
       // 원문 저장: pages a web team read are fetched again by the engine and saved under sources/ (웹원문.js).
       let sources = null;
       if (team && TEAMS[team]?.web && Array.isArray(report?.sources) && report.sources.length && sentinel && !simulated) {
@@ -361,7 +366,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
         baseline: goal.routine?.baseline ?? null,
         sources: { ...sourceRecords(records), ...sourceRecords([{ sources: sources?.saved ?? [] }]) },
         boundary: () => boundaryCheck({ runs: store.listRuns?.(goal.id) ?? [], sentinelLog: sentinel?.log ?? null, project: goal.projectId, cwd }) });
-      return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd), ...(sources ? { sources: sources.saved } : {}), ...(documents ? { documents: documents.made } : {}), ...(spreadsheets ? { spreadsheets: spreadsheets.made } : {}), ...(slideReads.length ? { slides: slideReads } : {}),
+      return { ...base, outcome: 'completed', evidence, claims, diffHash: workspaceFingerprint(cwd), ...(handoff ? { handoff } : {}), ...(sources ? { sources: sources.saved } : {}), ...(documents ? { documents: documents.made } : {}), ...(spreadsheets ? { spreadsheets: spreadsheets.made } : {}), ...(slideReads.length ? { slides: slideReads } : {}),
         requests: normalizeRequests(report?.requests, team), requiredReviews: requiredReviews(team),
         ...(team === 'qa' ? { findings: { ...qaFindings(report), blocking,
           ...(engineTools.some(t => t.id === 'document-quality' && t.reviewRequired) ? { documentReviewRequired: true } : {}),
