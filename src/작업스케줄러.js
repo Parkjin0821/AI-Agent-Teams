@@ -883,7 +883,35 @@ export class GoalScheduler {
     const repeated = unproven.filter(c => previousUnproven.includes(c));
     if (repeated.length) team.feedback = `[엔진] 두 번 연속 미충족: ${repeated.join(' / ')}\n같은 작업을 다시 지시하지 말고 원인(구현 결함·검사 한계·요구 불명확·도구 부족)을 나눠 방법이나 담당 팀을 바꾸세요.\n${team.feedback}`;
     team.cycle = (team.cycle ?? 1) + 1;
+    // 자율 작업 조율 3단계: with a task graph the engine assigns the next task itself instead of calling planning.
+    const assigned = this.assignTask(goal, team);
+    if (assigned) return goTo(assigned);
     return advance();
+  }
+
+  // The next task from the graph: the one just tried again if it is not done (with the verification's feedback), else
+  // the first task whose prerequisites are done. Planning is called instead (null) when nothing is ready, when a task
+  // has failed three times (it needs a new plan, not a fourth try), or when the project has no graph.
+  assignTask(goal, team) {
+    const plan = this.store.getGoal(goal.id)?.taskPlan ?? goal.taskPlan;
+    if (!plan?.tasks?.length) return null;
+    const ready = readyTasks(plan);
+    const again = ready.find(t => t.id === team.taskId);
+    if (again && (again.attempts ?? 0) >= 3) {
+      team.feedback = `[엔진] 작업 ${again.id} (${again.title}) 이 ${again.attempts}번 시도에도 끝나지 않았습니다. 이 작업을 나누거나 방법·담당 팀을 바꿔 작업 계획을 다시 짜 주세요.\n${team.feedback}`;
+      team.taskId = null;
+      return null;
+    }
+    const task = again ?? ready[0];
+    if (!task) return null;
+    team.worker = task.team;
+    team.taskId = task.id;
+    team.task = `${task.id} ${task.title}${again ? ' (검증 지적을 반영해 다시)' : ''}`;
+    team.reviews = [];
+    this.update(goal, { taskPlan: markRunning(plan, task.id),
+      messages: this.withControl(this.store.getGoal(goal.id) ?? goal, `엔진 배정 · ${task.id} ${task.title} → ${TEAMS[task.team]?.name ?? task.team}${again ? ' (다시)' : ''}`) });
+    void this.store.emit({ type: 'task.assigned', goalId: goal.id, projectId: goal.projectId, task: task.id, team: task.team, again: !!again });
+    return task.team;
   }
 
   decide(goal, result, evidence, now) {

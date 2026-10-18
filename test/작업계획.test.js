@@ -64,9 +64,9 @@ test('작업 계획: planning writes the graph with the criteria, picks tasks by
   try {
     for (let i = 0; i < 5; i++) await scheduler.runGoal(goal.id);
     const g = store.getGoal(goal.id);
-    assert.deepEqual(calls, ['plan', 'plan', 'research:T1', 'qa:T1', 'plan:T1'], 'T1 went to its own team (research), not the team planning named; verification knows the task');
+    assert.deepEqual(calls, ['plan', 'plan', 'research:T1', 'qa:T1', 'design:T2'], 'T1 went to its own team (research); after verification the engine handed T2 to design without calling planning');
     assert.match(g.messages.map(m => m.text).join('\n'), /작업 계획 3개:\nT1 조사팀 · 요구사항 정리\nT2 디자인팀 · 화면 설계·구현 \(← T1\)/);
-    assert.deepEqual(g.taskPlan.tasks.map(t => [t.id, t.status, t.attempts]), [['T1', 'done', 1], ['T2', 'pending', 0], ['T3', 'running', 1]]);
+    assert.deepEqual(g.taskPlan.tasks.map(t => [t.id, t.status, t.attempts]), [['T1', 'done', 1], ['T2', 'running', 1], ['T3', 'pending', 0]]);
   } finally { store.close(); }
 });
 
@@ -120,5 +120,29 @@ test('표준 인계: the scheduler keeps a work step\'s handoff on its task', as
     for (let i = 0; i < 3; i++) await scheduler.runGoal(goal.id);
     const t1 = store.getGoal(goal.id).taskPlan.tasks[0];
     assert.deepEqual([t1.handoff.made[0].path, t1.handoff.openIssues[0]], ['요구사항.md', '정산 미정']);
+  } finally { store.close(); }
+});
+
+test('엔진 배정: an unfinished task is tried again with the feedback; after three tries planning is asked to re-plan', async () => {
+  const store = new PersistentStore({ dataDir: mkdtempSync(path.join(tmpdir(), 'hq-assign-')) });
+  const calls = [];
+  let plans = 0;
+  const scheduler = new GoalScheduler({ store, clock: { now: () => Date.parse('2026-10-18T09:00:00Z') }, policy: { ...DEFAULT_POLICY, maxNoProgress: 99 }, autonomy: () => 'L2',
+    trust: { required: () => 0, count: () => 0, add: () => {} },
+    runner: { run: async (goal, run) => {
+      calls.push(run.team + (goal.team.taskId ? ':' + goal.team.taskId : ''));
+      if (run.team === 'plan') return ++plans === 1 ? { outcome: 'completed', plan: { nextTask: 's', team: 'dev', reviews: [], completionCriteria: C, tasks: parseTasks(RAW) } }
+        : { outcome: 'completed', plan: { nextTask: 'T1', team: 'research', taskId: 'T1', reviews: [] } };
+      if (run.team === 'qa') return { outcome: 'completed', evidence: [], findings: { feedback: '요구사항.md 가 비어 있음', improvements: [] }, claims: [{ criterion: C[0], check: 'fail' }] };
+      return { outcome: 'completed', diffHash: 'd' + calls.length, evidence: [] };
+    } } });
+  const goal = scheduler.addGoal({ projectId: 'assign', kind: 'team', autoRun: true, objective: 'x', conversation: true, completionCriteria: [] });
+  try {
+    for (let i = 0; i < 9 && calls.filter(c => c === 'plan' || c.startsWith('plan:')).length < 3; i++) await scheduler.runGoal(goal.id);
+    assert.deepEqual(calls.slice(0, 8), ['plan', 'plan', 'research:T1', 'qa:T1', 'research:T1', 'qa:T1', 'research:T1', 'qa:T1']);
+    assert.equal(calls[8], 'plan', 'third failure: planning, not a fourth try');
+    const g = store.getGoal(goal.id);
+    assert.match(g.team.feedback, /작업 T1 \(요구사항 정리\) 이 3번 시도에도 끝나지 않았습니다/);
+    assert.ok(g.messages.some(m => /엔진 배정 · T1 요구사항 정리 → 조사팀 \(다시\)/.test(m.text)));
   } finally { store.close(); }
 });
