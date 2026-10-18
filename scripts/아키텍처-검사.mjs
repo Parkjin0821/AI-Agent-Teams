@@ -29,10 +29,17 @@ let unapproved = false;
 if (args[0] === '--staged') {
   const staged = spawnSync('git', ['diff', '--cached', '--name-only', '-z'], { cwd: ROOT, encoding: 'utf8' }).stdout.split('\0').filter(Boolean);
   const touched = staged.filter(f => readPolicy().protectedFiles.includes(f));
-  if (touched.length && process.env.AGENT_HQ_ARCH_APPROVED !== '대장') {
+  const { signingMode, checkProtected, protectedHashes } = await import('../src/승인서명.js');
+  if (touched.length && signingMode() === 'enforced') {
+    // 서명 승인: the environment variable no longer counts. The staged content must be what 대장 signed.
+    const now = protectedHashes({ policy: readPolicy(), staged: true });
+    const r = checkProtected({ files: Object.fromEntries(touched.map(f => [f, now[f] ?? '(지워짐)'])) });
+    if (!r.ok) { console.log(`✗ 보호 파일 변경 — 대장 서명 승인과 다르다:\n- ${r.problems.join('\n- ')}\n  node scripts/승인-서명.mjs --request-protected "목적" 로 요청을 만들고 대장이 서명한다`); unapproved = true; }
+    else console.log(`✓ 보호 파일 변경 — 대장 서명 승인 확인: ${touched.join(', ')}`);
+  } else if (touched.length && process.env.AGENT_HQ_ARCH_APPROVED !== '대장') {
     console.log(`✗ 보호 파일 변경 — 대장 승인 표시가 없다: ${touched.join(', ')}\n  대장이 확인한 변경이면: AGENT_HQ_ARCH_APPROVED=대장 git commit ...`);
     unapproved = true;
-  } else if (touched.length) console.log(`✓ 보호 파일 변경 — 대장 승인 표시 있음: ${touched.join(', ')}`);
+  } else if (touched.length) console.log(`✓ 보호 파일 변경 — 대장 승인 표시 있음 (서명 키 미등록 — 신원 보장 약함): ${touched.join(', ')}`);
 }
 console.log(!ok ? '\n아키텍처 검사 실패 · 헌장(AGENT_HQ_CONSTITUTION.md)이 지키라는 구조가 빠졌습니다.'
   : unapproved ? '\n커밋 보류 · 헌장·가드 파일 변경에는 대장 승인 표시가 필요합니다.' : '\n아키텍처 검사 통과');

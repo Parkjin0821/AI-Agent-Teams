@@ -949,7 +949,7 @@ main.is-office{max-width:none;padding:14px 24px 14px}
 /* the tool a desk's work runs on — apart from the team (헌장: 팀 역할과 실행 모델은 별개) */
 .of-prov rect{fill:#fff;stroke:var(--line)}.of-prov text{font-size:9.5px;font-weight:600;fill:var(--text-2)}
 .of-prov.claude circle{fill:#7C6CF2}.of-prov.codex circle{fill:#0EA5B7}.of-prov.codex rect{stroke:#99E3EC}
-.of-prov-t{font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--text-3);white-space:nowrap}
+.of-prov-t{font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--text-3);white-space:nowrap;max-width:190px;overflow:hidden;text-overflow:ellipsis}
 .of-prov-t.claude{color:#5B4FD1}.of-prov-t.codex{color:#0E7C8A;border-color:#99E3EC}.of-prov-t.none{display:none}
 .of-dot.usage{fill:#A1A1AA}
 .of-gate{fill:#E4E4E7;stroke:#D4D4D8}.of-gate-beam{stroke:var(--attn);stroke-width:3;stroke-linecap:round;opacity:.7}
@@ -1257,7 +1257,7 @@ button.of-prow:hover .t{color:var(--accent)}button.of-prow:focus-visible{outline
       <sc-if value="{{of.work.empty}}"><p class="hint" style="margin: 0">진행 중인 프로젝트가 없습니다.</p></sc-if>
     </section>
     <section class="of-card of-teamlist" aria-labelledby="of-now-h"><h3 class="of-h" id="of-now-h">팀 현황</h3>
-      <ul class="of-list"><sc-for list="{{of.rows}}" as="r"><li class="{{r.cls}}"><span class="dot"></span><span class="who">{{r.name}}</span><span class="what" title="{{r.what}}">{{r.what}}</span><span class="{{r.provCls}}">{{r.prov}}</span></li></sc-for></ul></section>
+      <ul class="of-list"><sc-for list="{{of.rows}}" as="r"><li class="{{r.cls}}"><span class="dot"></span><span class="who">{{r.name}}</span><span class="what" title="{{r.what}}">{{r.what}}</span><span class="{{r.provCls}}" title="{{r.prov}}">{{r.prov}}</span></li></sc-for></ul></section>
   </div>
 </div>
 </sc-if>
@@ -3765,7 +3765,10 @@ class Component extends DCLogic {
       const target = mode === 'asking' ? asking[0] : mode === 'stopped' ? stopped[0] : null;
       // 실행 도구 (헌장): the team is a role, the tool running it is shown apart — the running step's own tool, else the
       // one its next step would use, else the team's default. Codex appears here as soon as a project gives it a step.
-      const executor = ((running[0] || mine[0] || {}).g || {}).model?.executor || t.tool;
+      const g0 = (running[0] || mine[0] || {}).g || {};
+      const executor = g0.model?.executor || t.tool;
+      // the model that actually ran this team's step (as the CLI reported it), else the one requested — never guessed
+      const modelName = g0.model?.actual || (g0.model?.requested ? g0.model.requested + ' 요청' : '');
       const room = OFFICE_ROOMS.find((r) => r.teams.includes(t.id)) || { x: 0, w: 1080 };
       return Object.assign(officeLook(t.id), { id: t.id, x: xy[0], y: xy[1], name: t.name, state: state, line: line, mode: mode, intro: intro,
         cls: 'of-desk team-' + t.id + ' ' + mode + (sel === t.id ? ' sel' : ''), personCls: 'of-person' + (away ? ' away' : ''), dotCls: 'of-dot ' + mode,
@@ -3773,7 +3776,7 @@ class Component extends DCLogic {
         // what each state looks like: typing (working, verifying), a raised hand (asking), head in hand (stopped),
         // arms folded, leaning back by an hourglass (waiting for usage), hands on the lap (next in line), coffee (resting)
         poseType: ['working', 'verifying'].includes(mode), poseRaise: mode === 'asking', poseHead: mode === 'stopped', poseLap: mode === 'queued', poseFold: mode === 'usage', poseMug: mode === 'idle',
-        t: { [t.id]: true }, executor: executor, prov: executor === 'codex' ? 'Codex' : 'Claude', provCls: 'of-prov ' + (executor === 'codex' ? 'codex' : 'claude'),
+        t: { [t.id]: true }, executor: executor, modelName: modelName, prov: executor === 'codex' ? 'Codex' : 'Claude', provCls: 'of-prov ' + (executor === 'codex' ? 'codex' : 'claude'),
         hasSay: !!say && !away, say: say, sw: sw, sx: sx, textX: textX, tip: run ? 146 : 47, right: run ? '1' : '',
         // the right edge of this desk's room (less a margin), in the desk's own units: a bubble never crosses it
         maxX: room.x + room.w - 8 - xy[0], tail: 'M' + (tip - 5) + ' 23.5L' + tip + ' 29.5L' + (tip + 5) + ' 23.5',
@@ -3933,7 +3936,7 @@ class Component extends DCLogic {
         go: () => this.go('observe'), key: keyed(() => this.go('observe')) },
       // 지금: only the teams doing or waiting for something; the ones at rest share one line.
       // 팀 현황: every team in words, with the tool its work runs on (a role and its tool are shown apart)
-      rows: desks.map((d) => ({ name: d.name, cls: 'team-' + d.id + ' ' + d.mode + (sel === d.id ? ' sel' : ''), what: rowWhat(d), prov: d.prov, provCls: 'of-prov-t ' + (d.executor === 'codex' ? 'codex' : 'claude') }))
+      rows: desks.map((d) => ({ name: d.name, cls: 'team-' + d.id + ' ' + d.mode + (sel === d.id ? ' sel' : ''), what: rowWhat(d), prov: d.prov + (d.modelName ? ' · ' + d.modelName : ''), provCls: 'of-prov-t ' + (d.executor === 'codex' ? 'codex' : 'claude') }))
         .concat([{ name: '대장', cls: pendingTotal ? 'waiting' : 'idle', what: pendingTotal ? '확인할 일 ' + pendingTotal + '건 · 승인함에서 처리' : '확인할 일 없음', prov: '', provCls: 'of-prov-t none' }]),
       log: log, logEmpty: !log.length,
       sel: { has: !!selTeam, name: selTeam ? selTeam.name : '', intro: selTeam ? (OFFICE_PEOPLE[sel] || {}).intro : '', role: selTeam ? selTeam.role : '',

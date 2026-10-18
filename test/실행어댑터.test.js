@@ -250,3 +250,14 @@ test('실시간 진행: Codex commands as seen in a real Windows run read as pla
   assert.equal(activityFrom(read), '파일 읽는 중 · p-abc/index.html');
   assert.equal(activityFrom({ type: 'item.completed', item: { type: 'agent_message', text: 'notes/hello.md를 작성하겠습니다.\n둘째 줄' } }), 'notes/hello.md를 작성하겠습니다.');
 });
+
+test('token usage: Claude and Codex reports land in one shape; Codex turns add up', async () => {
+  const { usageFrom, addUsage } = await import('../src/실행어댑터.js');
+  assert.deepEqual(usageFrom({ type: 'result', usage: { input_tokens: 8, output_tokens: 1498, cache_read_input_tokens: 26440, cache_creation_input_tokens: 5171 } }),
+    { inputTokens: 31619, cachedInputTokens: 26440, cacheWriteTokens: 5171, outputTokens: 1498, reasoningTokens: 0 });
+  const turn = usageFrom({ type: 'turn.completed', usage: { input_tokens: 69987, cached_input_tokens: 47872, cache_write_input_tokens: 0, output_tokens: 621, reasoning_output_tokens: 82 } });
+  assert.deepEqual(turn, { inputTokens: 69987, cachedInputTokens: 47872, cacheWriteTokens: 0, outputTokens: 621, reasoningTokens: 82 });
+  assert.equal(addUsage(addUsage(null, turn), turn).outputTokens, 1242);
+  assert.equal(usageFrom({ type: 'assistant' }), null);
+  assert.equal(usageFrom({ type: 'result', usage: { input_tokens: -1, output_tokens: 'x' } }).inputTokens, 0, 'nonsense counts are dropped');
+});

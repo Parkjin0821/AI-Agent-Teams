@@ -643,6 +643,8 @@ export class GoalScheduler {
     // the user asked for; the per-criterion claims are what the tool said, not evidence.
     this.store.saveRun({ ...run, status: 'finished', finishedAt: iso(now), outcome: result.outcome ?? 'invalid_result',
       errorKind: result.errorKind ?? null, diffHash: result.diffHash ?? null, evidence: roundEvidence, actualModel,
+      // Token usage as the tool reported it (input incl. cache, cache read/write, output, reasoning); null when not reported.
+      usage: result.usage && typeof result.usage === 'object' ? result.usage : null,
       simulated: result.simulated === true,
       answer: typeof result.answer === 'string' ? result.answer.slice(0, 4000) : null,
       checkpoint: this.store.listRuns(goal.id).find(r => r.id === run.id)?.checkpoint ?? null,

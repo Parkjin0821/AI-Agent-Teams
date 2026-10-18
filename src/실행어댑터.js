@@ -186,6 +186,32 @@ export function rateLimitFrom(event) {
     ...(Object.keys(usage).length ? { usage } : {}) };
 }
 
+// 토큰 사용량 (대장 지시 2026-10-18): only what the CLI itself reports, put in one shape for both tools.
+//   Claude Code stream-json: {"type":"result", "usage": {input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens}}
+//     (input_tokens there excludes the cached part)
+//   Codex --json: {"type":"turn.completed", "usage": {input_tokens, cached_input_tokens, cache_write_input_tokens, output_tokens, reasoning_output_tokens}}
+//     (input_tokens there includes the cached part; one event per turn, so they add up)
+// → { inputTokens (all input, cached included), cachedInputTokens, cacheWriteTokens, outputTokens, reasoningTokens } or null.
+const count = v => (Number.isFinite(v) && v >= 0 ? v : 0);
+export function usageFrom(event) {
+  const u = event?.usage;
+  if (!u || typeof u !== 'object') return null;
+  if (event.type === 'result') {
+    const cached = count(u.cache_read_input_tokens), write = count(u.cache_creation_input_tokens);
+    return { inputTokens: count(u.input_tokens) + cached + write, cachedInputTokens: cached, cacheWriteTokens: write, outputTokens: count(u.output_tokens), reasoningTokens: 0 };
+  }
+  if (event.type === 'turn.completed') {
+    return { inputTokens: count(u.input_tokens), cachedInputTokens: count(u.cached_input_tokens), cacheWriteTokens: count(u.cache_write_input_tokens),
+      outputTokens: count(u.output_tokens), reasoningTokens: count(u.reasoning_output_tokens) };
+  }
+  return null;
+}
+export function addUsage(total, more) {
+  if (!more) return total;
+  if (!total) return { ...more };
+  return Object.fromEntries(Object.keys(more).map(k => [k, (total[k] ?? 0) + more[k]]));
+}
+
 // Only a model name the tool itself printed counts; nothing is inferred from settings.
 export function reportedModel(stdout) {
   for (const line of stdout.split(/\r?\n/)) {
@@ -292,7 +318,8 @@ export class CliAgentAdapter {
       const child = spawn(command.file, command.args, { cwd: command.cwd, shell: false, windowsHide: true, env: command.env });
       let head = '', partial = '', model = null, answer = null, stderr = '', timedOut = false, settled = false;
       const limits = new Map();
-      const finish = (result) => { if (!settled) { settled = true; clearTimeout(timer); resolve({ ...result, answer, rateLimits: [...limits.values()] }); } };
+      let usage = null;
+      const finish = (result) => { if (!settled) { settled = true; clearTimeout(timer); resolve({ ...result, answer, usage, rateLimits: [...limits.values()] }); } };
       const timer = setTimeout(() => { timedOut = true; killTree(child); }, this.timeoutMs);
       // Read the JSON event stream line by line, keeping only what we need (model, final answer).
       const consume = (line) => {
@@ -303,6 +330,7 @@ export class CliAgentAdapter {
         if (limit) limits.set(limit.window, limit);
         const text = answerFrom(event);
         if (text !== null) answer = text;
+        usage = addUsage(usage, usageFrom(event));
         const doing = activityFrom(event, cwd);
         if (doing) onEvent({ type: 'step.activity', provider, text: doing });
       };

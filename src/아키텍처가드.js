@@ -96,6 +96,12 @@ const CHECKS = [
     const missing = (policy.requiredTests ?? []).filter(f => !existsSync(path.join(root, ...f.split('/'))));
     return !policy.requiredTests?.length ? '정책에 필수 테스트 목록이 없다' : missing.length ? `테스트가 없다: ${missing.join(', ')}` : null;
   }],
+  ['서명 승인', '대장 서명 키가 등록돼 있으면 보호 파일이 서명 승인된 내용과 같다', async ({ load, root, policy }) => {
+    const { signingMode, checkProtected, protectedHashes } = await load('src/승인서명.js');
+    if (signingMode(root) !== 'enforced') return null;
+    const r = checkProtected({ files: protectedHashes({ root, policy }), root });
+    return r.ok ? null : r.problems.join(' / ');
+  }],
   ['보호 파일', '헌장·정책·가드·커밋 검사 파일이 있다', async ({ root, policy }) => {
     const missing = (policy.protectedFiles ?? []).filter(f => !existsSync(path.join(root, ...f.split('/'))));
     return !policy.protectedFiles?.length ? '정책에 보호 파일 목록이 없다' : missing.length ? `보호 파일이 없다: ${missing.join(', ')}` : null;
@@ -119,6 +125,10 @@ export async function checkArchitecture({ root = ROOT, policy = null, load = nul
   const s = pol.codexTeamExecution ?? {};
   const warnings = s.state === 'suspended' && s.reviewBy && s.reviewBy < now
     ? [`Codex 일시 중지가 재검토일(${s.reviewBy})을 넘겼다 · 격리 환경 복원 진행 상황을 대장에게 보고하고 날짜를 다시 정한다`] : [];
+  try {
+    const { signingMode } = await ctx.load('src/승인서명.js');
+    if (signingMode(root) !== 'enforced') warnings.push('대장 서명 키가 등록되지 않았다 · 보호 파일 승인은 환경변수 표시뿐이라 신원을 보장하지 못한다 (node scripts/승인-서명.mjs --setup)');
+  } catch { /* 승인서명.js missing is caught by the protected-file check */ }
   return { ok: results.every(r => r.ok), results, warnings };
 }
 

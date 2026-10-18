@@ -65,9 +65,12 @@ test('policy change during a run applies only from the next round; displayed mod
 
   clock.t += 6 * HOUR; scheduler.tick(); await flush();
   assert.equal(calls[1].model, 'model-b');
-  releases.shift()({ outcome: 'completed', model: 'model-b', diffHash: 'd2' });
+  const usage = { inputTokens: 120, cachedInputTokens: 100, cacheWriteTokens: 5, outputTokens: 30, reasoningTokens: 0 };
+  releases.shift()({ outcome: 'completed', model: 'model-b', diffHash: 'd2', usage });
   await flush(); await flush();
   assert.equal(store.getGoal(goal.id).activeModel, 'model-b');
+  // Token usage reported by the tool is kept on the run record; a run without a report keeps null.
+  assert.deepEqual(store.listRuns(goal.id).map(r => r.usage), [null, usage]);
   assert.equal(scheduler.modelStatus(goal.id).changePending, false);
   store.close();
 });
