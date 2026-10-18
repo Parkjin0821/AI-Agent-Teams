@@ -464,6 +464,26 @@ test('10차 2번: only criteria 대장 judges by design left → owner_approval 
     assert.equal(calls.length, 3, 'no further step ran');
   } finally { store.close(); }
 });
+test('10차 사무실: each change of hands is recorded once as team.handoff with its own event id', async () => {
+  let plans = 0;
+  const { store, scheduler, add } = setup(team => {
+    if (team === 'plan') return plans++ === 0 ? { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } } : { outcome: 'completed', plan: { allDone: true } };
+    if (team === 'dev') return { outcome: 'completed', diffHash: 'd1', evidence: ev(0) };
+    if (team === 'qa') return { outcome: 'completed', evidence: ev(0), findings: { feedback: '', improvements: [] },
+      claims: [{ criterion: C[0], check: 'pass' }, { criterion: C[1], check: 'none', person: true }] };
+    return { outcome: 'completed', review: { blocking: false, issues: [] } };
+  });
+  try {
+    const goal = add();
+    for (let i = 0; i < 6 && store.getGoal(goal.id).status !== 'review_required'; i++) await scheduler.runGoal(goal.id);
+    scheduler.answer(goal.id, '하나 더 고쳐 줘');
+    await new Promise(r => setImmediate(r));
+    const hand = store.recentEvents(100).filter(e => e.type === 'team.handoff').reverse();
+    assert.deepEqual(hand.map(e => `${e.from}>${e.to}`), ['plan>dev', 'dev>qa', 'qa>boss', 'boss>plan']);
+    assert.equal(new Set(hand.map(e => e.id)).size, 4, 'unique ids');
+    assert.ok(hand.every(e => e.goalId === goal.id && e.projectId === 'budget'));
+  } finally { store.close(); }
+});
 test('10차 2번: a review gap left open keeps it a question (needs_decision) even when only 대장 criteria remain', () => {
   const OWN = ['index.html 파일이 있다', '빵집다운 느낌이다 (대장이 화면에서 확인)'];
   const { store, scheduler, add } = setup(() => ({}));

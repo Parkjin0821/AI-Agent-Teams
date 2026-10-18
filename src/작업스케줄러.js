@@ -197,6 +197,7 @@ export class GoalScheduler {
     this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, question: null, autoRun: true, nextRunAt: at, messages,
       team: { ...goal.team, step: 'plan', feedback: `질문 · ${goal.question}\n대장 답변 · ${reply}`, criteriaCheck: true, awaitingJudgement: null } });
     void this.store.emit({ type: 'goal.answered', goalId });
+    void this.handedOff(goal, 'boss');
     return goal;
   }
 
@@ -230,6 +231,7 @@ export class GoalScheduler {
       messages: this.withControl(goal, refusals.length ? `감시 에이전트 요청 처리 · 거절 ${refusals.length}건 · 계속` : '감시 에이전트 요청 처리 · 계속'),
       ...(note ? { team: { ...goal.team, feedback: [goal.team?.feedback, note].filter(Boolean).join('\n') } } : {}) });
     void this.store.emit({ type: 'goal.approvals_answered', goalId });
+    void this.handedOff(goal, 'boss');
     return goal;
   }
 
@@ -252,6 +254,7 @@ export class GoalScheduler {
         team: { ...goal.team, step: 'plan', feedback: `[대장] ${TEAMS[team].name} 결과를 되돌림: ${text}`, cycle: (goal.team?.cycle ?? 1) + 1 } });
     }
     void this.store.emit({ type: 'goal.trust_reviewed', goalId, team, accept: accept === true });
+    void this.handedOff(goal, 'boss');
     return goal;
   }
 
@@ -336,9 +339,11 @@ export class GoalScheduler {
     if (['trust_review', 'approval_required'].includes(goal.reason) || (goal.reason === 'criteria_approval_required' && goal.criteriaApprovalPending)) {
       throw new Error('this goal waits for 대장: answer it in the approval inbox');
     }
+    const fromBoss = goal.status === GoalStatus.REVIEW_REQUIRED;
     this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, attempt: 0, testFixAttempts: 0,
       noProgressRounds: 0, nextRunAt: iso(this.clock.now()), messages: this.withControl(goal, '다시 시작') });
     void this.store.emit({ type: 'goal.resumed', goalId });
+    if (fromBoss) void this.handedOff(goal, 'boss');
     return goal;
   }
 
@@ -595,6 +600,18 @@ export class GoalScheduler {
     if (goal.status === GoalStatus.VERIFIED && goal.lane) this.laneFinished(goal);
     if (goal.status === GoalStatus.VERIFIED && !result.simulated) this.dispatchFollowup(goal);
     await this.store.emit({ type: `goal.${goal.status}`, goalId: goal.id, round: run.round, reason: goal.reason, team: run.team });
+    await this.handedOff(goal, run.team);
+  }
+
+  // 사무실 인계 (10차): the work changed hands — from the team whose step just ended (or from 대장 after an answer) to the
+  // next team, or to 대장 when it waits for him or is done. Recorded once, with the store's own event id, so the office
+  // plays each hand-off once however often the page reloads or reconnects.
+  async handedOff(goal, from) {
+    if (goal?.kind !== 'team' || !from) return null;
+    const to = [GoalStatus.REVIEW_REQUIRED, GoalStatus.VERIFIED].includes(goal.status) ? 'boss'
+      : [GoalStatus.SCHEDULED, GoalStatus.RUNNING, GoalStatus.RETRY_WAIT, GoalStatus.MODEL_WAIT].includes(goal.status) && TEAMS[goal.team?.step] ? goal.team.step : null;
+    if (!to || to === from) return null;
+    return this.store.emit({ type: 'team.handoff', goalId: goal.id, projectId: goal.projectId, from, to, ...(goal.status === GoalStatus.VERIFIED ? { done: true } : {}) });
   }
 
   // 반복 검토 생략 (팀검토.js reviewSkip): drops the reviews whose latest pass still holds and notes them on the team.
