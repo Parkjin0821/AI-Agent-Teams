@@ -184,6 +184,20 @@ async function watch(file, hours = 6) {
           steps: runs.length, modelCalls: runs.filter(r => r.actualModel).length,
           engineOnly: runs.filter(r => String(r.answer ?? '').startsWith('엔진 단독 검증')).length,
           interrupted: runs.filter(r => r.status === 'interrupted').length, resumed: (g.recoveries ?? []).length });
+        const now = new Date().toISOString();
+        // 하루 단계 한도: a wait for the next day is not a failure. Where it stopped is kept; after the reset the first new
+        // step must be the one the engine had queued (continued), not a finished step done again.
+        if (g.reason === 'daily_cap' && !(it.capWaits ?? []).some(w => !w.resumedAt)) {
+          (it.capWaits ??= []).push({ at: now, steps: runs.length, step: g.team?.step ?? null, taskId: g.team?.taskId ?? null });
+        }
+        const wait = (it.capWaits ?? []).find(w => !w.resumedAt);
+        if (wait && g.reason !== 'daily_cap' && runs.length > wait.steps) {
+          const first = runs[wait.steps];
+          Object.assign(wait, { resumedAt: first.startedAt ?? now, firstTeam: first.team, continued: first.team === wait.step });
+        }
+        // 24시간 완료율 vs 누적: when the project was first seen finished (a finish the engine later took back is noted).
+        if (g.status === 'verified' && !it.verifiedAt) it.verifiedAt = now;
+        if (g.status !== 'verified' && it.verifiedAt) { (it.unverified ??= []).push({ at: now, was: it.verifiedAt }); it.verifiedAt = null; }
         // 장애 주입: the first time a work step runs, kill the server hard and start it again.
         const last = runs.at(-1);
         if (CHAOS && !rec.chaos && g.status === 'running' && last?.status === 'running' && ['research', 'dev', 'design'].includes(last.team)) {
@@ -200,7 +214,9 @@ async function watch(file, hours = 6) {
       save(file, rec);
       const line = rec.items.map(it => `${it.kind}:${it.status ?? '?'}${it.reason ? '/' + it.reason : ''} ${it.met ?? 0}/${it.total ?? 0}`).join(' | ');
       if (line !== lastLine) { console.log(new Date().toTimeString().slice(0, 8), line); lastLine = line; }
-      const settled = rec.items.every(it => DONE.has(it.status) || (it.status === 'review_required' && it.reason !== 'criteria_approval_required') || it.reason === 'daily_cap');
+      // --through-cap: a project waiting for tomorrow's steps is still running for this measurement (10차: the five capped
+      // projects go on after the reset under the same record).
+      const settled = rec.items.every(it => DONE.has(it.status) || (it.status === 'review_required' && it.reason !== 'criteria_approval_required') || (it.reason === 'daily_cap' && !THROUGH_CAP));
       if (settled && rec.items.every(it => it.status)) break;
     }
     await new Promise(r => setTimeout(r, 20_000));
@@ -217,7 +233,7 @@ function engineEvents(ids) {
   const out = [];
   try {
     const db = new DatabaseSync(path.join(root, 'data', 'real-test', 'hq.sqlite'), { readOnly: true });
-    for (const row of db.prepare("select body from events where body like '%\"task.%' or body like '%policy.auto%'").all()) {
+    for (const row of db.prepare("select body from events where body like '%\"task.%' or body like '%policy.auto%' or body like '%\"goal.%'").all()) {
       const e = JSON.parse(row.body);
       if (ids.has(e.goalId)) out.push(e);
     }
@@ -256,6 +272,22 @@ async function measure(file) {
     const base = path.join(root, project.workspacePath);
     it.metrics = measureGoal({ goal, runs: goal.runs ?? [], events: events.filter(e => e.goalId === goal.id), files: folderFiles(base), read: readText(base), rubric: rubricOf(it) });
     it.workspace = project.workspacePath;
+    // 대장 개입 (from the engine's own events, not the 20-second watch: 회의록 stopped and was confirmed within 7 seconds,
+    // and the watch never saw the stop). The harness's criteria approval is counted apart (approvals).
+    // An action after an owner_approval stop is 대장's planned final look (everything objective already proven), not an
+    // intervention.
+    const mine = events.filter(e => e.goalId === goal.id).sort((a, b) => String(a.at ?? '').localeCompare(String(b.at ?? '')));
+    let stop = null;
+    it.ownerActions = [];
+    for (const e of mine) {
+      if (e.type === 'goal.review_required') stop = e.reason ?? null;
+      if (OWNER_EVENTS.includes(e.type) || (e.type === 'goal.verified' && e.criterion)) {
+        it.ownerActions.push({ type: e.type, at: e.at ?? null, after: stop, final: stop === 'owner_approval', ...(e.criterion ? { criterion: String(e.criterion).slice(0, 80) } : {}) });
+      }
+    }
+    const firstDone = mine.find(e => e.type === 'goal.verified');
+    if (goal.status === 'verified' && !it.verifiedAt && firstDone?.at) it.verifiedAt = firstDone.at;
+    it.corrections = mine.filter(e => e.type === 'goal.completion_corrected').map(e => ({ at: e.at ?? null, criteria: e.criteria?.length ?? 0 }));
   }
   rec.measuredAt = new Date().toISOString();
   save(file, rec);
@@ -288,9 +320,32 @@ function autoApprovals(rec) {
 
 function report(file) {
   const rec = JSON.parse(readFileSync(file, 'utf8'));
-  const real = it => it.interventions.filter(x => !x.final);
+  // A stop the watch saw, or an action of 대장's in the engine's own records — either is an intervention unless it was
+  // the final look.
+  const real = it => [...it.interventions.filter(x => !x.final), ...(it.ownerActions ?? []).filter(a => !a.final)];
   const alone = rec.items.filter(it => !real(it).length && (it.status === 'verified' || it.interventions.some(x => x.final))).length;
   console.log(`\n자율 완료 ${alone}/${rec.items.length} (대장 최종 확인만 남은 것 포함) · 시작 ${rec.startedAt}${rec.endedAt ? ' · 끝 ' + rec.endedAt : ''}`);
+  // 결과 구분 (10차): a wait for tomorrow's steps is not a failure, and a finish 대장 had to step into is not autonomous.
+  const category = it => it.status === 'verified' ? (real(it).length ? '대장 개입 완료' : '자율 완료')
+    : it.reason === 'daily_cap' ? '단계 한도 대기'
+    : ['failed', 'blocked', 'stopped', 'recovery_required'].includes(it.status) ? '실제 실패'
+    : it.status === 'review_required' ? (it.interventions.some(x => x.final) && !real(it).length ? '대장 최종 확인 대기' : '대장 결정 대기') : '진행 중';
+  const byCat = {};
+  for (const it of rec.items) byCat[category(it)] = (byCat[category(it)] ?? 0) + 1;
+  console.log('결과 구분: ' + ['자율 완료', '대장 개입 완료', '대장 최종 확인 대기', '단계 한도 대기', '대장 결정 대기', '실제 실패', '진행 중']
+    .filter(k => byCat[k]).map(k => `${k} ${byCat[k]}`).join(' · '));
+  const n = rec.items.length, day = Date.parse(rec.startedAt) + 24 * 3600_000;
+  const in24 = rec.items.filter(it => it.status === 'verified' && it.verifiedAt && Date.parse(it.verifiedAt) <= day).length;
+  const fin = (byCat['자율 완료'] ?? 0) + (byCat['대장 개입 완료'] ?? 0);
+  console.log(`완료율: 24시간 안 ${in24}/${n} (${Math.round(in24 / n * 100)}%) · 누적 ${fin}/${n} (${Math.round(fin / n * 100)}% · 자율 ${byCat['자율 완료'] ?? 0} · 대장 개입 ${byCat['대장 개입 완료'] ?? 0})`);
+  const waits = rec.items.flatMap(it => (it.capWaits ?? []).map(w => ({ ...w, kind: it.kind })));
+  if (waits.length) {
+    const back = waits.filter(w => w.resumedAt);
+    console.log(`하루 단계 한도: 대기 ${waits.length}번 · 재개 ${back.length}번 (멈춘 자리에서 이어서 ${back.filter(w => w.continued).length}`
+      + `${back.some(w => !w.continued) ? ` · 다른 단계로 시작 ${back.filter(w => !w.continued).map(w => `${w.kind}: ${w.step}→${w.firstTeam}`).join(', ')}` : ''})`);
+  }
+  const corrected = rec.items.filter(it => it.unverified?.length);
+  if (corrected.length) console.log(`완료 정정: ${corrected.map(it => `${it.kind} (${it.unverified.length}번)`).join(', ')} — 엔진이 완료 표시를 되돌림`);
   const sum = k => rec.items.reduce((n, it) => n + (it[k] ?? 0), 0);
   const minutes = rec.endedAt ? Math.round((Date.parse(rec.endedAt) - Date.parse(rec.startedAt)) / 60000) : null;
   console.log(`단계 ${sum('steps')} · 모델 호출 ${sum('modelCalls')} · 엔진 단독 검증 ${sum('engineOnly')} · 끊긴 단계 ${sum('interrupted')} · 스스로 복구 ${sum('resumed')}${minutes != null ? ` · ${minutes}분` : ''}`);
@@ -309,7 +364,8 @@ function report(file) {
     const finalOnly = it.interventions.some(x => x.final) && !real(it).length;
     console.log(`- ${it.kind}: ${it.status ?? '?'}${it.reason ? ' (' + it.reason + ')' : ''} · 조건 ${it.met ?? 0}/${it.total ?? 0} · 단계 ${it.round ?? 0}`
       + (finalOnly ? ' · 대장 최종 확인만 남음' : '')
-      + (real(it).length ? ` · 대장 개입 ${real(it).length}번: ${real(it).map(x => `${x.reason}(${x.round}단계)`).join(', ')}` : '')
+      + (real(it).length ? ` · 대장 개입 ${real(it).length}번: ${real(it).map(x => x.reason ? `${x.reason}(${x.round}단계)`
+        : `${x.type.replace('goal.', '')}${x.after ? ` · ${x.after} 뒤` : ''}`).join(', ')}` : '')
       + ` · 승인 요청 ${asked(it)} · 자동 ${autoOf[it.goalId] ?? 0}`);
   }
   const measured = rec.items.filter(it => it.metrics);
@@ -335,6 +391,9 @@ function report(file) {
 
 const cmd = process.argv[2];
 const CHAOS = process.argv.includes('--chaos');
+const THROUGH_CAP = process.argv.includes('--through-cap');
+// 대장's own actions in the engine's records (goal.verified with a criterion = finished by 대장's confirmation).
+const OWNER_EVENTS = ['goal.confirmed', 'goal.answered', 'goal.approvals_answered', 'goal.resumed'];
 // --autonomy=L2: the projects start with that autonomy level (자율정책.js); without it, the old rules.
 const AUTONOMY = (process.argv.find(a => a.startsWith('--autonomy=')) ?? '').split('=')[1] || null;
 const SET_NAME = (process.argv.find(a => a.startsWith('--set=')) ?? '--set=전체').split('=')[1];

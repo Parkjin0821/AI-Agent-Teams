@@ -157,7 +157,9 @@ export class GoalScheduler {
     const kept = evidence.filter(e => !problems.some(p => p.criterion === e.criterion));
     const note = `완료 표시 정정 · 엔진이 직접 확인하는 조건이 충족되지 않아 다시 진행합니다 (이력은 그대로 둡니다):\n${problems.map(p => `- ${p.criterion} → ${p.why}`).join('\n')}`;
     this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, question: null, nextRunAt: at, autoRun: goal.autoRunBeforeFinish ?? true,
-      evidence: kept, taskPlan: goal.taskPlan?.tasks?.length ? reopenTasks(goal.taskPlan, goal.completionCriteria, kept) : goal.taskPlan,
+      // settled first (a plan from before tasks were settled on confirmation still lists proven work as waiting), then
+      // the tasks behind the failed criteria are opened again
+      evidence: kept, taskPlan: goal.taskPlan?.tasks?.length ? reopenTasks(settleTasks(goal.taskPlan, goal.completionCriteria, kept), goal.completionCriteria, kept) : goal.taskPlan,
       corrections: [...(goal.corrections ?? []), { at, problems }],
       team: { ...goal.team, step: 'plan', awaitingJudgement: null, lastUnproven: null, workSinceQa: true, objectiveStalls: 0,
         feedback: `[엔진] ${note}\n이 조건을 만족하도록 작업을 배정하세요.` },

@@ -119,7 +119,8 @@ test('완료 판정: a confirmation made before this rule (회의록, 10차) doe
     const old = [K[1], K[2]].map(criterion => ({ criterion, proof: '대장 확인', by: 'human', at: 't1' }));
     t.scheduler.update(t.get(), { status: 'verified', reason: null, autoRun: false, autoRunBeforeFinish: true, confirmed: old,
       evidence: [mdProof, ...old.map(({ criterion, proof }) => ({ criterion, proof }))],
-      taskPlan: { ...plan, tasks: plan.tasks.map(x => ({ ...x, status: 'done', attempts: 1 })) }, messages: [{ role: 'team', text: '이전 기록', at: 't0' }] });
+      // as in the real 회의록: verified before tasks were settled on confirmation, so both still say pending
+      taskPlan: { ...plan, tasks: plan.tasks.map(x => ({ ...x, status: 'pending', attempts: 1 })) }, messages: [{ role: 'team', text: '이전 기록', at: 't0' }] });
     const dry = t.scheduler.recheckCompletion(t.goal.id);
     assert.deepEqual([dry.corrected, dry.problems.map(p => p.criterion)], [false, [K[1]]]);
     assert.equal(t.get().status, 'verified', 'a dry run changes nothing');
