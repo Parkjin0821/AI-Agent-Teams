@@ -1,0 +1,3 @@
+#!/bin/sh
+# 아키텍처 검사 (AGENT_HQ_CONSTITUTION.md): Claude Code + Codex 협업 구조가 빠지거나, 보호 파일이 대장 승인 없이 바뀌면 커밋을 막는다.
+exec node scripts/아키텍처-검사.mjs --staged

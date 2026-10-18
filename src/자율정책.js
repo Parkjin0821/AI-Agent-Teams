@@ -19,10 +19,13 @@ export const normalizeLevel = level => LEVELS.includes(level) ? level : null;
 //              ctx.ownerJudged: how many wait for 대장 by design, ctx.rewritten: planning already rewrote them once)
 //   trust    — the 신뢰 쌓기 look at a work team's result
 //   web      — opening a public https site for the first time
+//   architecture — a change to the multi-model structure (AGENT_HQ_CONSTITUTION.md): never automatic, at any level
 //   everything else (question, owner_check, risky_connector, path_rule, external_publish, github, delete, payment,
 //   new_permission, policy_change) always waits for 대장, at every level.
 // → { decision: 'auto' | 'ask', rule }
 export function autonomyDecision(kind, { level, criteria = [], issues = [], ownerJudged = 0, rewritten = false } = {}) {
+  // 헌장: checked first and on its own, so no later rule for another kind can ever let it through.
+  if (kind === 'architecture') return { decision: 'ask', rule: '핵심 설계 변경 · 항상 대장 승인 (헌장)' };
   const r = rank(normalizeLevel(level) ?? 'L0');
   if (kind === 'criteria') {
     if (!criteria.length) return { decision: 'ask', rule: '완료 조건이 없음' };

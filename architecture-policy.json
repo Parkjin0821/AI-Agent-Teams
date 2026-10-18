@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "principle": "AGENT HQ는 Claude Code와 OpenAI Codex가 각자의 강점을 활용해 업무를 자율적으로 분담·협업·교차 검증하고, 중앙 엔진이 실행·보안·완료를 통제하는 멀티 모델 AI 조직이다.",
+  "constitution": {
+    "file": "AGENT_HQ_CONSTITUTION.md",
+    "sha256": "873ef366966239354763a1d422dfdc5d385f833e560f9edc3e313761c456f3e0"
+  },
+  "executors": ["claude-code", "codex"],
+  "invariants": [
+    "헌장 문서가 있고 지문이 맞다",
+    "Claude Code와 Codex 두 실행 도구가 모두 등록돼 있다",
+    "Codex 실행 어댑터가 격리 샌드박스로 팀 단계를 실행할 수 있다",
+    "검토·검증을 작업한 도구와 다른 도구에게 배정할 수 있다 (교차 검토)",
+    "난이도별로 Codex 모델도 고를 수 있다",
+    "Codex 사용량을 따로 읽고 동시 실행 자리가 있다",
+    "스케줄러가 도구 배정·한도 시 전환·교차 검토 배정을 한다",
+    "도구 간 작업 인계가 있다",
+    "Codex 격리 실행기가 있다",
+    "핵심 설계 변경은 어떤 자율 수준에서도 자동 승인되지 않는다",
+    "Codex로 일하는 팀이 없으면 기록된 일시 중지이며 복원 계획이 있다",
+    "Codex 협업 구조를 확인하는 테스트가 있다"
+  ],
+  "codexTeamExecution": {
+    "state": "suspended",
+    "since": "2026-10-17",
+    "reason": "Windows용 Codex 샌드박스(codex-cli 0.163)가 작업 폴더 밖 파일 읽기를 막지 못하는 것을 8차 실측에서 확인. 쓰기·네트워크는 막힘.",
+    "currentPath": "기본값은 모든 팀이 Claude Code. Codex는 대장이 프로젝트 설정에서 다른 구독 사용(allowProviderSwitch)을 허락한 프로젝트에서만, 경고와 함께 실행 (개발팀의 어렵거나 위험한 작업, 사용량 한도 시 전환, 교차 검토).",
+    "restorePlan": [
+      "Codex 팀 실행용 격리 환경을 마련한다 (작업 폴더만 보이는 별도 실행 공간 — 예: 전용 Windows 계정·WSL·컨테이너 중 이 PC에서 되는 것)",
+      "격리 환경에서 작업 폴더 밖 읽기가 막히는지 경계 시험을 자동 테스트로 만든다",
+      "시험을 통과하면 보안팀·검증팀의 교차 검토를 Codex로 되돌리고, 개발팀의 어려운 작업에 Codex를 다시 배정한다",
+      "대시보드에 프로젝트별 Codex 협업 켜기 스위치를 둔다 (지금은 API로만 켤 수 있음)"
+    ],
+    "reviewBy": "2026-11-15"
+  },
+  "requiredTests": [
+    "test/아키텍처가드.test.js",
+    "test/실행어댑터.test.js",
+    "test/작업배정.test.js",
+    "test/안전경계.test.js",
+    "test/스케줄러-팀.test.js",
+    "test/업무도메인.test.js"
+  ],
+  "protectedFiles": [
+    "AGENT_HQ_CONSTITUTION.md",
+    "architecture-policy.json",
+    "src/아키텍처가드.js",
+    "test/아키텍처가드.test.js",
+    "scripts/아키텍처-검사.mjs",
+    ".githooks/pre-commit"
+  ],
+  "approvalMarker": "AGENT_HQ_ARCH_APPROVED=대장"
+}

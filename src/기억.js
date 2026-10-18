@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { TEAMS } from './팀.js';
+import { judgeChange } from './아키텍처가드.js';
 
 // 기억 (Muse-style memory 대장 can see, edit and forget). Kept across projects:
 //   scope 'all'  — applies to every team (e.g. "답은 한국어로", "GPT-5.6 계열은 쓰지 않는다")
@@ -61,23 +62,28 @@ export class Memory {
   }
 
   // A team's suggestions from its report (at most 3 per round, deduplicated). Never active until approved.
+  // 헌장: a suggestion that would steer every later step away from the multi-model structure ("Codex는 쓰지 않는다")
+  // is not kept at all; added.refused lists them with the reason.
   propose(raw, { team, project, kind = 'memory' }) {
     if (!Array.isArray(raw)) return [];
     const items = this.list();
     const seen = new Set(items.map(i => createHash('sha256').update(`${i.scope}|${i.text}`).digest('hex')));
-    const added = [];
+    const added = [], refused = [];
     for (const r of raw.slice(0, 3)) {
       const text = typeof r === 'string' ? r : r?.text;
       const scope = typeof r === 'object' && validScope(r?.scope) ? r.scope : 'all';
       let t; try { t = clean(text, 200); } catch { continue; }
+      const judged = judgeChange(t);
+      if (judged.verdict === 'violation') { refused.push({ text: t, reasons: judged.reasons }); continue; }
       const h = createHash('sha256').update(`${scope}|${t}`).digest('hex');
       if (seen.has(h)) continue;
       seen.add(h);
       added.push({ id: randomUUID(), scope, text: t, by: TEAMS[team]?.name ?? team, project, status: 'pending', at: this.at(),
+        ...(judged.verdict === 'core' ? { architecture: judged.reasons } : {}),
         ...(kind === 'lesson' ? { kind: 'lesson', expiresAt: new Date(this.clock.now() + LESSON_DAYS * 86_400_000).toISOString() } : {}) });
     }
     if (added.length) this.save([...items, ...added]);
-    return added;
+    return Object.assign(added, { refused });
   }
 
   // What one team is told: 대장's approved memory for everyone and for that team.
