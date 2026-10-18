@@ -1425,6 +1425,12 @@ main.is-office{max-width:none;padding:14px 24px 14px}
         <p class="hint" style="margin-top: 8px">{{pb.status}}</p>
         <sc-for list="{{pb.jobs}}" as="j"><div class="small muted">{{j.line}}</div></sc-for>
       </div></sc-if>
+      <sc-if value="{{au.show}}"><div class="card">
+        <div class="lbl">자율 수준</div>
+        <div class="seg wrap" role="group" aria-label="자율 수준"><sc-for list="{{au.levels}}" as="l"><button class="{{l.cls}}" aria-pressed="{{l.pressed}}" onClick="{{l.pick}}" title="{{l.detail}}">{{l.label}}</button></sc-for></div>
+        <p class="hint" style="margin: 8px 0 0">{{au.detail}}</p>
+        <sc-if value="{{au.hasAudit}}"><div class="lbl" style="margin-top: 12px">엔진이 자동 승인한 것</div><sc-for list="{{au.audit}}" as="a"><div class="small muted">{{a}}</div></sc-for></sc-if>
+      </div></sc-if>
       <sc-if value="{{rt.show}}"><div class="card">
         <div class="lbl">템플릿</div>
         <p class="hint" style="margin: 0 0 12px">이 프로젝트의 목표·완료 조건·팀별 모델 선택을 저장해 두고, 새 프로젝트에서 새 내용으로 다시 씁니다. 파일과 대화는 옮기지 않습니다.</p>
@@ -1835,6 +1841,9 @@ main.is-office{max-width:none;padding:14px 24px 14px}
       <div class="field"><label for="np-goal">목표</label><textarea class="ta" id="np-goal" placeholder="무엇을, 어떤 상태까지 만들지" value="{{np.goal}}" onChange="{{np.onGoal}}"></textarea></div>
       <sc-if value="{{np.hasTemplate}}"><div class="field"><label for="np-crit">완료 조건 <span class="opt">(한 줄에 하나)</span></label><textarea class="ta" id="np-crit" style="min-height: 120px" value="{{np.crit}}" onChange="{{np.onCrit}}"></textarea></div></sc-if>
       <sc-if value="{{np.noTemplate}}"><p class="hint">완료 조건은 대화에서 팀이 도출합니다. 직접 작성하지 않아도 됩니다.</p></sc-if>
+      <div class="field"><label>자율 수준</label>
+        <div class="seg wrap" role="group" aria-label="자율 수준"><sc-for list="{{np.levels}}" as="l"><button class="{{l.cls}}" aria-pressed="{{l.pressed}}" onClick="{{l.pick}}" title="{{l.detail}}">{{l.label}}</button></sc-for></div>
+        <p class="hint" style="margin-top: 6px">{{np.levelDetail}} 외부 공개·삭제·결제·새 권한·자율 수준 변경은 어느 수준에서도 대장이 승인합니다.</p></div>
       <div class="note"><b>진행 방식</b> · 기획팀이 다음 작업을 정해 개발팀 또는 디자인팀에 맡기고, 필요하면 보안팀·정책팀이 검토한 뒤 검증팀이 확인합니다. 완료 조건이 모두 확인되면 멈추고 개선안을 올립니다. 대장의 결정이 필요하면 질문을 남깁니다. 하루 {{limits.day}}단계까지 실행합니다.</div>
       <sc-if value="{{np.real}}"><div class="note" style="background: var(--stop-soft); color: var(--stop)"><b style="color: var(--stop)">실제 실행 모드</b> · 시작하면 실제 AI가 실행되고 구독 사용량이 쓰입니다.</div></sc-if>
       <sc-if value="{{np.hasError}}"><div class="hint" style="color: var(--stop)" role="alert">{{np.error}}</div></sc-if>
@@ -2020,6 +2029,12 @@ function stateOf(g) {
   }
 }
 const pillCls = (tone) => 'pill ' + tone;
+// 자율 수준 (자율정책.js LEVEL_INFO, in words for the screen)
+const LEVELS_UI = [['L0', '수동 관리', '완료 조건·결과 확인·처음 여는 사이트까지 대장이 승인합니다 (지금까지의 방식).'],
+  ['L1', '보조 자율', '완료 조건이 모두 엔진이 증명할 수 있으면 자동 확정, 공개 사이트는 바로 엽니다. 결과 확인은 그대로.'],
+  ['L2', '감독형 자율', '엔진 사전 점검을 통과한 완료 조건을 자동 확정하고, 결과 확인 없이 다음 팀으로 넘깁니다. 주관적 판단·질문·위험한 동작만 대장에게.'],
+  ['L3', '확장 자율', 'L2 에 더해, 사전 점검에서 남은 점이 있어도 기획팀이 한 번 고쳐 쓴 뒤 자동 확정합니다.']];
+const POLICY_KIND = { criteria: '완료 조건 확정', trust: '결과 확인 넘김', web: '공개 사이트 열기' };
 const RUNNING_LIKE = ['scheduled', 'running', 'retry_wait', 'model_wait'];
 
 // ── 사무실 (2026-10-18, 10차 리디자인 3) ──
@@ -2161,7 +2176,7 @@ class Component extends DCLogic {
   constructor(props) {
     super(props);
     this.state = { view: 'office', pid: null, ptab: 'over', eng: null, offline: false, toast: '', sideOpen: false,
-      showNew: false, np: { title: '', goal: '', crit: '', error: '' }, drafts: {}, pinOpen: {}, pinDraft: '',
+      showNew: false, np: { title: '', goal: '', crit: '', error: '', level: 'L2' }, drafts: {}, pinOpen: {}, pinDraft: '',
       envs: null, envErr: '', envBusy: false };
   }
   componentDidMount() {
@@ -3087,10 +3102,10 @@ class Component extends DCLogic {
       const name = np.title.trim() || clip(np.goal.trim(), 40);
       if (start && !await this.confirmStart(name)) return;
       if (np.templateId && !lines.length) { this.setState({ np: Object.assign({}, np, { error: '완료 조건을 한 줄 이상 적어 주세요.' }) }); return; }
-      this.api('POST', '/api/projects', Object.assign({ title: np.title.trim(), objective: np.goal.trim(), conversation: true, start: start },
+      this.api('POST', '/api/projects', Object.assign({ title: np.title.trim(), objective: np.goal.trim(), conversation: true, start: start, autonomy: np.level || 'L2' },
         np.templateId ? { templateId: np.templateId, completionCriteria: lines } : np.presetId ? { presetId: np.presetId } : {}))
         .then((g) => this.refresh().then(() => {
-          this.setState({ showNew: false, np: { title: '', goal: '', crit: '', error: '', templateId: '', presetId: '' } });
+          this.setState({ showNew: false, np: { title: '', goal: '', crit: '', error: '', templateId: '', presetId: '', level: 'L2' } });
           this.openProject(g.projectId);
           this.say(start ? '프로젝트를 만들고 시작했습니다 · 기획팀부터 진행합니다' : '프로젝트를 만들었습니다');
         }))
@@ -3293,7 +3308,7 @@ class Component extends DCLogic {
       pinDraft: s.pinDraft, onPin: (e) => this.setState({ pinDraft: e.target.value }),
       autoLevelOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: autoOn === v ? 'on' : '', pressed: autoOn === v ? 'true' : 'false',
         pick: () => { if (autoOn === v) return; this.act(this.api('PUT', '/api/settings', { key: 'models.auto', value: v }), v ? '모델 자동 선택을 켰습니다 · 다음 단계부터' : '모델 자동 선택을 껐습니다 · 고르지 않은 팀은 기본 모델로'); } })),
-      rt: this.routineView(wp), pb: this.publishView(wp), ru: this.rulesView(P),
+      rt: this.routineView(wp), pb: this.publishView(wp), au: this.autonomyView(wp), ru: this.rulesView(P),
       parallelOpts: [[true, '켜짐'], [false, '꺼짐']].map(([v, l]) => ({ l: l, cls: lim.parallel === v ? 'on' : '', pressed: lim.parallel === v ? 'true' : 'false',
         pick: () => { if (lim.parallel === v) return; this.act(this.api('PUT', '/api/settings', { key: 'parallel.enabled', value: v }), v ? '병렬 작업을 켰습니다' : '병렬 작업을 껐습니다 · 진행 중인 병렬 작업은 끝까지 갑니다'); } })),
       projModeOpts: !wp ? [] : (() => {
@@ -3326,6 +3341,9 @@ class Component extends DCLogic {
           pick: () => this.setState({ np: np.presetId === t.id ? Object.assign({}, np, { presetId: '', error: '' })
             : Object.assign({}, np, { presetId: t.id, templateId: '', title: t.name, goal: t.objective, crit: '', error: '' }) }) })),
         hasPreset: !!np.presetId, hasPresets: (s.presets || []).length > 0,
+        levels: LEVELS_UI.map((l) => ({ label: l[0] + ' ' + l[1] + (l[0] === 'L2' ? ' · 추천' : ''), detail: l[2], cls: (np.level || 'L2') === l[0] ? 'on' : '', pressed: (np.level || 'L2') === l[0] ? 'true' : 'false',
+          pick: () => this.setState({ np: Object.assign({}, this.state.np, { level: l[0] }) }) })),
+        levelDetail: (LEVELS_UI.find((l) => l[0] === (np.level || 'L2')) || LEVELS_UI[2])[2],
         presetSummary: ((s.presets || []).find((t) => t.id === np.presetId) || {}).summary || '',
         presetNeeds: ((s.presets || []).find((t) => t.id === np.presetId) || {}).needs || '',
         presetRoutine: routineL(((s.presets || []).find((t) => t.id === np.presetId) || {}).routine),
@@ -3612,6 +3630,7 @@ class Component extends DCLogic {
       causes: d.causes.map((c) => ({ l: c.label, n: c.n })), noCauses: !d.causes.length,
       others: [['근거 무효화 (증명 뒤 파일 바뀜)', d.evidence.stale], ['작업 도구 호출', d.workbench.calls + '번 · ' + d.workbench.steps + '단계'],
         ['외부 저장', '보냄 ' + d.publish.sent + ' · 실패·확인 필요 ' + d.publish.failed],
+        ['자동 승인 (자율 정책)', d.policy ? d.policy.auto + '건' + (d.policy.auto ? ' · ' + Object.entries(d.policy.byKind).map(([k, n]) => (POLICY_KIND[k] || k) + ' ' + n).join(' · ') : '') + (d.policy.changed ? ' · 수준 변경 ' + d.policy.changed : '') : '—'],
         ['감시 에이전트', '허용 ' + d.sentinel.allow + ' · 차단 ' + d.sentinel.deny + ' · 승인 요청 ' + d.sentinel.ask]].map(([l, v]) => ({ l: l, v: String(v) })),
       since: '최근 ' + d.days + '일 · ' + fmt(d.since) + '부터' };
   }
@@ -3640,6 +3659,21 @@ class Component extends DCLogic {
       pageL: !pg ? '' : ({ idle: '최신 · ' + fmt(pg.at) + ' · ' + (pg.syncs || 0) + '번 갱신', sending: '갱신 중…', failed: '실패 · ' + (pg.reason || ''), unknown: '확인 필요 · ' + (pg.reason || '') }[pg.status] || pg.status),
       jobs: (d.items || []).filter((j) => j.projectId === wp.id).slice(0, 5).map((j) => ({ line: (j.provider === 'notion' ? 'Notion' : 'GitHub') + ' · ' + (ST[j.status] || j.status)
         + ' · ' + fmt(j.createdAt) + (j.url ? ' · ' + j.url : '') + (j.reason ? ' · ' + j.reason : '') })) };
+  }
+  // 자율 수준 card: the project's level (changed only with 대장's confirmation) and what the engine approved on its own.
+  autonomyView(wp) {
+    if (!wp || !wp.isTeam) return { show: false };
+    const cur = (wp.policy && wp.policy.autonomy) || null;
+    const ids = new Set(wp.goals.map((g) => g.id));
+    const audit = (((this.state.eng && this.state.eng.events) || []).filter((e) => e.type === 'policy.auto' && ids.has(e.goalId)))
+      .slice(0, 6).map((e) => fmt(e.at) + ' · ' + (POLICY_KIND[e.kind] || e.kind) + ' · ' + e.rule);
+    return { show: true, audit: audit, hasAudit: audit.length > 0,
+      detail: cur ? (LEVELS_UI.find((l) => l[0] === cur) || [])[2] : '자율 수준을 정하기 전의 프로젝트입니다 · 권한 모드 설정(알아서/신중)을 따릅니다.',
+      levels: LEVELS_UI.map((l) => ({ label: l[0] + ' ' + l[1], detail: l[2], cls: cur === l[0] ? 'on' : '', pressed: cur === l[0] ? 'true' : 'false',
+        pick: async () => {
+          if (cur === l[0] || !await ask('자율 수준을 ' + l[0] + ' ' + l[1] + '(으)로 바꿀까요?\n\n' + l[2])) return;
+          this.act(this.api('PUT', '/api/projects/' + encodeURIComponent(wp.id) + '/autonomy', { level: l[0], confirm: true }).then((v) => this.refresh().then(() => v)), '자율 수준을 ' + l[0] + '(으)로 바꿨습니다');
+        } })) };
   }
   // 반복 실행 card: the saved routine, or 대장's unsaved choice (draft) for this project.
   routineView(wp) {

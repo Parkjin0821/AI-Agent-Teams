@@ -42,7 +42,10 @@ export function observe({ goals = [], runsOf = () => [], events = [], sentinelLo
     recovery: { interrupted: runs.filter(r => r.status === 'interrupted').length, resumed: count('goal.resumed_after_restart'), heldForDaejang: count('goal.recovery_required') },
     evidence: { stale: count('goal.evidence_stale') },
     workbench: { steps: count('workbench.used'), calls: ev.filter(e => e.type === 'workbench.used').reduce((n, e) => n + (e.calls ?? 0), 0) },
-    publish: { sent: count('publish.sent'), failed: count('publish.failed') + count('publish.unknown') },
+    publish: { sent: count('publish.sent') + count('publish.synced'), failed: count('publish.failed') + count('publish.unknown') },
+    // 자율 정책: what the engine approved on its own (by kind) and 대장's level changes.
+    policy: { auto: count('policy.auto'), byKind: ev.filter(e => e.type === 'policy.auto').reduce((m, e) => ({ ...m, [e.kind]: (m[e.kind] ?? 0) + 1 }), {}),
+      changed: count('policy.changed') },
     sentinel,
     projects: { total: projects.length, verified: topGoals.filter(g => g.status === 'verified').length,
       waitingForDaejang: topGoals.filter(g => g.status === 'review_required').length, running: topGoals.filter(g => g.status === 'running').length,

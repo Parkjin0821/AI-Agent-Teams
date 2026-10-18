@@ -11,6 +11,7 @@
 // Results: data/자율시험/<date>.json (data/ stays out of the repository).
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -44,11 +45,11 @@ const DONE = new Set(['verified', 'failed', 'stopped', 'blocked']);
 async function start() {
   mkdirSync(dir, { recursive: true });
   const at = new Date().toISOString();
-  const rec = { startedAt: at, items: [] };
+  const rec = { startedAt: at, items: [], ...(AUTONOMY ? { autonomy: AUTONOMY } : {}) };
   for (const s of SET) {
     // Each run gets its own folder: the run time goes into the title, e.g. "(자율 시험 10-02 0135)" (no ":" in folders).
     const stamp = new Date().toLocaleString('sv-SE').slice(5, 16).replace(':', '');
-    const g = await api('POST', '/api/projects', { title: s.title.replace(/\)$/, ` ${stamp})`), objective: s.objective, conversation: true, start: true });
+    const g = await api('POST', '/api/projects', { title: s.title.replace(/\)$/, ` ${stamp})`), objective: s.objective, conversation: true, start: true, ...(AUTONOMY ? { autonomy: AUTONOMY } : {}) });
     rec.items.push({ kind: s.kind, title: s.title, goalId: g.id, projectId: g.projectId, interventions: [], approvals: 0 });
     console.log('시작', s.kind, g.projectId);
   }
@@ -110,6 +111,20 @@ async function watch(file, hours = 6) {
   report(file);
 }
 
+function autoApprovals(rec) {
+  const out = {};
+  try {
+    const db = new DatabaseSync(path.join(root, 'data', 'real-test', 'hq.sqlite'), { readOnly: true });
+    const ids = new Set(rec.items.map(it => it.goalId));
+    for (const row of db.prepare("select body from events where body like '%policy.auto%'").all()) {
+      const e = JSON.parse(row.body);
+      if (e.type === 'policy.auto' && ids.has(e.goalId)) out[e.goalId] = (out[e.goalId] ?? 0) + 1;
+    }
+    db.close();
+  } catch { /* no records */ }
+  return out;
+}
+
 function report(file) {
   const rec = JSON.parse(readFileSync(file, 'utf8'));
   const real = it => it.interventions.filter(x => !x.final);
@@ -122,16 +137,26 @@ function report(file) {
     const hit = rec.items.find(it => it.goalId === rec.chaos.goalId);
     console.log(`장애 주입: ${rec.chaos.kind} ${rec.chaos.team} 단계 중 서버 강제 종료 → ${hit?.resumed ? '스스로 복구함' : '복구 기록 없음'}`);
   }
+  // 자율 정책: per project, how often 대장 was asked (criteria approvals the harness gave, real stops) and how often the
+  // engine approved on its own (policy.auto, read from the engine's own records).
+  const autoOf = autoApprovals(rec);
+  const asked = it => (it.approvals ?? 0) + real(it).length + it.interventions.filter(x => x.final).length;
+  const totalAsked = rec.items.reduce((n, it) => n + asked(it), 0), totalAuto = rec.items.reduce((n, it) => n + (autoOf[it.goalId] ?? 0), 0);
+  console.log(`승인: 대장에게 요청 ${totalAsked} (프로젝트당 ${(totalAsked / rec.items.length).toFixed(1)}) · 엔진 자동 처리 ${totalAuto}`
+    + ` · 자동 처리율 ${totalAsked + totalAuto ? Math.round(totalAuto / (totalAsked + totalAuto) * 100) : 0}%${rec.autonomy ? ` · 자율 수준 ${rec.autonomy}` : ''}`);
   for (const it of rec.items) {
     const finalOnly = it.interventions.some(x => x.final) && !real(it).length;
     console.log(`- ${it.kind}: ${it.status ?? '?'}${it.reason ? ' (' + it.reason + ')' : ''} · 조건 ${it.met ?? 0}/${it.total ?? 0} · 단계 ${it.round ?? 0}`
       + (finalOnly ? ' · 대장 최종 확인만 남음' : '')
-      + (real(it).length ? ` · 대장 개입 ${real(it).length}번: ${real(it).map(x => `${x.reason}(${x.round}단계)`).join(', ')}` : ''));
+      + (real(it).length ? ` · 대장 개입 ${real(it).length}번: ${real(it).map(x => `${x.reason}(${x.round}단계)`).join(', ')}` : '')
+      + ` · 승인 요청 ${asked(it)} · 자동 ${autoOf[it.goalId] ?? 0}`);
   }
 }
 
 const cmd = process.argv[2];
 const CHAOS = process.argv.includes('--chaos');
+// --autonomy=L2: the projects start with that autonomy level (자율정책.js); without it, the old rules.
+const AUTONOMY = (process.argv.find(a => a.startsWith('--autonomy=')) ?? '').split('=')[1] || null;
 const hours = Number(process.argv.slice(3).find(a => /^\d+(\.\d+)?$/.test(a)) ?? 6);
 if (cmd === 'start') await watch(await start(), hours);
 else if (cmd === 'watch') await watch(latest(), hours);
