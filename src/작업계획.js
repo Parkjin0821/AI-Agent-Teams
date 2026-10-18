@@ -71,6 +71,25 @@ export function readyTasks(plan) {
   return (plan?.tasks ?? []).filter(t => t.status !== 'done' && t.dependsOn.every(d => done.has(d)));
 }
 
+// 동적 재계획 (5단계): a new list from planning replaces the tasks not yet done; finished tasks (and their handoffs)
+// stay as they are. The whole result must pass the same checks, or the old plan is kept.
+export function replan(plan, raw, criteria, opts = {}, at = null) {
+  const done = (plan?.tasks ?? []).filter(t => t.status === 'done');
+  const doneIds = new Set(done.map(t => t.id));
+  const fresh = (raw ?? []).filter(t => !doneIds.has(t.id)).map(t => ({ ...t, status: 'pending', attempts: 0 }));
+  const tasks = [...done, ...fresh];
+  const issues = fresh.length ? lintTasks(tasks, criteria, opts) : ['새 작업이 없다 (끝난 작업과 번호만 겹침)'];
+  if (issues.length) return { ok: false, issues };
+  return { ok: true, plan: { version: (plan?.version ?? 0) + 1, at, tasks }, kept: done.length, added: fresh.length };
+}
+// When the criteria list changes, each task keeps the criteria it served by their text (numbers shift); a criterion
+// no longer on the list is dropped from it.
+export function remapCriteria(plan, before, after) {
+  if (!plan?.tasks) return plan;
+  const to = n => { const k = after.indexOf(before[n - 1]); return k >= 0 ? k + 1 : null; };
+  return { ...plan, tasks: plan.tasks.map(t => ({ ...t, criteria: t.criteria.map(to).filter(Boolean) })) };
+}
+
 // After a verification: a task is done once every criterion it serves has evidence (a task that serves none is done
 // when its step finished). Returns the new plan (unchanged tasks keep their object).
 export function settleTasks(plan, criteria, evidence) {

@@ -146,3 +146,88 @@ test('엔진 배정: an unfinished task is tried again with the feedback; after 
     assert.ok(g.messages.some(m => /엔진 배정 · T1 요구사항 정리 → 조사팀 \(다시\)/.test(m.text)));
   } finally { store.close(); }
 });
+
+test('동적 재계획: a new list replaces only the tasks not yet done; finished tasks and their handoffs stay; a bad list keeps the old plan', async () => {
+  const { replan, remapCriteria, recordHandoff } = await import('../src/작업계획.js');
+  let plan = settleTasks(startPlan(parseTasks(RAW), 't0'), C, [{ criterion: C[0] }]);
+  plan = recordHandoff(plan, 'T1', { made: [{ path: '요구사항.md', ok: true }], decisions: [], openIssues: [], forNext: '역할 3개' }, 't1');
+  const next = parseTasks([
+    { id: 'T1', title: '다시 쓰면 안 됨', team: 'dev', outputs: ['x.md'], criteria: [1] },
+    { id: 'T4', title: '화면 뼈대', team: 'design', outputs: ['index.html'], criteria: [2], depends_on: ['T1'] },
+    { id: 'T5', title: '테스트 먼저', team: 'dev', outputs: ['앱.test.js'], criteria: [3], depends_on: ['T1'] },
+  ]);
+  const r = replan(plan, next, C, { ownerJudged: owner }, 't2');
+  assert.equal(r.ok, true);
+  assert.deepEqual([r.plan.version, r.kept, r.added], [2, 1, 2]);
+  assert.deepEqual(r.plan.tasks.map(t => [t.id, t.status, t.attempts ?? 0]), [['T1', 'done', 0], ['T4', 'pending', 0], ['T5', 'pending', 0]], 'a finished id is never overwritten');
+  assert.equal(r.plan.tasks[0].handoff.forNext, '역할 3개');
+  const bad = replan(plan, parseTasks([{ id: 'T4', title: '화면', team: 'design', outputs: ['index.html'], criteria: [2], depends_on: ['T1'] }]), C, { ownerJudged: owner });
+  assert.equal(bad.ok, false);
+  assert.match(bad.issues.join('\n'), /완료 조건 3번을 맡은 작업이 없다/);
+  assert.match(replan(plan, parseTasks([RAW[0]]), C).issues[0], /새 작업이 없다/);
+  const moved = remapCriteria(plan, C, ['새 조건', C[2], C[0]]);
+  assert.deepEqual(moved.tasks.map(t => t.criteria), [[3], [], [2]], 'criteria follow their text; a dropped one leaves the task');
+});
+
+function replanScheduler(dataName, onPlan, qa) {
+  const store = new PersistentStore({ dataDir: mkdtempSync(path.join(tmpdir(), dataName)) });
+  const calls = [];
+  let plans = 0;
+  const scheduler = new GoalScheduler({ store, clock: { now: () => Date.parse('2026-10-18T09:00:00Z') }, policy: { ...DEFAULT_POLICY, maxNoProgress: 99 }, autonomy: () => 'L2',
+    trust: { required: () => 0, count: () => 0, add: () => {} },
+    runner: { run: async (goal, run) => {
+      calls.push(run.team + (goal.team.taskId ? ':' + goal.team.taskId : ''));
+      if (run.team === 'plan') return { outcome: 'completed', plan: { nextTask: 'n', team: 'dev', reviews: [], ...onPlan(++plans, goal) } };
+      if (run.team === 'qa') return qa(goal);
+      return { outcome: 'completed', diffHash: 'd' + calls.length, evidence: [] };
+    } } });
+  return { store, scheduler, calls };
+}
+const T4 = [
+  { id: 'T4', title: '요구사항 초안 (역할만)', team: 'research', outputs: ['요구사항.md'], criteria: [1] },
+  { id: 'T2', title: '화면 설계·구현', team: 'design', outputs: ['index.html'], criteria: [2], depends_on: ['T4'] },
+  { id: 'T3', title: '기능과 테스트', team: 'dev', outputs: ['앱.js'], criteria: [3], depends_on: ['T4'] },
+];
+
+test('동적 재계획: after three failed tries planning\'s new list is taken (once asked), and the new task starts with one attempt', async () => {
+  const { store, scheduler, calls } = replanScheduler('hq-replan-', (n, goal) => {
+    if (n === 1) return { completionCriteria: C, tasks: parseTasks(RAW) };
+    if (n === 2) return { taskId: 'T1', tasks: parseTasks(T4) };          // not asked: ignored
+    return { taskId: 'T4', tasks: parseTasks(T4) };
+  }, () => ({ outcome: 'completed', evidence: [], findings: { feedback: '요구사항.md 가 비어 있음', improvements: [] }, claims: [{ criterion: C[0], check: 'fail' }] }));
+  const goal = scheduler.addGoal({ projectId: 'replan', kind: 'team', autoRun: true, objective: 'x', conversation: true, completionCriteria: [] });
+  try {
+    for (let i = 0; i < 10; i++) await scheduler.runGoal(goal.id);
+    assert.deepEqual(calls.slice(8, 10), ['plan', 'research:T4']);
+    const g = store.getGoal(goal.id);
+    assert.equal(g.taskPlan.version, 2);
+    assert.deepEqual(g.taskPlan.tasks.map(t => [t.id, t.status, t.attempts]), [['T4', 'running', 1], ['T2', 'pending', 0], ['T3', 'pending', 0]], 'one attempt, not two');
+    assert.match(g.messages.map(m => m.text).join('\n'), /작업 계획 다시 짬 \(2판\) · 끝난 작업 0개 유지 · 새 작업 3개/);
+    assert.equal(g.team.replanRequested, false);
+  } finally { store.close(); }
+});
+
+test('동적 재계획: criteria changed by 대장\'s message without a new list — planning is asked once, then its list replaces the unfinished tasks', async () => {
+  const C2 = [...C, 'README.md 가 있다'];
+  const { store, scheduler, calls } = replanScheduler('hq-replan2-', n => {
+    if (n === 1) return { completionCriteria: C, tasks: parseTasks(RAW) };
+    if (n === 2) return { taskId: 'T1' };
+    if (n === 3) return { completionCriteria: C2, taskId: 'T2' };
+    return { taskId: 'T6', tasks: parseTasks([...RAW.slice(1), { id: 'T6', title: '설명서', team: 'dev', outputs: ['README.md'], criteria: [5], depends_on: ['T1'] }]) };
+  }, () => ({ outcome: 'completed', evidence: [{ criterion: C[0], proof: '엔진 확인' }], findings: { feedback: '', improvements: [] }, claims: [] }));
+  const goal = scheduler.addGoal({ projectId: 'replan2', kind: 'team', autoRun: true, objective: 'x', conversation: true, completionCriteria: [] });
+  try {
+    for (let i = 0; i < 4; i++) await scheduler.runGoal(goal.id);
+    assert.equal(store.getGoal(goal.id).taskPlan.tasks[0].status, 'done');
+    scheduler.message(goal.id, '설명서(README.md)도 넣어 줘');
+    await scheduler.runGoal(goal.id);
+    let g = store.getGoal(goal.id);
+    assert.equal(g.team.step, 'plan', 'asked again instead of going on with the old tasks');
+    assert.match(g.team.feedback, /작업 계획 다시 짜기 · 바뀐 완료 조건에 맞춰/);
+    await scheduler.runGoal(goal.id);
+    g = store.getGoal(goal.id);
+    assert.deepEqual(calls.slice(4), ['plan:T2', 'plan:T2'], 'two planning steps, no work step on the old tasks in between');
+    assert.deepEqual(g.taskPlan.tasks.map(t => [t.id, t.status]), [['T1', 'done'], ['T2', 'pending'], ['T3', 'pending'], ['T6', 'running']]);
+    assert.deepEqual([g.team.worker, g.team.taskId, g.completionCriteria.length], ['dev', 'T6', 5]);
+  } finally { store.close(); }
+});

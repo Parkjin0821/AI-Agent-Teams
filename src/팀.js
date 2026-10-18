@@ -356,6 +356,8 @@ const planBlock = [
   'task makes true (every criterion must belong to a task, except ones 대장 judges by design); outputs = files or folders it',
   'creates inside the work folder; depends_on = tasks whose outputs it needs (no cycles). Tasks with no dependency on each',
   'other may run at the same time. Reviews and verification are added by the engine, so no task is for them.',
+  'When the engine asks you to re-plan (a task failed three times, or 대장\'s message changed what is needed), send "tasks" again with',
+  'every task still to do (finished tasks stay as they are; do not repeat their ids). At other times leave "tasks" out.',
   '"task_id": when a task list exists (see 작업 계획 above), next_task is one of its tasks marked 지금 할 수 있음: give its id here,',
   'and team must be that task\'s team. next_task then says how to do that task now.',
   'Optional "parallel": ONE piece of work another team can do AT THE SAME TIME, fully independent of next_task, written only',

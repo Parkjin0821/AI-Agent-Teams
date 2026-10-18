@@ -10,8 +10,11 @@ import { validateProjectId } from './작업공간.js';
 import { enqueueRequests, reviewSkip, taskProfile } from './팀검토.js';
 import { selectAssignment } from './작업배정.js';
 import { autonomyDecision } from './자율정책.js';
-import { lintTasks, markRunning, planSummary, readyTasks, recordHandoff, settleTasks, startPlan } from './작업계획.js';
+import { lintTasks, markRunning, planSummary, readyTasks, recordHandoff, remapCriteria, replan, settleTasks, startPlan } from './작업계획.js';
 import { DEFAULT_CLAUDE_MODEL } from './모델선택.js';
+
+// 동적 재계획: what planning is told when the engine wants the tasks not yet done planned again.
+const REPLAN_ASK = why => `[엔진] 작업 계획 다시 짜기 · ${why}에 맞춰 끝나지 않은 작업 전체를 "tasks" 로 다시 보내 주세요 (끝난 작업은 그대로 두고 그 번호는 다시 쓰지 않음).`;
 
 export const GoalStatus = Object.freeze({
   SCHEDULED: 'scheduled', RUNNING: 'running', RETRY_WAIT: 'retry_wait', VERIFIED: 'verified', MODEL_WAIT: 'model_wait',
@@ -695,21 +698,49 @@ export class GoalScheduler {
           : '도출한 완료 조건을 확인하고 승인해 주세요.') + ownText + planNote });
       }
       // After 대장's message planning may propose a changed list; only a real change needs approval again.
+      let criteriaChanged = false;
       if (team.criteriaCheck) {
         team.criteriaCheck = false;
         const next = plan.completionCriteria?.length ? validateCriteria(plan.completionCriteria) : null;
         if (next && JSON.stringify(next) !== JSON.stringify(goal.completionCriteria)) {
           const level = this.autonomy(goal.projectId);
           const auto = level ? autonomyDecision('criteria', { level, criteria: next, issues: lintCriteria(next), ownerJudged: next.filter(ownerJudged).length }) : null;
+          const taskPlan = remapCriteria(goal.taskPlan, goal.completionCriteria, next);
           if (auto?.decision !== 'auto') {
-            this.update(goal, { completionCriteria: next, criteriaApprovalPending: true, confirmed: [] });
+            // 동적 재계획: once 대장 approves, planning runs again and may replace the tasks not yet done.
+            if (taskPlan?.tasks?.length) { team.replanRequested = true; team.feedback = `${REPLAN_ASK('대장이 승인한 새 완료 조건')}\n${team.feedback ?? ''}`; }
+            this.update(goal, { completionCriteria: next, criteriaApprovalPending: true, confirmed: [], taskPlan });
             return review('criteria_approval_required', { evidence: [], question: '대장 메시지에 맞춰 완료 조건을 바꾸자고 제안했습니다. 확인하고 승인해 주세요.' });
           }
-          this.update(goal, { completionCriteria: next, criteriaApprovalPending: false, confirmed: [],
+          this.update(goal, { completionCriteria: next, criteriaApprovalPending: false, confirmed: [], taskPlan,
             messages: this.withControl(goal, `자율 ${level} · 대장 메시지에 맞춰 바뀐 완료 조건 ${next.length}개를 자동 확정 (${auto.rule})`) });
+          criteriaChanged = true;
           void this.store.emit({ type: 'policy.auto', kind: 'criteria', goalId: goal.id, projectId: goal.projectId, level, rule: auto.rule, criteria: next.length, changed: true });
           evidence = [];
         }
+      }
+      // 동적 재계획 (5단계): only when the engine asked for it (a task failed three times, or the criteria changed) — or
+      // when the project has no graph yet — does a new task list replace the tasks not yet done. Finished tasks stay.
+      let replanned = false;
+      if (plan.tasks?.length && goal.completionCriteria.length && (team.replanRequested || criteriaChanged || !goal.taskPlan?.tasks?.length)) {
+        const r = replan(goal.taskPlan, plan.tasks, goal.completionCriteria, { ownerJudged }, iso(now));
+        if (r.ok) {
+          replanned = true;
+          const head = r.plan.version > 1 ? `작업 계획 다시 짬 (${r.plan.version}판) · 끝난 작업 ${r.kept}개 유지 · 새 작업 ${r.added}개` : `작업 계획 ${r.added}개`;
+          this.update(goal, { taskPlan: r.plan, messages: this.withControl(goal, `${head}\n${planSummary(r.plan)}`) });
+          void this.store.emit({ type: 'task.replanned', goalId: goal.id, projectId: goal.projectId, version: r.plan.version, kept: r.kept, added: r.added });
+        } else {
+          team.feedback = `[엔진] 다시 짠 작업 계획을 쓰지 않았습니다 (기존 계획 유지): ${r.issues.join(' / ')}\n${team.feedback ?? ''}`;
+        }
+      }
+      // The criteria changed in this very step without a usable new list: planning is asked once, in so many words.
+      // (Asked and still none, the old tasks go on, with their criteria renumbered.)
+      const askNow = criteriaChanged && !replanned && !team.replanRequested && goal.taskPlan?.tasks?.length;
+      team.replanRequested = false;
+      if (askNow) {
+        team.replanRequested = true;
+        team.feedback = `${REPLAN_ASK('바뀐 완료 조건')}\n${team.feedback ?? ''}`;
+        return goTo('plan');
       }
       // 병렬 작업: an independent piece of work runs at the same time as a lane in its own folder.
       team.pendingParallel = null;
@@ -898,8 +929,9 @@ export class GoalScheduler {
     const ready = readyTasks(plan);
     const again = ready.find(t => t.id === team.taskId);
     if (again && (again.attempts ?? 0) >= 3) {
-      team.feedback = `[엔진] 작업 ${again.id} (${again.title}) 이 ${again.attempts}번 시도에도 끝나지 않았습니다. 이 작업을 나누거나 방법·담당 팀을 바꿔 작업 계획을 다시 짜 주세요.\n${team.feedback}`;
+      team.feedback = `[엔진] 작업 ${again.id} (${again.title}) 이 ${again.attempts}번 시도에도 끝나지 않았습니다. 이 작업을 나누거나 방법·담당 팀을 바꿔 주세요.\n${REPLAN_ASK(`${again.id} 실패`)}\n${team.feedback ?? ''}`;
       team.taskId = null;
+      team.replanRequested = true;
       return null;
     }
     const task = again ?? ready[0];
