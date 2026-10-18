@@ -188,20 +188,21 @@ WSL2 배포판은 Windows 사용자 권한의 연장선이다. 드라이브 자�
   4. 확인: 1번 목록이 비어야 한다. `AGENT_HQ_CODEX_ISOLATION_TEST=native`는 엔진 검사용 샌드박스를 다시 돌리므로 정리 뒤에는 돌리지 않는다.
 - 정책에 `openIssues` 항목으로 남기자고 제안한다 (9절).
 
-## 9. `architecture-policy.json` 갱신 제안 (보호 파일 — 커밋하지 않음)
+## 9. `architecture-policy.json` 갱신 — 대장 조건부 승인(2026-10-18) 범위만 적용
 
-제안 파일과 diff: 세션 공유 노트 폴더의 `policy-restore-proposal.json`, `policy-restore.diff`.
-**검증:** 제안 파일을 아키텍처 가드(`checkArchitecture`)에 넣어 돌림 → 13개 검사 모두 통과, 경고 없음. `state`는 `suspended`, `reviewBy`는 2026-11-15 그대로.
+승인 범위: 복원 계획 1·2단계 완료 표시 / Windows 파일 접근 권한 문제 추적 항목 / 필수 보안 테스트 2개. 유지: `state: suspended`, 멀티 모델 원칙, 기존 보안·승인·완료 검증 정책.
+
+- **앞서 이 절에 보였던 diff와의 차이:** `reason` 문장 추가(2026-10-18 재확인 내용)는 승인 범위 3가지에 들지 않아 **적용하지 않았다.** 그 밖에는 줄 단위로 같다
+  (대조: 실제 변경 13줄이 모두 앞의 diff에 있음, 앞의 diff에만 있던 것은 `reason` 2줄). 추가 변경은 없다. `reason` 갱신이 필요하면 따로 승인을 받는다.
+- **검증:** 아키텍처 가드 13/13 통과, `npm test` 496개 중 실패 0(건너뜀 5 — 실측 시험 4개 + 기존 1개).
+
+실제 적용한 diff:
 
 ```diff
 --- a/architecture-policy.json
-+++ b/architecture-policy.json (제안)
-@@ -23,15 +23,18 @@
-   "codexTeamExecution": {
-     "state": "suspended",
-     "since": "2026-10-17",
--    "reason": "Windows용 Codex 샌드박스(codex-cli 0.163)가 작업 폴더 밖 파일 읽기를 막지 못하는 것을 8차 실측에서 확인. 쓰기·네트워크는 막힘.",
-+    "reason": "Windows용 Codex 샌드박스(codex-cli 0.163)가 작업 폴더 밖 파일 읽기를 막지 못하는 것을 8차 실측에서 확인. 쓰기·네트워크는 막힘. 2026-10-18 재확인(0.163.0-alpha.10.2): 관리자 모드 샌드박스가 실행마다 홈 아래 폴더에 샌드박스 계정 읽기 권한을 붙임. 읽기 제한 권한 프로필은 거부되고 deny는 무시됨, MXC는 Windows 11 24H2 이상 필요.",
++++ b/architecture-policy.json
+@@ -26,12 +26,15 @@
+     "reason": "Windows용 Codex 샌드박스(codex-cli 0.163)가 작업 폴더 밖 파일 읽기를 막지 못하는 것을 8차 실측에서 확인. 쓰기·네트워크는 막힘.",
      "currentPath": "기본값은 모든 팀이 Claude Code. Codex는 대장이 프로젝트 설정에서 다른 구독 사용(allowProviderSwitch)을 허락한 프로젝트에서만, 경고와 함께 실행 (개발팀의 어렵거나 위험한 작업, 사용량 한도 시 전환, 교차 검토).",
      "restorePlan": [
 -      "Codex 팀 실행용 격리 환경을 마련한다 (작업 폴더만 보이는 별도 실행 공간 — 예: 전용 Windows 계정·WSL·컨테이너 중 이 PC에서 되는 것)",
@@ -232,7 +233,29 @@ WSL2 배포판은 Windows 사용자 권한의 연장선이다. 드라이브 자�
      "AGENT_HQ_CONSTITUTION.md",
 ```
 
-커밋할 때 대장 승인 표시가 필요하다: `AGENT_HQ_ARCH_APPROVED=대장`.
+### 승인 표시(`AGENT_HQ_ARCH_APPROVED=대장`)의 한계와 보완 제안
+
+점검 결과, 지금의 승인 표시는 **대장 승인을 증명하지 못한다.**
+
+| 약점 | 내용 |
+|---|---|
+| 누구나 설정 가능 | 환경변수는 같은 계정에서 도는 모든 프로그램(AI 세션 포함)이 붙일 수 있다. 값이 `대장`인지만 본다 |
+| 훅 우회 | `git commit --no-verify`, `git -c core.hooksPath=/dev/null commit`, `.git/config`의 `core.hooksPath` 변경으로 검사 자체를 건너뛸 수 있다 |
+| 무엇을 승인했는지 없음 | 승인이 특정 변경 내용에 묶여 있지 않다. 승인 뒤 내용을 바꿔도 같은 표시로 통과한다 |
+| 기록 없음 | 누가 언제 무엇을 승인했는지 남지 않는다 |
+
+보완 제안 (대장이 통제하는 비밀 + 변경 해시 결합, 설치·구현은 대장 승인 후):
+
+1. **승인 기록 = 서명된 해시.** 대장만 가진 서명 키(예: 비밀번호를 건 SSH 키, 가능하면 Windows Hello·FIDO 보안 키에 묶인 `ed25519-sk`)로,
+   보호 파일 변경 내용의 해시(`git diff --cached`의 보호 파일 부분, 또는 변경 후 각 보호 파일의 sha256 목록)에 서명한다:
+   `ssh-keygen -Y sign -n agent-hq-arch -f <대장 키> approval.txt`. AI는 키의 비밀번호·터치 없이 서명할 수 없다.
+2. **승인 기록은 리포에 남긴다.** `approvals/<날짜>-<해시 앞 12자>.txt`(무엇을 승인했는지 + 해시) 와 `.sig`. 대장의 공개 키만 `approvals/allowed_signers`에 두고,
+   이 파일 자체도 보호 파일로 한다.
+3. **검사는 서명을 확인한다.** `scripts/아키텍처-검사.mjs --staged`가 보호 파일 변경의 해시를 다시 계산해, 그 해시에 대한 유효한 서명 기록이 있을 때만 통과
+   (`ssh-keygen -Y verify -f approvals/allowed_signers -I 대장 -n agent-hq-arch -s approval.txt.sig`). 환경변수는 더 이상 근거가 아니다.
+4. **훅 우회 대비:** 같은 검사를 `npm test`(`test/아키텍처가드.test.js`)에도 넣어, 보호 파일의 현재 내용 해시가 마지막 서명 기록과 맞지 않으면 실패하게 한다.
+   훅을 건너뛰어도 테스트와 서버 시작 검사에서 드러난다. 가능하면 GitHub에 올릴 때 서명 커밋·브랜치 보호도 함께.
+5. 이번 커밋은 지금 규칙대로 환경변수 표시로 했다. 위 방식이 구현되면 이번 변경도 대장이 서명해 소급 기록할 수 있다.
 
 ## 10. 대장에게 요청
 

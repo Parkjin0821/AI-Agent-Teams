@@ -26,12 +26,15 @@
     "reason": "Windows용 Codex 샌드박스(codex-cli 0.163)가 작업 폴더 밖 파일 읽기를 막지 못하는 것을 8차 실측에서 확인. 쓰기·네트워크는 막힘.",
     "currentPath": "기본값은 모든 팀이 Claude Code. Codex는 대장이 프로젝트 설정에서 다른 구독 사용(allowProviderSwitch)을 허락한 프로젝트에서만, 경고와 함께 실행 (개발팀의 어렵거나 위험한 작업, 사용량 한도 시 전환, 교차 검토).",
     "restorePlan": [
-      "Codex 팀 실행용 격리 환경을 마련한다 (작업 폴더만 보이는 별도 실행 공간 — 예: 전용 Windows 계정·WSL·컨테이너 중 이 PC에서 되는 것)",
-      "격리 환경에서 작업 폴더 밖 읽기가 막히는지 경계 시험을 자동 테스트로 만든다",
+      "[구축 완료 2026-10-18, 대장 승인] Codex 전용 WSL2 배포판 hq-codex(Debian 13): 드라이브 자동 연결·Windows 프로그램 실행·GPU 공유 끔, sudo 제거·root 잠금, 전용 사용자 hqcodex, Windows 폴더 공유 없이 작업별 파일 복사·반환(src/작업묶음.js), Codex Linux 샌드박스(bubblewrap) 읽기 제한 프로필. 준비 확인 15/15 (scripts/코덱스격리-준비.mjs). 근거 docs/codex-격리-복원.md",
+      "[통과 2026-10-18] WSL 경계 시험 test/코덱스격리.test.js: 밖 읽기·쓰기, 홈·인증정보(auth.json), 링크·/proc·drvfs·Windows 프로그램 우회, sudo, TCP·DNS 모두 막힘(대조 실험으로 시험 유효성 확인). 제한된 실모델 시험 1회 통과. 남은 검증: 동시 작업 분리, 작업 전 준비 확인 자동화. 지금의 Windows 샌드박스는 여전히 실패",
       "시험을 통과하면 보안팀·검증팀의 교차 검토를 Codex로 되돌리고, 개발팀의 어려운 작업에 Codex를 다시 배정한다",
       "대시보드에 프로젝트별 Codex 협업 켜기 스위치를 둔다 (지금은 API로만 켤 수 있음)"
     ],
-    "reviewBy": "2026-11-15"
+    "reviewBy": "2026-11-15",
+    "openIssues": [
+      "[추적 2026-10-18] Windows용 Codex 샌드박스가 홈 아래 폴더(.codex·.claude·OneDrive·Documents·AppData 등)에 CodexSandboxUsers 읽기 권한을 남김. 엔진 검사용 샌드박스(src/격리환경.js)가 계속 쓰는 동안 다시 붙음. 정리 계획 docs/codex-격리-복원.md 8절, 대장 승인 후 실행"
+    ]
   },
   "requiredTests": [
     "test/아키텍처가드.test.js",
@@ -39,7 +42,9 @@
     "test/작업배정.test.js",
     "test/안전경계.test.js",
     "test/스케줄러-팀.test.js",
-    "test/업무도메인.test.js"
+    "test/업무도메인.test.js",
+    "test/코덱스격리.test.js",
+    "test/작업묶음.test.js"
   ],
   "protectedFiles": [
     "AGENT_HQ_CONSTITUTION.md",
