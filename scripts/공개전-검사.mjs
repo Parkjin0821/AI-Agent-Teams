@@ -5,6 +5,7 @@
 //   node scripts/공개전-검사.mjs --history       저장소의 모든 커밋에 있었던 모든 파일 내용 (이미 공개된 이력 점검)
 //   node scripts/공개전-검사.mjs --range A..B   지정한 범위 (CI: 끌어오기 요청·push 가 들이는 커밋)
 import { spawnSync } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inspectExport } from '../src/검사.js';
@@ -26,6 +27,10 @@ const FORBIDDEN = [
 ];
 
 const at = process.argv.indexOf('--range');
+// This machine's own identifiers (the Windows user name and the PC name) must not reach a public repository either.
+// Short or generic names are skipped so the check does not fire on ordinary words. The values are never printed.
+const LOCAL_IDS = [os.userInfo().username, os.hostname()].filter(v => v && v.length >= 4 && !/^(user|admin|runner|root)$/i.test(v)).map(v => v.toLowerCase());
+
 const range = process.argv.includes('--history') ? ['--all'] : [at > 0 ? process.argv[at + 1] : 'origin/main..HEAD'];
 if (!/^(--all|[0-9A-Za-z_./^~-]+..[0-9A-Za-z_./^~-]+)$/.test(range[0])) { console.log(`범위가 이상하다: ${range[0]}`); process.exit(2); }
 const commits = git('rev-list', ...range).stdout.split(/\s+/).filter(Boolean);
@@ -44,7 +49,9 @@ for (const c of commits) {
     const data = gitBuf('cat-file', 'blob', blob);
     if (!data || data.length > 2_000_000 || data.includes(0)) continue;   // binary or very large: names only
     blobs++;
-    for (const f of inspectExport([{ path: file, content: data.toString('utf8') }])) findings.push({ commit: c.slice(0, 8), ...f });
+    const text = data.toString('utf8');
+    for (const f of inspectExport([{ path: file, content: text }])) findings.push({ commit: c.slice(0, 8), ...f });
+    if (LOCAL_IDS.some(id => text.toLowerCase().includes(id))) findings.push({ commit: c.slice(0, 8), file, kind: '이 PC의 사용자 이름·PC 이름' });
   }
 }
 const strong = findings.filter(f => !/휴대전화번호|이메일/.test(f.kind));
