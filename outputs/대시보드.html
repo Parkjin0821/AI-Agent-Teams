@@ -2080,7 +2080,8 @@ const officeStand = (id, who) => {
 // (each frame sets the new element's position from the clock, and the render reads the same position).
 // lastId: the newest hand-off already shown. The first look at the engine's records only notes it, so a reload or a
 // reconnect never replays an old hand-off; each new team.handoff event (by its stored id) plays once.
-const OFFICE = { lastId: null, walkers: [], notes: [], frame: 0 };
+// seen/played: how many new hand-offs this page took in, and how many it queued a walk for (a check for tests).
+const OFFICE = { lastId: null, walkers: [], notes: [], frame: 0, seen: 0, played: 0 };
 // Room notices (10차): each new hand-off also shows as a card at the bottom right for six seconds, motion or not.
 const OFFICE_NOTE_MS = 6000;
 // Rough text width in the room's units, for bubbles and tags (한글 is about one em, Latin and digits about half).
@@ -2095,6 +2096,7 @@ function officePlay(handoffs, now) {
   list.forEach((e) => {
     if (e.id <= OFFICE.lastId) return;
     OFFICE.lastId = e.id;
+    OFFICE.seen++;
     OFFICE.notes = OFFICE.notes.concat([{ id: e.id, at: now, from: e.from, to: e.to, done: !!e.done, projectId: e.projectId }]).slice(-3);
     setTimeout(scheduleRender, 450); setTimeout(scheduleRender, OFFICE_NOTE_MS - 400); setTimeout(scheduleRender, OFFICE_NOTE_MS + 50);
     if (officeReduce()) return; // the notice and the 최근 인계 list say it in words; nobody walks
@@ -2104,6 +2106,7 @@ function officePlay(handoffs, now) {
     if (!there) return;
     const t0 = OFFICE.walkers.filter((w) => w.team === courier).reduce((t, w) => Math.max(t, w.end), now);
     const dur = Math.max(1000, Math.min(3200, Math.hypot(there[0] - home[0], there[1] - home[1]) / 0.2));
+    OFFICE.played++;
     OFFICE.walkers.push({ key: 'h' + e.id, team: courier, to: e.from === 'boss' ? 'boss' : e.to, home: home, there: there, t0: t0, dur: dur, end: t0 + dur * 2 + 700 });
   });
   if (OFFICE.walkers.length) officeAnimate();
