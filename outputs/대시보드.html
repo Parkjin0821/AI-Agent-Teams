@@ -34,7 +34,7 @@ button{cursor:pointer}
 
 /* 상단 바 */
 .top{position:sticky;top:0;z-index:20;background:rgba(250,250,250,.86);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
-.top-in{max-width:1840px;margin:0 auto;padding:12px 32px;min-height:72px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:20px}
+.top-in{max-width:none;margin:0 auto;padding:12px 24px;min-height:72px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:20px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em;font-size:14.5px;flex:none;border:0;background:none;padding:0}
 .mark{width:24px;height:24px;border-radius:7px;background:var(--text);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700;font-family:var(--mono)}
 .tabs-top{display:flex;align-items:center;justify-content:center;gap:10px;min-width:0;overflow:visible}
@@ -99,7 +99,7 @@ button{cursor:pointer}
 .link.create:hover{background:#303036;border-color:#303036;color:#fff}
 
 /* 레이아웃 */
-main{max-width:1520px;margin:0 auto;padding:36px 32px 96px}
+main{max-width:1520px;margin:0 auto;padding:36px 24px 96px}
 .home-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:32px;align-items:start}
 .home-primary{min-width:0}
 .home-side{position:sticky;top:108px;min-width:0}
@@ -969,7 +969,7 @@ main.is-office{max-width:none;padding:14px 24px 14px}
                 <sc-if value="{{d.poseHead}}"><path class="of-arm" stroke-width="8" d="M48 41L62 31L57 14"></path><circle cx="55.5" cy="11" r="3.6" fill="{{d.skin}}"></circle></sc-if>
               </g></g>
             </g>
-            <sc-if value="{{d.hasSay}}"><g class="{{d.sayCls}}" transform="translate({{d.sx}},-31)" onClick="{{d.sayGo}}" role="button" aria-label="{{d.sayAria}}">
+            <sc-if value="{{d.hasSay}}"><g class="{{d.sayCls}}" data-tip="{{d.tip}}" data-right="{{d.right}}" transform="translate({{d.sx}},-31)" onClick="{{d.sayGo}}" role="button" aria-label="{{d.sayAria}}">
               <rect class="of-say-bg" width="{{d.sw}}" height="24" rx="8" filter="url(#of-lift)"></rect>
               <path class="of-say-tail" d="{{d.tail}}"></path>
               <circle class="of-say-ico" cx="13" cy="12" r="{{d.icoR}}"></circle>
@@ -1022,7 +1022,7 @@ main.is-office{max-width:none;padding:14px 24px 14px}
 
         <sc-for list="{{of.walkers}}" as="w">
           <g class="{{w.cls}}" data-walker="{{w.key}}" transform="translate({{w.x}},{{w.y}})">
-            <g class="of-tag" transform="translate({{w.tagX}},-112)"><rect width="{{w.tagW}}" height="19" rx="9.5"></rect><text x="{{w.tagTx}}" y="13" text-anchor="middle">{{w.tag}}</text></g>
+            <g class="of-tag" data-fit="tag" transform="translate({{w.tagX}},-112)"><rect width="{{w.tagW}}" height="19" rx="9.5"></rect><text x="{{w.tagTx}}" y="13" text-anchor="middle">{{w.tag}}</text></g>
             <g class="of-flip" transform="scale({{w.dir}},1)">
               <ellipse class="of-floor" cx="0" cy="2" rx="16" ry="3.5"></ellipse>
               <g class="of-leg-b"><path class="of-pants" stroke-width="9" d="M0-34L-2-3"></path><ellipse class="of-shoe" cx="2" cy="0" rx="6" ry="3"></ellipse></g>
@@ -2101,6 +2101,25 @@ function officeWalkerAt(w, now) {
   const right = (w.there[0] >= w.home[0]) !== back;
   return { x: Math.round(w.home[0] + (w.there[0] - w.home[0]) * e), y: Math.round(w.home[1] + (w.there[1] - w.home[1]) * e),
     carrying: !back, dir: right ? 1 : -1, step: moving ? (Math.floor(t / 190) % 2 ? 'step-a' : 'step-b') : '' };
+}
+// Bubbles and tags are sized from the text the browser actually drew (an estimate left 18건 outside the bubble,
+// 2026-10-18); a working bubble stays right-aligned over the screen and its tail keeps pointing at the speaker.
+function officeFit(scope) {
+  scope.querySelectorAll('.of-say').forEach((g) => {
+    const t = g.querySelector('.of-say-t'), bg = g.querySelector('.of-say-bg'), tail = g.querySelector('.of-say-tail');
+    if (!t || !bg || typeof t.getComputedTextLength !== 'function') return;
+    const w = Math.ceil(Number(t.getAttribute('x')) + t.getComputedTextLength() + 12);
+    const sx = g.dataset.right ? Math.max(-12, 178 - w) : 14, tip = Math.round(Number(g.dataset.tip) - sx);
+    bg.setAttribute('width', w);
+    g.setAttribute('transform', 'translate(' + sx + ',-31)');
+    if (tail) tail.setAttribute('d', 'M' + (tip - 5) + ' 23.5L' + tip + ' 29.5L' + (tip + 5) + ' 23.5');
+  });
+  scope.querySelectorAll('[data-fit="tag"]').forEach((g) => {
+    const t = g.querySelector('text'), bg = g.querySelector('rect');
+    if (!t || !bg || typeof t.getComputedTextLength !== 'function') return;
+    const w = Math.ceil(t.getComputedTextLength() + 18);
+    bg.setAttribute('width', w); t.setAttribute('x', Math.round(w / 2)); g.setAttribute('transform', 'translate(' + -Math.round(w / 2) + ',-112)');
+  });
 }
 function officeAnimate() {
   if (OFFICE.frame) return;
@@ -3481,7 +3500,7 @@ class Component extends DCLogic {
         cls: 'of-desk team-' + t.id + ' ' + mode + (sel === t.id ? ' sel' : ''), personCls: 'of-person' + (away ? ' away' : ''), dotCls: 'of-dot ' + mode,
         lean: { working: 5, verifying: 5, asking: 0, stopped: 2 }[mode] ?? -4,
         poseType: ['working', 'verifying'].includes(mode), poseRaise: mode === 'asking', poseHead: mode === 'stopped', poseLap: ['queued', 'usage'].includes(mode), poseMug: mode === 'idle',
-        hasSay: !!say && !away, say: say, sw: sw, sx: sx, textX: textX, tail: 'M' + (tip - 5) + ' 23.5L' + tip + ' 29.5L' + (tip + 5) + ' 23.5',
+        hasSay: !!say && !away, say: say, sw: sw, sx: sx, textX: textX, tip: run ? 146 : 47, right: run ? '1' : '', tail: 'M' + (tip - 5) + ' 23.5L' + tip + ' 29.5L' + (tip + 5) + ' 23.5',
         icoR: run ? 3.5 : 7, icoT: mode === 'asking' ? '?' : mode === 'stopped' ? '!' : '', sayTextCls: 'of-say-t' + (run ? ' quiet' : ''),
         sayCls: 'of-say ' + (run ? 'run' : mode === 'asking' ? 'ask' : 'stop'), sayAria: target ? say + ' · ' + target.p.name + ' 열기' : say,
         sayGo: (e) => { if (e) e.stopPropagation(); if (target) this.openProject(target.p.id); else this.setState({ officeSel: t.id }); },
@@ -3776,6 +3795,7 @@ function render() {
   // 사무실 fills the screen under the header, whatever height the header has at this width.
   const top = root.querySelector('.top');
   if (top) document.documentElement.style.setProperty('--top-h', top.offsetHeight + 'px');
+  officeFit(root);
   const all = [...root.querySelectorAll('details')];
   opened.forEach((i) => { if (all[i]) all[i].open = true; });
   const again = id && document.getElementById(id);
