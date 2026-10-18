@@ -753,7 +753,10 @@ export class GoalScheduler {
       team.taskId = null;
       if (goal.taskPlan?.tasks?.length && !plan.allDone && plan.taskId) {
         const task = readyTasks(goal.taskPlan).find(t => t.id === plan.taskId);
-        if (task) { team.worker = task.team; team.taskId = task.id; this.update(goal, { taskPlan: markRunning(goal.taskPlan, task.id) }); }
+        if (task) {
+          team.worker = task.team; team.taskId = task.id; this.update(goal, { taskPlan: markRunning(goal.taskPlan, task.id) });
+          void this.store.emit({ type: 'task.assigned', goalId: goal.id, projectId: goal.projectId, task: task.id, team: task.team, by: 'plan', attempt: (task.attempts ?? 0) + 1 });
+        }
       }
       team.profile = taskProfile(plan.profile);
       if (team.profile.effects.length) return review('needs_decision', { question: `승인 범위가 필요한 작업: ${team.profile.effects.join(', ')}. 해당 외부 작업은 아직 실행하지 않았습니다.` });
@@ -942,7 +945,7 @@ export class GoalScheduler {
     team.reviews = [];
     this.update(goal, { taskPlan: markRunning(plan, task.id),
       messages: this.withControl(this.store.getGoal(goal.id) ?? goal, `엔진 배정 · ${task.id} ${task.title} → ${TEAMS[task.team]?.name ?? task.team}${again ? ' (다시)' : ''}`) });
-    void this.store.emit({ type: 'task.assigned', goalId: goal.id, projectId: goal.projectId, task: task.id, team: task.team, again: !!again });
+    void this.store.emit({ type: 'task.assigned', goalId: goal.id, projectId: goal.projectId, task: task.id, team: task.team, again: !!again, by: 'engine', attempt: (task.attempts ?? 0) + 1 });
     return task.team;
   }
 
