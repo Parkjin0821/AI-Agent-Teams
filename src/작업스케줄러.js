@@ -149,7 +149,10 @@ export class GoalScheduler {
       && Array.isArray(goal.team?.awaitingJudgement) && goal.team.awaitingJudgement.length > 0;
     const done = all && (goal.kind !== 'team' || judged);
     const at = iso(this.clock.now());
-    this.update(goal, { confirmed, evidence, ...(done ? { status: GoalStatus.VERIFIED, nextRunAt: null, reason: null } : {}),
+    // 작업 계획: a task whose criteria are now all proven (대장's confirmation included) is done, as after a verification
+    // (seen in a real run: a project verified by 대장's confirmation still listed its tasks as pending).
+    const taskPlan = goal.taskPlan?.tasks?.length ? settleTasks(goal.taskPlan, goal.completionCriteria, evidence) : goal.taskPlan;
+    this.update(goal, { confirmed, evidence, taskPlan, ...(done ? { status: GoalStatus.VERIFIED, nextRunAt: null, reason: null } : {}),
       ...(!(done && judged) ? { messages: this.withControl(goal, `조건 확인 · ${criterion}${text ? ` · ${text}` : ''}`) } : {}),
       ...(done && judged ? { question: null, autoRun: false, autoRunBeforeFinish: goal.autoRun, team: { ...goal.team, awaitingJudgement: null },
         messages: [...(goal.messages ?? []), { role: 'team', kind: 'question', text: String(goal.question ?? ''), at },
