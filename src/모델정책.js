@@ -84,6 +84,7 @@ export class ModelRegistry {
 function validatePolicy(policy) {
   if (policy.strategy && !['adaptive','legacy'].includes(policy.strategy)) throw new Error('unknown strategy');
   if (policy.permissionMode != null && !['auto', 'careful'].includes(policy.permissionMode)) throw new Error('permission mode must be auto or careful');
+  if (policy.autonomy != null && !['L0', 'L1', 'L2', 'L3'].includes(policy.autonomy)) throw new Error('autonomy must be L0, L1, L2 or L3');
   if (!['auto', 'pinned'].includes(policy.mode)) throw new Error('policy mode must be auto or pinned');
   if (policy.mode === 'pinned' && !policy.model) throw new Error('pinned policy requires a model');
   for (const executor of Object.keys(policy.autoDefaults || {})) validateExecutor(executor);
@@ -99,5 +100,7 @@ function validatePolicy(policy) {
   return { mode: policy.mode, model: policy.mode === 'pinned' ? policy.model : null, teamModels,
     allowFallback: Boolean(policy.allowFallback), ...(policy.allowProviderSwitch !== undefined ? { allowProviderSwitch: policy.allowProviderSwitch === true } : {}), autoDefaults: { ...policy.autoDefaults }, ...(policy.strategy ? { strategy: policy.strategy } : {}),
     // 권한 모드 for this project only (null = the global setting).
-    ...(policy.permissionMode ? { permissionMode: policy.permissionMode } : {}) };
+    ...(policy.permissionMode ? { permissionMode: policy.permissionMode } : {}),
+    // 자율 수준 (자율정책.js) for this project, set only by 대장 (null = a project from before levels).
+    ...(policy.autonomy ? { autonomy: policy.autonomy } : {}) };
 }

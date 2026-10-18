@@ -9,6 +9,7 @@ import { nextStep, REVIEWS, TEAMS, WORKERS } from './팀.js';
 import { validateProjectId } from './작업공간.js';
 import { enqueueRequests, reviewSkip, taskProfile } from './팀검토.js';
 import { selectAssignment } from './작업배정.js';
+import { autonomyDecision } from './자율정책.js';
 import { DEFAULT_CLAUDE_MODEL } from './모델선택.js';
 
 export const GoalStatus = Object.freeze({
@@ -52,8 +53,9 @@ const mergeEvidence = (list, confirmed = []) => [
 // checkpoint) is saved; a policy change during a round therefore takes effect from the next round.
 export class GoalScheduler {
   constructor({ store, runner, clock = { now: () => Date.now() }, policy = DEFAULT_POLICY, registry = null, capacity = null, capabilities = null, dailyCap = null,
-    trust = null, autoSwitch = () => true, autoLevels = () => true, codexModels = () => [], parallelOn = () => true }) {
-    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities, dailyCap, trust, autoSwitch, autoLevels, codexModels, parallelOn });
+    trust = null, autoSwitch = () => true, autoLevels = () => true, codexModels = () => [], parallelOn = () => true, autonomy = () => null }) {
+    // autonomy(projectId) → 'L0'…'L3' or null (a project from before levels: the old 권한 모드 rules apply)
+    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities, dailyCap, trust, autoSwitch, autoLevels, codexModels, parallelOn, autonomy });
     for (const goal of store.listGoals().filter(g => g.status === GoalStatus.RUNNING)) {
       for (const run of store.listRuns(goal.id).filter(r => r.status === 'running')) store.saveRun({ ...run, status: 'interrupted' });
       this.update(goal, { status: GoalStatus.RECOVERY_REQUIRED, reason: 'interrupted_by_restart', nextRunAt: null });
@@ -662,10 +664,21 @@ export class GoalScheduler {
         const kept = dropped.length ? provable : derived;
         const left = dropped.length ? lintCriteria(kept) : issues;
         const notes = [...left, ...dropped.map(c => `증명할 수 없는 조건이라 뺐습니다 (팀 보고는 근거가 아님): ${c}`)];
-        this.update(goal, { completionCriteria: kept, criteriaApprovalPending: true });
         // 8차 P0-2: what the engine will check on its own, whatever check a team later chooses.
         const own = engineGateSummary(kept);
         const ownText = own.length ? `\n엔진이 팀과 별개로 직접 확인할 것:\n- ${own.join('\n- ')}` : '';
+        // 자율 정책: inside the project's autonomy level the engine settles the criteria itself, by fixed rules, and says
+        // so in the thread and the audit trail (policy.auto). Planning then runs once more to pick the first task, as after
+        // 대장's approval.
+        const level = this.autonomy(goal.projectId);
+        const auto = level ? autonomyDecision('criteria', { level, criteria: kept, issues: left, ownerJudged: kept.filter(ownerJudged).length, rewritten: !!team.criteriaLinted }) : null;
+        if (auto?.decision === 'auto') {
+          this.update(goal, { completionCriteria: kept, criteriaApprovalPending: false,
+            messages: this.withControl(goal, `자율 ${level} · 완료 조건 ${kept.length}개를 자동 확정 (${auto.rule})${notes.length ? `\n남은 점: ${notes.join(' / ')}` : ''}${ownText}`) });
+          void this.store.emit({ type: 'policy.auto', kind: 'criteria', goalId: goal.id, projectId: goal.projectId, level, rule: auto.rule, criteria: kept.length });
+          return goTo('plan');
+        }
+        this.update(goal, { completionCriteria: kept, criteriaApprovalPending: true });
         return review('criteria_approval_required', { question: (notes.length
           ? `도출한 완료 조건을 확인하고 승인해 주세요. 엔진 사전 점검에서 남은 점:\n- ${notes.join('\n- ')}`
           : '도출한 완료 조건을 확인하고 승인해 주세요.') + ownText });
@@ -675,8 +688,16 @@ export class GoalScheduler {
         team.criteriaCheck = false;
         const next = plan.completionCriteria?.length ? validateCriteria(plan.completionCriteria) : null;
         if (next && JSON.stringify(next) !== JSON.stringify(goal.completionCriteria)) {
-          this.update(goal, { completionCriteria: next, criteriaApprovalPending: true, confirmed: [] });
-          return review('criteria_approval_required', { evidence: [], question: '대장 메시지에 맞춰 완료 조건을 바꾸자고 제안했습니다. 확인하고 승인해 주세요.' });
+          const level = this.autonomy(goal.projectId);
+          const auto = level ? autonomyDecision('criteria', { level, criteria: next, issues: lintCriteria(next), ownerJudged: next.filter(ownerJudged).length }) : null;
+          if (auto?.decision !== 'auto') {
+            this.update(goal, { completionCriteria: next, criteriaApprovalPending: true, confirmed: [] });
+            return review('criteria_approval_required', { evidence: [], question: '대장 메시지에 맞춰 완료 조건을 바꾸자고 제안했습니다. 확인하고 승인해 주세요.' });
+          }
+          this.update(goal, { completionCriteria: next, criteriaApprovalPending: false, confirmed: [],
+            messages: this.withControl(goal, `자율 ${level} · 대장 메시지에 맞춰 바뀐 완료 조건 ${next.length}개를 자동 확정 (${auto.rule})`) });
+          void this.store.emit({ type: 'policy.auto', kind: 'criteria', goalId: goal.id, projectId: goal.projectId, level, rule: auto.rule, criteria: next.length, changed: true });
+          evidence = [];
         }
       }
       // 병렬 작업: an independent piece of work runs at the same time as a lane in its own folder.
@@ -747,6 +768,13 @@ export class GoalScheduler {
       // 신뢰 쌓기: the first results of each kind of work wait for 대장 before the rotation moves on.
       const required = this.trust?.required(goal.projectId) ?? 0, seen = this.trust?.count(step) ?? 0;
       if (!result.simulated && seen < required) {
+        // 자율 정책: from L2 on, a work team's result goes on to the next team without 대장's look (recorded).
+        const level = this.autonomy(goal.projectId);
+        const auto = level ? autonomyDecision('trust', { level }) : null;
+        if (auto?.decision === 'auto') {
+          void this.store.emit({ type: 'policy.auto', kind: 'trust', goalId: goal.id, projectId: goal.projectId, level, rule: auto.rule, team: step });
+          return advance(extra);
+        }
         return { ...advance(extra), status: GoalStatus.REVIEW_REQUIRED, reason: 'trust_review', nextRunAt: null,
           trustReview: { team: step, number: seen + 1, required },
           question: `${TEAMS[step].name} 결과 확인 (신뢰 쌓기 ${seen + 1}/${required}) · 결과를 보고 계속하거나 되돌려 보내 주세요.` };

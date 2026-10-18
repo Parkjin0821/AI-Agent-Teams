@@ -37,6 +37,7 @@ import { listWorkspaceFiles } from './완료근거.js';
 import { hasSecret } from './보안감시.js';
 import { Routines } from './반복작업.js';
 import { Templates } from './템플릿.js';
+import { LEVEL_INFO, normalizeLevel } from './자율정책.js';
 import { BLANK_MARK, secretaryTemplate, SECRETARY_TEMPLATES } from './비서템플릿.js';
 import { Rules } from './규칙.js';
 import { KeepAwake, needsAwake } from './절전방지.js';
@@ -57,9 +58,15 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   const memory = new Memory({ store, clock });
   const setting = (key, fallback) => store.getSettings()[key] ?? fallback;
   // 권한 모드 (연결환경.js): the project's own choice, else the global one.
-  const permissionMode = project => (project && registry.getPolicy(`project:${project}`).permissionMode) || setting('permissions.mode', 'auto');
+  // 자율 수준 (자율정책.js): the project's level, set only by 대장; null for a project from before levels.
+  const autonomyOf = project => (project && normalizeLevel(registry.getPolicy(`project:${project}`).autonomy)) || null;
+  // With a level, L0 keeps the careful mode (first sites need approval) and L1–L3 open public sites; without one the
+  // project's own 권한 모드, else the global one.
+  const permissionMode = project => { const lv = autonomyOf(project); if (lv) return lv === 'L0' ? 'careful' : 'auto';
+    return (project && registry.getPolicy(`project:${project}`).permissionMode) || setting('permissions.mode', 'auto'); };
   // 신뢰 쌓기 counters: how many results of each work team 대장 has accepted (all projects). 알아서 mode skips the reviews.
-  const trust = { required: (project) => (project && permissionMode(project) === 'auto' ? 0 : setting('trust.required', 3)), count: team => setting(`trust.count.${team}`, 0),
+  // With a level the scheduler decides (L2+ goes on without the look, recorded); without one, 알아서 mode skips it.
+  const trust = { required: (project) => (autonomyOf(project) ? setting('trust.required', 3) : project && permissionMode(project) === 'auto' ? 0 : setting('trust.required', 3)), count: team => setting(`trust.count.${team}`, 0),
     add: team => store.setSetting(`trust.count.${team}`, setting(`trust.count.${team}`, 0) + 1),
     // 대장 decides this kind of work has earned trust: later results continue without a review.
     complete: team => store.setSetting(`trust.count.${team}`, Math.max(setting(`trust.count.${team}`, 0) + 1, setting('trust.required', 3))) };
@@ -155,7 +162,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   // 제어팀 needs this account's Codex list (Luna / Sol); a real server reads it before the first step.
   if (executing) void modelChoices.get().catch(() => {});
   const liveActivity = new Map();
-  const scheduler = new GoalScheduler({ store, clock, registry,
+  const scheduler = new GoalScheduler({ store, clock, registry, autonomy: project => autonomyOf(project),
     capacity: guarded ? capacity : null,
     dailyCap: () => store.getSettings()['limits.maxRoundsPerDay'],
     autoSwitch: () => store.getSettings()['limits.autoSwitch'] !== false,
@@ -203,6 +210,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       if (!executing) throw new Error('실제 실행 서버에서만 올림');
       const state = connectorGate.get('notion');
       if (state?.stage !== 'connected') throw new Error('Notion 연결이 승인되지 않음 (팀 화면에서 연결 시험·승인)');
+      // Right after a start the environment check may still be running: wait for it (or one fresh check) first.
+      if (!connectorPlugins(monitor?.snapshot) && monitor) await monitor.refresh().catch(() => {});
       const plugins = connectorPlugins(monitor?.snapshot);
       if (!plugins) throw new Error('플러그인 목록을 몰라 커넥터 실행을 거부');
       return notionRelay({ bins: resolveBins(), sentinel: { script: path.join(root, 'scripts', '보안감시-훅.mjs'), rules: rules.file },
@@ -409,6 +418,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       // 템플릿: a saved recipe fills in what 대장 left empty; 대장's edited objective and criteria win.
       const tpl = body.templateId ? templates.get(String(body.templateId)) : null;
       if (body.templateId && !tpl) throw new Error('template not found');
+      // 자율 수준: checked before anything is made (an invalid level must not leave a project behind).
+      const level = normalizeLevel(body.autonomy);
+      if (body.autonomy !== undefined && body.autonomy !== null && !level) throw new Error('autonomy must be L0, L1, L2 or L3');
       // 비서 템플릿: a built-in starter fills the name and objective only; the teams derive the criteria in the conversation.
       const sec = body.presetId ? secretaryTemplate(String(body.presetId)) : null;
       if (body.presetId && !sec) throw new Error('template not found');
@@ -420,6 +432,11 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       completionCriteria: criteria, autoRun: body.start === true });
       workspaces.resolve(goal.projectId);
       // New projects start on each app's default model (or 제어팀); a template brings 대장's per-team picks along.
+      // 자율 수준: chosen by 대장 in the new-project sheet (none given = the old rules for this project).
+      if (level) {
+        registry.setPolicy(`project:${goal.projectId}`, { autonomy: level }, { by: '대장', reason: 'new project' });
+        scheduler.update(store.getGoal(goal.id), { messages: scheduler.withControl(store.getGoal(goal.id), `자율 수준 ${level} · ${LEVEL_INFO[level].name}`) });
+      }
       if (tpl) {
         if (Object.keys(tpl.teamModels ?? {}).length) registry.setPolicy(`project:${goal.projectId}`, { teamModels: tpl.teamModels }, { by: '대장', reason: `template ${tpl.name}` });
         templates.markUsed(tpl.id);
@@ -430,6 +447,18 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       if (sec) scheduler.update(store.getGoal(goal.id), { preset: { id: sec.id, name: sec.name, routine: sec.routine },
         messages: scheduler.withControl(store.getGoal(goal.id), `비서 템플릿으로 시작 · ${sec.name}`) });
       return [201, store.getGoal(goal.id)];
+    }],
+    // 자율 수준 change: 대장's own screen only (teams cannot reach this address); recorded as policy.changed.
+    ['PUT', /^\/api\/projects\/([^/]+)\/autonomy$/, async (m, body) => {
+      existingWorkspace(m[1]);
+      const id = validateProjectId(m[1]), level = normalizeLevel(body.level);
+      if (body.confirm !== true || !level) throw new Error('autonomy must be L0, L1, L2 or L3 (confirmed by 대장)');
+      const before = autonomyOf(id);
+      registry.setPolicy(`project:${id}`, { autonomy: level }, { by: '대장', reason: 'autonomy' });
+      const g = store.listGoals().filter(x => x.projectId === id && !x.lane && !x.parentGoalId).at(-1);
+      if (g) scheduler.update(g, { messages: scheduler.withControl(g, `자율 수준 ${before ?? '없음'} → ${level} · ${LEVEL_INFO[level].name}`) });
+      await store.emit({ type: 'policy.changed', projectId: id, from: before, to: level, by: '대장' });
+      return { projectId: id, autonomy: level };
     }],
     ['GET', /^\/api\/rules$/, () => ({ items: rules.list() })],
     ['POST', /^\/api\/rules$/, (m, body) => { if (body.project) existingWorkspace(String(body.project)); return [201, rules.add(body)]; }],

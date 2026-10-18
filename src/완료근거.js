@@ -291,6 +291,8 @@ export function lintCriteria(criteria) {
     // there before, so "only these files are new" stalled; and no file can show that nothing was made up.
     if (/뿐이다|뿐이고|뿐$|만\s*(?:있|생긴|새로)/.test(c) && /파일|결과물/.test(c)) issues.push(`${at}: "새 파일은 ○○뿐" 은 증명할 기준 기록이 없다 · 빼거나 "작업 폴더 밖에 쓴 파일이 없다" 로`);
     if (/지어낸|지어내|말하지 않은|추측|꾸며/.test(c) && !PERSON_MARK.test(c)) issues.push(`${at}: 지어낸 것이 "없다" 는 파일로 증명할 수 없다 · 끝에 "(대장이 확인)" 을 붙인다`);
+    // 자율 정책: a 대장 check says why no engine check can do it.
+    if (PERSON_MARK.test(c) && !/자동\s*검증\s*불가/.test(c)) issues.push(`${at}: 대장 확인 조건에는 자동 검증이 안 되는 이유를 " — 자동 검증 불가: …" 로 붙인다 · 이유가 없으면 자동 검증 조건으로 바꾼다`);
     // 10차 2번: what an engine check covers is not left to 대장's eyes.
     if (PERSON_MARK.test(c) && (/깨진|넘침|넘치|잘림|겹침/.test(c) || LINK_TOPIC(c) || KOREAN_NAME_TOPIC(c))) {
       issues.push(`${at}: 깨진 화면·넘침·링크·파일 이름은 엔진이 직접 확인한다 · 그 부분은 "(대장이 … 확인)" 없이 자동 검증 조건으로 쓴다`);

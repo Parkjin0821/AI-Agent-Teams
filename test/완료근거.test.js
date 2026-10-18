@@ -303,7 +303,7 @@ test('자율 시험: menu items counted in the page, engine-only proofs run by t
   assert.equal(content.claims[0].check, 'none', 'content is never proven by the engine alone');
   assert.equal(verifyReport({ criteria: [] }, ["엔진이 서식 '회의록'으로 회의록.hwpx 를 만들었다"], cwd, { documents }).claims[0].check, 'none', 'work steps are not verification');
   const issues = lintCriteria(['회의록.md 에 대장이 말하지 않은 사실이 없다 (빈 칸은 (미정)으로 둔다)', '새로 생긴 파일은 회의록.md 와 회의록.hwpx 뿐이다 (엔진 파일은 빼고 센다)',
-    '지어낸 사실이 없다 (대장이 확인)']);
+    '지어낸 사실이 없다 (대장이 확인) — 자동 검증 불가: 회의 원문과 대조해야 함']);
   assert.equal(issues.length, 2);
   assert.match(issues.join('\n'), /1번: 지어낸[\s\S]*2번: "새 파일은 ○○뿐" 은 증명할 기준 기록이 없다/);
 });

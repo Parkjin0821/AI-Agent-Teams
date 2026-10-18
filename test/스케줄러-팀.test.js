@@ -732,7 +732,7 @@ test('a review that could not check part of its field holds completion for 대�
 test('완료 조건 사전 점검: planning rewrites a list that would stall once, and what is left goes to 대장 with it', async () => {
   const stalls = ['회의록.md에 대장이 준 회의 내용에 없는 발언자·담당자·기한·추가 안건이 없다', '발표 흐름이 설득력 있고 읽기 편하다',
     '작업 폴더에 새로 생긴 결과물은 회의록.md 와 회의록.hwpx 뿐이다'];
-  const fixed = ['회의록.md에 지어낸 담당·기한이 없다 (빈 칸은 (미정)으로 둔다) (대장이 확인)', '발표 흐름이 설득력 있다 (대장이 PDF에서 확인)'];
+  const fixed = ['회의록.md에 지어낸 담당·기한이 없다 (빈 칸은 (미정)으로 둔다) (대장이 확인) — 자동 검증 불가: 회의 원문과 대조', '발표 흐름이 설득력 있다 (대장이 PDF에서 확인) — 자동 검증 불가: 설득력은 사람 판단'];
   let plans = 0;
   const { store, scheduler, add } = setup(team => team === 'plan'
     ? { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [], completionCriteria: ++plans === 1 ? stalls : [...fixed, stalls[2]] } }

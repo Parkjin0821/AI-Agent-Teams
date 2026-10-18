@@ -143,6 +143,8 @@ export const TEAM_BRIEFS = Object.freeze({
       // 10차 2번: 9차 had a "(대장이 … 확인)" criterion in almost every project, so the engine could never finish one on
       // its own and every project waited for 대장 (engine-only verification ran 0 times).
       '완료 조건은 엔진이 증명할 수 있게 쓰는 것이 기본이다 (파일·문구·테스트·화면 검사·문서 만들기·링크 검사·한글 파일 이름). "(대장이 … 확인)" 조건은 결과의 핵심이 취향·느낌 같은 주관적 품질이거나, 대장이 요청에서 직접 보겠다고 한 것에만 쓴다. 모든 프로젝트에 관행처럼 넣지 않고, 넣더라도 하나로 묶는다. 엔진 검사가 다루는 것(깨진 화면·넘침·끊긴 링크·파일 이름·문서 구조)은 대장 확인으로 두지 않는다.',
+      // 자율 정책: a 대장 check is a request for 대장's time, so it carries its reason; and what 대장 said they will decide stays.
+      '"(대장이 … 확인)" 조건을 넣을 때는 끝에 " — 자동 검증 불가: 이유" 를 붙인다 (예: "… (대장이 화면에서 확인) — 자동 검증 불가: 분위기는 취향 판단"). 이유를 댈 수 없으면 자동 검증 조건으로 바꾼다. 대장이 요청에서 직접 정하겠다고 한 것(최종 디자인 선택, 사업 판단 등)은 대장 확인 조건으로 남기고 빼지 않는다.',
       // The minutes re-test (2026-10-01): "no 담당자·기한 not in the meeting" was read as "no 담당/기한 column, no (미정)",
       // so the verifier failed the structured minutes and the team stripped them back to the bare manuscript.
       '문서(회의록·보고서·계획서) 조건은 그 종류의 필수 항목(회의록: 기본 정보·안건·결정·후속 조치·다음 회의)을 요구하고, "지어낸 사실이 없다" 조건에는 "(빈 칸은 (미정)으로 둔다) (대장이 확인)" 을 함께 적는다 (지어내지 않았다는 것은 파일로 증명할 수 없다). 담당·기한 칸이나 "(미정)" 자체를 금지하는 조건은 만들지 않는다. 한글 문서가 서식대로 만들어졌는지는 엔진의 문서 만들기(document_made)와 문서 품질 검사가 확인하므로 대장 확인 조건으로 따로 두지 않는다 (대장이 미리보기를 직접 보겠다고 한 경우만 "(대장이 미리보기에서 확인)").',
