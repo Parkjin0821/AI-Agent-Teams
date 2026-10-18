@@ -861,7 +861,7 @@ export function listWorkspaceFiles(cwd, max = 50) {
 // preview of the filled form, could check it only in part, and completion waited for 대장).
 export function isEngineFile(file, made = []) {
   return made.includes(file) || /\.(hwpx?|xlsx|docx)\.(md|svg|html?)$/i.test(file)
-    || /^(sources|\.hq-screens|발표자료)\//.test(file) || /^reports\/완료보고서-/.test(file);
+    || /^(sources|\.hq-screens|발표자료)\//.test(file) || /^reports\/(완료보고서-|결과패키지\/)/.test(file);
 }
 
 // A content fingerprint of the workspace, used to tell real progress from repeated no-op rounds.

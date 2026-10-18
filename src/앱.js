@@ -31,12 +31,13 @@ import { HIDDEN_CODEX_MODELS, ModelChoices } from './모델선택.js';
 import { kindOf, quickApprovable, SkillLibrary } from './스킬.js';
 import { Approvals, SCOPES } from './승인.js';
 import { Memory } from './기억.js';
-import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { buildReport, REPORTS_DIR } from './완료보고서.js';
 import { listWorkspaceFiles } from './완료근거.js';
 import { hasSecret } from './보안감시.js';
 import { Routines } from './반복작업.js';
 import { Templates } from './템플릿.js';
+import { buildPackage, writePackage } from './결과패키지.js';
 import { LEVEL_INFO, normalizeLevel } from './자율정책.js';
 import { BLANK_MARK, secretaryTemplate, SECRETARY_TEMPLATES } from './비서템플릿.js';
 import { Rules } from './규칙.js';
@@ -605,6 +606,25 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
         docDiagnostic: { stage: doc.stage ?? null, status: doc.status ?? null, code: doc.code ?? null, output: doc.output ?? '' } }) });
     return { report, doc };
   };
+  // 결과 패키지 (자율 작업 조율 4단계): a top-level team project that finished, stopped for 대장 or got stuck gets its
+  // package rewritten from the engine's records (reports/결과패키지/), so anyone can pick it up from there.
+  const writeResultPackage = goalId => {
+    const goal = store.getGoal(goalId);
+    if (!goal || goal.kind !== 'team' || goal.lane || goal.parentGoalId) return null;
+    const runs = store.listRuns(goalId);
+    if (!runs.some(r => !r.simulated)) return null;
+    const cwd = workspaces.resolve(goal.projectId);
+    let packageJson = null;
+    try { packageJson = JSON.parse(readFileSync(path.join(cwd, 'package.json'), 'utf8')); } catch { /* none */ }
+    const events = store.recentEvents(2000).filter(e => e.goalId === goalId);
+    const written = writePackage(cwd, buildPackage({ goal, runs, events, files: listWorkspaceFiles(cwd, 2000), packageJson, now: new Date(clock.now()).toISOString() }));
+    void store.emit({ type: 'package.written', goalId, projectId: goal.projectId, files: written.length });
+    return written;
+  };
+  store.subscribe(event => {
+    if (!['goal.verified', 'goal.review_required', 'goal.blocked', 'goal.recovery_required'].includes(event.type)) return;
+    try { writeResultPackage(event.goalId); } catch (error) { void store.emit({ type: 'package.failed', goalId: event.goalId, error: String(error?.message ?? error).slice(0, 200) }); }
+  });
   store.subscribe(event => {
     if (event.type !== 'goal.verified') return;
     void makeReport(event.goalId).catch(error => store.emit({ type: 'report.made', goalId: event.goalId, error: String(error?.message ?? error).slice(0, 200) }));
