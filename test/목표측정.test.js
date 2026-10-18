@@ -82,3 +82,13 @@ test('목표 중심 측정: no graph means nothing was split; engine files never
   assert.equal(avg.decomposition.value, (0 + 0.75) / 2);
   assert.deepEqual(avg.handoff, { value: 0.5, n: 1 }, 'a project with no value is left out of the average');
 });
+
+test('목표 중심 측정: a task still on its first, unfinished try is not yet owed a handoff (10차 실측)', () => {
+  const p = startPlan(tasks, 't0');
+  p.tasks[0] = { ...p.tasks[0], status: 'done', attempts: 1, handoff: { made: [{ path: '요구사항.md', ok: true }], decisions: [], openIssues: [], forNext: '그대로' } };
+  p.tasks[1] = { ...p.tasks[1], status: 'running', attempts: 1 };
+  const m = measureGoal({ goal: { ...goal, taskPlan: p }, files: [], rubric: RUBRIC });
+  assert.equal(m.handoff.score, 1);
+  p.tasks[1] = { ...p.tasks[1], status: 'running', attempts: 2 };
+  assert.equal(measureGoal({ goal: { ...goal, taskPlan: p }, files: [], rubric: RUBRIC }).handoff.score, 0.5, 'a retried task did finish a step');
+});

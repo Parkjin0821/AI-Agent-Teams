@@ -622,7 +622,9 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     return written;
   };
   store.subscribe(event => {
-    if (!['goal.verified', 'goal.review_required', 'goal.blocked', 'goal.recovery_required'].includes(event.type)) return;
+    // goal.daily_cap: the day's step limit paused it until tomorrow (10차 실측: five of seven projects stopped there
+    // with no package for whoever picks them up).
+    if (!['goal.verified', 'goal.review_required', 'goal.blocked', 'goal.recovery_required', 'goal.daily_cap'].includes(event.type)) return;
     try { writeResultPackage(event.goalId); } catch (error) { void store.emit({ type: 'package.failed', goalId: event.goalId, error: String(error?.message ?? error).slice(0, 200) }); }
   });
   store.subscribe(event => {

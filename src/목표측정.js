@@ -54,7 +54,10 @@ export function assignment(goal, rubric, events = []) {
 // handoff came in) and it says what the next team should know.
 export function handoff(goal) {
   const tasks = goal.taskPlan?.tasks ?? [];
-  const needed = tasks.filter(t => tasks.some(o => o.dependsOn?.includes(t.id)) && (t.status === 'done' || (t.attempts ?? 0) > 0));
+  // A task still running its first try has not had the chance to hand over yet (10차 실측: T3 counted while its step
+  // had not even started when the day's step limit came).
+  const needed = tasks.filter(t => tasks.some(o => o.dependsOn?.includes(t.id))
+    && (t.status === 'done' || (t.attempts ?? 0) > (t.status === 'running' ? 1 : 0)));
   if (!needed.length) return { score: null, basis: tasks.length ? '이어받을 작업이 아직 없음' : '작업 그래프 없음', misses: [] };
   const misses = needed.map(t => {
     const h = t.handoff;
