@@ -33,7 +33,7 @@ import { Approvals, SCOPES } from './승인.js';
 import { Memory } from './기억.js';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { buildReport, REPORTS_DIR } from './완료보고서.js';
-import { listWorkspaceFiles } from './완료근거.js';
+import { engineCheckNow, listWorkspaceFiles } from './완료근거.js';
 import { hasSecret } from './보안감시.js';
 import { Routines } from './반복작업.js';
 import { Templates } from './템플릿.js';
@@ -164,6 +164,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   if (executing) void modelChoices.get().catch(() => {});
   const liveActivity = new Map();
   const scheduler = new GoalScheduler({ store, clock, registry, autonomy: project => autonomyOf(project),
+    // 10차 실측 P0: the engine's own check of an objective criterion in the project's folder, now.
+    engineCheck: (goal, criterion) => engineCheckNow(criterion, workspaces.resolve(goal.projectId), { evidence: goal.evidence ?? [] }),
     capacity: guarded ? capacity : null,
     dailyCap: () => store.getSettings()['limits.maxRoundsPerDay'],
     autoSwitch: () => store.getSettings()['limits.autoSwitch'] !== false,
@@ -223,7 +225,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   // Notion 자동 기록 (10차): a top-level team project that finished, stopped for 대장 or got stuck brings its record page
   // up to date (only on the real-execution server, and only while 대장 keeps it on).
   store.subscribe(ev => {
-    if (!executing || !['goal.verified', 'goal.review_required', 'goal.blocked', 'goal.recovery_required'].includes(ev.type)) return;
+    // goal.completion_corrected: a finish the engine took back must not stay 완료 on the record page either.
+    if (!executing || !['goal.verified', 'goal.review_required', 'goal.blocked', 'goal.recovery_required', 'goal.completion_corrected'].includes(ev.type)) return;
     const g = store.getGoal(ev.goalId);
     if (g?.kind === 'team' && !g.parentGoalId && !g.lane) void publisher.sync(g.projectId);
   });
@@ -484,6 +487,8 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
     ['POST', /^\/api\/goals\/([^/]+)\/proposal\/accept$/, m => [201, scheduler.acceptProposal(m[1])]],
     ['POST', /^\/api\/goals\/([^/]+)\/proposal\/dismiss$/, m => scheduler.dismissProposal(m[1])],
     ['POST', /^\/api\/goals\/([^/]+)\/confirm$/, (m, body) => scheduler.confirmCriterion(m[1], String(body.criterion ?? ''), body.note)],
+    // 완료 정정 (10차 실측 P0): re-check a finished project's objective criteria; apply:true reopens it when they fail.
+    ['POST', /^\/api\/goals\/([^/]+)\/recheck-completion$/, (m, body) => scheduler.recheckCompletion(m[1], { apply: body.apply === true })],
     ['POST', /^\/api\/goals\/([^/]+)\/run$/, async m => { if (guarded) await refreshUsage(); await scheduler.runGoal(m[1]); await autoSave.tick(); return engineView(); }],
     ['POST', /^\/api\/engine\/tick$/, async () => {
       if (executing) throw new Error('real execution is on: run one goal at a time with /api/goals/:id/run');
@@ -624,7 +629,7 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
   store.subscribe(event => {
     // goal.daily_cap: the day's step limit paused it until tomorrow (10차 실측: five of seven projects stopped there
     // with no package for whoever picks them up).
-    if (!['goal.verified', 'goal.review_required', 'goal.blocked', 'goal.recovery_required', 'goal.daily_cap'].includes(event.type)) return;
+    if (!['goal.verified', 'goal.review_required', 'goal.blocked', 'goal.recovery_required', 'goal.daily_cap', 'goal.completion_corrected'].includes(event.type)) return;
     try { writeResultPackage(event.goalId); } catch (error) { void store.emit({ type: 'package.failed', goalId: event.goalId, error: String(error?.message ?? error).slice(0, 200) }); }
   });
   store.subscribe(event => {

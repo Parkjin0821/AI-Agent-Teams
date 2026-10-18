@@ -235,6 +235,8 @@ test('동적 재계획: criteria changed by 대장\'s message without a new list
 test('작업 계획: a project finished by 대장\'s confirmation marks its tasks done too (10차 실측: verified, tasks still pending)', () => {
   const store = new PersistentStore({ dataDir: mkdtempSync(path.join(tmpdir(), 'hq-confirm-')) });
   const scheduler = new GoalScheduler({ store, clock: { now: () => Date.parse('2026-10-18T09:00:00Z') }, policy: DEFAULT_POLICY, autonomy: () => 'L2',
+    // the engine's own check passes (index.html is there, the tests ran): this test is about the plan's bookkeeping
+    engineCheck: () => ({ status: 'pass', detail: '' }),
     trust: { required: () => 0, count: () => 0, add: () => {} }, runner: { run: async () => ({ outcome: 'completed' }) } });
   try {
     const goal = scheduler.addGoal({ projectId: 'confirm', kind: 'team', autoRun: true, objective: 'x', conversation: true, completionCriteria: C.slice(0, 3) });

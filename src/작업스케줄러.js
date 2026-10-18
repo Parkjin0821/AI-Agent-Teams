@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { attachmentNote } from './첨부파일.js';
 import { validateCriteria } from './업무도메인.js';
-import { engineGateSummary, lintCriteria, ownerJudged, unprovableCriterion } from './완료근거.js';
+import { criterionState, engineGateSummary, lintCriteria, objectiveCriterion, ownerJudged, unprovableCriterion } from './완료근거.js';
 import { isUsable, resolveModel, validateExecutor } from './모델.js';
 import { CAUSE_L, defectStreak, failureCause, levelChoice, levelFor } from './모델수준.js';
 import { DEFAULT_POLICY } from './정책.js';
@@ -10,7 +10,7 @@ import { validateProjectId } from './작업공간.js';
 import { enqueueRequests, reviewSkip, taskProfile } from './팀검토.js';
 import { selectAssignment } from './작업배정.js';
 import { autonomyDecision } from './자율정책.js';
-import { lintTasks, markRunning, planSummary, readyTasks, recordHandoff, remapCriteria, replan, settleTasks, startPlan } from './작업계획.js';
+import { closePlan, lintTasks, markRunning, planSummary, readyTasks, recordHandoff, remapCriteria, reopenTasks, replan, settleTasks, startPlan } from './작업계획.js';
 import { DEFAULT_CLAUDE_MODEL } from './모델선택.js';
 
 // 동적 재계획: what planning is told when the engine wants the tasks not yet done planned again.
@@ -46,10 +46,17 @@ const sameLocalDay = (a, b) => new Date(a).toDateString() === new Date(b).toDate
 // model (2.1.265 ran Opus 5), so the listed default is passed by its full ID.
 const namedModel = (executor, result) => (executor === 'claude-code' && result.state === 'ready' && !result.model
   ? { ...result, model: DEFAULT_CLAUDE_MODEL, source: result.source === 'team_choice' ? 'team_choice' : 'listed_default' } : result);
-const mergeEvidence = (list, confirmed = []) => [
-  ...(list ?? []).filter(e => !(confirmed ?? []).some(c => c.criterion === e.criterion)),
-  ...(confirmed ?? []).map(({ criterion, proof }) => ({ criterion, proof })),
-];
+// 대장's confirmations stand in for a check — except for an objective criterion (완료근거.js objectiveCriterion), where one
+// counts only if the engine's own check passed when 대장 confirmed it (10차 실측 P0: a confirmation made before this
+// rule, with the named file missing, finished 회의록).
+// A confirmation's proof always starts with "대장 확인"; one already merged into goal.evidence is held to the same rule.
+const humanProof = e => /^대장 확인/.test(String(e?.proof ?? ''));
+const humanCounts = c => !objectiveCriterion(c.criterion) || c.engine === 'pass';
+const mergeEvidence = (list, confirmed = []) => {
+  const human = (confirmed ?? []).filter(humanCounts);
+  const stands = e => !humanProof(e) || !objectiveCriterion(e.criterion);
+  return [...(list ?? []).filter(e => stands(e) && !human.some(c => c.criterion === e.criterion)), ...human.map(({ criterion, proof }) => ({ criterion, proof }))];
+};
 
 // Drives repeated rounds toward a goal. Time comes only from the injected clock and all state lives in
 // SQLite, so the scheduler holds nothing that a restart could lose. It never resumes interrupted work itself.
@@ -57,9 +64,11 @@ const mergeEvidence = (list, confirmed = []) => [
 // checkpoint) is saved; a policy change during a round therefore takes effect from the next round.
 export class GoalScheduler {
   constructor({ store, runner, clock = { now: () => Date.now() }, policy = DEFAULT_POLICY, registry = null, capacity = null, capabilities = null, dailyCap = null,
-    trust = null, autoSwitch = () => true, autoLevels = () => true, codexModels = () => [], parallelOn = () => true, autonomy = () => null }) {
+    trust = null, autoSwitch = () => true, autoLevels = () => true, codexModels = () => [], parallelOn = () => true, autonomy = () => null, engineCheck = null }) {
     // autonomy(projectId) → 'L0'…'L3' or null (a project from before levels: the old 권한 모드 rules apply)
-    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities, dailyCap, trust, autoSwitch, autoLevels, codexModels, parallelOn, autonomy });
+    // engineCheck(goal, criterion) → { status: 'pass' | 'fail' | 'unverifiable', detail }: the engine's own check of an
+    // objective criterion in the work folder now (완료근거.js engineCheckNow). Without it nothing objective is confirmable.
+    Object.assign(this, { store, runner, clock, policy, registry, capacity, capabilities, dailyCap, trust, autoSwitch, autoLevels, codexModels, parallelOn, autonomy, engineCheck });
     for (const goal of store.listGoals().filter(g => g.status === GoalStatus.RUNNING)) {
       for (const run of store.listRuns(goal.id).filter(r => r.status === 'running')) store.saveRun({ ...run, status: 'interrupted' });
       this.update(goal, { status: GoalStatus.RECOVERY_REQUIRED, reason: 'interrupted_by_restart', nextRunAt: null });
@@ -129,6 +138,41 @@ export class GoalScheduler {
     return goal;
   }
 
+  // 완료 정정 (10차 실측 P0): a finished project whose objective criteria the engine cannot stand behind now — proven only
+  // by 대장's confirmation, or its file gone — is reopened (apply), or only listed (dry run). History stays: messages,
+  // runs, events and the confirmations themselves remain in the record; they just no longer count as proof.
+  recheckCompletion(goalId, { apply = false } = {}) {
+    const goal = this.store.getGoal(goalId);
+    if (!goal) throw new Error('goal not found');
+    if (goal.status !== GoalStatus.VERIFIED) return { goalId, status: goal.status, problems: [], corrected: false };
+    const evidence = mergeEvidence(goal.evidence, goal.confirmed);
+    const problems = goal.completionCriteria.filter(objectiveCriterion).map(c => {
+      const proven = evidence.some(e => e.criterion === c);
+      const now = this.objectiveNow(goal, c);
+      if (!proven) return { criterion: c, why: `엔진 근거 없음 (대장 확인만 있었음)${now.status === 'fail' ? ` · ${now.detail}` : ''}` };
+      return now.status === 'fail' ? { criterion: c, why: `엔진 확인 실패: ${now.detail}` } : null;
+    }).filter(Boolean);
+    if (!problems.length || !apply) return { goalId, status: goal.status, problems, corrected: false };
+    const at = iso(this.clock.now());
+    const kept = evidence.filter(e => !problems.some(p => p.criterion === e.criterion));
+    const note = `완료 표시 정정 · 엔진이 직접 확인하는 조건이 충족되지 않아 다시 진행합니다 (이력은 그대로 둡니다):\n${problems.map(p => `- ${p.criterion} → ${p.why}`).join('\n')}`;
+    this.update(goal, { status: GoalStatus.SCHEDULED, reason: null, question: null, nextRunAt: at, autoRun: goal.autoRunBeforeFinish ?? true,
+      evidence: kept, taskPlan: goal.taskPlan?.tasks?.length ? reopenTasks(goal.taskPlan, goal.completionCriteria, kept) : goal.taskPlan,
+      corrections: [...(goal.corrections ?? []), { at, problems }],
+      team: { ...goal.team, step: 'plan', awaitingJudgement: null, lastUnproven: null, workSinceQa: true, objectiveStalls: 0,
+        feedback: `[엔진] ${note}\n이 조건을 만족하도록 작업을 배정하세요.` },
+      messages: this.withControl(goal, note) });
+    void this.store.emit({ type: 'goal.completion_corrected', goalId, projectId: goal.projectId, criteria: problems.map(p => p.criterion) });
+    return { goalId, status: GoalStatus.SCHEDULED, problems, corrected: true };
+  }
+
+  // The engine's own check of an objective criterion now (injected by the app, which knows the work folder).
+  objectiveNow(goal, criterion) {
+    if (!this.engineCheck) return { status: 'unverifiable', detail: '작업 폴더를 확인할 수 없음' };
+    try { return this.engineCheck(goal, criterion) ?? { status: 'unverifiable', detail: '' }; }
+    catch (error) { return { status: 'unverifiable', detail: String(error?.message ?? error).slice(0, 200) }; }
+  }
+
   // 대장's own confirmation of a criterion the engine could not check. It is recorded as human evidence,
   // kept across later rounds, and finishes the goal once every criterion has evidence.
   confirmCriterion(goalId, criterion, note = '') {
@@ -138,21 +182,48 @@ export class GoalScheduler {
     // In a team project 대장 confirms only what the verification team looked at and the engine could not prove.
     if (goal.kind === 'team' && !(this.store.listRuns?.(goalId) ?? []).some(r => r.team === 'qa' && r.status === 'finished'
       && r.outcome === 'completed' && !r.simulated)) throw new Error('verification team has not checked this project yet');
+    // 객관적 조건 (10차 실측 P0, 헌장 원칙 5): 대장 may judge the subjective part of a criterion, never overwrite what the
+    // engine checks itself. A failed or not-yet-runnable engine check, or a failed check in the last verification,
+    // keeps the criterion open whatever 대장 presses.
+    let engine = null;
+    if (objectiveCriterion(criterion)) {
+      const now = this.objectiveNow(goal, criterion);
+      const lastFail = goal.team?.lastChecks?.[criterion] === 'fail';
+      if (now.status !== 'pass' || lastFail) {
+        const why = now.status === 'fail' ? `엔진 확인 실패: ${now.detail}` : now.status === 'unverifiable' ? `엔진이 아직 확인하지 못함(검증 불가): ${now.detail}` : '마지막 검증에서 엔진 검사가 실패함';
+        throw new Error(`객관적 조건은 대장 확인으로 대신할 수 없습니다 · ${why} · 작업팀이 고치고 엔진 검증을 통과해야 합니다`);
+      }
+      engine = 'pass';
+    }
     const text = String(note || '').trim().slice(0, 300);
     const confirmed = [...(goal.confirmed ?? []).filter(c => c.criterion !== criterion),
-      { criterion, proof: `대장 확인${text ? ` · ${text}` : ''}`, by: 'human', at: iso(this.clock.now()) }];
+      { criterion, proof: `대장 확인${text ? ` · ${text}` : ''}`, by: 'human', at: iso(this.clock.now()), ...(engine ? { engine } : {}) }];
     const evidence = mergeEvidence(goal.evidence, confirmed);
     const all = goal.completionCriteria.every(c => evidence.some(e => e.criterion === c));
     // A team project finishes here only when the verification just before asked 대장 to judge the rest (no engine
     // finding was open then, and nothing has run since); otherwise the next verification counts the confirmation.
     const judged = goal.kind === 'team' && goal.status === GoalStatus.REVIEW_REQUIRED && ASKING.includes(goal.reason)
       && Array.isArray(goal.team?.awaitingJudgement) && goal.team.awaitingJudgement.length > 0;
+    // 10차 실측 P0: about to finish on 대장's word — each objective criterion proven only by a confirmation is checked by the
+    // engine once more (its file may be gone since it was confirmed). Failing, the confirmation stops counting and the
+    // work goes on instead.
+    const broken = all && (goal.kind !== 'team' || judged)
+      ? goal.completionCriteria.filter(c => c !== criterion && objectiveCriterion(c) && !evidence.some(e => e.criterion === c && !humanProof(e)))
+        .map(c => [c, this.objectiveNow(goal, c)]).filter(([, r]) => r.status !== 'pass') : [];
+    if (broken.length) {
+      const note = `[엔진] 대장 확인 뒤 엔진 확인이 실패한 조건이 있어 완료하지 않습니다:\n${broken.map(([c, r]) => `- ${c} → ${r.detail}`).join('\n')}`;
+      this.update(goal, { confirmed: confirmed.map(k => broken.some(([c]) => c === k.criterion) ? { ...k, engine: 'fail' } : k),
+        evidence: evidence.filter(e => !broken.some(([c]) => c === e.criterion)), status: GoalStatus.SCHEDULED, reason: null, question: null,
+        nextRunAt: iso(this.clock.now()), team: { ...goal.team, step: 'plan', awaitingJudgement: null, feedback: note }, messages: this.withControl(goal, note) });
+      void this.store.emit({ type: 'goal.confirmed', goalId, criterion });
+      return goal;
+    }
     const done = all && (goal.kind !== 'team' || judged);
     const at = iso(this.clock.now());
     // 작업 계획: a task whose criteria are now all proven (대장's confirmation included) is done, as after a verification
     // (seen in a real run: a project verified by 대장's confirmation still listed its tasks as pending).
     const taskPlan = goal.taskPlan?.tasks?.length ? settleTasks(goal.taskPlan, goal.completionCriteria, evidence) : goal.taskPlan;
-    this.update(goal, { confirmed, evidence, taskPlan, ...(done ? { status: GoalStatus.VERIFIED, nextRunAt: null, reason: null } : {}),
+    this.update(goal, { confirmed, evidence, taskPlan: done ? closePlan(taskPlan) : taskPlan, ...(done ? { status: GoalStatus.VERIFIED, nextRunAt: null, reason: null } : {}),
       ...(!(done && judged) ? { messages: this.withControl(goal, `조건 확인 · ${criterion}${text ? ` · ${text}` : ''}`) } : {}),
       ...(done && judged ? { question: null, autoRun: false, autoRunBeforeFinish: goal.autoRun, team: { ...goal.team, awaitingJudgement: null },
         messages: [...(goal.messages ?? []), { role: 'team', kind: 'question', text: String(goal.question ?? ''), at },
@@ -646,8 +717,22 @@ export class GoalScheduler {
     if (result.approvalRequests?.length) {
       return review('approval_required', { question: `감시 에이전트가 대장 승인이 필요한 동작 ${result.approvalRequests.length}건을 멈춰 두었습니다. 승인함에서 범위를 골라 주세요.` });
     }
-    const finish = (improvements) => ({ evidence, team, status: GoalStatus.VERIFIED, reason: null, nextRunAt: null, autoRun: false,
-      proposal: improvements.length ? { items: improvements, status: 'pending', at: iso(now) } : null });
+    const finish = (improvements) => {
+      // 10차 실측 P0: an objective criterion whose only proof is 대장's confirmation is checked by the engine once more
+      // (its files may have changed since); failing now, the work goes on instead of finishing.
+      const onlyConfirmed = goal.completionCriteria.filter(c => objectiveCriterion(c) && !evidence.some(e => e.criterion === c && !humanProof(e)));
+      const broken = onlyConfirmed.map(c => [c, this.objectiveNow(goal, c)]).filter(([, r]) => r.status !== 'pass');
+      if (broken.length) {
+        team.feedback = `[엔진] 대장 확인 뒤 엔진 확인이 실패한 조건이 있어 완료하지 않습니다:\n${broken.map(([c, r]) => `- ${c} → ${r.detail}`).join('\n')}`;
+        // that confirmation no longer counts (it held only while the engine's own check did)
+        this.update(goal, { confirmed: (goal.confirmed ?? []).map(k => broken.some(([c]) => c === k.criterion) ? { ...k, engine: 'fail' } : k) });
+        return goTo('plan', { evidence: evidence.filter(e => !broken.some(([c]) => c === e.criterion)) });
+      }
+      // 완료 상태 일치: nothing in the plan is left waiting once the project is done.
+      if (goal.taskPlan?.tasks?.length) this.update(goal, { taskPlan: closePlan(this.store.getGoal(goal.id)?.taskPlan ?? goal.taskPlan) });
+      return { evidence, team, status: GoalStatus.VERIFIED, reason: null, nextRunAt: null, autoRun: false,
+        proposal: improvements.length ? { items: improvements, status: 'pending', at: iso(now) } : null };
+    };
 
     if (step === 'plan') {
       const plan = result.plan;
@@ -879,11 +964,20 @@ export class GoalScheduler {
     // Only criteria that no file or engine check can prove are left (the verifier said so, or the engine proved just the
     // work-folder part): another round cannot prove them either, so 대장 is asked right after this first verification.
     const claimFor = c => (result.claims ?? []).find(k => k.criterion === c);
+    // 10차 실측 P0: what the engine's own checks said about each criterion, kept so a later confirmation cannot
+    // overwrite a failure. stateOf: proven · failed · unverifiable · subjective · open (완료근거.js criterionState).
+    team.lastChecks = Object.fromEntries(goal.completionCriteria.map(c => [c, claimFor(c)?.check ?? null]));
+    const stateOf = c => criterionState(c, { proven: evidence.some(e => e.criterion === c), claim: claimFor(c) });
+    // An objective criterion the verifier says needs a person ("index.html 이 따뜻한 느낌이다") may go to 대장 only once the
+    // engine's own part of it holds (the file is there); otherwise it stays open like any objective one.
+    const objectiveOpen = unproven.filter(c => objectiveCriterion(c)
+      && !(claimFor(c)?.person === true && !['fail', 'invalid', 'later', 'unrelated'].includes(claimFor(c)?.check) && this.objectiveNow(goal, c).status === 'pass'));
     // Also a criterion that was already unproven at the previous verification and that the verifier now gives no check
     // for at all: work happened in between and still nothing can prove it. Seen 2026-10-01: "글자가 움직이지 않는다"
     // went back to design again and again, and each design edit counted as progress, so the stall rule never fired.
     // (The first time, "no check" may still mean unfinished work, so the rotation goes on.)
-    const personOnly = !gate.length && unproven.length > 0 && unproven.every(c => claimFor(c)?.person === true
+    // An objective criterion is never left to 대장's judgement, whatever the verifier wrote about it (10차 실측 P0).
+    const personOnly = !gate.length && unproven.length > 0 && !objectiveOpen.length && unproven.every(c => claimFor(c)?.person === true
       || claimFor(c)?.check === 'partial' || (claimFor(c)?.check === 'none' && previousUnproven.includes(c)));
     if (personOnly) {
       team.awaitingJudgement = unproven;
@@ -912,6 +1006,31 @@ export class GoalScheduler {
       return goTo('qa');
     }
     team.proofRetry = false;
+    // 10차 실측 P0: stalled with objective criteria still open. They stay criteria (never 대장's to confirm):
+    //   failed       → back to the work, said plainly; stalled a second time in a row → 대장 is asked how to go on
+    //                  (and still cannot finish it by confirming)
+    //   unverifiable → held: the engine has no way to check it yet, so 대장 is asked for a way (a tool, a rewording)
+    // The day's step limit and the no-progress rule apply as before.
+    if (stalled && objectiveOpen.length) {
+      const failed = objectiveOpen.filter(c => stateOf(c) !== 'unverifiable');
+      const blind = objectiveOpen.filter(c => stateOf(c) === 'unverifiable');
+      const subjective = unproven.filter(c => !objectiveCriterion(c));
+      const line = c => `- ${c}${claimFor(c)?.detail ? ` → ${claimFor(c).detail}` : ''}`;
+      team.objectiveStalls = (team.objectiveStalls ?? 0) + 1;
+      if (failed.length && team.objectiveStalls < 2) {
+        team.feedback = `[엔진] 엔진이 직접 확인하는 완료 조건이 실패했습니다. 대장 확인으로 대신할 수 없으니 결과물을 고쳐야 합니다 (같은 지시를 반복하지 말고 방법이나 담당 팀을 바꾸세요):\n${failed.map(line).join('\n')}\n${team.feedback ?? ''}`;
+        if (goal.taskPlan?.tasks?.length) team.replanRequested = true;
+        team.cycle = (team.cycle ?? 1) + 1;
+        return advance();
+      }
+      team.awaitingJudgement = subjective.length ? subjective : null;
+      return review('needs_decision', { question: (failed.length
+        ? `[엔진] 엔진이 직접 확인하는 완료 조건이 계속 실패합니다 (대장 확인으로 완료할 수 없음):\n${failed.map(line).join('\n')}\n고칠 방법이나 맡길 팀을 답해 주세요.`
+        : '')
+        + (blind.length ? `${failed.length ? '\n' : ''}[엔진] 검증 불가 · 엔진이 아래 조건을 확인할 방법이 아직 없어 보류합니다 (조건은 그대로 둡니다):\n${blind.map(line).join('\n')}\n확인할 도구를 마련하거나 조건 표현을 바꾸자고 답해 주세요.` : '')
+        + (subjective.length ? `\n대장이 판단할 조건: ${subjective.join(' / ')} — ‘완료로 확인’ 가능` : '') });
+    }
+    if (!objectiveOpen.length) team.objectiveStalls = 0;
     if (stalled) {
       team.awaitingJudgement = unproven;
       return review('needs_decision', { question: `[검증팀] 엔진이 확인하지 못한 완료 조건이 두 번 연속 그대로입니다 (그 사이 작업 없음):\n- ${unproven.join('\n- ')}\n`

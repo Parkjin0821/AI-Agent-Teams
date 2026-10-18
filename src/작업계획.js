@@ -102,6 +102,22 @@ export function settleTasks(plan, criteria, evidence) {
   }) };
 }
 
+// 완료 상태 일치 (10차 실측 P0): a project the engine finished has no task left waiting or running — what never had to
+// run is marked skipped, so the plan, the evidence and the result package say the same thing.
+export function closePlan(plan) {
+  if (!plan?.tasks) return plan;
+  return { ...plan, tasks: plan.tasks.map(t => t.status === 'done' || t.status === 'skipped' ? t : { ...t, status: 'skipped' }) };
+}
+// The other way, when a finish is corrected: a task whose criteria are no longer all proven is open again (its tries
+// and handoff are kept).
+export function reopenTasks(plan, criteria, evidence) {
+  if (!plan?.tasks) return plan;
+  const proven = new Set((evidence ?? []).map(e => e.criterion));
+  return { ...plan, tasks: plan.tasks.map(t => {
+    const mine = t.criteria.map(n => criteria[n - 1]).filter(Boolean);
+    return ['done', 'skipped'].includes(t.status) && mine.some(c => !proven.has(c)) ? { ...t, status: 'pending' } : t;
+  }) };
+}
 // The step a task starts: running, one more attempt.
 export function markRunning(plan, id) {
   if (!plan?.tasks) return plan;
@@ -144,7 +160,7 @@ export function upstreamText(plan, task) {
 export function planText(plan) {
   if (!plan?.tasks?.length) return '';
   const ready = new Set(readyTasks(plan).map(t => t.id));
-  const ST = { pending: '대기', running: '진행 중', done: '완료', failed: '실패' };
+  const ST = { pending: '대기', running: '진행 중', done: '완료', failed: '실패', skipped: '건너뜀' };
   return plan.tasks.map(t => `- ${t.id} [${ST[t.status] ?? t.status}${ready.has(t.id) && t.status !== 'done' ? ' · 지금 할 수 있음' : ''}] ${TEAM_L[t.team] ?? t.team} · ${t.title}`
     + ` · 산출물: ${t.outputs.join(', ')}${t.criteria.length ? ` · 조건 ${t.criteria.join(',')}번` : ''}${t.dependsOn.length ? ` · 선행: ${t.dependsOn.join(',')}` : ''}`).join('\n');
 }

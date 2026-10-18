@@ -57,7 +57,7 @@ export function buildPackage({ goal, runs = [], events = [], files = [], package
   ];
   const open = [
     ...criteria.filter(c => !ev.has(c)).map(c => `- 완료 조건 미충족: ${c}${OWNER.test(c) ? ' (대장 확인 대기)' : ''}`),
-    ...tasks.filter(t => t.status !== 'done').map(t => `- 작업 ${t.id} ${t.title} · ${t.status === 'running' ? '진행 중' : '대기'}${t.attempts ? ` · ${t.attempts}번 시도` : ''}`),
+    ...tasks.filter(t => !['done', 'skipped'].includes(t.status)).map(t => `- 작업 ${t.id} ${t.title} · ${t.status === 'running' ? '진행 중' : '대기'}${t.attempts ? ` · ${t.attempts}번 시도` : ''}`),
     ...tasks.flatMap(t => (t.handoff?.openIssues ?? []).map(i => `- ${t.id} 남은 문제: ${i}`)),
     ...deliverables.filter(d => !d.exists).map(d => `- 계획된 산출물이 없음: ${d.path} (${d.task})`),
     ...(goal.status === 'review_required' && goal.question ? [`- 대장에게 묻는 중: ${String(goal.question).replace(/\s+/g, ' ').slice(0, 300)}`] : []),

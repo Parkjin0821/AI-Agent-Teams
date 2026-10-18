@@ -208,6 +208,35 @@ export function engineGate(criterion, cwd, ctx = {}) {
   }
   return gate;
 }
+// 객관적 조건 (10차 실측 P0, 헌장 원칙 5): a criterion whose own words give the engine something to check by itself — a
+// file it names, the engine's test run, links, Korean file names. 대장 may judge what is subjective, never stand in for
+// these: 회의록 was finished by 대장's confirmation with 회의록.hwpx never made (2026-10-18).
+export const objectiveCriterion = c => engineGateSummary([c]).length > 0;
+// How a criterion stands after a verification (claim = its entry in the verification's claims):
+//   proven · failed (the engine checked: not so) · unverifiable (no check could run or count — malformed, about
+//   something else, not runnable yet) · subjective (대장 judges it) · open (nothing checked it yet)
+export function criterionState(criterion, { proven = false, claim = null } = {}) {
+  if (proven) return 'proven';
+  if (claim?.check === 'fail') return 'failed';
+  if (['invalid', 'later', 'unrelated'].includes(claim?.check)) return 'unverifiable';
+  if (!objectiveCriterion(criterion) && (ownerJudged(criterion) || claim?.person === true || claim?.check === 'partial')) return 'subjective';
+  return 'open';
+}
+// The engine's own check of an objective criterion right now (when 대장 confirms it, and before a project is finished
+// on a confirmation). The test run happens only in verification: an engine proof of this criterion from it stands.
+// → { status: 'pass' | 'fail' | 'unverifiable', detail }
+export function engineCheckNow(criterion, cwd, { evidence = [] } = {}) {
+  const gate = engineGate(criterion, cwd, {});
+  if (!gate.length) return { status: 'pass', detail: '' };
+  const failed = gate.filter(g => g.status === 'fail');
+  if (failed.length) return { status: 'fail', detail: failed.map(g => `${g.label} 아님${g.reason ? ` (${g.reason})` : ''}`).join(' / ') };
+  const open = gate.filter(g => g.status !== 'pass');
+  const ranTests = evidence.some(e => e.criterion === criterion && e.test && e.by && e.by !== 'human');
+  if (open.length && !(ranTests && open.every(g => g.check.type === 'tests_pass'))) {
+    return { status: 'unverifiable', detail: open.map(g => `${g.label}: ${g.reason || '확인 전'}`).join(' / ') };
+  }
+  return { status: 'pass', detail: gate.map(g => g.label).join(', ') };
+}
 // What the engine will check on its own for a list of criteria, in words, shown to 대장 with the approval request.
 export function engineGateSummary(criteria) {
   return (criteria ?? []).flatMap((c, i) => {

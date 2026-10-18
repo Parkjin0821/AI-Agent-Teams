@@ -25,11 +25,14 @@ test('messages cannot release paused, recovery or authentication-blocked project
 });
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-function setup(respond, policy = {}) {
+// engineCheck: the engine's own check of an objective criterion (완료근거.js engineCheckNow). By default it passes — the
+// file is there, the tests ran — so these tests are about who decides what, not about a missing file (that is in
+// test/완료판정.test.js).
+function setup(respond, policy = {}, { engineCheck = () => ({ status: 'pass', detail: '' }) } = {}) {
   const store = new PersistentStore({ dataDir: mkdtempSync(path.join(tmpdir(), 'hq-team-')) });
   const clock = { t: T0, now() { return this.t; } };
   const calls = [];
-  const scheduler = new GoalScheduler({ store, clock, policy: { ...DEFAULT_POLICY, ...policy },
+  const scheduler = new GoalScheduler({ store, clock, policy: { ...DEFAULT_POLICY, ...policy }, engineCheck,
     runner: { run: async (goal, run) => { calls.push({ team: run.team, executor: run.executor, task: goal.team.task, feedback: goal.team.feedback }); return respond(run.team, calls.length, goal); } } });
   const add = (extra = {}) => scheduler.addGoal({ projectId: extra.projectId ?? 'budget', kind: 'team', autoRun: true, objective: '가계부', completionCriteria: C, ...extra });
   return { store, clock, calls, scheduler, add };
@@ -415,10 +418,13 @@ test('reviews keep the proven evidence, and an unprovable criterion stops for �
       await scheduler.runGoal(goal.id);
       proven.push(`${calls.at(-1).team}:${store.getGoal(goal.id).evidence.length}`);
     }
-    assert.deepEqual(proven, ['plan:0', 'dev:1', 'security:1', 'qa:1', 'plan:1', 'qa:1'], 'the proven count never drops during reviews; no reviews again on unchanged files');
+    // 10차 실측 P0: the criterion left ("합계 테스트 통과") is one the engine checks itself, so the first stall sends it back
+    // to the work, said plainly; the second asks 대장 how to go on — never as something 대장 can confirm.
+    assert.deepEqual(proven, ['plan:0', 'dev:1', 'security:1', 'qa:1', 'plan:1', 'qa:1', 'plan:1', 'qa:1'], 'the proven count never drops during reviews; no reviews again on unchanged files');
     const g = store.getGoal(goal.id);
     assert.deepEqual([g.status, g.reason], ['review_required', 'needs_decision']);
-    assert.match(g.question, /두 번 연속 그대로.*\n- 합계 테스트 통과/s);
+    assert.match(g.question, /엔진이 직접 확인하는 완료 조건이 계속 실패합니다 \(대장 확인으로 완료할 수 없음\):\n- 합계 테스트 통과/);
+    assert.equal(g.team.awaitingJudgement, null, 'nothing left for 대장 to confirm');
   } finally { store.close(); }
 });
 test('when only criteria 대장 alone can judge are left, the first verification asks 대장 (no extra round)', async () => {
@@ -512,21 +518,23 @@ test('a criterion the verifier did not mark as 대장-only keeps the normal rota
 });
 test('a criterion still unproven and still given no check after more work goes to 대장 (flea market loop)', async () => {
   // seen 2026-10-01: "글자가 움직이지 않는다" could not be proven, design kept editing (new diffs count as progress),
-  // and plan → design → reviews → qa went round until the daily cap
+  // and plan → design → reviews → qa went round until the daily cap. (A subjective criterion: an objective one is
+  // never "given no check" — the engine runs its own when the verifier gives none.)
+  const MOVE = [C[0], '글자가 움직이지 않는다'];
   const { store, scheduler, add, calls } = setup(team => {
     if (team === 'plan') return { outcome: 'completed', plan: { nextTask: '고치기', team: 'design', reviews: [] } };
     if (team === 'design') return { outcome: 'completed', diffHash: String(Math.random()), evidence: [] };
     if (team === 'qa') return { outcome: 'completed', evidence: ev(0), findings: { feedback: '2번 미검증', improvements: [] },
-      claims: [{ criterion: C[0], check: 'pass' }, { criterion: C[1], check: 'none' }] };
+      claims: [{ criterion: MOVE[0], check: 'pass' }, { criterion: MOVE[1], check: 'none' }] };
     return { outcome: 'completed', review: { blocking: false, issues: [] } };
   });
   try {
-    const goal = add();
+    const goal = add({ completionCriteria: MOVE });
     for (let i = 0; i < 12 && store.getGoal(goal.id).status !== 'review_required'; i++) await scheduler.runGoal(goal.id);
     assert.deepEqual(calls.map(c => c.team), ['plan', 'design', 'qa', 'plan', 'design', 'qa'], 'one more round, then 대장');
     const g = store.getGoal(goal.id);
     assert.deepEqual([g.status, g.reason], ['review_required', 'needs_decision']);
-    assert.match(g.question, /대장 판단이 필요합니다:\n- 합계 테스트 통과/);
+    assert.match(g.question, /대장 판단이 필요합니다:\n- 글자가 움직이지 않는다/);
   } finally { store.close(); }
 });
 test('confirming the criteria a verification left for 대장 finishes the project with no extra run', async () => {
