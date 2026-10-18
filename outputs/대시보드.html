@@ -709,34 +709,37 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
   .msg.team>.mono-tile{display:none}
   .msg.team>:not(.mono-tile){grid-column:1}
 }
-/* ── 사무실 (2026-10-18, 10차 리디자인): one screen — the room on the left, what is happening on the right ── */
+/* ── 사무실 (2026-10-18, 10차 리디자인 2): a floor plan in the dashboard's own language — white cards, 1px lines,
+   dashed zones on a dot grid, one accent; each team is a person (avatar) at a desk card ── */
 main.is-office{max-width:none;padding:14px 24px 14px}
-.office-page{display:flex;flex-direction:column;gap:12px;height:calc(100dvh - var(--top-h,73px) - 28px);min-height:560px}
+.office-page{display:flex;flex-direction:column;gap:12px;height:calc(100dvh - var(--top-h,73px) - 28px);min-height:540px}
 .of-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.of-head h1{font-size:22px;margin:0;letter-spacing:-.01em}
+.of-head h1{font-size:22px;margin:0;letter-spacing:-.02em;font-weight:650}
 .of-head .lede{margin:0;color:var(--text-2);font-size:13.5px}
 .of-head .t{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;min-width:0}
 .office-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px}
-.office-room{min-height:0;border:1px solid var(--line);border-radius:var(--r-lg);background:#F6F1E9;overflow:hidden;position:relative;box-shadow:var(--shadow)}
+.office-room{min-height:0;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);overflow:hidden;position:relative;box-shadow:var(--shadow)}
 .office-svg{display:block;width:100%;height:100%;font-family:var(--font);user-select:none}
 .office-svg text{font-family:var(--font)}
 .of-side{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;padding-right:2px}
 .of-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 16px;box-shadow:var(--shadow)}
-.of-h{font-size:12px;font-weight:600;color:var(--text-3);letter-spacing:.04em;margin:0 0 8px}
+.of-h{font-size:12px;font-weight:600;color:var(--text-3);margin:0 0 8px}
 .of-chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .of-chip{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 6px;text-align:center;font-size:11.5px;color:var(--text-2);line-height:1.3}
-.of-chip b{display:block;font-size:20px;font-weight:650;color:var(--text);font-variant-numeric:tabular-nums}
+.of-chip b{display:block;font-size:20px;font-weight:650;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 .of-chip.run b{color:var(--run)}.of-chip.wait b{color:var(--text-2)}.of-chip.stop b{color:var(--stop)}.of-chip.boss b{color:var(--attn)}
+.of-usage{margin:-4px 2px 0;font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.of-usage b{font-weight:600;color:var(--text-2)}.of-usage b.low{color:var(--attn)}.of-usage b.out{color:var(--stop)}
 .of-list{list-style:none;margin:0;padding:0}
 .of-list li{display:grid;grid-template-columns:8px 64px minmax(0,1fr);gap:9px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:12.5px}
 .of-list li:first-child{border-top:0}
-.of-list button{all:unset;display:contents;cursor:pointer}
-.of-list .dot{width:8px;height:8px;border-radius:50%;background:var(--idle)}
-.of-list li.working .dot,.of-list li.verifying .dot{background:var(--team-accent)}
+.of-list .dot{width:8px;height:8px;border-radius:50%;background:#D4D4D8}
+.of-list li.working .dot,.of-list li.verifying .dot{background:var(--run)}
 .of-list li.waiting .dot,.of-list li.asking .dot{background:var(--attn)}.of-list li.stopped .dot{background:var(--stop)}
 .of-list li.queued .dot,.of-list li.usage .dot{background:var(--text-4)}
 .of-list .who{font-weight:600}.of-list .what{color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .of-list li.sel{background:var(--subtle);margin:0 -8px;padding-left:8px;padding-right:8px;border-radius:8px}
+.of-list li.rest .who{color:var(--text-3)}
 .of-log{list-style:none;margin:0;padding:0;font-size:12.5px}
 .of-log li{display:grid;grid-template-columns:40px minmax(0,1fr);gap:8px;padding:6px 0;border-top:1px solid var(--line)}
 .of-log li:first-child{border-top:0}
@@ -749,74 +752,6 @@ main.is-office{max-width:none;padding:14px 24px 14px}
 .of-detail .role{margin:0 0 8px;font-size:12px;color:var(--text-3)}
 .of-detail .job{border-top:1px solid var(--line);padding:8px 0;display:grid;gap:2px;font-size:12.5px}
 .of-detail .job b{font-weight:600}
-/* the room */
-.of-wall{fill:#F1ECE4}.of-base{fill:#E2D7C7}.of-floor{fill:#EDE3D3}.of-plank{stroke:#E4D8C5;stroke-width:1}
-.of-rug-work{fill:#E7ECF6}.of-rug-review{fill:#F4ECDC}.of-rug-boss{fill:#E6F0E6}
-.of-sky{fill:#D7E7F7}.of-frame{fill:none;stroke:#D2C6B4;stroke-width:3}.of-cloud{fill:#fff;opacity:.9}
-.of-clock-face{fill:#fff;stroke:#CFC3B1;stroke-width:3}.of-clock-hand{stroke:#3A3F4B;stroke-linecap:round}
-.of-gauge-bg{fill:#E6DED2}.of-gauge{fill:var(--done)}.of-gauge.low{fill:var(--attn)}.of-gauge.out{fill:var(--stop)}
-.of-gauge-t{font-size:11px;fill:var(--text-2)}
-.of-plant-pot{fill:#C98B5E}.of-leaf{fill:#6FA36B}.of-leaf.b{fill:#5C9159}
-.of-zone{font-size:10.5px;font-weight:650;letter-spacing:.12em;fill:#B9AE9E}
-.of-desk{cursor:pointer;outline:none}
-.of-desk .glow{fill:var(--team-tint,#F4F4F5);opacity:0;transition:opacity .35s}
-.of-desk.working .glow,.of-desk.verifying .glow,.of-desk.sel .glow{opacity:1}
-.of-desk.sel .glow{stroke:var(--team-accent);stroke-width:2;stroke-dasharray:6 5}
-.of-desk:focus-visible .glow{opacity:1;stroke:var(--accent);stroke-width:2.5;stroke-dasharray:none}
-.of-chair{fill:#3E4554}
-.of-desk-top{fill:#D8B98E}.of-desk-front{fill:#C7A475}.of-desk-edge{fill:#E6CDA6}
-.of-laptop{fill:#C9D0DA}.of-laptop-logo{fill:#E9EDF2}
-.of-desk.working .of-laptop,.of-desk.verifying .of-laptop{fill:var(--team-accent)}
-.of-desk.working .of-laptop-logo,.of-desk.verifying .of-laptop-logo{fill:#fff;opacity:.85}
-.of-plate{font-size:13px;font-weight:650;fill:var(--text)}
-.of-state{font-size:11px;fill:var(--text-3)}
-.of-desk.working .of-state,.of-desk.verifying .of-state{fill:var(--team-accent);font-weight:600}
-.of-desk.asking .of-state{fill:var(--attn);font-weight:600}.of-desk.stopped .of-state{fill:var(--stop);font-weight:600}
-.of-shirt{fill:var(--team-accent)}.of-sleeve{stroke:var(--team-accent);stroke-width:11;stroke-linecap:round;fill:none}
-.of-collar{fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
-.of-eye{fill:#2A2B33}.of-brow{fill:none;stroke:#3A2F2A;stroke-width:1.8;stroke-linecap:round}
-.of-mouth{fill:none;stroke:#7A3E3A;stroke-width:1.8;stroke-linecap:round}.of-mouth.o{fill:#7A3E3A}
-.of-blush{fill:#F29C9C;opacity:.45}
-.of-glass{fill:none;stroke:#3A3A44;stroke-width:1.6}
-.of-phones{fill:none;stroke:#2B2F38;stroke-width:4;stroke-linecap:round}.of-cup{fill:#2B2F38}
-.of-badge circle{stroke:#fff;stroke-width:2}.of-badge text{font-size:12px;font-weight:700;fill:#fff}
-.of-badge.wait circle{fill:#8C8C99}.of-badge.usage circle{fill:var(--attn)}.of-badge.stop circle{fill:var(--stop)}
-.of-bubble rect,.of-bubble path{fill:#fff;stroke:#D4D4D8}
-.of-bubble text{font-size:12px;fill:var(--text)}
-.of-bubble.ask rect,.of-bubble.ask path{stroke:var(--attn);fill:var(--attn-soft)}
-.of-bubble.stop rect,.of-bubble.stop path{stroke:var(--stop);fill:var(--stop-soft)}
-.of-walker{pointer-events:none}
-.of-walker .paper{fill:#fff;stroke:#A8A29A}
-.of-walker.empty .paper{display:none}
-.of-leg{fill:#3A3F4B}.of-shoe{fill:#24262C}
-.of-boss-top{fill:#BE966A}.of-boss-front{fill:#A97F55}.of-boss-chair{fill:#5A4636}
-.of-tray{fill:#fff;stroke:#C8C0B4}
-.of-boss .badge{fill:var(--attn)}.of-boss .badge-t{font-size:12px;font-weight:700;fill:#fff}
-.of-boss,.of-guard{cursor:pointer;outline:none}
-.of-boss:focus-visible .of-boss-top,.of-guard:focus-visible .of-g-body{stroke:var(--accent);stroke-width:3}
-.of-boss.has .of-state{fill:var(--attn);font-weight:600}
-.of-g-body{fill:#28324A}.of-g-cap{fill:#1E263A}.of-g-badge{fill:#F2C14E}
-.of-door{fill:#D9CDBB;stroke:#C7B9A4}.of-door-l{font-size:11px;fill:var(--text-3)}
-/* motion — only with .motion (system setting or 대장's choice on the page) */
-.office-svg.motion .of-blink{animation:of-blink 5.2s infinite;transform-box:fill-box;transform-origin:center}
-.office-svg.motion .of-desk.working .of-arms,.office-svg.motion .of-desk.verifying .of-arms{animation:of-type .45s ease-in-out infinite alternate}
-.office-svg.motion .of-desk.working .of-head,.office-svg.motion .of-desk.verifying .of-head{animation:of-nod 2.6s ease-in-out infinite}
-.office-svg.motion .of-desk.idle .of-person{animation:of-breathe 4s ease-in-out infinite}
-.office-svg.motion .of-desk.asking .of-raise{animation:of-wave 1.1s ease-in-out infinite;transform-box:fill-box;transform-origin:20% 100%}
-.office-svg.motion .of-dots circle{animation:of-dot 1.2s ease-in-out infinite}
-.office-svg.motion .of-dots circle:nth-child(2){animation-delay:.2s}.office-svg.motion .of-dots circle:nth-child(3){animation-delay:.4s}
-.office-svg.motion .of-walker.step-a .of-leg.l,.office-svg.motion .of-walker.step-b .of-leg.r{transform:translateY(-3px)}
-@keyframes of-blink{0%,95%,100%{transform:scaleY(1)}97%{transform:scaleY(.1)}}
-@keyframes of-type{from{transform:translateY(0)}to{transform:translateY(-2px)}}
-@keyframes of-nod{0%,100%{transform:translateY(0)}50%{transform:translateY(1.5px)}}
-@keyframes of-breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
-@keyframes of-wave{0%,100%{transform:rotate(0)}50%{transform:rotate(-10deg)}}
-@keyframes of-dot{0%,100%{opacity:.25}50%{opacity:1}}
-.of-dots circle{fill:var(--team-accent)}
-@media (max-width:1000px){.office-page{height:auto;min-height:0}.office-body{grid-template-columns:minmax(0,1fr)}.office-room{aspect-ratio:1000/640}.of-side{overflow:visible}}
-@media (max-width:640px){main.is-office{padding:12px}.office-room{aspect-ratio:auto;overflow-x:auto}.office-svg{width:680px;min-width:680px;height:auto}.of-chips{grid-template-columns:repeat(2,minmax(0,1fr))}}
-.of-desk .of-person.away{opacity:0}
-.of-sign{fill:#2B2F3A}.of-sign-t{font-size:20px;font-weight:700;letter-spacing:.16em;fill:#fff}.of-sign-m{font-size:11.5px;fill:#C9CEDA}
 .of-hrow{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .of-sum{margin:0 0 6px;font-size:12.5px;color:var(--text-2)}
 .of-work{list-style:none;margin:0;padding:0}
@@ -827,7 +762,51 @@ main.is-office{max-width:none;padding:14px 24px 14px}
 .of-work .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .of-work .pill{font-size:11.5px}
 .of-more{margin:6px 0 0;font-size:12px;color:var(--text-3)}
-.of-list li.rest .who{color:var(--text-3)}
+/* the floor plan */
+.of-grid-dot{fill:#E7E7EA}
+.of-zone{fill:#FCFCFD;stroke:#E4E4E7;stroke-dasharray:4 4}
+.of-zone-l{font-size:11.5px;font-weight:600;fill:var(--text-3)}
+.of-divider{stroke:#E4E4E7;stroke-dasharray:4 4}
+.of-legend{font-size:11.5px;fill:var(--text-3)}
+.of-door{stroke:var(--text-4);stroke-width:2;stroke-dasharray:2 5;stroke-linecap:round;fill:none}
+.of-door-l{font-size:11px;fill:var(--text-3)}
+.of-card-bg{fill:#fff}.of-card-line{fill:none;stroke:var(--line);transition:stroke .18s}
+.of-desk,.of-boss,.of-guard{cursor:pointer;outline:none}
+.of-desk:hover .of-card-line,.of-boss:hover .of-card-line,.of-guard:hover .of-card-line{stroke:var(--line-strong)}
+.of-desk.sel .of-card-line{stroke:var(--accent);stroke-width:1.5}
+.of-desk:focus-visible .of-card-line,.of-boss:focus-visible .of-card-line,.of-guard:focus-visible .of-card-line{stroke:var(--accent);stroke-width:2}
+.of-accent{fill:var(--team-accent);opacity:0;transition:opacity .25s}
+.of-desk.working .of-accent,.of-desk.verifying .of-accent{opacity:1}
+.of-av-bg{fill:var(--team-tint,#F4F4F5)}.of-av-fg{fill:var(--team-accent,#71717A)}
+.of-av-ring{fill:none;stroke:var(--team-accent);stroke-opacity:.18}
+.of-av-away{fill:none;stroke:#D4D4D8;stroke-dasharray:3 3;opacity:0}
+.of-av.away .of-av-bg,.of-av.away .of-av-ring,.of-av.away .of-av-fg{opacity:0}.of-av.away .of-av-away{opacity:1}
+.of-dot{stroke:#fff;stroke-width:2;fill:#D4D4D8}
+.of-dot.working,.of-dot.verifying{fill:var(--run)}.of-dot.asking{fill:var(--attn)}.of-dot.stopped{fill:var(--stop)}.of-dot.queued,.of-dot.usage{fill:var(--text-4)}
+.of-name{font-size:13.5px;font-weight:600;fill:var(--text);letter-spacing:-.005em}
+.of-status{font-size:12px;fill:var(--text-2)}
+.of-desk.asking .of-status{fill:var(--attn);font-weight:500}.of-desk.stopped .of-status{fill:var(--stop);font-weight:500}
+.of-desk.working .of-status,.of-desk.verifying .of-status{fill:var(--text);font-weight:500}
+.of-sep{stroke:var(--line)}
+.of-line{font-size:11.5px;fill:var(--text-3)}.of-line.run{fill:var(--text-2)}.of-line.attn{fill:var(--attn)}.of-line.stop{fill:var(--stop)}
+.of-dots circle{fill:var(--run)}
+.of-boss-av{fill:#18181B}.of-boss-av-t{font-size:11px;font-weight:650;fill:#fff}
+.of-paper{fill:#fff;stroke:#D4D4D8}
+.of-badge{fill:var(--attn)}.of-badge-t{font-size:11.5px;font-weight:650;fill:#fff;font-variant-numeric:tabular-nums}
+.of-boss.has .of-status{fill:var(--attn);font-weight:500}
+.of-guard-av{fill:var(--accent-soft)}.of-shield{fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linejoin:round}
+.of-walker{pointer-events:none}
+.of-walker .paper rect{fill:#fff;stroke:#A1A1AA}.of-walker .paper path{stroke:#D4D4D8;stroke-width:1.5}
+.of-walker.empty .paper{display:none}
+.of-walker .of-av-bg{stroke:var(--team-accent);stroke-opacity:.35}
+/* motion — only with .motion (system setting or 대장's choice on the page) */
+.office-svg.motion .of-dot.working,.office-svg.motion .of-dot.verifying{animation:of-pulse 1.8s ease-in-out infinite}
+.office-svg.motion .of-dots circle{animation:of-dot 1.2s ease-in-out infinite}
+.office-svg.motion .of-dots circle:nth-child(2){animation-delay:.2s}.office-svg.motion .of-dots circle:nth-child(3){animation-delay:.4s}
+@keyframes of-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes of-dot{0%,100%{opacity:.25}50%{opacity:1}}
+@media (max-width:1000px){.office-page{height:auto;min-height:0}.office-body{grid-template-columns:minmax(0,1fr)}.office-room{aspect-ratio:1000/620}.of-side{overflow:visible}}
+@media (max-width:640px){main.is-office{padding:12px}.office-room{aspect-ratio:auto;overflow-x:auto}.office-svg{width:680px;min-width:680px;height:auto}.of-chips{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -858,136 +837,82 @@ main.is-office{max-width:none;padding:14px 24px 14px}
 <div class="office-page">
   <div class="of-head">
     <div class="t"><h1>사무실</h1><p class="lede">{{of.lede}}</p></div>
-    <div class="row-f"><button class="btn ghost sm" aria-pressed="{{of.motionOn}}" onClick="{{of.toggleMotion}}" title="팀이 일을 넘길 때 걸어가는 움직임과 타자 치는 모습">{{of.motionL}}</button><button class="btn sm" onClick="{{openNew}}">새 프로젝트</button></div>
+    <div class="row-f"><button class="btn ghost sm" aria-pressed="{{of.motionOn}}" onClick="{{of.toggleMotion}}" title="팀이 일을 넘길 때 아바타가 이동하는 움직임">{{of.motionL}}</button><button class="btn sm" onClick="{{openNew}}">새 프로젝트</button></div>
   </div>
   <div class="office-body">
     <section class="office-room" aria-labelledby="office-h">
       <h2 id="office-h" class="sr">AI 팀 사무실</h2>
-      <svg class="{{of.svgCls}}" viewBox="0 0 1000 650" preserveAspectRatio="xMidYMid meet" role="group" aria-label="{{of.summary}}">
-        <rect class="of-wall" x="0" y="0" width="1000" height="112"></rect>
-        <rect class="of-base" x="0" y="106" width="1000" height="8"></rect>
-        <rect class="of-floor" x="0" y="114" width="1000" height="536"></rect>
-        <sc-for list="{{of.planks}}" as="p"><line class="of-plank" x1="0" y1="{{p}}" x2="1000" y2="{{p}}"></line></sc-for>
-        <rect class="of-rug-review" x="600" y="122" width="392" height="180" rx="18"></rect>
-        <rect class="of-rug-work" x="196" y="300" width="796" height="182" rx="18"></rect>
-        <rect class="of-rug-boss" x="356" y="498" width="288" height="146" rx="18"></rect>
-        <text class="of-zone" x="612" y="294">검토</text>
-        <text class="of-zone" x="208" y="474">작업 · 검증</text>
-        <rect class="of-sky" x="24" y="16" width="150" height="76" rx="6"></rect>
-        <ellipse class="of-cloud" cx="70" cy="44" rx="20" ry="8"></ellipse><ellipse class="of-cloud" cx="132" cy="62" rx="16" ry="6"></ellipse>
-        <rect class="of-frame" x="24" y="16" width="150" height="76" rx="6"></rect><line class="of-frame" x1="99" y1="16" x2="99" y2="92"></line>
-        <circle class="of-clock-face" cx="212" cy="54" r="24"></circle>
-        <line class="of-clock-hand" x1="212" y1="54" x2="{{of.clock.hx}}" y2="{{of.clock.hy}}" stroke-width="3.5"></line>
-        <line class="of-clock-hand" x1="212" y1="54" x2="{{of.clock.mx}}" y2="{{of.clock.my}}" stroke-width="2.2"></line>
-        <circle cx="212" cy="54" r="2.5" fill="#3A3F4B"></circle>
-        <rect class="of-sign" x="300" y="20" width="260" height="70" rx="10"></rect>
-        <text class="of-sign-t" x="430" y="50" text-anchor="middle">AGENT HQ</text>
-        <text class="of-sign-m" x="430" y="72" text-anchor="middle">{{of.signLine}}</text>
-        <sc-for list="{{of.gauges}}" as="u"><g transform="translate(640,{{u.y}})"><text class="of-gauge-t" x="0" y="0">{{u.l}}</text><rect class="of-gauge-bg" x="0" y="6" width="250" height="8" rx="4"></rect><rect class="{{u.cls}}" x="0" y="6" width="{{u.w}}" height="8" rx="4"></rect></g></sc-for>
-        <g transform="translate(944,64)"><path class="of-leaf" d="M14 34 C2 22 2 8 10 0 C14 10 16 22 14 34Z"></path><path class="of-leaf b" d="M14 34 C24 20 30 10 26 0 C18 8 14 20 14 34Z"></path><path class="of-leaf" d="M14 34 C6 28 -2 26 -4 18 C6 18 12 24 14 34Z"></path><rect class="of-plant-pot" x="2" y="32" width="24" height="18" rx="3"></rect></g>
-        <rect class="of-door" x="20" y="618" width="92" height="24" rx="4"></rect>
-        <text class="of-door-l" x="66" y="612" text-anchor="middle">출입구</text>
+      <svg class="{{of.svgCls}}" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid meet" role="group" aria-label="{{of.summary}}">
+        <defs>
+          <pattern id="of-grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle class="of-grid-dot" cx="1" cy="1" r="1"></circle></pattern>
+          <filter id="of-lift" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#11111A" flood-opacity=".05"></feDropShadow><feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#11111A" flood-opacity=".05"></feDropShadow></filter>
+          <clipPath id="of-av-clip"><rect x="0" y="0" width="40" height="40" rx="12"></rect></clipPath>
+        </defs>
+        <rect x="0" y="0" width="1000" height="620" fill="url(#of-grid)"></rect>
+        <sc-for list="{{of.zones}}" as="z"><rect class="of-zone" x="{{z.x}}" y="{{z.y}}" width="{{z.w}}" height="{{z.h}}" rx="16"></rect><text class="of-zone-l" x="{{z.lx}}" y="{{z.ly}}">{{z.l}}</text></sc-for>
+        <line class="of-divider" x1="682" y1="246" x2="682" y2="376"></line>
+        <text class="of-zone-l" x="696" y="256">검증</text>
+        <sc-for list="{{of.legend}}" as="l"><g transform="translate({{l.x}},74)"><circle class="{{l.cls}}" cx="0" cy="-4" r="4.5"></circle><text class="of-legend" x="10" y="0">{{l.t}}</text></g></sc-for>
+        <path class="of-door" d="M44 606H150"></path><text class="of-door-l" x="97" y="598" text-anchor="middle">출입구</text>
 
         <sc-for list="{{of.desks}}" as="d">
           <g id="of-desk-{{d.id}}" class="{{d.cls}}" transform="translate({{d.x}},{{d.y}})" role="button" tabindex="0" aria-label="{{d.aria}}" onClick="{{d.pick}}" onKeydown="{{d.key}}">
-            <rect class="glow" x="-16" y="-100" width="172" height="186" rx="16"></rect>
-            <rect class="of-chair" x="42" y="-62" width="56" height="66" rx="16"></rect>
-            <g class="{{d.personCls}}">
-              <sc-if value="{{d.hasHairBack}}"><path d="{{d.hairBack}}" fill="{{d.hairColor}}"></path></sc-if>
-              <path class="of-shirt" d="M44 8C44-16 54-26 70-26C86-26 96-16 96 8Z"></path>
-              <path class="of-collar" d="M63-24L70-16L77-24"></path>
-              <sc-if value="{{d.pin}}"><circle cx="83" cy="-10" r="3" fill="#F2C14E"></circle></sc-if>
-              <g class="of-arms"><path class="of-sleeve" d="M51-14L58 2"></path><sc-if value="{{d.twoArms}}"><path class="of-sleeve" d="M89-14L82 2"></path></sc-if></g>
-              <sc-if value="{{d.raise}}"><g class="of-raise"><path class="of-sleeve" d="M89-14L101-44"></path><circle cx="102" cy="-49" r="5.5" fill="{{d.skin}}"></circle></g></sc-if>
-              <g class="of-head">
-                <rect x="66" y="-32" width="8" height="8" fill="{{d.skin}}"></rect>
-                <circle cx="53.5" cy="-45" r="4" fill="{{d.skin}}"></circle><circle cx="86.5" cy="-45" r="4" fill="{{d.skin}}"></circle>
-                <circle cx="70" cy="-46" r="17" fill="{{d.skin}}"></circle>
-                <path d="{{d.hair}}" fill="{{d.hairColor}}"></path>
-                <g class="of-blink" style="animation-delay:{{d.blink}}"><ellipse class="of-eye" cx="63.5" cy="{{d.eyeY}}" rx="2.2" ry="{{d.eyeRy}}"></ellipse><ellipse class="of-eye" cx="76.5" cy="{{d.eyeY}}" rx="2.2" ry="{{d.eyeRy}}"></ellipse></g>
-                <path class="of-brow" d="{{d.brows}}"></path>
-                <circle class="of-blush" cx="59" cy="-39" r="3"></circle><circle class="of-blush" cx="81" cy="-39" r="3"></circle>
-                <path class="{{d.mouthCls}}" d="{{d.mouth}}"></path>
-                <sc-if value="{{d.glassRound}}"><g class="of-glass"><circle cx="63.5" cy="-45" r="5"></circle><circle cx="76.5" cy="-45" r="5"></circle><path d="M68.5-45h3"></path></g></sc-if>
-                <sc-if value="{{d.glassSquare}}"><g class="of-glass"><rect x="58.5" y="-49.5" width="10" height="8" rx="2"></rect><rect x="71.5" y="-49.5" width="10" height="8" rx="2"></rect><path d="M68.5-45.5h3"></path></g></sc-if>
-                <sc-if value="{{d.phones}}"><path class="of-phones" d="M52-47C52-70 88-70 88-47"></path><rect class="of-cup" x="47.5" y="-53" width="7" height="13" rx="3"></rect><rect class="of-cup" x="85.5" y="-53" width="7" height="13" rx="3"></rect></sc-if>
-                <sc-if value="{{d.beret}}"><ellipse cx="66" cy="-63" rx="17" ry="6" fill="#8E2F55" transform="rotate(-10 66 -63)"></ellipse><circle cx="63" cy="-69.5" r="2" fill="#8E2F55"></circle></sc-if>
-              </g>
+            <rect class="of-card-bg" x="0" y="0" width="184" height="96" rx="14" filter="url(#of-lift)"></rect>
+            <rect class="of-card-line" x="0.5" y="0.5" width="183" height="95" rx="13.5"></rect>
+            <rect class="of-accent" x="0" y="20" width="3" height="56" rx="1.5"></rect>
+            <g class="{{d.avCls}}" transform="translate(14,14)">
+              <rect class="of-av-bg" width="40" height="40" rx="12"></rect>
+              <g clip-path="url(#of-av-clip)"><circle class="of-av-fg" cx="20" cy="16" r="7"></circle><path class="of-av-fg" d="M7 42C7 31 13 26 20 26C27 26 33 31 33 42Z"></path></g>
+              <rect class="of-av-ring" x="0.5" y="0.5" width="39" height="39" rx="11.5"></rect>
+              <rect class="of-av-away" x="0.5" y="0.5" width="39" height="39" rx="11.5"></rect>
             </g>
-            <rect class="of-desk-top" x="0" y="0" width="140" height="30" rx="6"></rect>
-            <rect class="of-desk-edge" x="0" y="0" width="140" height="4" rx="2"></rect>
-            <rect class="of-desk-front" x="4" y="28" width="132" height="12" rx="3"></rect>
-            <rect class="of-laptop" x="50" y="-12" width="40" height="23" rx="3"></rect><circle class="of-laptop-logo" cx="70" cy="-0.5" r="3"></circle>
-            <sc-if value="{{d.propNotes}}"><rect x="10" y="5" width="13" height="13" rx="1.5" fill="#F7D774"></rect><rect x="24" y="10" width="13" height="13" rx="1.5" fill="#F4A7B9" transform="rotate(8 30 16)"></rect></sc-if>
-            <sc-if value="{{d.propBooks}}"><rect x="102" y="15" width="28" height="7" rx="1.5" fill="#5B8DB8"></rect><rect x="104" y="8" width="26" height="7" rx="1.5" fill="#C46A4A"></rect><rect x="103" y="1" width="25" height="7" rx="1.5" fill="#7AA36F"></rect></sc-if>
-            <sc-if value="{{d.propMug}}"><rect x="110" y="6" width="13" height="15" rx="2.5" fill="#fff" stroke="#C9C2B6"></rect><path d="M123 10c5 0 5 7 0 7" fill="none" stroke="#C9C2B6" stroke-width="2"></path></sc-if>
-            <sc-if value="{{d.propPalette}}"><ellipse cx="117" cy="14" rx="14" ry="9" fill="#F3E3C3" stroke="#D9C49E"></ellipse><circle cx="110" cy="12" r="2.5" fill="#E2554F"></circle><circle cx="117" cy="9" r="2.5" fill="#3E7BD8"></circle><circle cx="124" cy="13" r="2.5" fill="#F2C14E"></circle><circle cx="118" cy="18" r="2.5" fill="#4FA36B"></circle></sc-if>
-            <sc-if value="{{d.propLock}}"><path d="M113 11v-4a5 5 0 0 1 10 0v4" fill="none" stroke="#7C8798" stroke-width="2.5"></path><rect x="110" y="10" width="16" height="13" rx="2.5" fill="#7C8798"></rect></sc-if>
-            <sc-if value="{{d.propPapers}}"><rect x="104" y="9" width="26" height="17" rx="1.5" fill="#fff" stroke="#CFC7BB"></rect><rect x="102" y="5" width="26" height="17" rx="1.5" fill="#fff" stroke="#CFC7BB"></rect><path d="M106 10h17M106 14h17M106 18h11" stroke="#D9D2C7"></path></sc-if>
-            <sc-if value="{{d.propClip}}"><rect x="106" y="1" width="22" height="26" rx="2.5" fill="#B98A5A"></rect><rect x="109" y="5" width="16" height="19" rx="1" fill="#fff"></rect><path d="M112 14l3 3 6-7" fill="none" stroke="#25764B" stroke-width="2"></path></sc-if>
-            <sc-if value="{{d.typing}}"><g class="of-dots"><circle cx="16" cy="16" r="2.6"></circle><circle cx="25" cy="16" r="2.6"></circle><circle cx="34" cy="16" r="2.6"></circle></g></sc-if>
-            <text class="of-plate" x="70" y="58" text-anchor="middle">{{d.name}}</text>
-            <text class="of-state" x="70" y="74" text-anchor="middle">{{d.state}}</text>
-            <sc-if value="{{d.hasBadge}}"><g class="{{d.badgeCls}}"><circle cx="95" cy="-66" r="10"></circle><text x="95" y="-62" text-anchor="middle">{{d.badgeT}}</text></g></sc-if>
-            <sc-if value="{{d.hasBubble}}"><g class="{{d.bubbleCls}}" transform="translate(0,{{d.by}})"><rect x="{{d.bx}}" y="-104" width="{{d.bw}}" height="28" rx="9"></rect><path d="{{d.tail}}"></path><text x="70" y="-85" text-anchor="middle">{{d.bubble}}</text></g></sc-if>
+            <circle class="{{d.dotCls}}" cx="52" cy="16" r="5"></circle>
+            <text class="of-name" x="66" y="31">{{d.name}}</text>
+            <text class="of-status" x="66" y="48">{{d.state}}</text>
+            <line class="of-sep" x1="14" y1="64" x2="170" y2="64"></line>
+            <text class="{{d.lineCls}}" x="14" y="82">{{d.line}}</text>
+            <sc-if value="{{d.typing}}"><g class="of-dots"><circle cx="156" cy="78" r="2.2"></circle><circle cx="163" cy="78" r="2.2"></circle><circle cx="170" cy="78" r="2.2"></circle></g></sc-if>
           </g>
         </sc-for>
 
-        <g id="of-boss" class="{{of.boss.cls}}" transform="translate(400,540)" role="button" tabindex="0" aria-label="{{of.boss.aria}}" onClick="{{of.boss.go}}" onKeydown="{{of.boss.key}}">
-          <rect class="of-boss-chair" x="66" y="-64" width="68" height="68" rx="20"></rect><rect x="76" y="-56" width="48" height="44" rx="14" fill="#735A47"></rect><path d="M84 -44h32M84 -32h32" stroke="#5A4636" stroke-width="2" stroke-linecap="round"></path><rect x="60" y="-22" width="10" height="24" rx="5" fill="#5A4636"></rect><rect x="130" y="-22" width="10" height="24" rx="5" fill="#5A4636"></rect>
-          <rect class="of-boss-top" x="0" y="0" width="200" height="34" rx="7"></rect>
-          <rect class="of-boss-front" x="5" y="31" width="190" height="13" rx="3"></rect>
-          <sc-for list="{{of.boss.papers}}" as="p"><rect class="of-tray" x="{{p.x}}" y="{{p.y}}" width="38" height="24" rx="2"></rect></sc-for>
-          <rect x="124" y="9" width="58" height="17" rx="3" fill="#3A2F27"></rect><text x="153" y="21.5" text-anchor="middle" font-size="10.5" font-weight="700" fill="#F2D49B">대장</text>
-          <sc-if value="{{of.boss.has}}"><circle class="badge" cx="194" cy="-4" r="12"></circle><text class="badge-t" x="194" y="0.5" text-anchor="middle">{{of.boss.n}}</text></sc-if>
-          <text class="of-plate" x="100" y="62" text-anchor="middle">대장 자리</text>
-          <text class="of-state" x="100" y="78" text-anchor="middle">{{of.boss.state}}</text>
+        <g id="of-boss" class="{{of.boss.cls}}" transform="translate(400,458)" role="button" tabindex="0" aria-label="{{of.boss.aria}}" onClick="{{of.boss.go}}" onKeydown="{{of.boss.key}}">
+          <rect class="of-card-bg" x="0" y="0" width="220" height="108" rx="14" filter="url(#of-lift)"></rect>
+          <rect class="of-card-line" x="0.5" y="0.5" width="219" height="107" rx="13.5"></rect>
+          <rect class="of-boss-av" x="14" y="14" width="40" height="40" rx="12"></rect>
+          <text class="of-boss-av-t" x="34" y="38" text-anchor="middle">대장</text>
+          <text class="of-name" x="66" y="31">대장 자리</text>
+          <text class="of-status" x="66" y="48">{{of.boss.state}}</text>
+          <sc-for list="{{of.boss.papers}}" as="p"><rect class="of-paper" x="{{p.x}}" y="{{p.y}}" width="26" height="32" rx="3"></rect></sc-for>
+          <sc-if value="{{of.boss.has}}"><circle class="of-badge" cx="204" cy="14" r="11"></circle><text class="of-badge-t" x="204" y="18" text-anchor="middle">{{of.boss.n}}</text></sc-if>
+          <line class="of-sep" x1="14" y1="72" x2="206" y2="72"></line>
+          <text class="of-line" x="14" y="92">{{of.boss.line}}</text>
         </g>
 
-        <g id="of-guard" class="of-guard" transform="translate(140,600)" role="button" tabindex="0" aria-label="{{of.guard.aria}}" onClick="{{of.guard.go}}" onKeydown="{{of.guard.key}}">
-          <rect class="of-leg" x="-9" y="2" width="7" height="22" rx="3"></rect><rect class="of-leg" x="2" y="2" width="7" height="22" rx="3"></rect>
-          <g transform="translate(-70,-4)">
-            <path class="of-g-body" d="M44 8C44-16 54-26 70-26C86-26 96-16 96 8Z"></path>
-            <path d="M51-14L46 6M89-14L94 6" stroke="#28324A" stroke-width="11" stroke-linecap="round"></path>
-            <circle class="of-g-badge" cx="81" cy="-11" r="4"></circle>
-            <rect x="66" y="-32" width="8" height="8" fill="#D9A37E"></rect>
-            <circle cx="70" cy="-46" r="17" fill="#D9A37E"></circle>
-            <path class="of-g-cap" d="M52-52C52-69 88-69 88-52Z"></path><rect class="of-g-cap" x="50" y="-55" width="40" height="5" rx="2.5"></rect><path class="of-g-cap" d="M70-53h22q5 0 5 4h-27z"></path>
-            <circle class="of-g-badge" cx="70" cy="-60" r="3"></circle>
-            <g class="of-blink" style="animation-delay:1.7s"><ellipse class="of-eye" cx="63.5" cy="-44" rx="2.2" ry="2.6"></ellipse><ellipse class="of-eye" cx="76.5" cy="-44" rx="2.2" ry="2.6"></ellipse></g>
-            <path class="of-mouth" d="M66-37h8"></path>
-          </g>
-          <text class="of-plate" x="26" y="-40">감시 에이전트</text>
-          <text class="of-state" x="26" y="-24">{{of.guard.state}}</text>
+        <g id="of-guard" class="of-guard" transform="translate(44,470)" role="button" tabindex="0" aria-label="{{of.guard.aria}}" onClick="{{of.guard.go}}" onKeydown="{{of.guard.key}}">
+          <rect class="of-card-bg" x="0" y="0" width="236" height="96" rx="14" filter="url(#of-lift)"></rect>
+          <rect class="of-card-line" x="0.5" y="0.5" width="235" height="95" rx="13.5"></rect>
+          <rect class="of-guard-av" x="14" y="14" width="40" height="40" rx="12"></rect>
+          <path class="of-shield" d="M34 23l9 3.5v6.5c0 6-4 9.5-9 11.5c-5-2-9-5.5-9-11.5v-6.5z"></path><path class="of-shield" d="M30 33.5l3 3 5.5-6"></path>
+          <text class="of-name" x="66" y="31">감시 에이전트</text>
+          <text class="of-status" x="66" y="48">{{of.guard.state}}</text>
+          <line class="of-sep" x1="14" y1="64" x2="222" y2="64"></line>
+          <text class="of-line" x="14" y="82">작업 폴더 밖·위험한 동작은 문 앞에서 막습니다</text>
         </g>
 
         <sc-for list="{{of.walkers}}" as="w">
-          <g class="{{w.cls}}" data-walker="{{w.key}}" transform="translate({{w.x}},{{w.y}})">
-            <rect class="of-leg l" x="-9" y="2" width="7" height="22" rx="3"></rect><rect class="of-leg r" x="2" y="2" width="7" height="22" rx="3"></rect>
-            <g transform="translate(-70,-4)">
-              <sc-if value="{{w.hasHairBack}}"><path d="{{w.hairBack}}" fill="{{w.hairColor}}"></path></sc-if>
-              <path class="of-shirt" d="M44 8C44-16 54-26 70-26C86-26 96-16 96 8Z"></path>
-              <path class="of-collar" d="M63-24L70-16L77-24"></path>
-              <path class="of-sleeve" d="M51-14L46 6"></path><path class="of-sleeve" d="M89-14L94 4"></path>
-              <rect x="66" y="-32" width="8" height="8" fill="{{w.skin}}"></rect>
-              <circle cx="53.5" cy="-45" r="4" fill="{{w.skin}}"></circle><circle cx="86.5" cy="-45" r="4" fill="{{w.skin}}"></circle>
-              <circle cx="70" cy="-46" r="17" fill="{{w.skin}}"></circle>
-              <path d="{{w.hair}}" fill="{{w.hairColor}}"></path>
-              <ellipse class="of-eye" cx="63.5" cy="-45" rx="2.2" ry="2.8"></ellipse><ellipse class="of-eye" cx="76.5" cy="-45" rx="2.2" ry="2.8"></ellipse>
-              <circle class="of-blush" cx="59" cy="-39" r="3"></circle><circle class="of-blush" cx="81" cy="-39" r="3"></circle>
-              <path class="of-mouth" d="M65-38q5 4 10 0"></path>
-              <sc-if value="{{w.glassRound}}"><g class="of-glass"><circle cx="63.5" cy="-45" r="5"></circle><circle cx="76.5" cy="-45" r="5"></circle><path d="M68.5-45h3"></path></g></sc-if>
-              <sc-if value="{{w.glassSquare}}"><g class="of-glass"><rect x="58.5" y="-49.5" width="10" height="8" rx="2"></rect><rect x="71.5" y="-49.5" width="10" height="8" rx="2"></rect><path d="M68.5-45.5h3"></path></g></sc-if>
-              <sc-if value="{{w.phones}}"><path class="of-phones" d="M52-47C52-70 88-70 88-47"></path><rect class="of-cup" x="47.5" y="-53" width="7" height="13" rx="3"></rect><rect class="of-cup" x="85.5" y="-53" width="7" height="13" rx="3"></rect></sc-if>
-              <sc-if value="{{w.beret}}"><ellipse cx="66" cy="-63" rx="17" ry="6" fill="#8E2F55" transform="rotate(-10 66 -63)"></ellipse></sc-if>
+          <g class="{{w.cls}}" data-walker="{{w.key}}" transform="translate({{w.x}},{{w.y}})" filter="url(#of-lift)">
+            <g transform="translate(-20,-20)">
+              <rect class="of-av-bg" width="40" height="40" rx="12"></rect>
+              <g clip-path="url(#of-av-clip)"><circle class="of-av-fg" cx="20" cy="16" r="7"></circle><path class="of-av-fg" d="M7 42C7 31 13 26 20 26C27 26 33 31 33 42Z"></path></g>
             </g>
-            <rect class="paper" x="16" y="-16" width="16" height="20" rx="2"></rect>
+            <g class="paper" transform="translate(10,2)"><rect width="18" height="22" rx="3"></rect><path d="M5 8h8M5 12h8M5 16h5"></path></g>
           </g>
         </sc-for>
       </svg>
     </section>
     <aside class="of-side" aria-label="사무실 현황">
       <div class="of-chips"><sc-for list="{{of.chips}}" as="c"><div class="{{c.cls}}"><b>{{c.n}}</b>{{c.l}}</div></sc-for></div>
+      <p class="of-usage">사용량 <sc-for list="{{of.usage}}" as="u"> · {{u.l}} <b class="{{u.cls}}">{{u.v}}</b></sc-for></p>
       <sc-if value="{{of.sel.has}}"><section class="of-card of-detail" aria-live="polite">
         <div class="nm"><h3>{{of.sel.name}}</h3><button class="btn ghost sm" onClick="{{of.sel.close}}">닫기</button></div>
         <p class="intro">“{{of.sel.intro}}”</p><p class="role">{{of.sel.role}}</p>
@@ -1957,52 +1882,34 @@ function stateOf(g) {
 const pillCls = (tone) => 'pill ' + tone;
 const RUNNING_LIKE = ['scheduled', 'running', 'retry_wait', 'model_wait'];
 
-// ── 사무실 (2026-10-18, 10차 리디자인) ──
-// Where each team sits (desk top-left in the 1000×650 room): planning and the reviewers on the back row, the work
-// teams and verification on the front row, 대장's desk at the front and the guard by the door.
-const OFFICE_DESKS = { plan: [60, 200], security: [640, 200], policy: [820, 200], research: [240, 390], dev: [420, 390], design: [600, 390], qa: [820, 390] };
+// ── 사무실 (2026-10-18, 10차 리디자인 2) ──
+// A floor plan: each team's desk card (top-left in the 1000×620 plan) — planning and the reviewers on the back row,
+// the work teams and verification on the front row, 대장's desk in front, the guard by the door.
+const OFFICE_DESKS = { plan: [50, 84], security: [580, 84], policy: [776, 84], research: [50, 278], dev: [258, 278], design: [466, 278], qa: [776, 278] };
 const OFFICE_ORDER = Object.keys(OFFICE_DESKS);
-// The people: one look, one desk item and one line of their own per team. Hair is drawn around a head at (70, -46).
-const OFFICE_HAIR = {
-  short: 'M53-48C52-62 60-67 70-67C81-67 89-61 87-48C84-55 78-58 70-58C62-58 56-55 53-48Z',
-  side: 'M53-46C51-61 59-68 71-68C83-68 90-60 87-47C86-52 80-57 74-56C68-60 60-57 53-46Z',
-  curly: 'M52-47C47-56 53-66 60-64C62-71 74-72 77-66C85-69 92-60 88-50C90-46 87-42 86-46C84-54 77-58 70-58C62-58 56-54 54-46C52-43 50-45 52-47Z',
-  bob: 'M52-38C49-58 58-67 70-67C82-67 91-58 88-38L85-33C86-46 84-53 79-57C73-53 62-53 56-57C54-50 54-44 55-33Z',
-  buzz: 'M54-50C55-62 62-66 70-66C78-66 85-62 86-50C82-56 76-59 70-59C64-59 58-56 54-50Z',
-  bun: 'M53-47C52-61 60-66 70-66C80-66 88-61 87-47C83-55 77-58 70-58C63-58 57-55 53-47Z',
-  pony: 'M53-48C52-62 61-67 71-67C82-67 89-60 87-48C83-56 76-58 69-58C62-58 56-54 53-48Z',
-};
+const OFFICE_ZONES = [
+  { l: '기획', x: 28, y: 36, w: 228, h: 160 }, { l: '검토', x: 560, y: 36, w: 412, h: 160 },
+  { l: '작업', x: 28, y: 226, w: 944, h: 166 }, { l: '대장', x: 378, y: 420, w: 264, h: 186 },
+].map((z) => Object.assign(z, { lx: z.x + 16, ly: z.y + 22 }));
+// Each team in its own words (the desk shows it while the team rests; the side card when it is picked).
 const OFFICE_PEOPLE = {
-  plan: { skin: '#F2C9A0', hairColor: '#2E2420', hair: 'side', prop: 'notes', intro: '다음에 할 일 하나를 고르고, 누가 맡을지 정해요.' },
-  research: { skin: '#E8B48F', hairColor: '#6B4428', hair: 'curly', glass: 'round', prop: 'books', intro: '공식 출처를 찾아서 원문까지 저장해 둘게요.' },
-  dev: { skin: '#F5D0B0', hairColor: '#1F1C1A', hair: 'short', phones: true, prop: 'mug', intro: '코드를 쓰고, 테스트로 확인한 다음 넘길게요.' },
-  design: { skin: '#F7D7BA', hairColor: '#3B2A22', hair: 'bob', beret: true, prop: 'palette', intro: '휴대폰에서도 편하게 보이도록 화면을 만들어요.' },
-  security: { skin: '#C98E6B', hairColor: '#1C1A19', hair: 'buzz', pin: true, prop: 'lock', intro: '비밀정보나 위험한 코드가 섞이지 않았는지 살펴봐요.' },
-  policy: { skin: '#EDC09A', hairColor: '#4A3426', hair: 'bun', hairBack: 'M63-70a7 7 0 1 0 14 0a7 7 0 1 0-14 0Z', glass: 'square', prop: 'papers', intro: '라이선스·약관·개인정보를 꼼꼼하게 봐요.' },
-  qa: { skin: '#D9A37E', hairColor: '#7A4A2A', hair: 'pony', hairBack: 'M83-60C97-60 100-42 93-30C91-39 89-46 84-51Z', prop: 'clip', intro: '완료 조건을 하나씩 증거로 확인해요.' },
+  plan: { short: '다음 할 일을 정해요', intro: '다음에 할 일 하나를 고르고, 누가 맡을지 정해요.' },
+  research: { short: '출처를 찾아 저장해요', intro: '공식 출처를 찾아서 원문까지 저장해 둘게요.' },
+  dev: { short: '코드를 쓰고 테스트해요', intro: '코드를 쓰고, 테스트로 확인한 다음 넘길게요.' },
+  design: { short: '화면을 보기 좋게 다듬어요', intro: '휴대폰에서도 편하게 보이도록 화면을 만들어요.' },
+  security: { short: '위험한 코드를 살펴봐요', intro: '비밀정보나 위험한 코드가 섞이지 않았는지 봐요.' },
+  policy: { short: '약관·개인정보를 봐요', intro: '라이선스·약관·개인정보를 꼼꼼하게 봐요.' },
+  qa: { short: '조건을 증거로 확인해요', intro: '완료 조건을 하나씩 증거로 확인해요.' },
 };
-const officeLook = (id) => {
-  const p = OFFICE_PEOPLE[id] || OFFICE_PEOPLE.dev;
-  return { skin: p.skin, hairColor: p.hairColor, hair: OFFICE_HAIR[p.hair], hairBack: p.hairBack || '', hasHairBack: !!p.hairBack,
-    glassRound: p.glass === 'round', glassSquare: p.glass === 'square', phones: !!p.phones, beret: !!p.beret, pin: !!p.pin };
-};
-// Faces per state: where the eyes look, the brows and the mouth.
-const OFFICE_FACE = {
-  working: { eyeY: -44, eyeRy: 2, brows: 'M60-52.5l6 .8M80-52.5l-6 .8', mouth: 'M66-38q4 2.5 8 0' },
-  asking: { eyeY: -45.5, eyeRy: 3, brows: 'M60-54q3-2.5 6 0M74-54q3-2.5 6 0', mouth: 'M68-37.5a2 2.4 0 1 0 4 0a2 2.4 0 1 0-4 0Z', o: true },
-  stopped: { eyeY: -45, eyeRy: 2.8, brows: 'M60-51l6-2.2M80-51l-6-2.2', mouth: 'M65.5-36q4.5-3 9 0' },
-  waiting: { eyeY: -45, eyeRy: 2.8, brows: 'M60-52q3-1.6 6 0M74-52q3-1.6 6 0', mouth: 'M66-37.5h8' },
-  idle: { eyeY: -45, eyeRy: 2.8, brows: 'M60-52q3-1.6 6 0M74-52q3-1.6 6 0', mouth: 'M65-38.5q5 4 10 0' },
-};
-const officeSeat = (id) => [OFFICE_DESKS[id][0] + 70, OFFICE_DESKS[id][1] - 2];
-// A visitor stands at the left end of a desk; at 대장's desk each team has its own spot on the right side.
+// The avatar's centre at its desk; a visitor stands on the top edge of the desk it brings work to (clear of its name), and each team has
+// its own spot along the top of 대장's desk.
+const officeSeat = (id) => [OFFICE_DESKS[id][0] + 34, OFFICE_DESKS[id][1] + 34];
 const officeStand = (id, who) => {
-  if (id !== 'boss') return [OFFICE_DESKS[id][0] - 16, OFFICE_DESKS[id][1] - 4];
+  if (id !== 'boss') return [OFFICE_DESKS[id][0] + 152, OFFICE_DESKS[id][1] - 6];
   const i = Math.max(0, OFFICE_ORDER.indexOf(who));
-  return [618 + (i % 4) * 26, 530 + (i % 2) * 20];
+  return [446 + i * 22, 446];
 };
-const OFFICE_PLANKS = Array.from({ length: 16 }, (_, i) => 146 + i * 32);
-// Walkers live outside the render tree: a refresh rebuilds the page, but someone halfway to a desk keeps walking
+// Walkers live outside the render tree: a refresh rebuilds the page, but an avatar halfway to a desk keeps moving
 // (each frame sets the new element's position from the clock, and the render reads the same position).
 // lastId: the newest hand-off already shown. The first look at the engine's records only notes it, so a reload or a
 // reconnect never replays an old hand-off; each new team.handoff event (by its stored id) plays once.
@@ -2017,14 +1924,14 @@ function officePlay(handoffs, now) {
   list.forEach((e) => {
     if (e.id <= OFFICE.lastId) return;
     OFFICE.lastId = e.id;
-    if (officeReduce()) return; // the 최근 인계 list says it in words; nobody walks
+    if (officeReduce()) return; // the 최근 인계 list says it in words; nobody moves
     const courier = e.from === 'boss' ? e.to : e.from;
     if (!OFFICE_DESKS[courier]) return;
     const home = officeSeat(courier), there = e.from === 'boss' || e.to === 'boss' ? officeStand('boss', courier) : OFFICE_DESKS[e.to] ? officeStand(e.to) : null;
     if (!there) return;
     const t0 = OFFICE.walkers.filter((w) => w.team === courier).reduce((t, w) => Math.max(t, w.end), now);
-    const dur = Math.max(900, Math.min(2600, Math.hypot(there[0] - home[0], there[1] - home[1]) / 0.26));
-    OFFICE.walkers.push({ key: 'h' + e.id, team: courier, home: home, there: there, t0: t0, dur: dur, end: t0 + dur * 2 + 500 });
+    const dur = Math.max(800, Math.min(2200, Math.hypot(there[0] - home[0], there[1] - home[1]) / 0.32));
+    OFFICE.walkers.push({ key: 'h' + e.id, team: courier, home: home, there: there, t0: t0, dur: dur, end: t0 + dur * 2 + 600 });
   });
   if (OFFICE.walkers.length) officeAnimate();
 }
@@ -2032,13 +1939,10 @@ function officePlay(handoffs, now) {
 function officeWalkerAt(w, now) {
   const t = now - w.t0;
   if (t < 0 || now >= w.end) return null;
-  const back = t >= w.dur + 500;
-  const k = t < w.dur ? t / w.dur : back ? 1 - Math.min(1, (t - w.dur - 500) / w.dur) : 1;
-  const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-  const moving = t < w.dur || back;
-  return { x: Math.round(w.home[0] + (w.there[0] - w.home[0]) * e),
-    y: Math.round(w.home[1] + (w.there[1] - w.home[1]) * e - (moving ? Math.abs(Math.sin(t / 110)) * 3 : 0)),
-    carrying: !back, step: moving ? (Math.floor(t / 170) % 2 ? 'step-a' : 'step-b') : '' };
+  const back = t >= w.dur + 600;
+  const k = t < w.dur ? t / w.dur : back ? 1 - Math.min(1, (t - w.dur - 600) / w.dur) : 1;
+  const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+  return { x: Math.round(w.home[0] + (w.there[0] - w.home[0]) * e), y: Math.round(w.home[1] + (w.there[1] - w.home[1]) * e), carrying: !back };
 }
 function officeAnimate() {
   if (OFFICE.frame) return;
@@ -2053,8 +1957,6 @@ function officeAnimate() {
       if (!el) { redraw = redraw || here; return; }
       el.setAttribute('transform', 'translate(' + p.x + ',' + p.y + ')');
       el.classList.toggle('empty', !p.carrying);
-      el.classList.toggle('step-a', p.step === 'step-a');
-      el.classList.toggle('step-b', p.step === 'step-b');
     });
     if (redraw) scheduleRender();
     OFFICE.frame = OFFICE.walkers.length ? requestAnimationFrame(step) : 0;
@@ -3365,9 +3267,9 @@ class Component extends DCLogic {
       .catch((e) => this.say(korErr(e.message)));
   }
   // 관측 page (9차 6번): the engine's own counts over the last 7 days.
-  // 사무실: every team as a person at a desk, from the same engine records as the rest of the page. What a desk shows
-  // is the goal's state on the server (running · verifying · next in line · waiting for usage · stopped · asking 대장);
-  // a walk plays only for a team.handoff event the page has not seen (10차).
+  // 사무실: every team as a person at a desk card, from the same engine records as the rest of the page. What a desk
+  // shows is the goal's state on the server (running · verifying · next in line · waiting for usage · stopped · asking
+  // 대장); an avatar moves only for a team.handoff event the page has not seen (10차).
   officeView(P, pendingTotal) {
     const s = this.state, now = Date.now();
     const goals = [].concat.apply([], P.filter((p) => p.isTeam).map((p) => p.goals.map((g) => ({ g: g, p: p }))));
@@ -3380,6 +3282,7 @@ class Component extends DCLogic {
     const pickSel = (id) => () => this.setState({ officeSel: sel === id ? '' : id });
     const keyed = (fn) => (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } };
     const STOPPED = ['paused', 'blocked', 'recovery_required'];
+    const few = (list) => !list.length ? '' : clip(list[0].p.name, 18) + (list.length > 1 ? ' 외 ' + (list.length - 1) + '개' : '');
     const desks = TEAMS.map((t) => {
       const xy = OFFICE_DESKS[t.id];
       const mine = goals.filter((x) => x.g.team && x.g.team.step === t.id);
@@ -3393,31 +3296,20 @@ class Component extends DCLogic {
       const doing = running.length ? (latest && latest.text) || running[0].g.team.task || '작업 중' : '';
       const mode = running.length ? (t.id === 'qa' ? 'verifying' : 'working') : asking.length ? 'asking' : stopped.length ? 'stopped'
         : usage.length ? 'usage' : queued.length ? 'queued' : 'idle';
-      const first = (list) => clip(list[0].p.name, 9);
-      const state = { working: running.length > 1 ? running.length + '건 작업 중' : running.length ? clip(running[0].p.name, 13) : '',
-        verifying: running.length ? '검증 중 · ' + first(running) : '', asking: '대장 답 기다림', stopped: stopped.length ? '멈춤 · ' + first(stopped) : '',
-        usage: '사용량 기다림', queued: queued.length ? '다음 차례 · ' + first(queued) : '', idle: '쉬는 중' }[mode];
-      const bubble = running.length ? clip(doing, 14) : mode === 'asking' ? '대장님, 확인 부탁드려요' : mode === 'stopped' ? '도움이 필요해요' : '';
+      // The card has room for a short state and one line of about 13 characters; project names live in the side panel.
+      const state = { working: running.length > 1 ? running.length + '건 작업 중' : '작업 중', verifying: '검증 중', asking: '대장 답 기다림 ' + asking.length + '건',
+        stopped: '멈춤', usage: '사용량 기다림', queued: '다음 차례', idle: '쉬는 중' }[mode];
+      const person = OFFICE_PEOPLE[t.id] || {};
+      const intro = person.intro || '';
+      const named = (list) => !list.length ? '' : clip(list[0].p.name, list.length > 1 ? 7 : 13) + (list.length > 1 ? ' 외 ' + (list.length - 1) + '개' : '');
+      const line = { working: clip(doing, 14), verifying: clip(doing, 14), asking: named(asking), stopped: named(stopped),
+        usage: named(usage), queued: named(queued), idle: person.short || '' }[mode];
       const away = OFFICE.walkers.some((w) => w.team === t.id && now >= w.t0 && now < w.end);
-      const face = OFFICE_FACE[{ working: 'working', verifying: 'working', asking: 'asking', stopped: 'stopped', usage: 'waiting', queued: 'waiting', idle: 'idle' }[mode]];
-      // The middle desks speak a little higher, so neighbouring bubbles never cover each other.
-      const by = t.id === 'dev' || t.id === 'policy' ? -30 : 0;
-      const bw = Math.round(Math.min(200, Math.max(96, bubble.length * 12.5 + 26)));
-      const prop = (OFFICE_PEOPLE[t.id] || {}).prop;
-      return Object.assign(officeLook(t.id), { id: t.id, x: xy[0], y: xy[1], name: t.name, state: state, mode: mode,
-        cls: 'of-desk team-' + t.id + ' ' + mode + (sel === t.id ? ' sel' : ''), personCls: 'of-person' + (away ? ' away' : ''),
-        twoArms: mode !== 'asking', raise: mode === 'asking', typing: running.length > 0 && !away,
-        eyeY: face.eyeY, eyeRy: face.eyeRy, brows: face.brows, mouth: face.mouth, mouthCls: 'of-mouth' + (face.o ? ' o' : ''),
-        blink: (OFFICE_ORDER.indexOf(t.id) * 0.7).toFixed(1) + 's',
-        hasBadge: ['queued', 'usage', 'stopped'].includes(mode), badgeCls: 'of-badge ' + ({ queued: 'wait', usage: 'usage', stopped: 'stop' }[mode] || ''),
-        badgeT: { queued: '…', usage: '%', stopped: '!' }[mode] || '',
-        hasBubble: !!bubble && !away, bubble: bubble, bw: bw, bx: Math.round(70 - bw / 2), by: by,
-        bubbleCls: 'of-bubble' + (mode === 'asking' ? ' ask' : mode === 'stopped' ? ' stop' : ''),
-        tail: by ? 'M68-76.5l2 ' + (7 - by) + 'l2 ' + (by - 7) + 'z' : 'M64-76.5l6 7l6-7z',
-        propNotes: prop === 'notes', propBooks: prop === 'books', propMug: prop === 'mug', propPalette: prop === 'palette',
-        propLock: prop === 'lock', propPapers: prop === 'papers', propClip: prop === 'clip',
-        aria: t.name + ' · ' + (running.length ? state + ' · ' + doing : state) + (sel === t.id ? ' (선택됨)' : ''),
-        pick: pickSel(t.id), key: keyed(pickSel(t.id)), mine: mine, asking: asking, doing: doing, running: running });
+      return { id: t.id, x: xy[0], y: xy[1], name: t.name, state: state, line: line, mode: mode, intro: intro,
+        lineCls: 'of-line' + ({ working: ' run', verifying: ' run', asking: ' attn', stopped: ' stop' }[mode] || ''),
+        cls: 'of-desk team-' + t.id + ' ' + mode + (sel === t.id ? ' sel' : ''), avCls: 'of-av' + (away ? ' away' : ''), dotCls: 'of-dot ' + mode,
+        typing: running.length > 0, aria: t.name + ' · ' + state + (line ? ' · ' + line : '') + (sel === t.id ? ' (선택됨)' : ''),
+        pick: pickSel(t.id), key: keyed(pickSel(t.id)), mine: mine, asking: asking, doing: doing, running: running };
     });
     const count = (modes) => desks.filter((d) => modes.includes(d.mode)).length;
     const working = desks.filter((d) => ['working', 'verifying'].includes(d.mode));
@@ -3427,7 +3319,7 @@ class Component extends DCLogic {
     const rank = (g) => g.status === 'running' ? 0 : RUNNING_LIKE.includes(g.status) ? 1
       : g.status === 'review_required' && g.reason !== 'owner_approval' ? 2 : g.reason === 'owner_approval' ? 3 : 4;
     const kinds = [['진행', (g) => RUNNING_LIKE.includes(g.status)], ['대장 답 필요', (g) => g.status === 'review_required' && g.reason !== 'owner_approval'],
-      ['최종 확인', (g) => g.reason === 'owner_approval'], ['멈춤', (g) => ['paused', 'blocked', 'recovery_required'].includes(g.status)]];
+      ['최종 확인', (g) => g.reason === 'owner_approval'], ['멈춤', (g) => STOPPED.includes(g.status)]];
     const parts = kinds.map((k) => [k[0], open.filter((p) => k[1](p.goal)).length]).filter((k) => k[1] > 0).map((k) => k[0] + ' ' + k[1]);
     const doneN = P.filter((p) => p.isTeam && p.goal.status === 'verified').length;
     const top = open.slice().sort((a, b) => rank(a.goal) - rank(b.goal) || String(b.last || '').localeCompare(String(a.last || ''))).slice(0, 3);
@@ -3435,21 +3327,16 @@ class Component extends DCLogic {
       items: top.map((p) => { const st = stateOf(p.goal); return { name: p.name, status: st.l, pill: pillCls(st.tone), title: p.name + ' · ' + st.l, open: () => this.openProject(p.id) }; }),
       more: Math.max(0, open.length - top.length), hasMore: open.length > top.length, empty: !open.length };
     const todaySteps = [].concat.apply([], P.map((p) => p.runs)).filter((r) => sameDay(r.startedAt)).length;
-    const signLine = '오늘 ' + todaySteps + '단계 실행' + (doneN ? ' · 완료 프로젝트 ' + doneN + '개' : '');
-    // 사용량 (wall panel): the least remaining Claude/Codex windows the top meter also shows.
-    const gauges = [];
+    // 사용량: the windows the top meter also shows, in one line.
+    const usageLine = [];
     (s.quotas || []).forEach((q) => (q.windows || []).forEach((w) => {
-      if (gauges.length >= 2) return;
+      if (usageLine.length >= 2) return;
       const rem = Math.max(0, Math.min(100, Math.round(w.remaining)));
-      gauges.push({ y: 34 + gauges.length * 34, l: (q.provider === 'codex' ? 'Codex' : 'Claude') + ' ' + (w.period === 'five_hour' ? '5시간' : '주간') + ' 남음 ' + rem + '%',
-        w: Math.round(250 * rem / 100), cls: 'of-gauge' + (rem < 15 ? ' out' : rem < 35 ? ' low' : '') });
+      usageLine.push({ l: (q.provider === 'codex' ? 'Codex ' : 'Claude ') + (w.period === 'five_hour' ? '5시간' : '주간'), v: rem + '%', cls: rem < 15 ? 'out' : rem < 35 ? 'low' : '' });
     }));
-    if (!gauges.length) gauges.push({ y: 34, l: '사용량 확인 전', w: 0, cls: 'of-gauge' });
-    const d0 = new Date(now), ha = ((d0.getHours() % 12) + d0.getMinutes() / 60) * Math.PI / 6, ma = d0.getMinutes() * Math.PI / 30;
-    const clock = { hx: (212 + Math.sin(ha) * 12).toFixed(1), hy: (54 - Math.cos(ha) * 12).toFixed(1), mx: (212 + Math.sin(ma) * 18).toFixed(1), my: (54 - Math.cos(ma) * 18).toFixed(1) };
+    if (!usageLine.length) usageLine.push({ l: '확인 전', v: '', cls: '' });
     const walkers = OFFICE.walkers.map((w) => ({ w: w, p: officeWalkerAt(w, now) })).filter((x) => x.p)
-      .map((x) => Object.assign(officeLook(x.w.team), { key: x.w.key, x: x.p.x, y: x.p.y,
-        cls: 'of-walker team-' + x.w.team + (x.p.carrying ? '' : ' empty') + (x.p.step ? ' ' + x.p.step : '') }));
+      .map((x) => ({ key: x.w.key, x: x.p.x, y: x.p.y, cls: 'of-walker team-' + x.w.team + (x.p.carrying ? '' : ' empty') }));
     // 최근 인계: the same records in words — always there, and all there is when motion is off.
     const nameOf = (id) => id === 'boss' ? '대장' : TEAM_NAME[id] || id;
     const projName = (pid) => { const p = P.find((x) => x.id === pid); return p ? clip(p.name, 16) : ''; };
@@ -3463,15 +3350,14 @@ class Component extends DCLogic {
     const selTeam = TEAMS.find((t) => t.id === sel);
     const jobs = selDesk ? selDesk.mine.concat(selDesk.asking).map((x) => ({ project: x.p.name,
       what: stateOf(x.g).l + (x.g.status === 'running' && selDesk.doing ? ' · ' + clip(selDesk.doing, 60) : ''), open: () => this.openProject(x.p.id) })) : [];
-    const lede = working.length ? working.length + '개 팀이 일하는 중' + (pendingTotal ? ' · 대장 확인 ' + pendingTotal + '건' : '')
-      : pendingTotal ? '지금 일하는 팀은 없고, 대장 확인 ' + pendingTotal + '건이 기다립니다' : '모두 쉬는 중입니다 · 새 프로젝트를 맡겨 보세요';
+    const lede = (working.length ? working.length + '개 팀이 일하는 중' : '지금 일하는 팀은 없습니다') + (pendingTotal ? ' · 대장 확인 ' + pendingTotal + '건' : '')
+      + ' · 오늘 ' + todaySteps + '단계';
     const motion = !officeReduce();
-    // One project named, the rest counted ("가계부 외 17개"), never the whole list.
-    const few = (list) => !list.length ? '' : clip(list[0].p.name, 18) + (list.length > 1 ? ' 외 ' + (list.length - 1) + '개' : '');
     const rowWhat = (d) => ({ working: few(d.running) + ' · ' + d.doing, verifying: few(d.running) + ' · ' + d.doing,
       asking: '대장 답 기다림 ' + d.asking.length + '건 · ' + few(d.asking), stopped: d.state, usage: '사용량 여유를 기다림 · ' + few(d.mine),
       queued: '다음 차례 · ' + few(d.mine), idle: '쉬는 중' }[d.mode]);
-    return { lede: lede, planks: OFFICE_PLANKS, work: work, signLine: signLine, gauges: gauges, clock: clock, desks: desks, walkers: walkers,
+    return { lede: lede, zones: OFFICE_ZONES, desks: desks, walkers: walkers, work: work, usage: usageLine,
+      legend: [['작업 중', 'working', 290], ['대장 답 기다림', 'asking', 356], ['멈춤', 'stopped', 462], ['쉬는 중', 'idle', 512]].map((l) => ({ t: l[0], cls: 'of-dot ' + l[1], x: l[2] })),
       svgCls: 'office-svg' + (motion ? ' motion' : ''), motionOn: motion ? 'true' : 'false', motionL: motion ? '움직임 켜짐' : '움직임 꺼짐',
       toggleMotion: () => {
         try { localStorage.setItem('hq.officeMotion', motion ? 'off' : 'on'); } catch (err) { /* 저장하지 못하면 이번 화면에서만 */ }
@@ -3482,9 +3368,10 @@ class Component extends DCLogic {
       chips: [['run', count(['working', 'verifying']), '일하는 중'], ['wait', count(['queued', 'usage']), '차례 기다림'], ['stop', count(['stopped']), '멈춤'], ['boss', pendingTotal, '대장 확인']]
         .map((c) => ({ cls: 'of-chip ' + c[0], n: c[1], l: c[2] })),
       boss: { n: pendingTotal, has: pendingTotal > 0, cls: 'of-boss' + (pendingTotal ? ' has' : ''), state: pendingTotal ? '확인할 일 ' + pendingTotal + '건' : '확인할 일 없음',
-        papers: Array.from({ length: Math.min(pendingTotal, 5) }, (_, i) => ({ x: 18 + (i % 2) * 4, y: 6 - i * 4 })),
+        line: pendingTotal ? '누르면 승인함에서 차례로 처리합니다' : '팀이 결정을 기다리면 여기에 쌓입니다',
+        papers: Array.from({ length: Math.min(pendingTotal, 4) }, (_, i) => ({ x: 160 + i * 3, y: 22 - i * 3 })),
         aria: '대장 자리 · ' + (pendingTotal ? '확인할 일 ' + pendingTotal + '건 · 승인함 열기' : '확인할 일 없음'), go: () => this.go('inbox'), key: keyed(() => this.go('inbox')) },
-      guard: { state: obs ? '최근 7일 허용 ' + obs.sentinel.allow + ' · 막음 ' + obs.sentinel.deny : '위험한 동작은 문 앞에서 막습니다',
+      guard: { state: obs ? '최근 7일 허용 ' + obs.sentinel.allow + ' · 막음 ' + obs.sentinel.deny : '관측 기록 확인 전',
         aria: '감시 에이전트 · ' + (obs ? '최근 7일 허용 ' + obs.sentinel.allow + '번, 막음 ' + obs.sentinel.deny + '번' : '') + ' · 관측 화면 열기',
         go: () => this.go('observe'), key: keyed(() => this.go('observe')) },
       // 지금: only the teams doing or waiting for something; the ones at rest share one line.
