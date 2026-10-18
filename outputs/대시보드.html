@@ -801,10 +801,33 @@ main.is-office{max-width:none;padding:14px 24px 14px}
 .of-desk.working .of-status,.of-desk.verifying .of-status{fill:var(--run);font-weight:500}
 .of-dot{stroke:#fff;stroke-width:1.5;fill:#D4D4D8}
 .of-dot.working,.of-dot.verifying{fill:var(--run)}.of-dot.asking{fill:var(--attn)}.of-dot.stopped{fill:var(--stop)}.of-dot.queued,.of-dot.usage{fill:var(--text-4)}
-.of-say rect{fill:#fff;stroke:var(--line)}.of-say path{fill:#fff;stroke:var(--line)}
-.of-say text{font-size:11.5px;fill:var(--text-2)}
-.of-say.ask rect,.of-say.ask path{stroke:var(--attn);fill:var(--attn-soft)}.of-say.ask text{fill:var(--attn)}
-.of-say.stop rect,.of-say.stop path{stroke:var(--stop);fill:var(--stop-soft)}.of-say.stop text{fill:var(--stop)}
+/* 사무실 메시지 (10차): speech bubbles, walking tags and room notices in the dashboard's card language */
+.of-say{cursor:pointer}
+.of-say-bg{fill:#fff;stroke:var(--line)}
+.of-say-tail{fill:#fff;stroke:var(--line);stroke-linejoin:round}
+.of-say-ico{fill:var(--run)}
+.of-say-icot{font-size:10px;font-weight:700;fill:#fff}
+.of-say-t{font-size:11.5px;fill:var(--text);font-weight:500}
+.of-say-t.quiet{fill:var(--text-2);font-weight:400}
+.of-say.ask .of-say-bg,.of-say.ask .of-say-tail{fill:#FFFCF6;stroke:#F1D3A6}.of-say.ask .of-say-ico{fill:var(--attn)}.of-say.ask .of-say-t{fill:#8A4A0B}
+.of-say.stop .of-say-bg,.of-say.stop .of-say-tail{fill:#FFF8F5;stroke:#F3C3AE}.of-say.stop .of-say-ico{fill:var(--stop)}.of-say.stop .of-say-t{fill:#9A3412}
+.of-say:hover .of-say-bg{stroke:var(--line-strong)}.of-say.ask:hover .of-say-bg{stroke:var(--attn)}.of-say.stop:hover .of-say-bg{stroke:var(--stop)}
+.office-svg.motion .of-say.run .of-say-ico{animation:of-pulse 1.6s ease-in-out infinite}
+.of-tag rect{fill:#18181B}.of-tag text{font-size:10.5px;font-weight:600;fill:#fff}
+.of-walker.empty .of-tag{display:none}
+.of-notes{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column-reverse;gap:8px;width:min(288px,42%);pointer-events:none;z-index:2}
+.of-note{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 2px rgba(17,17,26,.05),0 8px 24px rgba(17,17,26,.08);padding:10px 12px;font-size:12.5px;line-height:1.35}
+.of-note .ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.of-note .ico svg{width:16px;height:16px}
+.of-note.ask .ico{background:var(--attn-soft);color:var(--attn)}.of-note.done .ico{background:var(--done-soft);color:var(--done)}
+.of-note b{display:block;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.of-note .sub{display:block;color:var(--text-3);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.of-note time{color:var(--text-4);font-size:11.5px;font-variant-numeric:tabular-nums;align-self:start}
+.of-note.new{animation:of-note-in .32s cubic-bezier(.2,.8,.2,1)}
+.of-note.leaving{animation:of-note-out .4s ease forwards}
+@keyframes of-note-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes of-note-out{to{opacity:0;transform:translateY(4px)}}
+@media (prefers-reduced-motion:reduce){.of-note.new,.of-note.leaving{animation-duration:.01s}}
 .of-person.away{opacity:0}
 .of-paper{fill:#fff;stroke:#D4D4D8}
 .of-badge{fill:var(--attn)}.of-badge-t{font-size:11px;font-weight:650;fill:#fff;font-variant-numeric:tabular-nums}
@@ -893,7 +916,8 @@ main.is-office{max-width:none;padding:14px 24px 14px}
     <section class="office-room" aria-labelledby="office-h">
       <h2 id="office-h" class="sr">AI 팀 사무실</h2>
       <svg class="{{of.svgCls}}" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid meet" role="group" aria-label="{{of.summary}}">
-        <defs><pattern id="of-grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle class="of-grid-dot" cx="1" cy="1" r="1"></circle></pattern></defs>
+        <defs><pattern id="of-grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle class="of-grid-dot" cx="1" cy="1" r="1"></circle></pattern>
+          <filter id="of-lift" x="-10%" y="-20%" width="120%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#11111A" flood-opacity=".06"></feDropShadow><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#11111A" flood-opacity=".06"></feDropShadow></filter></defs>
         <rect x="0" y="0" width="1000" height="620" fill="url(#of-grid)"></rect>
         <sc-for list="{{of.zones}}" as="z"><rect class="of-zone" x="{{z.x}}" y="{{z.y}}" width="{{z.w}}" height="{{z.h}}" rx="16"></rect><text class="of-zone-l" x="{{z.lx}}" y="{{z.ly}}">{{z.l}}</text></sc-for>
         <line class="of-divider" x1="716" y1="252" x2="716" y2="420"></line>
@@ -945,7 +969,13 @@ main.is-office{max-width:none;padding:14px 24px 14px}
                 <sc-if value="{{d.poseHead}}"><path class="of-arm" stroke-width="8" d="M48 41L62 31L57 14"></path><circle cx="55.5" cy="11" r="3.6" fill="{{d.skin}}"></circle></sc-if>
               </g></g>
             </g>
-            <sc-if value="{{d.hasSay}}"><g class="{{d.sayCls}}"><rect x="{{d.sx}}" y="-24" width="{{d.sw}}" height="22" rx="7"></rect><text x="{{d.tx}}" y="-9" text-anchor="middle">{{d.say}}</text></g></sc-if>
+            <sc-if value="{{d.hasSay}}"><g class="{{d.sayCls}}" transform="translate({{d.sx}},-31)" onClick="{{d.sayGo}}" role="button" aria-label="{{d.sayAria}}">
+              <rect class="of-say-bg" width="{{d.sw}}" height="24" rx="8" filter="url(#of-lift)"></rect>
+              <path class="of-say-tail" d="{{d.tail}}"></path>
+              <circle class="of-say-ico" cx="13" cy="12" r="{{d.icoR}}"></circle>
+              <text class="of-say-icot" x="13" y="15.5" text-anchor="middle">{{d.icoT}}</text>
+              <text class="{{d.sayTextCls}}" x="{{d.textX}}" y="16">{{d.say}}</text>
+            </g></sc-if>
             <rect class="of-label" x="2" y="116" width="176" height="28" rx="9"></rect>
             <circle class="{{d.dotCls}}" cx="15" cy="130" r="4"></circle>
             <text class="of-name" x="25" y="134">{{d.name}}</text>
@@ -992,6 +1022,7 @@ main.is-office{max-width:none;padding:14px 24px 14px}
 
         <sc-for list="{{of.walkers}}" as="w">
           <g class="{{w.cls}}" data-walker="{{w.key}}" transform="translate({{w.x}},{{w.y}})">
+            <g class="of-tag" transform="translate({{w.tagX}},-112)"><rect width="{{w.tagW}}" height="19" rx="9.5"></rect><text x="{{w.tagTx}}" y="13" text-anchor="middle">{{w.tag}}</text></g>
             <g class="of-flip" transform="scale({{w.dir}},1)">
               <ellipse class="of-floor" cx="0" cy="2" rx="16" ry="3.5"></ellipse>
               <g class="of-leg-b"><path class="of-pants" stroke-width="9" d="M0-34L-2-3"></path><ellipse class="of-shoe" cx="2" cy="0" rx="6" ry="3"></ellipse></g>
@@ -1012,6 +1043,10 @@ main.is-office{max-width:none;padding:14px 24px 14px}
           </g>
         </sc-for>
       </svg>
+      <div class="of-notes" aria-live="polite"><sc-for list="{{of.notes}}" as="n"><div class="{{n.cls}}">
+        <span class="ico" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{n.icon}}"></path></svg></span>
+        <span><b>{{n.title}}</b><span class="sub">{{n.sub}}</span></span><time>{{n.when}}</time>
+      </div></sc-for></div>
     </section>
     <aside class="of-side" aria-label="사무실 현황">
       <div class="of-chips"><sc-for list="{{of.chips}}" as="c"><div class="{{c.cls}}"><b>{{c.n}}</b>{{c.l}}</div></sc-for></div>
@@ -2027,7 +2062,11 @@ const officeStand = (id, who) => {
 // (each frame sets the new element's position from the clock, and the render reads the same position).
 // lastId: the newest hand-off already shown. The first look at the engine's records only notes it, so a reload or a
 // reconnect never replays an old hand-off; each new team.handoff event (by its stored id) plays once.
-const OFFICE = { lastId: null, walkers: [], frame: 0 };
+const OFFICE = { lastId: null, walkers: [], notes: [], frame: 0 };
+// Room notices (10차): each new hand-off also shows as a card at the bottom right for six seconds, motion or not.
+const OFFICE_NOTE_MS = 6000;
+// Rough text width in the room's units, for bubbles and tags (한글 is about one em, Latin and digits about half).
+const officeTextW = (t, mono) => [...String(t || '')].reduce((w, c) => w + (/[가-힣ㄱ-ㅎ…·→?]/.test(c) ? 11.6 : mono ? 6.4 : 6.6), 0);
 // Motion is on unless 대장 turns it off on the page (kept in this browser only). 2026-10-18: it followed the Windows
 // setting at first, and with animation effects off on this PC 대장 saw a still office and asked for a live one.
 const officeMotionPick = () => { try { return localStorage.getItem('hq.officeMotion'); } catch (err) { return null; } };
@@ -2038,14 +2077,16 @@ function officePlay(handoffs, now) {
   list.forEach((e) => {
     if (e.id <= OFFICE.lastId) return;
     OFFICE.lastId = e.id;
-    if (officeReduce()) return; // the 최근 인계 list says it in words; nobody walks
+    OFFICE.notes = OFFICE.notes.concat([{ id: e.id, at: now, from: e.from, to: e.to, done: !!e.done, projectId: e.projectId }]).slice(-3);
+    setTimeout(scheduleRender, 450); setTimeout(scheduleRender, OFFICE_NOTE_MS - 400); setTimeout(scheduleRender, OFFICE_NOTE_MS + 50);
+    if (officeReduce()) return; // the notice and the 최근 인계 list say it in words; nobody walks
     const courier = e.from === 'boss' ? e.to : e.from;
     if (!OFFICE_DESKS[courier]) return;
     const home = officeSeat(courier), there = e.from === 'boss' || e.to === 'boss' ? officeStand('boss', courier) : OFFICE_DESKS[e.to] ? officeStand(e.to) : null;
     if (!there) return;
     const t0 = OFFICE.walkers.filter((w) => w.team === courier).reduce((t, w) => Math.max(t, w.end), now);
     const dur = Math.max(1000, Math.min(3200, Math.hypot(there[0] - home[0], there[1] - home[1]) / 0.2));
-    OFFICE.walkers.push({ key: 'h' + e.id, team: courier, home: home, there: there, t0: t0, dur: dur, end: t0 + dur * 2 + 700 });
+    OFFICE.walkers.push({ key: 'h' + e.id, team: courier, to: e.from === 'boss' ? 'boss' : e.to, home: home, there: there, t0: t0, dur: dur, end: t0 + dur * 2 + 700 });
   });
   if (OFFICE.walkers.length) officeAnimate();
 }
@@ -3427,13 +3468,23 @@ class Component extends DCLogic {
         usage: named(usage), queued: named(queued), idle: person.short || '' }[mode];
       const away = OFFICE.walkers.some((w) => w.team === t.id && now >= w.t0 && now < w.end);
       // What they say: the step's latest activity over the screen while working, a word to 대장 when asking or stuck.
-      const say = { working: clip(doing, 16), verifying: clip(doing, 16), asking: '대장님, 확인 부탁드려요', stopped: '도움이 필요해요' }[mode] || '';
-      const sw = Math.round(Math.min(176, say.length * 11.5 + 22)), sx = ['working', 'verifying'].includes(mode) ? 178 - sw : 22;
+      const run = ['working', 'verifying'].includes(mode);
+      const say = run ? clip(doing, 22) : mode === 'asking' ? '대장님, 확인 부탁드려요' + (asking.length > 1 ? ' · ' + asking.length + '건' : '')
+        : mode === 'stopped' ? '멈췄어요 · 눌러서 보기' : '';
+      const textX = run ? 22 : 26;
+      const sw = Math.round(Math.min(run ? 200 : 230, textX + officeTextW(say) + 10));
+      const sx = run ? Math.max(-12, 178 - sw) : 14;
+      // The tail points at the screen while working, at the head when the person speaks to 대장.
+      const tip = Math.round((run ? 146 : 47) - sx);
+      const target = mode === 'asking' ? asking[0] : mode === 'stopped' ? stopped[0] : null;
       return Object.assign(officeLook(t.id), { id: t.id, x: xy[0], y: xy[1], name: t.name, state: state, line: line, mode: mode, intro: intro,
         cls: 'of-desk team-' + t.id + ' ' + mode + (sel === t.id ? ' sel' : ''), personCls: 'of-person' + (away ? ' away' : ''), dotCls: 'of-dot ' + mode,
         lean: { working: 5, verifying: 5, asking: 0, stopped: 2 }[mode] ?? -4,
         poseType: ['working', 'verifying'].includes(mode), poseRaise: mode === 'asking', poseHead: mode === 'stopped', poseLap: ['queued', 'usage'].includes(mode), poseMug: mode === 'idle',
-        hasSay: !!say && !away, say: say, sw: sw, sx: sx, tx: sx + Math.round(sw / 2), sayCls: 'of-say' + (mode === 'asking' ? ' ask' : mode === 'stopped' ? ' stop' : ''),
+        hasSay: !!say && !away, say: say, sw: sw, sx: sx, textX: textX, tail: 'M' + (tip - 5) + ' 23.5L' + tip + ' 29.5L' + (tip + 5) + ' 23.5',
+        icoR: run ? 3.5 : 7, icoT: mode === 'asking' ? '?' : mode === 'stopped' ? '!' : '', sayTextCls: 'of-say-t' + (run ? ' quiet' : ''),
+        sayCls: 'of-say ' + (run ? 'run' : mode === 'asking' ? 'ask' : 'stop'), sayAria: target ? say + ' · ' + target.p.name + ' 열기' : say,
+        sayGo: (e) => { if (e) e.stopPropagation(); if (target) this.openProject(target.p.id); else this.setState({ officeSel: t.id }); },
         aria: t.name + ' · ' + state + (line ? ' · ' + line : '') + (sel === t.id ? ' (선택됨)' : ''),
         delay: '-' + (OFFICE_ORDER.indexOf(t.id) * 1.37).toFixed(2) + 's', pick: pickSel(t.id), key: keyed(pickSel(t.id)), mine: mine, asking: asking, doing: doing, running: running });
     });
@@ -3462,8 +3513,9 @@ class Component extends DCLogic {
     }));
     if (!usageLine.length) usageLine.push({ l: '확인 전', v: '', cls: '' });
     const walkers = OFFICE.walkers.map((w) => ({ w: w, p: officeWalkerAt(w, now) })).filter((x) => x.p)
-      .map((x) => Object.assign(officeLook(x.w.team), { key: x.w.key, x: x.p.x, y: x.p.y, dir: x.p.dir,
-        cls: 'of-walker team-' + x.w.team + (x.p.carrying ? '' : ' empty') + (x.p.step ? ' ' + x.p.step : '') }));
+      .map((x) => { const tag = '→ ' + (x.w.to === 'boss' ? '대장' : TEAM_NAME[x.w.to] || ''), tw = Math.round(officeTextW(tag) + 18);
+        return Object.assign(officeLook(x.w.team), { key: x.w.key, x: x.p.x, y: x.p.y, dir: x.p.dir, tag: tag, tagW: tw, tagX: -Math.round(tw / 2), tagTx: Math.round(tw / 2),
+        cls: 'of-walker team-' + x.w.team + (x.p.carrying ? '' : ' empty') + (x.p.step ? ' ' + x.p.step : '') }); });
     // 최근 인계: the same records in words — always there, and all there is when motion is off.
     const nameOf = (id) => id === 'boss' ? '대장' : TEAM_NAME[id] || id;
     const projName = (pid) => { const p = P.find((x) => x.id === pid); return p ? clip(p.name, 16) : ''; };
@@ -3483,7 +3535,16 @@ class Component extends DCLogic {
     const rowWhat = (d) => ({ working: few(d.running) + ' · ' + d.doing, verifying: few(d.running) + ' · ' + d.doing,
       asking: '대장 답 기다림 ' + d.asking.length + '건 · ' + few(d.asking), stopped: d.state, usage: '사용량 여유를 기다림 · ' + few(d.mine),
       queued: '다음 차례 · ' + few(d.mine), idle: '쉬는 중' }[d.mode]);
-    return { lede: lede, zones: OFFICE_ZONES, desks: desks, walkers: walkers, work: work, usage: usageLine,
+    // Room notices: the last hand-offs, each for six seconds (in on arrival, out at the end).
+    OFFICE.notes = OFFICE.notes.filter((n) => now - n.at < OFFICE_NOTE_MS + 100);
+    const NOTE_ICON = { move: 'M3 8h9M8.5 4.5L12 8l-3.5 3.5', ask: 'M6 6a2 2 0 1 1 3 1.7c-.7.4-1 .9-1 1.6M8 11.5v.01', done: 'M3.5 8.5l3 3 6-7' };
+    const notes = OFFICE.notes.map((n) => {
+      const kind = n.to === 'boss' ? (n.done ? 'done' : 'ask') : 'move', age = now - n.at, proj = projName(n.projectId);
+      const title = n.to === 'boss' ? (n.done ? '완료 · ' + proj : nameOf(n.from) + ' → 대장 · 확인 요청') : nameOf(n.from) + ' → ' + nameOf(n.to);
+      const sub = n.to === 'boss' ? (n.done ? nameOf(n.from) + '이 마지막 확인을 마쳤어요' : proj) : proj + (n.from === 'boss' ? ' · 대장 답을 받고 이어서' : '');
+      return { cls: 'of-note ' + kind + (age < 450 ? ' new' : age > OFFICE_NOTE_MS - 400 ? ' leaving' : ''), icon: NOTE_ICON[kind], title: title, sub: sub, when: '방금' };
+    });
+    return { lede: lede, zones: OFFICE_ZONES, notes: notes, desks: desks, walkers: walkers, work: work, usage: usageLine,
       legend: [['작업 중', 'working', 290], ['대장 답 기다림', 'asking', 356], ['멈춤', 'stopped', 462], ['쉬는 중', 'idle', 512]].map((l) => ({ t: l[0], cls: 'of-dot ' + l[1], x: l[2] })),
       svgCls: 'office-svg' + (motion ? ' motion' : ''), motionOn: motion ? 'true' : 'false', motionL: motion ? '움직임 켜짐' : '움직임 꺼짐',
       toggleMotion: () => {
