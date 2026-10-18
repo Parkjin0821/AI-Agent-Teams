@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os, { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -111,20 +111,45 @@ test('return plan: names that are one file on Windows (case or Unicode form) are
   assert.equal(plan.conflicts.length, 4);
 });
 
-test('apply: writes through a temporary file, checks the hash after, deletes, and refuses a target changed after planning', () => {
+test('apply: all or nothing — a target changed after planning cancels the whole set', () => {
   const dir = project({ 'a.txt': 'A', 'b.txt': 'B', 'c.txt': 'C' });
   try {
-    const sent = packFolder(dir);
-    const plan = planReturn({ sent, returned: returnOf({ 'a.txt': 'A2', 'c.txt': 'C2', 'n/d.txt': 'D' }), current: hashFolder(dir) });
+    const plan = planReturn({ sent: packFolder(dir), returned: returnOf({ 'a.txt': 'A2', 'c.txt': 'C2', 'n/d.txt': 'D' }), current: hashFolder(dir) });
     writeFileSync(path.join(dir, 'c.txt'), 'changed after planning');
     const r = applyPlan(dir, plan);
-    assert.deepEqual(r.applied.map(a => `${a.action}:${a.path}`).sort(), ['add:n/d.txt', 'delete:b.txt', 'modify:a.txt']);
-    assert.deepEqual(r.failed.map(f => f.path), ['c.txt']);
-    assert.equal(readFileSync(path.join(dir, 'a.txt'), 'utf8'), 'A2');
+    assert.equal(r.aborted, true);
+    assert.deepEqual(r.applied, []);
+    assert.equal(readFileSync(path.join(dir, 'a.txt'), 'utf8'), 'A');
+    assert.ok(existsSync(path.join(dir, 'b.txt')) && !existsSync(path.join(dir, 'n', 'd.txt')));
     assert.equal(readFileSync(path.join(dir, 'c.txt'), 'utf8'), 'changed after planning');
-    assert.ok(!existsSync(path.join(dir, 'b.txt')));
-    assert.ok(!packFolder(dir).files.some(f => f.includes('.hq-apply-')), 'no temporary file left');
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('apply: writes, deletes and verifies; nothing temporary is left', () => {
+  const dir = project({ 'a.txt': 'A', 'b.txt': 'B' });
+  try {
+    const plan = planReturn({ sent: packFolder(dir), returned: returnOf({ 'a.txt': 'A2', 'n/d.txt': 'D' }), current: hashFolder(dir) });
+    const r = applyPlan(dir, plan);
+    assert.deepEqual(r.applied.map(x => `${x.action}:${x.path}`).sort(), ['add:n/d.txt', 'delete:b.txt', 'modify:a.txt']);
+    assert.equal(readFileSync(path.join(dir, 'a.txt'), 'utf8'), 'A2');
+    assert.ok(!existsSync(path.join(dir, 'b.txt')));
+    assert.ok(!packFolder(dir).files.some(f => /\.hq-(apply|backup)-/.test(f)), 'no temporary or backup file left');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('apply: a failure part-way through the commit rolls every file back', () => {
+  for (const failAt of [1, 2, 3, 4, 5]) {
+    const dir = project({ 'a.txt': 'A', 'b.txt': 'B', 'c.txt': 'C' });
+    try {
+      const before = hashFolder(dir);
+      const plan = planReturn({ sent: packFolder(dir), returned: returnOf({ 'a.txt': 'A2', 'c.txt': 'C2', 'n/d.txt': 'D' }), current: before });
+      let renames = 0;
+      const r = applyPlan(dir, plan, { fsOps: { renameSync: (x, y) => { if (++renames === failAt) throw new Error('디스크 오류(시험)'); return renameSync(x, y); } } });
+      assert.equal(r.aborted, true, `fail at rename ${failAt}`);
+      assert.equal(r.rolledBack, true);
+      assert.deepEqual(hashFolder(dir), before, `project restored after a failure at rename ${failAt}`);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }
 });
 
 test('apply: a folder on the way that is a link is refused', (t) => {

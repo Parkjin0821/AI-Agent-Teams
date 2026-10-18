@@ -102,6 +102,8 @@ if (process.argv.includes('--preflight') || process.argv.includes('--record-base
     if (!rules.ok) { console.log(`기준 기록 거부 — 규칙 위반:\n- ${rules.problems.join('\n- ')}`); process.exit(1); }
     const note = process.argv.slice(process.argv.indexOf('--record-baseline') + 1).join(' ') || '대장 확인 후 기록';
     writeBaseline(BASELINE_FILE, snap, note);
+    const { signingMode } = await import('../src/승인서명.js');
+    if (signingMode() === 'enforced') console.log('대장 서명 키가 등록돼 있어, 이 기준은 서명 전까지 쓰이지 않습니다: node scripts/승인-서명.mjs --request-baseline "목적"');
     if (baseline?.items) console.log(`이전 기준(${baseline.recordedAt})을 바꿨습니다.`);
     console.log(`기준 기록: ${BASELINE_FILE}`);
     process.exit(0);

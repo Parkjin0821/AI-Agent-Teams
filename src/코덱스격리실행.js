@@ -3,8 +3,9 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, wri
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertWorkspaceConfigurationSafe, finalAnswer } from './실행어댑터.js';
+import { assertWorkspaceConfigurationSafe, finalAnswer, reportedModel } from './실행어댑터.js';
 import { AGENT_CONFIG, EXCLUDED_DIRS, PLACEHOLDERS, SECRET_FILE, listNames, packFolder, sha256, unpackReturn } from './작업묶음.js';
+import { checkBaseline, checkProtected, protectedHashes, signingMode } from './승인서명.js';
 import { DISTRO, JOB_ROOT, LINUX_PROFILE, RUN_USER, checkWslConf, jobCommands, jobPath, linuxProfileArgs, runCommand, wslCodexExec, wslCommand } from './코덱스격리.js';
 
 // Codex 격리 실행기 (docs/codex-격리-복원.md 11절, 대장 결정 2 · 2026-10-18): one Codex job in the hq-codex distro, end
@@ -163,54 +164,104 @@ export function hashFolder(dir) {
   return hashes;
 }
 
-// Applies a plan inside projectDir. Each write goes to a temporary file next to the target and is renamed into place,
-// then read back and compared with the returned hash. A target whose folder path contains a link is refused.
-// Right before each write the file's current hash is checked again (a step may have changed it after planning).
-export function applyPlan(projectDir, plan) {
-  const root = path.resolve(projectDir), applied = [], failed = [];
+// Applies a plan inside projectDir as one unit: all of it or none of it.
+//   1. check: every target's current hash is still what the plan saw, no folder on the way is a link (else nothing changes)
+//   2. stage: new contents go to temporary files next to their targets and are read back against the returned hash
+//   3. commit: each existing target is renamed to a backup, then the staged file is renamed into place
+//   4. verify: every target is read back; on any failure in 3 or 4 every step already done is undone from the backups
+// fsOps lets a test inject a failure part-way. → { applied, failed, aborted, rolledBack }
+const FS = { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync };
+export function applyPlan(projectDir, plan, { fsOps = FS } = {}) {
+  const fsx = { ...FS, ...fsOps };
+  const root = path.resolve(projectDir), tag = randomBytes(4).toString('hex');
+  const hashNow = full => (fsx.existsSync(full) ? sha256(fsx.readFileSync(full)) : null);
   const target = rel => {
     const full = path.resolve(root, ...rel.split('/'));
     if (!full.startsWith(root + path.sep)) throw new Error('작업 폴더 밖');
-    for (let p = path.dirname(full); p.length > root.length; p = path.dirname(p)) if (existsSync(p) && lstatSync(p).isSymbolicLink()) throw new Error('경로에 링크가 있음');
-    if (existsSync(full) && lstatSync(full).isSymbolicLink()) throw new Error('대상이 링크');
+    for (let p = path.dirname(full); p.length > root.length; p = path.dirname(p)) if (fsx.existsSync(p) && fsx.lstatSync(p).isSymbolicLink()) throw new Error('경로에 링크가 있음');
+    if (fsx.existsSync(full) && fsx.lstatSync(full).isSymbolicLink()) throw new Error('대상이 링크');
     return full;
   };
-  const hashNow = full => (existsSync(full) ? sha256(readFileSync(full)) : null);
+  const steps = [];
+  const cleanupTemps = () => { for (const st of steps) if (st.temp) fsx.rmSync(st.temp, { force: true }); };
+  // 1. check
   for (const c of plan.changes) {
     try {
       const full = target(c.path);
-      if (hashNow(full) !== c.before) throw new Error('반영 직전에 프로젝트 쪽에서 바뀜');
-      if (c.action === 'delete') { rmSync(full); applied.push({ path: c.path, action: c.action }); continue; }
-      mkdirSync(path.dirname(full), { recursive: true });
-      const temp = `${full}.hq-apply-${randomBytes(4).toString('hex')}`;
-      writeFileSync(temp, c.data, { flag: 'wx' });
-      renameSync(temp, full);
-      if (hashNow(full) !== c.hash) throw new Error('쓴 뒤 해시가 다름');
-      applied.push({ path: c.path, action: c.action, hash: c.hash });
-    } catch (error) { failed.push({ path: c.path, why: error.message }); }
+      if (hashNow(full) !== c.before) return { applied: [], failed: [{ path: c.path, why: '반영 직전에 프로젝트 쪽에서 바뀜 — 전체 반영 취소' }], aborted: true, rolledBack: false };
+      steps.push({ ...c, full });
+    } catch (error) { return { applied: [], failed: [{ path: c.path, why: `${error.message} — 전체 반영 취소` }], aborted: true, rolledBack: false }; }
   }
-  return { applied, failed };
+  // 2. stage
+  try {
+    for (const st of steps) {
+      if (st.action === 'delete') continue;
+      fsx.mkdirSync(path.dirname(st.full), { recursive: true });
+      st.temp = `${st.full}.hq-apply-${tag}`;
+      fsx.writeFileSync(st.temp, st.data, { flag: 'wx' });
+      if (sha256(fsx.readFileSync(st.temp)) !== st.hash) throw new Error(`준비한 파일의 해시가 다름: ${st.path}`);
+    }
+  } catch (error) { cleanupTemps(); return { applied: [], failed: [{ path: '(준비)', why: error.message }], aborted: true, rolledBack: false }; }
+  // 3. commit, 4. verify — undo everything on the first failure
+  const done = [];
+  const undo = () => {
+    for (const st of done.reverse()) {
+      try {
+        if (st.action !== 'delete' && fsx.existsSync(st.full)) fsx.rmSync(st.full, { force: true });
+        if (st.backup && fsx.existsSync(st.backup)) fsx.renameSync(st.backup, st.full);
+      } catch { /* reported below: the backup file stays next to the target for 대장 */ }
+    }
+  };
+  try {
+    for (const st of steps) {
+      if (fsx.existsSync(st.full)) { st.backup = `${st.full}.hq-backup-${tag}`; fsx.renameSync(st.full, st.backup); }
+      done.push(st);
+      if (st.action !== 'delete') fsx.renameSync(st.temp, st.full);
+    }
+    for (const st of steps) if (hashNow(st.full) !== (st.action === 'delete' ? null : st.hash)) throw new Error(`반영 뒤 확인 실패: ${st.path}`);
+  } catch (error) {
+    undo(); cleanupTemps();
+    const restored = steps.every(st => hashNow(st.full) === st.before);
+    return { applied: [], failed: [{ path: '(반영)', why: error.message }], aborted: true, rolledBack: true, restored };
+  }
+  for (const st of steps) if (st.backup) fsx.rmSync(st.backup, { force: true });
+  return { applied: steps.map(st => ({ path: st.path, action: st.action, ...(st.hash ? { hash: st.hash } : {}) })), failed: [], aborted: false, rolledBack: false };
 }
 
 // ── 작업 하나 ───────────────────────────────────────────────────────────────────────────────────────────────────
 // execute: 'codex' (a real codex exec step — calls the model) or a function ({ jobId, dir, run }) → { code, output }
 // that runs something else in the job (tests use Codex's sandbox alone: no model).
 export class CodexIsolatedRunner {
-  constructor({ distro = DISTRO, user = RUN_USER, baselineFile = BASELINE_FILE, run = runCommand, execTimeoutMs = 25 * 60_000, snapshot = environmentSnapshot } = {}) {
-    Object.assign(this, { distro, user, baselineFile, run, execTimeoutMs, snapshot });
+  constructor({ distro = DISTRO, user = RUN_USER, baselineFile = BASELINE_FILE, run = runCommand, execTimeoutMs = 25 * 60_000, snapshot = environmentSnapshot, root = ENGINE_ROOT } = {}) {
+    Object.assign(this, { distro, user, baselineFile, run, execTimeoutMs, snapshot, root });
   }
 
+  // trust: 'signed' only when 대장's key is registered and both the baseline and the engine's protected files carry
+  // valid signatures; 'unsigned' while no key is registered (the harness may run, production assignment may not).
   async preflight() {
     const snap = await this.snapshot({ distro: this.distro, user: this.user, run: this.run });
-    return { ...judgePreflight(snap, readBaseline(this.baselineFile)), snapshot: snap };
+    const baseline = readBaseline(this.baselineFile);
+    const judged = judgePreflight(snap, baseline);
+    const signing = this.signing();
+    if (signing.mode === 'enforced') {
+      const b = baseline?.items ? checkBaseline({ items: baseline.items, root: this.root }) : { ok: false, problems: ['환경 기준 없음'] };
+      const policy = JSON.parse(readFileSync(path.join(this.root, 'architecture-policy.json'), 'utf8'));
+      const p = checkProtected({ files: protectedHashes({ root: this.root, policy }), root: this.root });
+      judged.problems.push(...b.problems.map(x => `서명 · ${x}`), ...p.problems.map(x => `서명 · ${x}`));
+      judged.ok = judged.problems.length === 0;
+    }
+    return { ...judged, at: Date.now(), trust: signing.mode === 'enforced' && judged.ok ? 'signed' : 'unsigned', signing: signing.mode, snapshot: snap };
   }
+  signing() { return { mode: signingMode(this.root) }; }
 
-  async runJob({ projectDir, prompt = '', execute = 'codex', model = null, effort = null, access = 'write', allow = null, apply = true, jobId = null, onTiming = null }) {
+  // preflight: a result of this.preflight() taken moments ago (at most 60 s, and passed) may be reused, so two jobs can
+  // start from the same moment; anything older or failed is checked again.
+  async runJob({ projectDir, prompt = '', execute = 'codex', model = null, effort = null, access = 'write', allow = null, apply = true, jobId = null, onTiming = null, preflight = null }) {
     const t = {}, mark = (name, since) => { t[name] = Date.now() - since; onTiming?.(name, t[name]); };
     let start = Date.now();
-    const pre = await this.preflight();
+    const pre = preflight?.ok && Date.now() - (preflight.at ?? 0) <= 60_000 ? preflight : await this.preflight();
     mark('preflight', start);
-    if (!pre.ok) return { outcome: 'blocked', problems: pre.problems, timings: t };
+    if (!pre.ok) return { outcome: 'blocked', problems: pre.problems, trust: pre.trust, timings: t };
     const dir = checkProjectFolder(projectDir);
     const id = jobId ?? `j-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`;
     const cmds = jobCommands({ distro: this.distro, user: this.user, jobId: id });
@@ -242,18 +293,20 @@ export class CodexIsolatedRunner {
       const plan = planReturn({ sent, returned, current: hashFolder(dir), allow });
       const applied = apply ? applyPlan(dir, plan) : { applied: [], failed: [] };
       mark('apply', start);
-      return { outcome: 'completed', jobId: id, plan: brief(plan), applied, timings: t, exec: summarize(result), returnedBytes: out.stdout.length, sentBytes: sent.tar.length };
+      return { outcome: 'completed', jobId: id, trust: pre.trust, sentDigest: digestOf(sent.hashes), plan: brief(plan), applied, timings: t, exec: summarize(result), returnedBytes: out.stdout.length, sentBytes: sent.tar.length };
     } finally {
       await this.run(cmds.remove);
     }
   }
 }
 
+export const digestOf = hashes => sha256(Object.keys(hashes).sort().map(p => `${p}\0${hashes[p]}`).join('\n'));
 const brief = plan => ({ changes: plan.changes.map(c => ({ path: c.path, action: c.action })), conflicts: plan.conflicts, rejected: plan.rejected, unchanged: plan.unchanged });
 function summarize(result) {
   const events = String(result?.output ?? '').split(/\r?\n/).filter(l => l.startsWith('{')).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
   const usage = events.filter(e => e.type === 'turn.completed' && e.usage).map(e => e.usage);
-  return { code: result?.code ?? null, answer: finalAnswer(String(result?.output ?? '')), usage };
+  // raw: the tail of the step's own output (test logs for engine checks); kept in memory for the caller, not stored here.
+  return { code: result?.code ?? null, answer: finalAnswer(String(result?.output ?? '')), usage, model: reportedModel(String(result?.output ?? '')), raw: String(result?.output ?? '').slice(-8000) };
 }
 
 export { jobPath, LINUX_PROFILE, linuxProfileArgs };
