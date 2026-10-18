@@ -82,3 +82,12 @@ test('10차 1번: the 9차 webpage criterion is now proven by the engine alone, 
   assert.equal(team.evidence.length, 0);
   assert.deepEqual(engineGateSummary([criterion]), ['1번: 만든 파일 이름이 한글, 링크가 모두 실제 파일로 연결']);
 });
+
+test('10차 2번: the pre-approval check warns about 대장 checks that are too many or cover what the engine checks', async () => {
+  const { lintCriteria } = await import('../src/완료근거.js');
+  const one = lintCriteria(['index.html 파일이 있다', '따뜻한 느낌이다 (대장이 화면에서 확인)']);
+  assert.deepEqual(one, [], 'one subjective 대장 check is fine');
+  const two = lintCriteria(['따뜻한 느낌이다 (대장이 화면에서 확인)', '휴대폰에서 깨진 곳이 없다 (대장이 화면에서 확인)']);
+  assert.ok(two.some(i => /2번: 깨진 화면·넘침·링크·파일 이름은 엔진이 직접 확인한다/.test(i)));
+  assert.ok(two.some(i => /대장 확인 조건이 2개다/.test(i)));
+});

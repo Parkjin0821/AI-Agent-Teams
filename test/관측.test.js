@@ -28,5 +28,5 @@ test('9차 6번: the 관측 page counts the last days from the engine\'s own rec
   assert.deepEqual(r.recovery, { interrupted: 1, resumed: 1, heldForDaejang: 0 });
   assert.deepEqual([r.evidence.stale, r.workbench.calls, r.publish.sent], [1, 3, 1]);
   assert.deepEqual(r.sentinel, { allow: 1, deny: 1, ask: 1 }, 'a month-old line is outside the window');
-  assert.deepEqual(r.projects, { total: 2, verified: 1, waitingForDaejang: 1, running: 0 });
+  assert.deepEqual(r.projects, { total: 2, verified: 1, waitingForDaejang: 1, running: 0, ownerApproval: 0 });
 });

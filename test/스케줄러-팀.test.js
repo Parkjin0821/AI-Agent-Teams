@@ -441,6 +441,40 @@ test('when only criteria 대장 alone can judge are left, the first verification
     assert.match(g.question, /대장 판단이 필요합니다:\n- 합계 테스트 통과/);
   } finally { store.close(); }
 });
+test('10차 2번: only criteria 대장 judges by design left → owner_approval (not a team question), answered and confirmed alike', async () => {
+  const OWN = ['index.html 파일이 있다', '빵집다운 따뜻한 느낌이다 (대장이 화면에서 확인)'];
+  let plans = 0;
+  const { store, scheduler, add, calls } = setup(team => {
+    if (team === 'plan') return plans++ === 0 ? { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } } : { outcome: 'completed', plan: { allDone: true } };
+    if (team === 'dev') return { outcome: 'completed', diffHash: 'd1', evidence: [{ criterion: OWN[0], proof: '엔진 확인' }] };
+    if (team === 'qa') return { outcome: 'completed', evidence: [{ criterion: OWN[0], proof: '엔진 확인' }], findings: { feedback: '', improvements: [] },
+      claims: [{ criterion: OWN[0], check: 'pass' }, { criterion: OWN[1], check: 'none', person: true }] };
+    return { outcome: 'completed', review: { blocking: false, issues: [] } };
+  });
+  try {
+    const goal = add({ completionCriteria: OWN });
+    for (let i = 0; i < 6 && store.getGoal(goal.id).status !== 'review_required'; i++) await scheduler.runGoal(goal.id);
+    let g = store.getGoal(goal.id);
+    assert.deepEqual([g.status, g.reason], ['review_required', 'owner_approval']);
+    assert.match(g.question, /자율 작업은 끝났고, 대장이 직접 보고 판단하기로 한 조건만 남았습니다:\n- 빵집다운/);
+    assert.deepEqual(g.team.awaitingJudgement, [OWN[1]]);
+    scheduler.confirmCriterion(goal.id, OWN[1], '직접 봤음');
+    g = store.getGoal(goal.id);
+    assert.deepEqual([g.status, g.reason], ['verified', null]);
+    assert.equal(calls.length, 3, 'no further step ran');
+  } finally { store.close(); }
+});
+test('10차 2번: a review gap left open keeps it a question (needs_decision) even when only 대장 criteria remain', () => {
+  const OWN = ['index.html 파일이 있다', '빵집다운 느낌이다 (대장이 화면에서 확인)'];
+  const { store, scheduler, add } = setup(() => ({}));
+  try {
+    const goal = add({ completionCriteria: OWN });
+    goal.team.step = 'qa';
+    goal.team.reviewGaps = ['보안팀이 의존성 검토를 하지 못함'];
+    const d = scheduler.decideTeam(goal, { findings: { blocking: [] }, claims: [{ criterion: OWN[1], check: 'none', person: true }] }, [{ criterion: OWN[0], proof: '엔진 확인' }], T0);
+    assert.deepEqual([d.status, d.reason], ['review_required', 'needs_decision']);
+  } finally { store.close(); }
+});
 test('a criterion the verifier did not mark as 대장-only keeps the normal rotation', async () => {
   const { store, scheduler, add, calls } = setup(team => {
     if (team === 'plan') return { outcome: 'completed', plan: { nextTask: '구현', team: 'dev', reviews: [] } };

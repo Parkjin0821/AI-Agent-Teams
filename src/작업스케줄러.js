@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { attachmentNote } from './첨부파일.js';
 import { validateCriteria } from './업무도메인.js';
-import { engineGateSummary, lintCriteria, unprovableCriterion } from './완료근거.js';
+import { engineGateSummary, lintCriteria, ownerJudged, unprovableCriterion } from './완료근거.js';
 import { isUsable, resolveModel, validateExecutor } from './모델.js';
 import { CAUSE_L, defectStreak, failureCause, levelChoice, levelFor } from './모델수준.js';
 import { DEFAULT_POLICY } from './정책.js';
@@ -19,7 +19,10 @@ const DUE = [GoalStatus.SCHEDULED, GoalStatus.RETRY_WAIT, GoalStatus.MODEL_WAIT]
 const RESUMABLE = [GoalStatus.REVIEW_REQUIRED, GoalStatus.BLOCKED, GoalStatus.RECOVERY_REQUIRED];
 const NON_RETRYABLE = ['auth', 'limit', 'permission'];
 // Waits only 대장's own answer may end: "start"/"resume" never skip them.
-const HELD_FOR_DAEJANG = ['needs_decision', 'trust_review', 'approval_required', 'criteria_approval_required'];
+// owner_approval (10차 2번): the work is done on its own and only criteria 대장 judges by design are left — told apart
+// from a team's question (needs_decision), but answered and confirmed the same way.
+const HELD_FOR_DAEJANG = ['needs_decision', 'owner_approval', 'trust_review', 'approval_required', 'criteria_approval_required'];
+const ASKING = ['needs_decision', 'owner_approval'];
 const iso = ms => new Date(ms).toISOString();
 // Two review findings are the same problem when they name the same file, or share most of their words (a reviewer
 // words the same finding a little differently each time).
@@ -136,7 +139,7 @@ export class GoalScheduler {
     const all = goal.completionCriteria.every(c => evidence.some(e => e.criterion === c));
     // A team project finishes here only when the verification just before asked 대장 to judge the rest (no engine
     // finding was open then, and nothing has run since); otherwise the next verification counts the confirmation.
-    const judged = goal.kind === 'team' && goal.status === GoalStatus.REVIEW_REQUIRED && goal.reason === 'needs_decision'
+    const judged = goal.kind === 'team' && goal.status === GoalStatus.REVIEW_REQUIRED && ASKING.includes(goal.reason)
       && Array.isArray(goal.team?.awaitingJudgement) && goal.team.awaitingJudgement.length > 0;
     const done = all && (goal.kind !== 'team' || judged);
     const at = iso(this.clock.now());
@@ -183,7 +186,7 @@ export class GoalScheduler {
   answer(goalId, text, attachments = []) {
     const goal = this.store.getGoal(goalId);
     if (goal?.criteriaApprovalPending) throw new Error('completion criteria approval required');
-    if (!goal || !['needs_decision', 'rule_violation'].includes(goal.reason)) throw new Error('goal is not waiting for an answer');
+    if (!goal || ![...ASKING, 'rule_violation'].includes(goal.reason)) throw new Error('goal is not waiting for an answer');
     const typed = String(text || '').trim().slice(0, 1000);
     if (!typed && !attachments.length) throw new Error('answer is empty');
     const reply = (typed || '(첨부 파일 참고)') + attachmentNote(attachments);
@@ -778,6 +781,14 @@ export class GoalScheduler {
       || claimFor(c)?.check === 'partial' || (claimFor(c)?.check === 'none' && previousUnproven.includes(c)));
     if (personOnly) {
       team.awaitingJudgement = unproven;
+      // 10차 2번: everything the engine can prove is proven, nothing it ran is open, and what is left is only what 대장
+      // judges by design: that is a finished piece of autonomous work waiting for 대장's final look, not a question.
+      const owner = unproven.every(ownerJudged) && !team.reviewGaps?.length && !findings.documentReviewRequired && !findings.visualReviewRequired;
+      if (owner) {
+        return review('owner_approval', { question: `[엔진] 자율 작업은 끝났고, 대장이 직접 보고 판단하기로 한 조건만 남았습니다:\n`
+          + unproven.map(c => `- ${c}`).join('\n')
+          + '\n결과를 보고 ‘완료로 확인’을 누르거나, 고칠 점을 답으로 보내 주세요.' });
+      }
       return review('needs_decision', { question: `[검증팀] 남은 조건은 파일이나 엔진 검사로 증명할 수 없어 대장 판단이 필요합니다:\n`
         + unproven.map(c => `- ${c}${claimFor(c)?.check === 'partial' ? ` (${claimFor(c).detail})` : ''}`).join('\n')
         + '\n‘완료로 확인’을 누르거나, 고칠 점을 답으로 보내 주세요. 조건을 바꾸자고 답하면 기획팀이 새 조건을 제안합니다.' });

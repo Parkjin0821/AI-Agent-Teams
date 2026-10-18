@@ -1,4 +1,4 @@
-import { boundaryCheck, isEngineFile, listWorkspaceFiles, parseReport, REPORT_MARK, reportInstructions, verifyReport, workspaceFingerprint } from './완료근거.js';
+import { boundaryCheck, isEngineFile, listWorkspaceFiles, ownerJudged, parseReport, REPORT_MARK, reportInstructions, verifyReport, workspaceFingerprint } from './완료근거.js';
 import { parsePlan, parseReview, qaFindings, REVIEWS, TEAMS, teamPrompt, WORKERS } from './팀.js';
 import { runTeamTools, toolReport } from './검사도구.js';
 import { normalizeRequests, requiredReviews } from './팀검토.js';
@@ -167,12 +167,20 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
             documents: documentRecords(records), spreadsheets: spreadsheetRecords(records), slideTexts: slideTextRecords(records),
             baseline: goal.routine?.baseline ?? null, sources: sourceRecords(records),
             boundary: () => boundaryCheck({ runs: store.listRuns?.(goal.id) ?? [], sentinelLog: sentinel?.log ?? null, project: goal.projectId, cwd }) });
-          if (probe.evidence.length === goal.completionCriteria.length && probe.evidence.every(e => e.by === 'engine')) engineOnly = probe;
+          // 10차 2번: the same when every criterion the engine can prove is proven and only criteria 대장 judges by design
+          // ("(대장이 … 확인)") are left — the verification team could only say "대장 must look", so 대장 is asked at once.
+          const owner = goal.completionCriteria.filter(ownerJudged);
+          const rest = goal.completionCriteria.filter(c => !ownerJudged(c));
+          const provenRest = rest.every(c => probe.evidence.some(e => e.criterion === c && e.by === 'engine'));
+          if (provenRest && (owner.length ? rest.length > 0 : probe.evidence.length === goal.completionCriteria.length)) engineOnly = { ...probe, owner: owner.length };
         }
       }
-      if (engineOnly) await store.emit({ type: 'qa.engine_only', goalId: goal.id, criteria: engineOnly.evidence.length });
+      if (engineOnly) await store.emit({ type: 'qa.engine_only', goalId: goal.id, criteria: engineOnly.evidence.length, owner: engineOnly.owner });
       const result = engineOnly ? { outcome: 'completed', model: null,
-        answer: `엔진 단독 검증 · 완료 조건 ${engineOnly.evidence.length}개를 모두 엔진이 직접 증명해 검증팀(AI)을 부르지 않았습니다.\n${REPORT_MARK} {"criteria":[],"feedback":"","improvements":[]}` }
+        answer: (engineOnly.owner
+          ? `엔진 단독 검증 · 엔진이 증명할 수 있는 완료 조건 ${engineOnly.evidence.length}개를 모두 증명했고, 남은 ${engineOnly.owner}개는 대장이 직접 확인하기로 한 조건이라 검증팀(AI)을 부르지 않았습니다.`
+          : `엔진 단독 검증 · 완료 조건 ${engineOnly.evidence.length}개를 모두 엔진이 직접 증명해 검증팀(AI)을 부르지 않았습니다.`)
+          + `\n${REPORT_MARK} {"criteria":[],"feedback":"","improvements":[]}` }
         : await adapter.run(PROVIDER[run.executor], prompt, onEvent, { cwd, model: run.model, effort: run.effort, access: run.access ?? 'write', ...tools,
         // Codex sees the engine's screen captures (PC first) through its own --image option, after 대장's images.
         ...(PROVIDER[run.executor] === 'codex' ? { images: [...attachedImages(goal, cwd),

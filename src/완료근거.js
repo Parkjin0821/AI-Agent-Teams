@@ -276,7 +276,9 @@ const EXACT_COUNT = /정확히\s*(?:한|1|하나)\s*(?:번|개|회|곳|줄)?|딱
 // 자율 시험 5차: "팀 보고에 ○○이 적혀 있다" — a team's report is its own word, never evidence. "보고서" (a document) is not
 // this, nor a criterion that names a file.
 const TEAM_REPORT = /(?:[가-힣]*팀|AI)\s*(?:의\s*)?(?:최종\s*)?(?:보고|답변|응답|메모)(?!서)|(?:^|[\s"'“(])(?:최종\s*)?(?:보고|답변)(?!서)\s*(?:내용\s*)?(?:에|에서)\s/;
-export const unprovableCriterion = c => TEAM_REPORT.test(String(c)) && !/\.[a-z0-9]{2,5}\b/i.test(String(c)) && !PERSON_MARK.test(String(c));
+// A criterion 대장 judges by design ("… (대장이 화면에서 확인)").
+export const ownerJudged = c => PERSON_MARK.test(String(c));
+export const unprovableCriterion = c =>TEAM_REPORT.test(String(c)) && !/\.[a-z0-9]{2,5}\b/i.test(String(c)) && !PERSON_MARK.test(String(c));
 export function lintCriteria(criteria) {
   const issues = [];
   (criteria ?? []).forEach((raw, i) => {
@@ -289,7 +291,14 @@ export function lintCriteria(criteria) {
     // there before, so "only these files are new" stalled; and no file can show that nothing was made up.
     if (/뿐이다|뿐이고|뿐$|만\s*(?:있|생긴|새로)/.test(c) && /파일|결과물/.test(c)) issues.push(`${at}: "새 파일은 ○○뿐" 은 증명할 기준 기록이 없다 · 빼거나 "작업 폴더 밖에 쓴 파일이 없다" 로`);
     if (/지어낸|지어내|말하지 않은|추측|꾸며/.test(c) && !PERSON_MARK.test(c)) issues.push(`${at}: 지어낸 것이 "없다" 는 파일로 증명할 수 없다 · 끝에 "(대장이 확인)" 을 붙인다`);
+    // 10차 2번: what an engine check covers is not left to 대장's eyes.
+    if (PERSON_MARK.test(c) && (/깨진|넘침|넘치|잘림|겹침/.test(c) || LINK_TOPIC(c) || KOREAN_NAME_TOPIC(c))) {
+      issues.push(`${at}: 깨진 화면·넘침·링크·파일 이름은 엔진이 직접 확인한다 · 그 부분은 "(대장이 … 확인)" 없이 자동 검증 조건으로 쓴다`);
+    }
   });
+  // 10차 2번: several 대장 checks mean several things 대장 must look at before anything counts as done.
+  const owner = (criteria ?? []).filter(c => PERSON_MARK.test(String(c)));
+  if (owner.length > 1) issues.push(`대장 확인 조건이 ${owner.length}개다 · 대장이 한 번에 보도록 하나로 묶고, 엔진이 증명할 수 있는 부분은 자동 검증 조건으로 바꾼다`);
   return issues;
 }
 

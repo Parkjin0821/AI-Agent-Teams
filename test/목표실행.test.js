@@ -356,4 +356,14 @@ test('9차 4번: verification calls no model when the engine itself proves every
   const judged = await runner.run(qa(['사용안내.md 에 설치 방법이 적혀 있다']), { executor: 'claude-code', team: 'qa', access: 'read', model: null });
   assert.equal(calls, 1, 'a criterion about content still goes to the verification team');
   assert.equal(judged.evidence.length, 1);
+  // 10차 2번: the engine proved what it can and only a criterion 대장 judges by design is left: no model call either
+  const owner = await runner.run(qa(['사용안내.md 파일이 작업 폴더에 있다', '읽기 편한 말투다 (대장이 화면에서 확인)']), { executor: 'claude-code', team: 'qa', access: 'read', model: null });
+  assert.equal(calls, 1, 'no model call for 대장\'s own criterion');
+  assert.match(owner.answer, /엔진이 증명할 수 있는 완료 조건 1개를 모두 증명했고, 남은 1개는 대장이 직접 확인하기로 한 조건/);
+  assert.deepEqual(owner.claims.map(c => [c.check, c.person === true]), [['pass', false], ['none', true]]);
+  // …but not when the engine could not prove the rest, and not when 대장's criterion is all there is
+  await runner.run(qa(['사용안내.md 에 설치 방법이 적혀 있다', '읽기 편한 말투다 (대장이 화면에서 확인)']), { executor: 'claude-code', team: 'qa', access: 'read', model: null });
+  assert.equal(calls, 2);
+  await runner.run(qa(['읽기 편한 말투다 (대장이 화면에서 확인)']), { executor: 'claude-code', team: 'qa', access: 'read', model: null });
+  assert.equal(calls, 3);
 });

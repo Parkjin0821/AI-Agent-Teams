@@ -15,11 +15,11 @@ const DAY = 24 * 3600_000;
 const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const STATUS_L = { scheduled: '다음 단계 대기', running: '진행 중', retry_wait: '다시 시도 대기', model_wait: '모델 대기', verified: '완료',
   review_required: '대장 결정 대기', blocked: '멈춤', recovery_required: '복구 필요', paused: '일시정지' };
-const REASON_L = { needs_decision: '팀 질문에 답 필요', approval_required: '감시 에이전트 승인 필요', trust_review: '결과 확인 필요 (신뢰 쌓기)',
+const REASON_L = { needs_decision: '팀 질문에 답 필요', owner_approval: '자율 작업 완료 · 대장 최종 확인', approval_required: '감시 에이전트 승인 필요', trust_review: '결과 확인 필요 (신뢰 쌓기)',
   criteria_approval_required: '완료 조건 승인 필요', daily_cap: '오늘 단계 한도 도달' };
 const teamName = id => TEAMS[id]?.name ?? id;
 // Waits only 대장 can end (the scheduler's HELD_FOR_DAEJANG).
-const HELD = ['needs_decision', 'approval_required', 'trust_review', 'criteria_approval_required'];
+const HELD = ['needs_decision', 'owner_approval', 'approval_required', 'trust_review', 'criteria_approval_required'];
 const STOP_L = { no_progress: '3번 연속 진전 없음', awaiting_review: '엔진이 확인 못 한 조건이 남음', unclear_plan: '기획팀이 다음 작업을 못 정함',
   unclear_review: '검토 결과를 읽지 못함', rule_violation: '대장 규칙에 걸리는 변경', interrupted_by_restart: '서버 재시작으로 단계가 끊김',
   test_fix_exhausted: '테스트 수정 2번에도 실패', network_retries_exhausted: '네트워크 오류가 계속됨', auth_error: '로그인 필요 (CLI 인증 오류)',

@@ -140,9 +140,12 @@ export const TEAM_BRIEFS = Object.freeze({
       // finds it; the flea market's top priority (the program now) sat below eight seller cards.
       '화면 프로젝트는 주요 행동마다 화면에서 확인할 완료 조건을 쓴다. 예: "390px 첫 화면에서 개최일·장소를 찾을 수 있다", "한 번의 이동으로 지금 또는 다음 프로그램을 확인한다".',
       '파일이나 엔진 화면 검사로 증명할 수 없는 화면 동작·느낌(글자가 움직이지 않는다, 위치가 고정된다, 읽기 편하다)은 따로 떼어 "… (대장이 화면에서 확인)" 처럼 적는다. 증명할 수 있는 부분(파일에 있는 문구·구역)과 한 조건에 섞지 않는다.',
+      // 10차 2번: 9차 had a "(대장이 … 확인)" criterion in almost every project, so the engine could never finish one on
+      // its own and every project waited for 대장 (engine-only verification ran 0 times).
+      '완료 조건은 엔진이 증명할 수 있게 쓰는 것이 기본이다 (파일·문구·테스트·화면 검사·문서 만들기·링크 검사·한글 파일 이름). "(대장이 … 확인)" 조건은 결과의 핵심이 취향·느낌 같은 주관적 품질이거나, 대장이 요청에서 직접 보겠다고 한 것에만 쓴다. 모든 프로젝트에 관행처럼 넣지 않고, 넣더라도 하나로 묶는다. 엔진 검사가 다루는 것(깨진 화면·넘침·끊긴 링크·파일 이름·문서 구조)은 대장 확인으로 두지 않는다.',
       // The minutes re-test (2026-10-01): "no 담당자·기한 not in the meeting" was read as "no 담당/기한 column, no (미정)",
       // so the verifier failed the structured minutes and the team stripped them back to the bare manuscript.
-      '문서(회의록·보고서·계획서) 조건은 그 종류의 필수 항목(회의록: 기본 정보·안건·결정·후속 조치·다음 회의)을 요구하고, "지어낸 사실이 없다" 조건에는 "(빈 칸은 (미정)으로 둔다) (대장이 확인)" 을 함께 적는다 (지어내지 않았다는 것은 파일로 증명할 수 없다). 담당·기한 칸이나 "(미정)" 자체를 금지하는 조건은 만들지 않는다. 한글 문서가 한글 양식으로 보이는지는 "(대장이 미리보기에서 확인)" 조건으로 둔다.',
+      '문서(회의록·보고서·계획서) 조건은 그 종류의 필수 항목(회의록: 기본 정보·안건·결정·후속 조치·다음 회의)을 요구하고, "지어낸 사실이 없다" 조건에는 "(빈 칸은 (미정)으로 둔다) (대장이 확인)" 을 함께 적는다 (지어내지 않았다는 것은 파일로 증명할 수 없다). 담당·기한 칸이나 "(미정)" 자체를 금지하는 조건은 만들지 않는다. 한글 문서가 서식대로 만들어졌는지는 엔진의 문서 만들기(document_made)와 문서 품질 검사가 확인하므로 대장 확인 조건으로 따로 두지 않는다 (대장이 미리보기를 직접 보겠다고 한 경우만 "(대장이 미리보기에서 확인)").',
       // 양식 채우기 시험 (2026-10-02): the guidance was only in the dev brief, so planning decided "the engine has no HWP
       // feature" and had dev write a raw HWP/CFB binary editor for 15 steps.
       '대장이 기관 양식(attachments/ 의 .hwp·.hwpx)을 첨부했으면 엔진의 양식 채우기를 쓴다. 다음 작업은 "attachments/<양식>.md 를 복사해 요청받은 글자만 바꾸고, documents 에 template 로 양식을 적어 요청한다" 이다 (team "dev"). HWP·HWPX 를 읽고 쓰는 도구(바이너리 편집기·변환기)는 어느 팀에게도 만들게 하지 않는다. 원본 파일에 글자를 넣는 것은 엔진이 한다.',

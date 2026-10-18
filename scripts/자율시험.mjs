@@ -76,7 +76,7 @@ async function watch(file, hours = 6) {
         const stop = g.status === 'review_required' ? `${g.reason}@${g.round}` : null;
         // Left only with criteria 대장 judges by design ("(대장이 … 확인)"): the final look, not an intervention.
         const unmet = (g.completionCriteria ?? []).filter(c => !(g.evidence ?? []).some(e => e.criterion === c));
-        const final = unmet.length > 0 && unmet.every(c => /\(대장이[^)]*확인\)/.test(c));
+        const final = g.reason === 'owner_approval' || unmet.length > 0 && unmet.every(c => /\(대장이[^)]*확인\)/.test(c));
         if (stop && !it.interventions.some(x => x.key === stop)) it.interventions.push({ key: stop, reason: g.reason, round: g.round, final, unmet,
           at: new Date().toISOString(), question: String(g.question?.text ?? g.question ?? '').slice(0, 400) });
         const runs = g.runs ?? [];

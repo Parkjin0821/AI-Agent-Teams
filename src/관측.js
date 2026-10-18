@@ -45,6 +45,8 @@ export function observe({ goals = [], runsOf = () => [], events = [], sentinelLo
     publish: { sent: count('publish.sent'), failed: count('publish.failed') + count('publish.unknown') },
     sentinel,
     projects: { total: projects.length, verified: topGoals.filter(g => g.status === 'verified').length,
-      waitingForDaejang: topGoals.filter(g => g.status === 'review_required').length, running: topGoals.filter(g => g.status === 'running').length },
+      waitingForDaejang: topGoals.filter(g => g.status === 'review_required').length, running: topGoals.filter(g => g.status === 'running').length,
+      // 10차 2번: of those, the ones whose work finished on its own and wait only for 대장's final look
+      ownerApproval: topGoals.filter(g => g.status === 'review_required' && g.reason === 'owner_approval').length },
   };
 }
