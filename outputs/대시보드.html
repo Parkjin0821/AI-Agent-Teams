@@ -70,6 +70,8 @@ button{cursor:pointer}
 .brand-group{display:flex;align-items:center;gap:12px;justify-self:start;white-space:nowrap}
 .brand-group .mode{font-size:12px;padding:6px 9px;gap:6px;line-height:normal}
 .brand-group .mode i{width:6px;height:6px}
+.brand-sub{font-size:11.5px;color:var(--text-4);letter-spacing:.01em}
+@media(max-width:1100px){.brand-sub{display:none}}
 @media(max-width:1100px){.top-in{grid-template-columns:auto minmax(0,1fr);gap:12px 24px}.top-r{grid-column:2;grid-row:1}.tabs-top{grid-column:1 / -1;grid-row:2;justify-content:center;max-width:100%;padding-top:8px;border-top:1px solid var(--line)}}
 @media(max-width:760px){.top-in{padding:12px 16px!important;gap:12px}.top-r{flex-wrap:wrap;justify-content:flex-end}.tabs-top{justify-content:flex-start;flex-wrap:wrap;gap:4px}.notification-status,.brand-group .mode{font-size:11px;padding:4px 6px}}
 @media(max-width:760px){.top-more-menu{left:auto;right:0;top:100%;transform:translateY(-6px)}.top-more:hover .top-more-menu,.top-more:focus-within .top-more-menu{transform:translateY(0)}}
@@ -880,6 +882,123 @@ main.is-office{max-width:none;padding:14px 24px 14px}
 @keyframes of-pulse{0%,100%{opacity:1}50%{opacity:.45}}
 @media (max-width:1000px){.office-page{height:auto;min-height:0}.office-body{grid-template-columns:minmax(0,1fr)}.office-room{aspect-ratio:1000/620}.of-side{overflow:visible}}
 @media (max-width:640px){main.is-office{padding:12px}.office-room{aspect-ratio:auto;overflow-x:auto}.office-svg{width:680px;min-width:680px;height:auto}.of-chips{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* ── 디지털 오피스 (10차 측정 후 리디자인): one building — rooms on two rows, a corridor between, back walls with
+   doors (2.5D), a state-coloured floor under each desk; the operating strip on top, 대장's desk on the right and the
+   projects underneath ── */
+.office-page{height:auto;min-height:0}
+.office-body{height:clamp(500px,calc(100dvh - var(--top-h,73px) - 214px),720px);flex:none}
+.of-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.of-tile{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;min-width:0;padding:11px 14px 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);cursor:pointer;position:relative;overflow:hidden}
+.of-tile:hover{border-color:var(--line-strong)}.of-tile:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.of-tile .k{font-size:11.5px;font-weight:600;color:var(--text-3)}
+.of-tile b{font-size:19px;font-weight:650;letter-spacing:-.01em;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.of-tile.attn b{color:var(--attn)}.of-tile.stop b{color:var(--stop)}.of-tile.run b{color:var(--run)}
+.of-tile .s,.of-tile .s2{font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.of-tile .s2{color:var(--text-3)}
+/* the building */
+.office-room{background:#F4F4F6}
+.of-shell{fill:#FBFBFC;stroke:#D9D9DE;stroke-width:2}
+.of-corridor{fill:#EEEEF1}
+
+.of-corr-l{font-size:11px;font-weight:600;fill:var(--text-4);letter-spacing:.04em}
+.of-room-floor{fill:#FFFFFF;stroke:#E1E1E6}
+.of-room.room-boss .of-room-floor{fill:#FFFBF4}.of-room.room-lounge .of-room-floor{fill:#F7FAF7}.of-room.room-entry .of-room-floor{fill:#F6F7FA}
+.of-room.busy .of-room-floor{stroke:#CFCBEA}
+
+.of-room-l{font-size:12px;font-weight:650;fill:var(--text-2)}
+.of-room-s{font-size:11px;font-weight:450;fill:var(--text-4)}
+.of-room.busy .of-room-s{fill:var(--run)}
+.of-mat{fill:#D4D4D8}
+/* lounge */
+.of-rug{fill:#EEF3EE}.of-sofa{fill:#C9CDD6}.of-sofa-b{fill:#B8BDC8}.of-table{fill:#E4E4E7}.of-cooler{fill:#E4E7EC;stroke:#CDD2DA}.of-cooler-w{fill:#D6E8F5}
+.of-leaf{fill:#9BBF9E}.of-pot{fill:#C8B6A6}
+/* desks: the floor under each person shows their state from afar */
+.of-desk .of-floor{transition:fill .3s}
+.of-desk.working .of-floor{fill:#E8E6FA}.of-desk.verifying .of-floor{fill:#E3F2EA}.of-desk.asking .of-floor{fill:#FCEFD9}
+.of-desk.stopped .of-floor{fill:#FBE4DC}.of-desk.usage .of-floor{fill:#EDEDF1}
+.of-desk-f{fill:#D4D4D8}
+.of-desk .of-floor,.of-boss .of-floor,.of-guard .of-floor{filter:none}
+/* screens: each team's own work on its monitor, lit while it works */
+.of-scr{opacity:.28;transition:opacity .3s}
+.of-desk.working .of-scr,.of-desk.verifying .of-scr{opacity:1}
+.of-ink{fill:none;stroke:var(--team-accent);stroke-width:2.2;stroke-linecap:round;opacity:.75}
+.of-ink-f{fill:var(--team-accent);opacity:.7}
+.of-card-s{fill:var(--team-tint);stroke:var(--team-accent);stroke-width:.8}.of-card-s.alt{fill:var(--team-accent);opacity:.55}
+.of-search{fill:none;stroke:var(--team-accent);stroke-width:1.2}.of-mag{fill:var(--team-accent)}
+.of-frame{fill:var(--team-tint);stroke:var(--team-accent);stroke-width:1}
+.of-shield{fill:var(--team-tint);stroke:var(--team-accent);stroke-width:1.4}
+.of-stamp{fill:none;stroke:#C2410C;stroke-width:1.4;opacity:.8}
+.of-check-s{fill:none;stroke:var(--done);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.of-desk.verifying .of-scr .of-check,.of-desk.working .of-scr .of-check,.of-desk .of-scr .of-check{opacity:1}
+/* props: under the desk and on it */
+.of-prop-b{fill:#E7E7EB;stroke:#D4D4D8}.of-prop-d{fill:#3F3F46}.of-prop-i{fill:var(--team-accent);opacity:.6}
+.of-prop-l{fill:none;stroke:#C4C4CC;stroke-width:1.4;stroke-linecap:round}.of-prop-w{fill:none;stroke:#71717A;stroke-width:1.4}
+.of-led{fill:#34D399}
+.of-note-y{fill:#FDE68A}.of-note-p{fill:#FBCFE8}
+.of-book.a{fill:var(--team-accent);opacity:.75}.of-book.b{fill:#A1A1AA}.of-book.c{fill:#D4D4D8}
+.of-swatch.a{fill:#F87171}.of-swatch.b{fill:#FBBF24}.of-swatch.c{fill:#60A5FA}
+.of-lock{fill:#A1A1AA}.of-lock-s{fill:none;stroke:#A1A1AA;stroke-width:1.6}
+.of-stamp-b{fill:#7C2D12;opacity:.7}.of-stamp-p{fill:#E4E4E7}
+.of-clip{fill:#fff;stroke:#A1A1AA}
+.of-tray{fill:#E4E4E7;stroke:#D4D4D8}
+/* waiting for usage: an hourglass on the screen, arms folded, leaning back */
+.of-hour path{fill:none;stroke:var(--text-3);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.of-hour{opacity:0}.of-desk.usage .of-hour{opacity:1}
+.office-svg.motion .of-desk.usage .of-hour{animation:of-hour 3.2s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes of-hour{0%,40%{transform:rotate(0)}50%,90%{transform:rotate(180deg)}100%{transform:rotate(180deg)}}
+/* the tool a desk's work runs on — apart from the team (헌장: 팀 역할과 실행 모델은 별개) */
+.of-prov rect{fill:#fff;stroke:var(--line)}.of-prov text{font-size:9.5px;font-weight:600;fill:var(--text-2)}
+.of-prov.claude circle{fill:#7C6CF2}.of-prov.codex circle{fill:#0EA5B7}.of-prov.codex rect{stroke:#99E3EC}
+.of-prov-t{font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--text-3);white-space:nowrap}
+.of-prov-t.claude{color:#5B4FD1}.of-prov-t.codex{color:#0E7C8A;border-color:#99E3EC}.of-prov-t.none{display:none}
+.of-dot.usage{fill:#A1A1AA}
+.of-gate{fill:#E4E4E7;stroke:#D4D4D8}.of-gate-beam{stroke:var(--attn);stroke-width:3;stroke-linecap:round;opacity:.7}
+.of-drop .of-paper{filter:url(#of-lift)}
+.office-svg.motion .of-drop{animation:of-drop .45s cubic-bezier(.2,.8,.2,1)}
+@keyframes of-drop{from{transform:translateY(-10px);opacity:0}}
+/* 대장 데스크 */
+.of-bossnum{display:flex;align-items:baseline;gap:10px;margin:2px 0 8px}
+.of-bossnum b{font-size:28px;font-weight:650;color:var(--attn);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.of-bossnum span{font-size:12.5px;color:var(--text-2)}
+.of-kinds{list-style:none;margin:0 0 6px;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.of-kinds li{display:flex;gap:6px;align-items:baseline;font-size:12px;color:var(--text-2);background:var(--subtle);border-radius:999px;padding:3px 9px}
+.of-kinds b{font-weight:650;color:var(--text)}
+.of-asks{list-style:none;margin:6px 0 0;padding:0}
+.of-asks button{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:12.5px;cursor:pointer}
+.of-asks .who{font-weight:600;color:var(--attn)}.of-asks .what{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2)}
+.of-asks button:hover .what{color:var(--accent)}.of-asks button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.of-alerts{list-style:none;margin:0;padding:0}
+.of-alerts li{display:grid;grid-template-columns:8px minmax(0,1fr);gap:9px;align-items:start;padding:7px 0;border-top:1px solid var(--line);font-size:12.5px}
+.of-alerts li:first-child{border-top:0}
+.of-alerts .dot{width:8px;height:8px;border-radius:50%;margin-top:4px;background:var(--text-4)}
+.of-alerts .stop .dot{background:var(--stop)}.of-alerts .attn .dot{background:var(--attn)}
+.of-alerts b{display:block;font-weight:600}.of-alerts .sub{display:block;color:var(--text-3);font-size:12px}
+/* 프로젝트 진행 · 팀 현황 */
+.of-bottom{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;align-items:start}
+.of-proj .of-hrow{margin-bottom:6px}.of-proj .of-sum{flex:1;margin:0 0 0 10px}
+.of-plist{list-style:none;margin:0;padding:0}
+.of-prow{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.5fr) 110px 110px minmax(0,1.3fr) minmax(0,1.1fr);gap:12px;align-items:center;font-size:12.5px}
+.of-prow.head{font-size:11.5px;font-weight:600;color:var(--text-3);padding:4px 0 6px;border-bottom:1px solid var(--line)}
+button.of-prow{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.5fr) 110px 110px minmax(0,1.3fr) minmax(0,1.1fr);gap:12px;align-items:center;font-size:12.5px;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer}
+button.of-prow:hover .t{color:var(--accent)}button.of-prow:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.of-prow .nm{display:flex;flex-direction:column;gap:3px;min-width:0}
+.of-prow .nm .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.of-prow .nm .pill{align-self:flex-start;font-size:11px}
+.of-prow .stage,.of-prow .hand,.of-prow .next{color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.of-prow .next{color:var(--text)}
+.of-prow .of-pbar{display:flex;align-items:center;gap:7px;min-width:0}
+.of-prow .track{flex:1;height:6px;border-radius:999px;background:var(--subtle);overflow:hidden}
+.of-prow .track i{display:block;height:100%;border-radius:999px;background:var(--run)}
+.of-prow .of-pbar.crit .track i{background:var(--done)}
+.of-prow .of-pbar em{font-style:normal;font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums;min-width:34px}
+.of-teamlist .of-list li{grid-template-columns:8px 58px minmax(0,1fr) auto}
+@media (max-width:1100px){.of-bottom{grid-template-columns:minmax(0,1fr)}.of-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:1000px){.office-body{height:auto}.office-room{aspect-ratio:1080/520}}
+@media (max-width:760px){.of-prow.head{display:none}
+  button.of-prow{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:'nm nm' 'stage next' 'plan crit' 'hand hand';row-gap:6px}
+  button.of-prow .nm{grid-area:nm}button.of-prow .stage{grid-area:stage}button.of-prow .next{grid-area:next;text-align:right}
+  button.of-prow .of-pbar{grid-area:plan}button.of-prow .of-pbar.crit{grid-area:crit}button.of-prow .hand{grid-area:hand;color:var(--text-3)}}
+@media (max-width:640px){.office-room{aspect-ratio:auto}.office-svg{width:760px;min-width:760px;height:auto}.of-tile b{font-size:17px}}
 </style>
 </head>
 <body>
@@ -890,7 +1009,7 @@ main.is-office{max-width:none;padding:14px 24px 14px}
 <div style="--accent: {{accent}}">
 <header class="top">
   <div class="top-in">
-    <div class="brand-group"><button class="brand" onClick="{{goHome}}" aria-label="홈으로"><span class="mark">HQ</span><span class="word">AGENT HQ</span></button><span class="{{modeCls}}" title="{{modeTitle}}"><i></i><span>{{modeL}}</span></span></div>
+    <div class="brand-group"><button class="brand" onClick="{{goHome}}" aria-label="홈으로"><span class="mark">HQ</span><span class="word">AGENT HQ</span></button><span class="brand-sub">Autonomous Multi-AI Office</span><span class="{{modeCls}}" title="{{modeTitle}}"><i></i><span>{{modeL}}</span></span></div>
     <nav class="tabs-top" aria-label="주 메뉴">
       <sc-for list="{{nav}}" as="n"><button class="{{n.cls}}" aria-current="{{n.cur}}" onClick="{{n.go}}">{{n.l}}<sc-if value="{{n.hasN}}"><span class="n">{{n.n}}</span></sc-if></button></sc-for>
       <div class="top-more"><span class="top-more-label" tabindex="0" aria-haspopup="true">더 보기</span><div class="top-more-menu"><sc-for list="{{navMore}}" as="n"><button class="{{n.cls}}" aria-current="{{n.cur}}" onClick="{{n.go}}">{{n.l}}</button></sc-for></div></div>
@@ -912,22 +1031,41 @@ main.is-office{max-width:none;padding:14px 24px 14px}
     <div class="t"><h1>사무실</h1><p class="lede">{{of.lede}}</p></div>
     <div class="row-f"><button class="btn ghost sm" aria-pressed="{{of.motionOn}}" onClick="{{of.toggleMotion}}" title="타자 치기·걸어가기 같은 움직임">{{of.motionL}}</button><button class="btn sm" onClick="{{openNew}}">새 프로젝트</button></div>
   </div>
+  <section class="of-strip" aria-label="운영 상태">
+    <sc-for list="{{of.strip}}" as="t"><button type="button" class="{{t.cls}}" onClick="{{t.go}}" aria-label="{{t.aria}}">
+      <span class="k">{{t.k}}</span><b>{{t.v}}</b><span class="s">{{t.s}}</span><sc-if value="{{t.has2}}"><span class="s2">{{t.s2}}</span></sc-if>
+    </button></sc-for>
+  </section>
   <div class="office-body">
     <section class="office-room" aria-labelledby="office-h">
       <h2 id="office-h" class="sr">AI 팀 사무실</h2>
-      <svg class="{{of.svgCls}}" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid meet" role="group" aria-label="{{of.summary}}">
-        <defs><pattern id="of-grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle class="of-grid-dot" cx="1" cy="1" r="1"></circle></pattern>
-          <filter id="of-lift" x="-10%" y="-20%" width="120%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#11111A" flood-opacity=".06"></feDropShadow><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#11111A" flood-opacity=".06"></feDropShadow></filter></defs>
-        <rect x="0" y="0" width="1000" height="620" fill="url(#of-grid)"></rect>
-        <sc-for list="{{of.zones}}" as="z"><rect class="of-zone" x="{{z.x}}" y="{{z.y}}" width="{{z.w}}" height="{{z.h}}" rx="16"></rect><text class="of-zone-l" x="{{z.lx}}" y="{{z.ly}}">{{z.l}}</text></sc-for>
-        <line class="of-divider" x1="716" y1="260" x2="716" y2="432"></line>
-        <text class="of-zone-l" x="732" y="440">검증</text>
-        <sc-for list="{{of.legend}}" as="l"><g transform="translate({{l.x}},74)"><circle class="{{l.cls}}" cx="0" cy="-4" r="4.5"></circle><text class="of-legend" x="10" y="0">{{l.t}}</text></g></sc-for>
-        <path class="of-door" d="M30 610H150"></path><text class="of-door-l" x="90" y="602" text-anchor="middle">출입구</text>
+      <svg class="{{of.svgCls}}" viewBox="0 0 1080 520" preserveAspectRatio="xMidYMid meet" role="group" aria-label="{{of.summary}}">
+        <defs>
+          <filter id="of-lift" x="-10%" y="-20%" width="120%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#11111A" flood-opacity=".06"></feDropShadow><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#11111A" flood-opacity=".06"></feDropShadow></filter>
+          <filter id="of-soft" x="-5%" y="-5%" width="110%" height="120%"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#11111A" flood-opacity=".07"></feDropShadow></filter></defs>
+        <rect class="of-shell" x="8" y="8" width="1064" height="504" rx="16"></rect>
+        <rect class="of-corridor" x="16" y="242" width="1048" height="40"></rect>
+        <text class="of-corr-l" x="30" y="258">복도</text>
+        <sc-for list="{{of.legend}}" as="l"><g transform="translate({{l.x}},266)"><circle class="{{l.cls}}" cx="0" cy="-4" r="4"></circle><text class="of-legend" x="9" y="0">{{l.t}}</text></g></sc-for>
+        <sc-for list="{{of.rooms}}" as="r">
+          <g class="{{r.cls}}">
+            <rect class="of-room-floor" x="{{r.x}}" y="{{r.y}}" width="{{r.w}}" height="{{r.h}}" rx="10"></rect>
+            <text class="of-room-l" x="{{r.lx}}" y="{{r.ly}}">{{r.l}}<tspan class="of-room-s" dx="8">{{r.s}}</tspan></text>
+          </g>
+        </sc-for>
+        <g class="of-lounge" transform="translate(510,292)" aria-hidden="true">
+          <rect class="of-rug" x="10" y="96" width="130" height="62" rx="12"></rect>
+          <rect class="of-sofa" x="18" y="128" width="62" height="20" rx="7"></rect><rect class="of-sofa-b" x="18" y="118" width="62" height="12" rx="6"></rect>
+          <rect class="of-table" x="88" y="126" width="40" height="18" rx="5"></rect><rect class="of-mug" x="104" y="119" width="7" height="8" rx="1.5"></rect>
+          <rect class="of-cooler" x="108" y="40" width="22" height="46" rx="4"></rect><rect class="of-cooler-w" x="111" y="30" width="16" height="14" rx="5"></rect>
+          <path class="of-leaf" d="M30 92c-10-14-6-30 4-38c2 12 6 24-4 38M30 92c8-16 22-22 30-18c-6 10-16 18-30 18M30 92c-14-6-22-18-20-28c10 4 18 14 20 28"></path>
+          <rect class="of-pot" x="22" y="88" width="16" height="16" rx="3"></rect>
+        </g>
+        <g class="of-entry" aria-hidden="true"><rect class="of-mat" x="110" y="500" width="70" height="10" rx="3"></rect><text class="of-door-l" x="145" y="496" text-anchor="middle">출입구</text></g>
 
         <sc-for list="{{of.desks}}" as="d">
           <g id="of-desk-{{d.id}}" class="{{d.cls}}" style="--d:{{d.delay}}" transform="translate({{d.x}},{{d.y}})" role="button" tabindex="0" aria-label="{{d.aria}}" onClick="{{d.pick}}" onKeydown="{{d.key}}">
-            <ellipse class="of-floor" cx="92" cy="108" rx="86" ry="6"></ellipse>
+            <ellipse class="of-floor" cx="92" cy="106" rx="88" ry="9"></ellipse>
             <rect class="of-chair-d" x="12" y="36" width="10" height="42" rx="5"></rect>
             <rect class="of-chair-m" x="14" y="72" width="46" height="7" rx="3.5"></rect>
             <rect class="of-chair-l" x="35" y="79" width="4" height="18"></rect>
@@ -938,19 +1076,42 @@ main.is-office{max-width:none;padding:14px 24px 14px}
               <path class="of-pants" stroke-width="10" d="M80 74L83 101"></path>
               <ellipse class="of-shoe" cx="88" cy="104" rx="7.5" ry="3.5"></ellipse>
             </g>
+            <g class="of-under" aria-hidden="true">
+              <sc-if value="{{d.t.plan}}"><rect class="of-prop-b" x="128" y="88" width="34" height="9" rx="4.5"></rect><circle class="of-prop-i" cx="132" cy="92.5" r="2.5"></circle></sc-if>
+              <sc-if value="{{d.t.research}}"><rect class="of-prop-b" x="124" y="80" width="34" height="26" rx="2"></rect><path class="of-prop-l" d="M128 86h26M128 92h20M128 98h24"></path></sc-if>
+              <sc-if value="{{d.t.dev}}"><rect class="of-prop-d" x="136" y="72" width="18" height="34" rx="2.5"></rect><circle class="of-led" cx="145" cy="78" r="1.6"></circle><path class="of-prop-l" d="M140 86h10M140 90h10"></path></sc-if>
+              <sc-if value="{{d.t.design}}"><rect class="of-pot" x="138" y="92" width="14" height="14" rx="2.5"></rect><path class="of-leaf" d="M145 92c-8-10-5-22 3-28c1 9 3 18-3 28M145 92c6-12 16-16 22-13c-4 7-12 13-22 13"></path></sc-if>
+              <sc-if value="{{d.t.security}}"><rect class="of-prop-d" x="128" y="76" width="30" height="30" rx="2.5"></rect><path class="of-prop-w" d="M131 84h24M131 92h24M131 100h24"></path><circle class="of-led" cx="152" cy="80" r="1.4"></circle><circle class="of-led" cx="152" cy="88" r="1.4"></circle></sc-if>
+              <sc-if value="{{d.t.policy}}"><rect class="of-prop-b" x="126" y="78" width="32" height="28" rx="2"></rect><path class="of-prop-l" d="M126 92h32M139 84h6M139 98h6"></path></sc-if>
+              <sc-if value="{{d.t.qa}}"><rect class="of-prop-b" x="128" y="84" width="30" height="22" rx="2"></rect><path class="of-check-s" d="M134 95l3 3 6-7"></path></sc-if>
+            </g>
             <rect class="of-desk-e" x="86" y="65" width="3" height="43"></rect><rect class="of-desk-e" x="169" y="65" width="3" height="43"></rect>
             <rect class="of-desk-t" x="78" y="59" width="100" height="6" rx="2"></rect>
+            <rect class="of-desk-f" x="78" y="64" width="100" height="3" rx="1.5"></rect>
             <rect class="of-mon-s" x="143" y="48" width="6" height="11"></rect><rect class="of-mon-s" x="134" y="57" width="24" height="3" rx="1.5"></rect>
             <rect class="of-mon" x="116" y="12" width="60" height="38" rx="4"></rect>
             <rect class="of-screen" x="119" y="15" width="54" height="31" rx="2"></rect>
-            <rect class="of-code" x="123" y="19" width="30" height="2.6" rx="1.3"></rect>
-            <rect class="of-code" x="127" y="25" width="38" height="2.6" rx="1.3"></rect>
-            <rect class="of-code" x="127" y="31" width="22" height="2.6" rx="1.3"></rect>
-            <rect class="of-code" x="123" y="37" width="34" height="2.6" rx="1.3"></rect>
-            <path class="of-check" d="M157 20l2.5 2.5 4.5-5M157 32l2.5 2.5 4.5-5"></path>
+            <g class="of-scr" aria-hidden="true">
+              <sc-if value="{{d.t.plan}}"><path class="of-ink" d="M123 19h12M140 19h12M157 19h12"></path><rect class="of-card-s" x="123" y="23" width="12" height="6" rx="1"></rect><rect class="of-card-s" x="123" y="31" width="12" height="6" rx="1"></rect><rect class="of-card-s" x="140" y="23" width="12" height="6" rx="1"></rect><rect class="of-card-s alt" x="157" y="23" width="12" height="6" rx="1"></rect><rect class="of-card-s alt" x="157" y="31" width="12" height="6" rx="1"></rect></sc-if>
+              <sc-if value="{{d.t.research}}"><rect class="of-search" x="123" y="18" width="46" height="6" rx="3"></rect><circle class="of-mag" cx="165" cy="21" r="1.6"></circle><path class="of-ink" d="M123 29h40M123 34h30M123 39h36"></path></sc-if>
+              <sc-if value="{{d.t.dev}}"><rect class="of-code" x="123" y="19" width="30" height="2.6" rx="1.3"></rect><rect class="of-code" x="127" y="25" width="38" height="2.6" rx="1.3"></rect><rect class="of-code" x="127" y="31" width="22" height="2.6" rx="1.3"></rect><rect class="of-code" x="123" y="37" width="34" height="2.6" rx="1.3"></rect></sc-if>
+              <sc-if value="{{d.t.design}}"><rect class="of-ink-f" x="123" y="18" width="46" height="4" rx="1"></rect><rect class="of-frame" x="123" y="25" width="20" height="17" rx="1.5"></rect><path class="of-ink" d="M147 27h22M147 32h18M147 37h20"></path></sc-if>
+              <sc-if value="{{d.t.security}}"><path class="of-shield" d="M146 18l9 3v7c0 6-4 10-9 12c-5-2-9-6-9-12v-7z"></path><path class="of-check-s" d="M142 29l3 3 5-6"></path></sc-if>
+              <sc-if value="{{d.t.policy}}"><path class="of-ink" d="M123 20h36M123 25h40M123 30h32M123 35h38"></path><circle class="of-stamp" cx="163" cy="38" r="5"></circle></sc-if>
+              <sc-if value="{{d.t.qa}}"><path class="of-check" d="M124 20l2.5 2.5 4.5-5M124 30l2.5 2.5 4.5-5M124 40l2.5 2.5 4.5-5"></path><path class="of-ink" d="M135 20h30M135 30h26M135 40h28"></path></sc-if>
+            </g>
             <rect class="of-alert" x="119" y="15" width="54" height="5" rx="2"></rect>
             <rect class="of-cursor" x="159" y="36.4" width="1.8" height="3.4"></rect>
+            <g class="of-hour" transform="translate(140,22)" aria-hidden="true"><path d="M-6 0h12M-6 16h12M-5 0c0 6 8 6 8 8s-8 2-8 8M5 0c0 6-8 6-8 8s8 2 8 8"></path></g>
             <rect class="of-kbd" x="96" y="56" width="24" height="3" rx="1.2"></rect>
+            <g class="of-ontop" aria-hidden="true">
+              <sc-if value="{{d.t.plan}}"><rect class="of-note-y" x="81" y="52" width="6" height="6" rx="1"></rect><rect class="of-note-p" x="88" y="53" width="6" height="5" rx="1"></rect></sc-if>
+              <sc-if value="{{d.t.research}}"><rect class="of-book a" x="80" y="54" width="14" height="3" rx="1"></rect><rect class="of-book b" x="81" y="51" width="12" height="3" rx="1"></rect><rect class="of-book c" x="80" y="48" width="13" height="3" rx="1"></rect></sc-if>
+              <sc-if value="{{d.t.design}}"><rect class="of-swatch a" x="80" y="51" width="5" height="8" rx="1"></rect><rect class="of-swatch b" x="86" y="51" width="5" height="8" rx="1"></rect><rect class="of-swatch c" x="92" y="51" width="5" height="8" rx="1"></rect></sc-if>
+              <sc-if value="{{d.t.security}}"><rect class="of-lock" x="82" y="52" width="10" height="7" rx="1.5"></rect><path class="of-lock-s" d="M84 52v-2.5a3 3 0 0 1 6 0V52"></path></sc-if>
+              <sc-if value="{{d.t.policy}}"><rect class="of-stamp-b" x="82" y="50" width="6" height="9" rx="1.5"></rect><rect class="of-stamp-p" x="80" y="56" width="11" height="3" rx="1"></rect></sc-if>
+              <sc-if value="{{d.t.qa}}"><rect class="of-clip" x="80" y="47" width="11" height="12" rx="1.5"></rect><path class="of-check-s" d="M82.5 53l2 2 3.5-4"></path></sc-if>
+            </g>
             <g class="{{d.personCls}}">
               <g transform="rotate({{d.lean}} 40 76)"><g class="of-breath">
                 <path class="of-shirt" d="M28 77C26 60 29 44 37 36C43 31 53 32 57 38C61 46 60 62 56 77Z"></path>
@@ -965,6 +1126,7 @@ main.is-office{max-width:none;padding:14px 24px 14px}
                 <sc-if value="{{d.poseType}}"><g class="of-hands"><path class="of-arm" stroke-width="8" d="M48 41L59 58L88 56"></path><circle cx="93" cy="55.5" r="3.6" fill="{{d.skin}}"></circle></g></sc-if>
                 <sc-if value="{{d.poseMug}}"><g class="of-sip"><path class="of-arm" stroke-width="8" d="M48 41L55 59L64 47"></path><circle cx="66" cy="45" r="3.4" fill="{{d.skin}}"></circle><rect class="of-mug" x="63" y="35" width="8" height="10" rx="1.5"></rect><path class="of-mug" fill="none" d="M71 37.5c3.2 0 3.2 5 0 5"></path><g class="of-steam"><path d="M65.5 32c-1.6-2.4 1.6-4 0-6.6"></path><path d="M69 32c-1.6-2.4 1.6-4 0-6.6"></path></g></g></sc-if>
                 <sc-if value="{{d.poseLap}}"><path class="of-arm" stroke-width="8" d="M48 41L53 60L68 70"></path><circle cx="71" cy="70.5" r="3.4" fill="{{d.skin}}"></circle></sc-if>
+                <sc-if value="{{d.poseFold}}"><path class="of-arm" stroke-width="8" d="M48 41L50 58L62 56"></path><path class="of-arm" stroke-width="7" d="M42 50L58 52"></path></sc-if>
                 <sc-if value="{{d.poseRaise}}"><g class="of-wave"><path class="of-arm" stroke-width="8" d="M48 41L57 24L60 7"></path><circle cx="60.5" cy="4" r="3.6" fill="{{d.skin}}"></circle></g></sc-if>
                 <sc-if value="{{d.poseHead}}"><path class="of-arm" stroke-width="8" d="M48 41L62 31L57 14"></path><circle cx="55.5" cy="11" r="3.6" fill="{{d.skin}}"></circle></sc-if>
               </g></g>
@@ -976,6 +1138,7 @@ main.is-office{max-width:none;padding:14px 24px 14px}
               <text class="of-say-icot" x="13" y="15.5" text-anchor="middle">{{d.icoT}}</text>
               <text class="{{d.sayTextCls}}" x="{{d.textX}}" y="16">{{d.say}}</text>
             </g></sc-if>
+            <g class="{{d.provCls}}" transform="translate(126,99)"><rect width="50" height="14" rx="7"></rect><circle cx="9" cy="7" r="2.6"></circle><text x="15" y="10.4">{{d.prov}}</text></g>
             <rect class="of-label" x="2" y="116" width="176" height="28" rx="9"></rect>
             <circle class="{{d.dotCls}}" cx="15" cy="130" r="4"></circle>
             <text class="of-name" x="25" y="134">{{d.name}}</text>
@@ -983,15 +1146,16 @@ main.is-office{max-width:none;padding:14px 24px 14px}
           </g>
         </sc-for>
 
-        <g id="of-boss" class="{{of.boss.cls}}" transform="translate(390,466)" role="button" tabindex="0" aria-label="{{of.boss.aria}}" onClick="{{of.boss.go}}" onKeydown="{{of.boss.key}}">
-          <ellipse class="of-floor" cx="120" cy="108" rx="104" ry="6"></ellipse>
+        <g id="of-boss" class="{{of.boss.cls}}" transform="translate(222,326)" role="button" tabindex="0" aria-label="{{of.boss.aria}}" onClick="{{of.boss.go}}" onKeydown="{{of.boss.key}}">
+          <ellipse class="of-floor" cx="120" cy="106" rx="108" ry="9"></ellipse>
           <rect class="of-chair-d" x="98" y="16" width="44" height="48" rx="11"></rect>
           <rect class="of-mon-s" x="58" y="46" width="6" height="13"></rect><rect class="of-mon-s" x="49" y="57" width="24" height="3" rx="1.5"></rect>
           <rect class="of-mon" x="38" y="22" width="46" height="26" rx="3"></rect><rect class="of-screen" x="40.5" y="24.5" width="41" height="21" rx="1.5"></rect>
           <rect class="of-desk-t" x="28" y="59" width="184" height="7" rx="2"></rect>
           <rect class="of-desk-t" x="34" y="66" width="172" height="40" rx="3" stroke="#D4D4D8"></rect>
           <rect x="98" y="78" width="44" height="15" rx="3" fill="#18181B"></rect><text x="120" y="88.5" text-anchor="middle" font-size="9.5" font-weight="650" fill="#fff">대장</text>
-          <sc-for list="{{of.boss.papers}}" as="p"><rect class="of-paper" x="{{p.x}}" y="{{p.y}}" width="36" height="3.4" rx="1"></rect></sc-for>
+          <rect class="of-tray" x="146" y="50" width="44" height="10" rx="2"></rect>
+          <sc-for list="{{of.boss.papers}}" as="p"><rect class="{{p.cls}}" x="{{p.x}}" y="{{p.y}}" width="36" height="3.4" rx="1"></rect></sc-for>
           <sc-if value="{{of.boss.has}}"><circle class="of-badge" cx="200" cy="36" r="11"></circle><text class="of-badge-t" x="200" y="40" text-anchor="middle">{{of.boss.n}}</text></sc-if>
           <rect class="of-label" x="30" y="116" width="180" height="28" rx="9"></rect>
           <circle class="of-dot {{of.boss.dot}}" cx="43" cy="130" r="4"></circle>
@@ -999,8 +1163,9 @@ main.is-office{max-width:none;padding:14px 24px 14px}
           <text class="of-status" x="202" y="134" text-anchor="end">{{of.boss.state}}</text>
         </g>
 
-        <g id="of-guard" class="of-guard" transform="translate(44,466)" role="button" tabindex="0" aria-label="{{of.guard.aria}}" onClick="{{of.guard.go}}" onKeydown="{{of.guard.key}}">
-          <ellipse class="of-floor" cx="42" cy="108" rx="24" ry="5"></ellipse>
+        <g id="of-guard" class="of-guard" transform="translate(26,326)" role="button" tabindex="0" aria-label="{{of.guard.aria}}" onClick="{{of.guard.go}}" onKeydown="{{of.guard.key}}">
+          <ellipse class="of-floor" cx="42" cy="106" rx="26" ry="5"></ellipse>
+          <rect class="of-gate" x="96" y="30" width="6" height="76" rx="3"></rect><rect class="of-gate" x="148" y="30" width="6" height="76" rx="3"></rect><path class="of-gate-beam" d="M102 46h46"></path>
           <path class="of-uniform-arm" stroke-width="9" d="M37 70L36 103"></path><path class="of-uniform-arm" stroke-width="9" d="M45 70L47 103"></path>
           <ellipse class="of-shoe" cx="38" cy="106" rx="6.5" ry="3"></ellipse><ellipse class="of-shoe" cx="50" cy="106" rx="6.5" ry="3"></ellipse>
           <g class="of-gfig">
@@ -1015,11 +1180,12 @@ main.is-office{max-width:none;padding:14px 24px 14px}
           <circle class="of-eye" cx="52" cy="23" r="1.3"></circle><path class="of-mouth" d="M51 28h2.6"></path>
           </g>
           </g>
-          <rect class="of-label" x="70" y="58" width="190" height="46" rx="10"></rect>
-          <text class="of-name" x="84" y="77">감시 에이전트</text>
-          <text class="of-status" x="84" y="94">{{of.guard.state}}</text>
+          <rect class="of-label" x="0" y="116" width="158" height="40" rx="10"></rect>
+          <text class="of-name" x="12" y="133">감시 에이전트</text>
+          <text class="of-status" x="12" y="149">{{of.guard.state}}</text>
         </g>
 
+        <sc-for list="{{of.drops}}" as="p"><g class="of-drop" transform="translate({{p.x}},{{p.y}})"><rect class="of-paper" x="-6" y="-8" width="12" height="15" rx="1.5"></rect></g></sc-for>
         <sc-for list="{{of.walkers}}" as="w">
           <g class="{{w.cls}}" data-walker="{{w.key}}" transform="translate({{w.x}},{{w.y}})">
             <g class="of-tag" data-fit="tag" transform="translate({{w.tagX}},-112)"><rect width="{{w.tagW}}" height="19" rx="9.5"></rect><text x="{{w.tagTx}}" y="13" text-anchor="middle">{{w.tag}}</text></g>
@@ -1048,29 +1214,50 @@ main.is-office{max-width:none;padding:14px 24px 14px}
         <span><b>{{n.title}}</b><span class="sub">{{n.sub}}</span></span><time>{{n.when}}</time>
       </div></sc-for></div>
     </section>
-    <aside class="of-side" aria-label="사무실 현황">
-      <div class="of-chips"><sc-for list="{{of.chips}}" as="c"><div class="{{c.cls}}"><b>{{c.n}}</b>{{c.l}}</div></sc-for></div>
-      <p class="of-usage">사용량 <sc-for list="{{of.usage}}" as="u"> · {{u.l}} <b class="{{u.cls}}">{{u.v}}</b></sc-for></p>
+    <aside class="of-side" aria-label="대장 데스크">
       <sc-if value="{{of.sel.has}}"><section class="of-card of-detail" aria-live="polite">
         <div class="nm"><h3>{{of.sel.name}}</h3><button class="btn ghost sm" onClick="{{of.sel.close}}">닫기</button></div>
         <p class="intro">“{{of.sel.intro}}”</p><p class="role">{{of.sel.role}}</p>
+        <p class="hint" style="margin: 0 0 6px">실행 도구 · {{of.sel.tool}}</p>
         <sc-for list="{{of.sel.jobs}}" as="j"><div class="job"><b>{{j.project}}</b><span>{{j.what}}</span><span><button class="link small" onClick="{{j.open}}">프로젝트 열기</button></span></div></sc-for>
         <sc-if value="{{of.sel.noJobs}}"><p class="hint" style="margin: 4px 0">지금 맡은 일이 없습니다.</p></sc-if>
         <p class="hint" style="margin: 6px 0 0">오늘 {{of.sel.today}}단계 · 최근 7일 {{of.sel.week}}단계</p>
       </section></sc-if>
-      <section class="of-card" aria-labelledby="of-work-h">
-        <div class="of-hrow"><h3 class="of-h" id="of-work-h">진행 중인 일</h3><button class="link small" onClick="{{goProjects}}">모두 보기</button></div>
-        <p class="of-sum">{{of.work.summary}}</p>
-        <ul class="of-work"><sc-for list="{{of.work.items}}" as="w"><li><button type="button" onClick="{{w.open}}" title="{{w.title}}"><span class="nm">{{w.name}}</span><span class="{{w.pill}}"><i></i>{{w.status}}</span></button></li></sc-for></ul>
-        <sc-if value="{{of.work.hasMore}}"><p class="of-more">외 {{of.work.more}}개는 ‘모두 보기’에서</p></sc-if>
-        <sc-if value="{{of.work.empty}}"><p class="hint" style="margin: 0">진행 중인 프로젝트가 없습니다.</p></sc-if>
+      <section class="of-card of-bosscard" aria-labelledby="of-boss-h">
+        <div class="of-hrow"><h3 class="of-h" id="of-boss-h">대장 데스크</h3><button class="link small" onClick="{{of.boss.go}}">승인함 열기</button></div>
+        <div class="of-bossnum"><b>{{of.boss.n}}</b><span>{{of.boss.line}}</span></div>
+        <sc-if value="{{of.boss.hasKinds}}"><ul class="of-kinds"><sc-for list="{{of.boss.kinds}}" as="k"><li><span>{{k.l}}</span><b>{{k.n}}</b></li></sc-for></ul></sc-if>
+        <sc-if value="{{of.boss.hasAsks}}"><ul class="of-asks"><sc-for list="{{of.boss.asks}}" as="a"><li><button type="button" onClick="{{a.open}}" title="{{a.title}}"><span class="who">{{a.who}}</span><span class="what">{{a.what}}</span></button></li></sc-for></ul></sc-if>
       </section>
-      <section class="of-card" aria-labelledby="of-now-h"><h3 class="of-h" id="of-now-h">지금</h3>
-        <ul class="of-list"><sc-for list="{{of.rows}}" as="r"><li class="{{r.cls}}"><span class="dot"></span><span class="who">{{r.name}}</span><span class="what" title="{{r.what}}">{{r.what}}</span></li></sc-for></ul></section>
+      <section class="of-card" aria-labelledby="of-alert-h">
+        <h3 class="of-h" id="of-alert-h">장애·주의</h3>
+        <sc-if value="{{of.alertsEmpty}}"><p class="hint" style="margin: 0">지금 알릴 장애가 없습니다.</p></sc-if>
+        <ul class="of-alerts"><sc-for list="{{of.alerts}}" as="a"><li class="{{a.cls}}"><span class="dot"></span><span><b>{{a.t}}</b><span class="sub">{{a.s}}</span></span></li></sc-for></ul>
+      </section>
       <section class="of-card" aria-labelledby="of-log-h"><h3 class="of-h" id="of-log-h">최근 인계</h3>
         <ol class="of-log" aria-live="polite"><sc-for list="{{of.log}}" as="l"><li class="{{l.cls}}"><span class="when">{{l.when}}</span><span class="move"><b>{{l.from}}</b> → <b>{{l.to}}</b> <span class="proj">· {{l.project}}</span></span></li></sc-for></ol>
         <sc-if value="{{of.logEmpty}}"><p class="hint" style="margin: 0">아직 기록된 인계가 없습니다. 팀이 일을 넘기면 여기와 사무실에 함께 나타납니다.</p></sc-if></section>
+      <sc-if value="{{of.hasAuto}}"><section class="of-card" aria-labelledby="of-auto-h"><h3 class="of-h" id="of-auto-h">자동 승인 기록</h3>
+        <ol class="of-log"><sc-for list="{{of.auto}}" as="l"><li><span class="when">{{l.when}}</span><span class="move">{{l.what}} <span class="proj">· {{l.project}}</span></span></li></sc-for></ol></section></sc-if>
     </aside>
+  </div>
+  <div class="of-bottom">
+    <section class="of-card of-proj" aria-labelledby="of-proj-h">
+      <div class="of-hrow"><h3 class="of-h" id="of-proj-h">프로젝트 진행</h3><span class="of-sum">{{of.work.summary}}</span><button class="link small" onClick="{{goProjects}}">모두 보기</button></div>
+      <div class="of-prow head" aria-hidden="true"><span>프로젝트</span><span>지금 단계</span><span>작업 계획</span><span>완료 조건</span><span>최근 인계</span><span>다음</span></div>
+      <ul class="of-plist"><sc-for list="{{of.projects}}" as="p"><li><button type="button" class="of-prow" onClick="{{p.open}}" aria-label="{{p.aria}}">
+        <span class="nm"><span class="t">{{p.name}}</span><span class="{{p.pill}}"><i></i>{{p.status}}</span></span>
+        <span class="stage">{{p.stage}}</span>
+        <span class="of-pbar"><span class="track"><i style="width: {{p.planPct}}%"></i></span><em>{{p.plan}}</em></span>
+        <span class="of-pbar crit"><span class="track"><i style="width: {{p.critPct}}%"></i></span><em>{{p.crit}}</em></span>
+        <span class="hand">{{p.hand}}</span>
+        <span class="next">{{p.next}}</span>
+      </button></li></sc-for></ul>
+      <sc-if value="{{of.work.hasMore}}"><p class="of-more">외 {{of.work.more}}개는 ‘모두 보기’에서</p></sc-if>
+      <sc-if value="{{of.work.empty}}"><p class="hint" style="margin: 0">진행 중인 프로젝트가 없습니다.</p></sc-if>
+    </section>
+    <section class="of-card of-teamlist" aria-labelledby="of-now-h"><h3 class="of-h" id="of-now-h">팀 현황</h3>
+      <ul class="of-list"><sc-for list="{{of.rows}}" as="r"><li class="{{r.cls}}"><span class="dot"></span><span class="who">{{r.name}}</span><span class="what" title="{{r.what}}">{{r.what}}</span><span class="{{r.provCls}}">{{r.prov}}</span></li></sc-for></ul></section>
   </div>
 </div>
 </sc-if>
@@ -2048,12 +2235,25 @@ const RUNNING_LIKE = ['scheduled', 'running', 'retry_wait', 'model_wait'];
 // room): planning and the reviewers on the back row, the work teams and verification in front, 대장's desk and the
 // guard by the door at the bottom.
 // Desks sit 38 below their zone's top edge, so a speech bubble (31 above the desk) stays inside the zone (2026-10-18).
-const OFFICE_DESKS = { plan: [44, 62], security: [600, 62], policy: [790, 62], research: [44, 282], dev: [244, 282], design: [444, 282], qa: [790, 282] };
-const OFFICE_ORDER = Object.keys(OFFICE_DESKS);
-const OFFICE_ZONES = [
-  { l: '기획', x: 24, y: 24, w: 220, h: 210 }, { l: '검토', x: 580, y: 24, w: 396, h: 210 },
-  { l: '작업', x: 24, y: 244, w: 952, h: 206 }, { l: '대장', x: 370, y: 456, w: 280, h: 160 },
-].map((z) => Object.assign(z, { lx: z.x + 16, ly: z.y + z.h - 10 }));
+// 디지털 오피스 (10차 측정 후 리디자인): one building in a 1080×516 room — the rooms the work flows through on the top
+// row (기획실 → 작업실 → 검증실), a corridor through the middle, and the entrance (감시 에이전트), 대장실, a lounge and 검토실
+// on the bottom row. People walk between desks through the gaps beside them and along the corridor.
+const OFFICE_DESKS = { plan: [32, 72], research: [252, 72], dev: [446, 72], design: [640, 72], qa: [858, 72], security: [690, 326], policy: [878, 326] };
+const OFFICE_ORDER = ['plan', 'research', 'dev', 'design', 'security', 'policy', 'qa'];
+const OFFICE_BOSS = [222, 326];
+const OFFICE_CORRIDOR_Y = 262;
+// Each room and the teams in it; every room opens onto the corridor (2026-10-18: 대장 does not want decorative lines
+// or stripes — no wall bands, floor grids or accent bars).
+const OFFICE_ROOMS = [
+  { id: 'plan', l: '기획실', x: 16, y: 16, w: 214, h: 226, teams: ['plan'] },
+  { id: 'work', l: '작업실', x: 238, y: 16, w: 590, h: 226, teams: ['research', 'dev', 'design'] },
+  { id: 'qa', l: '검증실', x: 836, y: 16, w: 228, h: 226, teams: ['qa'] },
+  { id: 'entry', l: '입구', x: 16, y: 282, w: 182, h: 226, teams: [] },
+  { id: 'boss', l: '대장실', x: 206, y: 282, w: 296, h: 226, teams: [] },
+  { id: 'lounge', l: '라운지', x: 510, y: 282, w: 150, h: 226, teams: [] },
+  { id: 'review', l: '검토실', x: 668, y: 282, w: 396, h: 226, teams: ['security', 'policy'] },
+];
+const officeLaneX = (id) => (id === 'boss' ? OFFICE_BOSS[0] - 8 : OFFICE_DESKS[id][0] - 8);
 // Hair for a head at (47, 18) seen from the side, facing right.
 const OFFICE_HAIR = {
   short: 'M36.6 19C35.5 10 41 6.5 47.5 6.6C54 6.7 58 10.5 57.6 15C54.5 12.6 49.5 12.2 46 14.6C43.6 16.3 42.6 19.6 41.6 23.4C39.3 23.2 37.2 21.6 36.6 19Z',
@@ -2080,14 +2280,23 @@ const officeSeat = (id) => [OFFICE_DESKS[id][0] + 40, OFFICE_DESKS[id][1] + 104]
 const officeStand = (id, who) => {
   if (id !== 'boss') return [OFFICE_DESKS[id][0] - 2, OFFICE_DESKS[id][1] + 106];
   const i = Math.max(0, OFFICE_ORDER.indexOf(who));
-  return [376 - i * 12, 572];
+  return [OFFICE_BOSS[0] + 18 + (i % 4) * 10, OFFICE_BOSS[1] + 106 + Math.floor(i / 4) * 6];
 };
+// The way from one desk to another: out beside the desk (its lane), along the corridor, in beside the other one.
+const officeRoute = (from, to, home, there) => {
+  const a = officeLaneX(from), b = officeLaneX(to), y = OFFICE_CORRIDOR_Y;
+  const pts = [home, [a, home[1]], [a, y], [b, y], [b, there[1]], there];
+  return pts.filter((p, i) => i === 0 || p[0] !== pts[i - 1][0] || p[1] !== pts[i - 1][1]);
+};
+const officeLength = (pts) => pts.slice(1).reduce((n, p, i) => n + Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]), 0);
 // Walkers live outside the render tree: a refresh rebuilds the page, but someone halfway to a desk keeps walking
 // (each frame sets the new element's position from the clock, and the render reads the same position).
 // lastId: the newest hand-off already shown. The first look at the engine's records only notes it, so a reload or a
 // reconnect never replays an old hand-off; each new team.handoff event (by its stored id) plays once.
 // seen/played: how many new hand-offs this page took in, and how many it queued a walk for (a check for tests).
-const OFFICE = { lastId: null, walkers: [], notes: [], frame: 0, seen: 0, played: 0 };
+// drops: a paper left on the desk that received it, for a few seconds after the hand-over (from the same walk).
+const OFFICE = { lastId: null, walkers: [], notes: [], drops: [], frame: 0, seen: 0, played: 0 };
+const OFFICE_PAUSE = 900, OFFICE_SPEED = 0.17, OFFICE_DROP_MS = 4500;
 // Room notices (10차): each new hand-off also shows as a card at the bottom right for six seconds, motion or not.
 const OFFICE_NOTE_MS = 6000;
 // Rough text width in the room's units, for bubbles and tags (한글 is about one em, Latin and digits about half).
@@ -2108,26 +2317,42 @@ function officePlay(handoffs, now) {
     if (officeReduce()) return; // the notice and the 최근 인계 list say it in words; nobody walks
     const courier = e.from === 'boss' ? e.to : e.from;
     if (!OFFICE_DESKS[courier]) return;
-    const home = officeSeat(courier), there = e.from === 'boss' || e.to === 'boss' ? officeStand('boss', courier) : OFFICE_DESKS[e.to] ? officeStand(e.to) : null;
-    if (!there) return;
+    const toBoss = e.from === 'boss' || e.to === 'boss';
+    const dest = toBoss ? 'boss' : OFFICE_DESKS[e.to] ? e.to : null;
+    if (!dest) return;
+    const home = officeSeat(courier), there = toBoss ? officeStand('boss', courier) : officeStand(e.to);
+    const route = officeRoute(courier, dest, home, there), len = officeLength(route);
     const t0 = OFFICE.walkers.filter((w) => w.team === courier).reduce((t, w) => Math.max(t, w.end), now);
-    const dur = Math.max(1000, Math.min(3200, Math.hypot(there[0] - home[0], there[1] - home[1]) / 0.2));
+    const dur = Math.max(1400, Math.min(6000, len / OFFICE_SPEED));
     OFFICE.played++;
-    OFFICE.walkers.push({ key: 'h' + e.id, team: courier, to: e.from === 'boss' ? 'boss' : e.to, home: home, there: there, t0: t0, dur: dur, end: t0 + dur * 2 + 700 });
+    // where the paper is put down: on the receiving desk beside its keyboard, or in 대장's tray
+    const dropAt = toBoss ? [OFFICE_BOSS[0] + 168, OFFICE_BOSS[1] + 50] : [OFFICE_DESKS[e.to][0] + 104, OFFICE_DESKS[e.to][1] + 52];
+    OFFICE.walkers.push({ key: 'h' + e.id, team: courier, to: toBoss ? 'boss' : e.to, home: home, there: there, route: route, len: len,
+      dropAt: dropAt, t0: t0, dur: dur, end: t0 + dur * 2 + OFFICE_PAUSE });
   });
   if (OFFICE.walkers.length) officeAnimate();
 }
 // Where a walker is now: out with the paper, a short stop at the desk, then back empty-handed — facing the way they go.
+// Along the route (beside the desk, the corridor, beside the other desk), easing only at the two ends; the paper is
+// put down at the stop and the walk back is empty-handed. A walk from before routes (none survive a reload) goes straight.
 function officeWalkerAt(w, now) {
   const t = now - w.t0;
   if (t < 0 || now >= w.end) return null;
-  const back = t >= w.dur + 700;
-  const k = t < w.dur ? t / w.dur : back ? 1 - Math.min(1, (t - w.dur - 700) / w.dur) : 1;
+  const back = t >= w.dur + OFFICE_PAUSE;
+  const k = t < w.dur ? t / w.dur : back ? 1 - Math.min(1, (t - w.dur - OFFICE_PAUSE) / w.dur) : 1;
   const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+  const pts = w.route || [w.home, w.there];
+  let rest = e * (w.len || officeLength(pts)), x = pts[0][0], y = pts[0][1], dx = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const seg = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    if (seg > 0 && pts[i][0] !== pts[i - 1][0]) dx = pts[i][0] - pts[i - 1][0];
+    if (rest <= seg || i === pts.length - 1) { const f = seg ? Math.min(1, rest / seg) : 1; x = pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * f; y = pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * f; break; }
+    rest -= seg;
+  }
   const moving = t < w.dur || back;
-  const right = (w.there[0] >= w.home[0]) !== back;
-  return { x: Math.round(w.home[0] + (w.there[0] - w.home[0]) * e), y: Math.round(w.home[1] + (w.there[1] - w.home[1]) * e),
-    carrying: !back, dir: right ? 1 : -1, step: moving ? (Math.floor(t / 190) % 2 ? 'step-a' : 'step-b') : '' };
+  const right = (dx >= 0) !== back;
+  return { x: Math.round(x), y: Math.round(y), carrying: t < w.dur + OFFICE_PAUSE / 2, dir: right ? 1 : -1,
+    step: moving ? (Math.floor(t / 190) % 2 ? 'step-a' : 'step-b') : '', handed: !back && t >= w.dur + OFFICE_PAUSE / 2 };
 }
 // Bubbles and tags are sized from the text the browser actually drew (an estimate left 18건 outside the bubble,
 // 2026-10-18); a working bubble stays right-aligned over the screen and its tail keeps pointing at the speaker.
@@ -2166,6 +2391,8 @@ function officeAnimate() {
       el.classList.toggle('empty', !p.carrying);
       el.classList.toggle('step-a', p.step === 'step-a');
       el.classList.toggle('step-b', p.step === 'step-b');
+      // handed over: the paper stays on the receiving desk for a moment
+      if (p.handed && !w.dropped && w.dropAt) { w.dropped = true; OFFICE.drops.push({ key: w.key, x: w.dropAt[0], y: w.dropAt[1], until: now + OFFICE_DROP_MS }); redraw = redraw || here; setTimeout(scheduleRender, OFFICE_DROP_MS + 50); }
     });
     if (redraw) scheduleRender();
     OFFICE.frame = OFFICE.walkers.length ? requestAnimationFrame(step) : 0;
@@ -3209,7 +3436,7 @@ class Component extends DCLogic {
           statusL:({active:'사용 가능',pending:'검토 대기',disabled:'비활성'})[k.status] || k.status,pillCls:pillCls(k.status==='active'?'done':'idle'),security:review('security'),policy:review('policy'),compatibility:review('compatibility'),
           ...skillActions(k)};
       }),
-      vOffice: s.view === 'office', mainCls: s.view === 'office' ? 'is-office' : '', of: s.view === 'office' ? this.officeView(P, pendingTotal) : null,
+      vOffice: s.view === 'office', mainCls: s.view === 'office' ? 'is-office' : '', of: s.view === 'office' ? this.officeView(P, pendingTotal, ibd) : null,
       vHome: s.view === 'home', vProjects: s.view === 'projects', vProject: s.view === 'project' && !!wp, vTeams: s.view === 'teams', vUsage: s.view === 'usage',
       vConnect: s.view === 'connect', env: env,
       modelProfiles: (s.eng?.catalog || []).map(profile => ({ label: profile.label, executor: TOOL[profile.executor],
@@ -3491,7 +3718,7 @@ class Component extends DCLogic {
   // 사무실: every team as a person at a desk card, from the same engine records as the rest of the page. What a desk
   // shows is the goal's state on the server (running · verifying · next in line · waiting for usage · stopped · asking
   // 대장); an avatar moves only for a team.handoff event the page has not seen (10차).
-  officeView(P, pendingTotal) {
+  officeView(P, pendingTotal, ibd) {
     const s = this.state, now = Date.now();
     const goals = [].concat.apply([], P.filter((p) => p.isTeam).map((p) => p.goals.map((g) => ({ g: g, p: p }))));
     const handoffs = ((s.eng && s.eng.events) || []).filter((e) => e.type === 'team.handoff').concat(this._handoffs || []);
@@ -3536,14 +3763,20 @@ class Component extends DCLogic {
       // The tail points at the screen while working, at the head when the person speaks to 대장.
       const tip = Math.round((run ? 146 : 47) - sx);
       const target = mode === 'asking' ? asking[0] : mode === 'stopped' ? stopped[0] : null;
+      // 실행 도구 (헌장): the team is a role, the tool running it is shown apart — the running step's own tool, else the
+      // one its next step would use, else the team's default. Codex appears here as soon as a project gives it a step.
+      const executor = ((running[0] || mine[0] || {}).g || {}).model?.executor || t.tool;
+      const room = OFFICE_ROOMS.find((r) => r.teams.includes(t.id)) || { x: 0, w: 1080 };
       return Object.assign(officeLook(t.id), { id: t.id, x: xy[0], y: xy[1], name: t.name, state: state, line: line, mode: mode, intro: intro,
         cls: 'of-desk team-' + t.id + ' ' + mode + (sel === t.id ? ' sel' : ''), personCls: 'of-person' + (away ? ' away' : ''), dotCls: 'of-dot ' + mode,
-        lean: { working: 5, verifying: 5, asking: 0, stopped: 2 }[mode] ?? -4,
-        poseType: ['working', 'verifying'].includes(mode), poseRaise: mode === 'asking', poseHead: mode === 'stopped', poseLap: ['queued', 'usage'].includes(mode), poseMug: mode === 'idle',
+        lean: { working: 5, verifying: 5, asking: 0, stopped: 2, usage: -7 }[mode] ?? -4,
+        // what each state looks like: typing (working, verifying), a raised hand (asking), head in hand (stopped),
+        // arms folded, leaning back by an hourglass (waiting for usage), hands on the lap (next in line), coffee (resting)
+        poseType: ['working', 'verifying'].includes(mode), poseRaise: mode === 'asking', poseHead: mode === 'stopped', poseLap: mode === 'queued', poseFold: mode === 'usage', poseMug: mode === 'idle',
+        t: { [t.id]: true }, executor: executor, prov: executor === 'codex' ? 'Codex' : 'Claude', provCls: 'of-prov ' + (executor === 'codex' ? 'codex' : 'claude'),
         hasSay: !!say && !away, say: say, sw: sw, sx: sx, textX: textX, tip: run ? 146 : 47, right: run ? '1' : '',
-        // the right edge of this desk's zone (less a margin), in the desk's own units: a bubble never crosses it
-        maxX: ((OFFICE_ZONES.find((z) => xy[0] >= z.x && xy[0] < z.x + z.w && xy[1] >= z.y && xy[1] < z.y + z.h) || { x: 0, w: 1000 }).x
-          + (OFFICE_ZONES.find((z) => xy[0] >= z.x && xy[0] < z.x + z.w && xy[1] >= z.y && xy[1] < z.y + z.h) || { x: 0, w: 1000 }).w) - 8 - xy[0], tail: 'M' + (tip - 5) + ' 23.5L' + tip + ' 29.5L' + (tip + 5) + ' 23.5',
+        // the right edge of this desk's room (less a margin), in the desk's own units: a bubble never crosses it
+        maxX: room.x + room.w - 8 - xy[0], tail: 'M' + (tip - 5) + ' 23.5L' + tip + ' 29.5L' + (tip + 5) + ' 23.5',
         icoR: run ? 3.5 : 7, icoT: mode === 'asking' ? '?' : mode === 'stopped' ? '!' : '', sayTextCls: 'of-say-t' + (run ? ' quiet' : ''),
         sayCls: 'of-say ' + (run ? 'run' : mode === 'asking' ? 'ask' : 'stop'), sayAria: target ? say + ' · ' + target.p.name + ' 열기' : say,
         sayGo: (e) => { if (e) e.stopPropagation(); if (target) this.openProject(target.p.id); else this.setState({ officeSel: t.id }); },
@@ -3606,8 +3839,81 @@ class Component extends DCLogic {
       const sub = n.to === 'boss' ? (n.done ? nameOf(n.from) + '이 마지막 확인을 마쳤어요' : proj) : proj + (n.from === 'boss' ? ' · 대장 답을 받고 이어서' : '');
       return { cls: 'of-note ' + kind + (age < 450 ? ' new' : age > OFFICE_NOTE_MS - 400 ? ' leaving' : ''), icon: NOTE_ICON[kind], title: title, sub: sub, when: '방금' };
     });
-    return { lede: lede, zones: OFFICE_ZONES, notes: notes, desks: desks, walkers: walkers, work: work, usage: usageLine,
-      legend: [['작업 중', 'working', 290], ['대장 답 기다림', 'asking', 356], ['멈춤', 'stopped', 462], ['쉬는 중', 'idle', 512]].map((l) => ({ t: l[0], cls: 'of-dot ' + l[1], x: l[2] })),
+    // ── 디지털 오피스 (10차 측정 후 리디자인): what the room, the strip on top, 대장's desk and the project table show — all
+    // from the same engine records (no made-up activity) ──
+    const hm = (iso) => (iso ? pad(new Date(iso).getHours()) + ':' + pad(new Date(iso).getMinutes()) : '');
+    const MODE_L = { working: '작업 중', verifying: '검증 중', asking: '대장 답 기다림', stopped: '멈춤', usage: '사용량 대기', queued: '다음 차례', idle: '쉬는 중' };
+    const rooms = OFFICE_ROOMS.map((r) => {
+      const here = desks.filter((d) => r.teams.includes(d.id)), busy = here.filter((d) => d.mode !== 'idle');
+      const st = r.id === 'boss' ? (pendingTotal ? '확인할 일 ' + pendingTotal + '건' : '확인할 일 없음')
+        : busy.length ? busy.map((d) => (here.length > 1 ? d.name.replace(/팀$/, '') + ' ' : '') + MODE_L[d.mode]).join(' · ') : here.length ? '쉬는 중' : '';
+      return { cls: 'of-room room-' + r.id + (busy.some((d) => ['working', 'verifying'].includes(d.mode)) ? ' busy' : ''), x: r.x, y: r.y, w: r.w, h: r.h,
+        l: r.l, s: st, lx: r.x + 14, ly: r.y + r.h - 10 };
+    });
+    // 운영 상태 — why the teams that are not working are not: the most pressing reason first.
+    const blockedW = [].concat.apply([], (s.quotas || []).map((q) => (q.windows || []).filter((w) => w.blocked).map((w) => ({ provider: q.provider, resetAt: w.resetAt }))));
+    const usageReset = blockedW.length ? hm(blockedW.map((b) => b.resetAt).sort()[0]) : '';
+    const reasonOf = (g) => g.status === 'running' ? 'run' : g.reason === 'daily_cap' ? 'cap' : g.status === 'model_wait' ? 'usage'
+      : g.status === 'review_required' ? 'boss' : STOPPED.includes(g.status) ? 'stop' : RUNNING_LIKE.includes(g.status) ? 'queue' : 'other';
+    const groups = {};
+    open.forEach((p) => { const k = reasonOf(p.goal); (groups[k] = groups[k] || []).push(p); });
+    const WHY = { stop: ['멈춤·복구 필요', '프로젝트에서 확인', 'stop'], usage: ['사용량 대기', usageReset ? usageReset + ' 재개 예정' : '사용량이 회복되면 재개', 'attn'],
+      boss: ['대장 확인 대기', '승인함에서 처리', 'attn'], cap: ['하루 단계 한도', '00:00에 이어서 실행', 'wait'], queue: ['차례 기다림', '순서대로 실행', 'wait'] };
+    const why = ['stop', 'usage', 'boss', 'cap', 'queue'].filter((k) => groups[k]);
+    const whyLine = why.length ? why.slice(0, 2).map((k) => WHY[k][0] + ' ' + groups[k].length + '개 · ' + WHY[k][1]).join(' / ') : (open.length ? '' : '열린 프로젝트 없음');
+    const quota = (provider, period) => { const q = (s.quotas || []).find((x) => x.provider === provider); const w = q && (q.windows || []).find((x) => x.period === period); return w ? Math.max(0, Math.min(100, Math.round(w.remaining))) + '%' + (w.blocked ? ' (멈춤 기준)' : '') : '확인 전'; };
+    const codexDesks = desks.filter((d) => d.executor === 'codex').length;
+    const IB_KINDS = [['approvals', '실행 승인'], ['reviews', '결과·질문 확인'], ['publishRequests', '외부 저장'], ['connectorRequests', '연결 요청'], ['memoryProposals', '기억 제안'], ['skillCandidates', '스킬 후보']];
+    const ib = ibd || {};
+    const bossKinds = IB_KINDS.map((k) => ({ l: k[1], n: (ib[k[0]] || []).length })).filter((k) => k.n > 0);
+    // the rest of the total is the inbox's own list: questions, improvement proposals, stopped projects
+    const restN = pendingTotal - bossKinds.reduce((n, k) => n + k.n, 0);
+    if (restN > 0) bossKinds.unshift({ l: '질문·개선안·멈춘 프로젝트', n: restN });
+    const strip = [
+      { k: '운영 상태', v: working.length ? working.length + '팀 작업 중' : '작업 중인 팀 없음', s: whyLine || '모두 정상', tone: working.length ? 'run' : why.length ? WHY[why[0]][2] : 'idle', go: () => this.go('projects') },
+      { k: '활성 프로젝트', v: String(open.length), s: parts.join(' · ') || '없음', s2: doneN ? '완료 ' + doneN + '개' : '', tone: 'idle', go: () => this.go('projects') },
+      { k: '대장 확인', v: pendingTotal + '건', s: bossKinds.length ? bossKinds.slice(0, 3).map((k) => k.l + ' ' + k.n).join(' · ') : '기다리는 결정 없음', tone: pendingTotal ? 'attn' : 'idle', go: () => this.go('inbox') },
+      { k: '모델 사용량', v: 'Claude ' + quota('claude', 'five_hour'), s: 'Claude 주간 ' + quota('claude', 'weekly'),
+        s2: 'Codex 5시간 ' + quota('codex', 'five_hour') + ' · 맡은 팀 ' + codexDesks, tone: blockedW.length ? 'attn' : 'idle', go: () => this.go('usage') },
+    ].map((t) => Object.assign(t, { cls: 'of-tile ' + t.tone, has2: !!t.s2, aria: t.k + ' · ' + t.v + ' · ' + t.s + (t.s2 ? ' · ' + t.s2 : '') }));
+    // 대장 데스크: who is waiting for 대장, in the teams' words
+    const asks = open.filter((p) => p.goal.status === 'review_required').slice(0, 3).map((p) => ({ who: p.goal.reason === 'owner_approval' ? '최종 확인' : askedBy(p.goal.question),
+      what: p.name, title: String(p.goal.question || '').slice(0, 200), open: () => this.openProject(p.id) }));
+    // 장애·주의: what stops work now, worst first
+    const alerts = [].concat(
+      s.offline ? [{ cls: 'stop', t: '엔진 서버 연결 끊김', s: '서버가 켜져 있는지 확인' }] : [],
+      blockedW.map((b) => ({ cls: 'attn', t: (b.provider === 'codex' ? 'Codex' : 'Claude') + ' 사용량 멈춤 기준 도달', s: '새 단계는 ' + hm(b.resetAt) + '에 재개' })),
+      (groups.stop || []).slice(0, 3).map((p) => ({ cls: 'stop', t: clip(p.name, 22) + ' · ' + stateOf(p.goal).l, s: '프로젝트를 열어 이유 확인' })),
+      (s.eng && s.eng.limitStorageFailed) ? [{ cls: 'stop', t: '사용량 기록 저장 실패', s: '설정에서 복구' }] : [],
+      groups.cap ? [{ cls: 'info', t: '하루 단계 한도 ' + groups.cap.length + '개', s: '00:00에 같은 자리에서 이어서 (실패 아님)' }] : [],
+      obs && obs.sentinel && obs.sentinel.deny ? [{ cls: 'info', t: '감시 에이전트가 막은 동작 ' + obs.sentinel.deny + '건', s: '최근 7일 · 관측 화면에서 확인' }] : []);
+    // 자동 승인 기록: what the engine approved on its own inside each project's autonomy level
+    const auto = ((s.eng && s.eng.events) || []).filter((e) => e.type === 'policy.auto').slice(-4).reverse()
+      .map((e) => ({ when: hm(e.at), what: (POLICY_KIND[e.kind] || e.kind) + ' · ' + (e.level || ''), project: projName(e.projectId) }));
+    // 프로젝트 진행: each open project's stage, task plan, criteria, last hand-off and what comes next
+    const lastHand = (pid) => handoffs.filter((e) => e.projectId === pid && Number.isFinite(e.id)).sort((a, b) => b.id - a.id)[0];
+    const projects = open.slice().sort((a, b) => rank(a.goal) - rank(b.goal) || String(b.last || '').localeCompare(String(a.last || ''))).slice(0, 8).map((p) => {
+      const g = p.goal, st = stateOf(g), tasks = (g.taskPlan && g.taskPlan.tasks) || [];
+      const doneT = tasks.filter((t) => t.status === 'done' || t.status === 'skipped').length;
+      const cur = tasks.find((t) => g.team && t.id === g.team.taskId) || tasks.find((t) => t.status === 'running');
+      const team = g.team ? TEAM_NAME[g.team.step] || g.team.step : '';
+      const h = lastHand(p.id);
+      const next = g.status === 'running' ? team + ' 작업 중' : g.reason === 'daily_cap' ? '00:00에 이어서' : g.status === 'model_wait' ? (usageReset ? usageReset + ' 사용량 회복 후' : '사용량 회복 후')
+        : g.status === 'review_required' ? '대장 확인 필요' : STOPPED.includes(g.status) ? '프로젝트에서 확인' : team ? '다음: ' + team : '—';
+      const stage = (team || '—') + (cur ? ' · ' + cur.id + ' ' + clip(cur.title, 12) : '');
+      return { name: p.name, status: st.l, pill: pillCls(st.tone), stage: stage, plan: tasks.length ? doneT + '/' + tasks.length : '계획 없음', planPct: tasks.length ? Math.round(doneT / tasks.length * 100) : 0,
+        crit: p.proven + '/' + p.total, critPct: p.total ? Math.round(p.proven / p.total * 100) : 0,
+        hand: h ? nameOf(h.from) + ' → ' + nameOf(h.to) + ' · ' + hm(h.at) : '—', next: next, open: () => this.openProject(p.id),
+        aria: p.name + ' · ' + st.l + ' · 지금 ' + stage + ' · 작업 ' + (tasks.length ? doneT + '/' + tasks.length : '계획 없음') + ' · 조건 ' + p.proven + '/' + p.total + ' · ' + next };
+    });
+    work.more = Math.max(0, open.length - projects.length); work.hasMore = work.more > 0;
+    OFFICE.drops = OFFICE.drops.filter((d) => d.until > now);
+    let lx = 470;
+    const legend = [['작업 중', 'working'], ['검증 중', 'verifying'], ['대장 답 기다림', 'asking'], ['사용량 대기', 'usage'], ['멈춤', 'stopped'], ['쉬는 중', 'idle']]
+      .map((l) => { const item = { t: l[0], cls: 'of-dot ' + l[1], x: lx }; lx += Math.round(officeTextW(l[0]) + 30); return item; });
+    return { lede: lede, rooms: rooms, notes: notes, desks: desks, walkers: walkers, work: work, usage: usageLine, strip: strip, projects: projects,
+      alerts: alerts, alertsEmpty: !alerts.length, auto: auto, hasAuto: auto.length > 0, drops: OFFICE.drops.map((d) => ({ x: d.x, y: d.y })),
+      legend: legend,
       svgCls: 'office-svg' + (motion ? ' motion' : ''), motionOn: motion ? 'true' : 'false', motionL: motion ? '움직임 켜짐' : '움직임 꺼짐',
       toggleMotion: () => {
         try { localStorage.setItem('hq.officeMotion', motion ? 'off' : 'on'); } catch (err) { /* 저장하지 못하면 이번 화면에서만 */ }
@@ -3619,17 +3925,19 @@ class Component extends DCLogic {
         .map((c) => ({ cls: 'of-chip ' + c[0], n: c[1], l: c[2] })),
       boss: { n: pendingTotal, has: pendingTotal > 0, cls: 'of-boss' + (pendingTotal ? ' has' : ''), dot: pendingTotal ? 'asking' : '', state: pendingTotal ? '확인할 일 ' + pendingTotal + '건' : '확인할 일 없음',
         line: pendingTotal ? '누르면 승인함에서 차례로 처리합니다' : '팀이 결정을 기다리면 여기에 쌓입니다',
-        papers: Array.from({ length: Math.min(pendingTotal, 6) }, (_, i) => ({ x: 150 + (i % 2), y: 55 - i * 3.4 })),
+        papers: Array.from({ length: Math.min(pendingTotal, 8) }, (_, i) => ({ cls: 'of-paper', x: 150 + (i % 2), y: 46 - i * 3.4 })),
+        kinds: bossKinds, hasKinds: bossKinds.length > 0, asks: asks, hasAsks: asks.length > 0,
         aria: '대장 자리 · ' + (pendingTotal ? '확인할 일 ' + pendingTotal + '건 · 승인함 열기' : '확인할 일 없음'), go: () => this.go('inbox'), key: keyed(() => this.go('inbox')) },
       guard: { state: obs ? '최근 7일 허용 ' + obs.sentinel.allow + ' · 막음 ' + obs.sentinel.deny : '관측 기록 확인 전',
         aria: '감시 에이전트 · ' + (obs ? '최근 7일 허용 ' + obs.sentinel.allow + '번, 막음 ' + obs.sentinel.deny + '번' : '') + ' · 관측 화면 열기',
         go: () => this.go('observe'), key: keyed(() => this.go('observe')) },
       // 지금: only the teams doing or waiting for something; the ones at rest share one line.
-      rows: desks.filter((d) => d.mode !== 'idle').map((d) => ({ name: d.name, cls: 'team-' + d.id + ' ' + d.mode + (sel === d.id ? ' sel' : ''), what: rowWhat(d) }))
-        .concat(desks.some((d) => d.mode === 'idle') ? [{ name: '쉬는 중', cls: 'idle rest', what: desks.filter((d) => d.mode === 'idle').map((d) => d.name.replace(/팀$/, '')).join(' · ') }] : [])
-        .concat([{ name: '대장', cls: pendingTotal ? 'waiting' : 'idle', what: pendingTotal ? '확인할 일 ' + pendingTotal + '건 · 승인함에서 처리' : '확인할 일 없음' }]),
+      // 팀 현황: every team in words, with the tool its work runs on (a role and its tool are shown apart)
+      rows: desks.map((d) => ({ name: d.name, cls: 'team-' + d.id + ' ' + d.mode + (sel === d.id ? ' sel' : ''), what: rowWhat(d), prov: d.prov, provCls: 'of-prov-t ' + (d.executor === 'codex' ? 'codex' : 'claude') }))
+        .concat([{ name: '대장', cls: pendingTotal ? 'waiting' : 'idle', what: pendingTotal ? '확인할 일 ' + pendingTotal + '건 · 승인함에서 처리' : '확인할 일 없음', prov: '', provCls: 'of-prov-t none' }]),
       log: log, logEmpty: !log.length,
       sel: { has: !!selTeam, name: selTeam ? selTeam.name : '', intro: selTeam ? (OFFICE_PEOPLE[sel] || {}).intro : '', role: selTeam ? selTeam.role : '',
+        tool: selDesk ? (selDesk.executor === 'codex' ? 'Codex' : 'Claude Code') + ' (팀 역할과 별개로 작업마다 엔진이 정함)' : '',
         jobs: jobs, noJobs: !jobs.length, today: selTeam ? today(sel) : 0, week: selTeam ? week[sel] || 0 : 0, close: () => this.setState({ officeSel: '' }) } };
   }
   loadObserve() {
