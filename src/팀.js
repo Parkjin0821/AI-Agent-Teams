@@ -1,3 +1,4 @@
+import { parseTasks, planText, taskText } from './작업계획.js';
 import { isEngineFile, reportInstructions } from './완료근거.js';
 
 // The AI team that works a project in rotation:
@@ -348,6 +349,15 @@ const planBlock = [
   '"task_type":"coding","required_capabilities":["text","code"],"proposed_model":null,"proposal_reason":"","needs_decision":null,"all_done":false}',
   `next_task: at most ${TASK_MAX} characters; the engine cuts a longer one and marks the cut. Point to files already in the folder instead of copying their text.`,
   'completion_criteria: when the criteria above are empty, or when 대장\'s newest message or answer changes what counts as done (then give the complete new list) — concrete and verifiable, derived from 대장\'s conversation. Otherwise leave it out: a request to continue or clarify keeps the current criteria.',
+  // 자율 작업 조율 1단계: the whole project as a task graph, written together with the criteria.
+  '"tasks": whenever you write completion_criteria, also split the whole project into 1-12 tasks, in order:',
+  '[{"id":"T1","title":"요구사항 정리","team":"research|dev|design","inputs":["attachments/메모.md","T1"],"outputs":["요구사항.md"],',
+  '"criteria":[1,2],"depends_on":[],"on_fail":"what to do if it fails"}]. criteria = the numbers of the completion criteria this',
+  'task makes true (every criterion must belong to a task, except ones 대장 judges by design); outputs = files or folders it',
+  'creates inside the work folder; depends_on = tasks whose outputs it needs (no cycles). Tasks with no dependency on each',
+  'other may run at the same time. Reviews and verification are added by the engine, so no task is for them.',
+  '"task_id": when a task list exists (see 작업 계획 above), next_task is one of its tasks marked 지금 할 수 있음: give its id here,',
+  'and team must be that task\'s team. next_task then says how to do that task now.',
   'Optional "parallel": ONE piece of work another team can do AT THE SAME TIME, fully independent of next_task, written only',
   'into its own new top-level folder: {"team":"research|dev|design","task":"...","folder":"research","criteria":["verifiable',
   'criterion about files in that folder"]}. The main task must not write into that folder. next_task itself must not need it,',
@@ -390,6 +400,8 @@ export function teamPrompt(step, input) {
     COMMON_BOUNDARIES, '',
     section(`내 역할 · ${name}`, 화면설계.role), '',
     currentWork(input, step === 'plan' ? '다음 작업을 정한다.' : '기획팀이 넘긴 작업 없음 — 완료 조건 기준으로 판단한다.'), '',
+    ...(step === 'plan' && planText(input.goal?.taskPlan) ? [section('작업 계획 · 엔진이 관리 (상태는 엔진이 정함)', planText(input.goal.taskPlan).split('\n')), ''] : []),
+    ...(step !== 'plan' && input.team?.taskId ? [section('이번 작업 · 작업 계획에서', taskText((input.goal?.taskPlan?.tasks ?? []).find(t => t.id === input.team.taskId)).split('\n')), ''] : []),
     section('판단 근거 · 이렇게 한다', 화면설계.method), '',
     section('품질 인계 기준', ['작업팀은 제출 전 입력 자료·요구사항, 변경 파일, 실제 확인 방법과 결과, 남은 문제를 간결하게 정리한다. 추측이나 작업팀의 주장을 엔진 검증 근거처럼 쓰지 않는다.',
       '기획팀은 이전 검증의 미해결 문제를 다음 작업에 연결하고, 검증팀은 기능 충족과 결과물 품질을 구분한다. 미검증을 통과로 쓰지 않으며 범위를 넓히는 개선은 별도 제안한다.']), '',
@@ -438,6 +450,8 @@ export function parsePlan(answer) {
       requiredCapabilities: raw.required_capabilities, proposedModel: raw.proposed_model, proposalReason: raw.proposal_reason,
       evalTaskId: raw.evalTaskId, conditionsKey: raw.conditionsKey } } : {}),
     ...(Array.isArray(raw.completion_criteria) ? { completionCriteria: raw.completion_criteria.filter(c => typeof c === 'string' && c.trim()).slice(0,20) } : {}),
+    ...(parseTasks(raw.tasks) ? { tasks: parseTasks(raw.tasks) } : {}),
+    ...(/^T\d{1,2}$/.test(String(raw.task_id ?? '')) ? { taskId: String(raw.task_id) } : {}),
     ...(parallelOf(raw.parallel) ? { parallel: parallelOf(raw.parallel) } : {}),
     ...(Array.isArray(raw.remember) ? { remember: raw.remember.slice(0, 3) } : {}),
     ...(Array.isArray(raw.lessons) ? { lessons: raw.lessons.slice(0, 2) } : {}),

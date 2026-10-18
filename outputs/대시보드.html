@@ -1386,6 +1386,11 @@ main.is-office{max-width:none;padding:14px 24px 14px}
         </sc-for>
       </div>
     </div>
+    <sc-if value="{{w.hasTasks}}"><div class="card" style="margin-top: 20px">
+      <div class="lbl">작업 계획 · {{w.taskDone}}/{{w.taskTotal}} 완료</div>
+      <p class="hint" style="margin: 0 0 8px">기획팀이 처음에 나눈 작업입니다. 엔진이 맡은 완료 조건을 증명하면 그 작업을 완료로 표시합니다.</p>
+      <div class="crit"><sc-for list="{{w.tasks}}" as="t"><div class="cr" style="grid-template-columns: 34px minmax(0,1fr) auto"><span class="small mono">{{t.id}}</span><div style="min-width: 0"><div class="t">{{t.who}} · {{t.title}}</div><div class="hint small">{{t.meta}}</div></div><span class="{{t.pill}}"><i></i>{{t.st}}</span></div></sc-for></div>
+    </div></sc-if>
     <sc-if value="{{w.hasHistory}}">
       <div class="sec-h" style="margin-top: 28px"><h2>이전 목표</h2></div>
       <div class="list"><sc-for list="{{w.history}}" as="h"><div class="ev"><div class="when">{{h.when}}</div><div><div class="who">{{h.title}}<span class="{{h.pillCls}}"><i></i>{{h.stL}}</span></div><div class="res">{{h.sub}}</div></div></div></sc-for></div>
@@ -2650,6 +2655,14 @@ class Component extends DCLogic {
         noRuns: wp.runs.length === 0,
         proven: wp.proven, total: wp.total, pct: wp.total ? Math.round(wp.proven / wp.total * 100) : 0,
         recheckL: wp.recheck.length ? ' · 지난 검증 통과 ' + wp.recheck.length + '개 다시 확인 대기' : '',
+        // 작업 계획 (자율 작업 조율): the task graph with the engine's status for each task.
+        hasTasks: !!(g.taskPlan && g.taskPlan.tasks && g.taskPlan.tasks.length),
+        taskDone: g.taskPlan && g.taskPlan.tasks ? g.taskPlan.tasks.filter((t) => t.status === 'done').length : 0,
+        taskTotal: g.taskPlan && g.taskPlan.tasks ? g.taskPlan.tasks.length : 0,
+        tasks: ((g.taskPlan && g.taskPlan.tasks) || []).map((t) => ({ id: t.id, title: t.title, who: TEAM_NAME[t.team] || t.team,
+          st: { pending: '대기', running: '진행 중', done: '완료', failed: '실패' }[t.status] || t.status,
+          pill: 'pill ' + ({ done: 'done', running: 'run', failed: 'stop' }[t.status] || 'idle'),
+          meta: '산출물 ' + t.outputs.join(', ') + (t.criteria.length ? ' · 조건 ' + t.criteria.join(',') + '번' : '') + (t.dependsOn.length ? ' · 선행 ' + t.dependsOn.join(',') : '') + (t.attempts > 1 ? ' · ' + t.attempts + '번째 시도' : '') })),
         crit: g.completionCriteria.map((c) => {
           const ev = (g.evidence || []).find((e) => e.criterion === c);
           const claim = lastRun && (lastRun.claims || []).find((x) => x.criterion === c);

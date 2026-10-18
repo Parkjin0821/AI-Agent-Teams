@@ -10,6 +10,7 @@ import { validateProjectId } from './작업공간.js';
 import { enqueueRequests, reviewSkip, taskProfile } from './팀검토.js';
 import { selectAssignment } from './작업배정.js';
 import { autonomyDecision } from './자율정책.js';
+import { lintTasks, markRunning, planSummary, readyTasks, settleTasks, startPlan } from './작업계획.js';
 import { DEFAULT_CLAUDE_MODEL } from './모델선택.js';
 
 export const GoalStatus = Object.freeze({
@@ -651,10 +652,13 @@ export class GoalScheduler {
       if (!goal.completionCriteria.length) {
         if (!plan.completionCriteria?.length) return review('criteria_not_derived');
         const derived = validateCriteria(plan.completionCriteria), issues = lintCriteria(derived);
+        // 작업 계획 (자율 작업 조율 1단계): the task graph is checked with the criteria and rewritten with them once.
+        // (a missing list is not sent back: the project then runs as before, so no extra step is spent on it)
+        const taskIssues = plan.tasks?.length ? lintTasks(plan.tasks, derived, { ownerJudged }) : [];
         // 사전 점검: planning rewrites a list the engine knows will stall once; what is still left goes to 대장 with it.
-        if (issues.length && !team.criteriaLinted) {
+        if ((issues.length || taskIssues.length) && !team.criteriaLinted) {
           team.criteriaLinted = true;
-          team.feedback = `[엔진] 완료 조건 사전 점검 · 승인 요청 전에 고쳐 주세요:\n- ${issues.join('\n- ')}`;
+          team.feedback = `[엔진] 완료 조건·작업 계획 사전 점검 · 승인 요청 전에 고쳐 주세요:\n- ${[...issues, ...taskIssues].join('\n- ')}`;
           return goTo('plan');
         }
         // 자율 시험 5차: a criterion about what a team's report says can never be proven; still there after the rewrite,
@@ -663,6 +667,13 @@ export class GoalScheduler {
         const dropped = provable.length ? derived.filter(c => unprovableCriterion(c)) : [];
         const kept = dropped.length ? provable : derived;
         const left = dropped.length ? lintCriteria(kept) : issues;
+        const renumber = n => { const k = kept.indexOf(derived[n - 1]); return k >= 0 ? k + 1 : null; };
+        const tasks = (plan.tasks ?? []).map(t => ({ ...t, criteria: t.criteria.map(renumber).filter(Boolean) }));
+        // Still wrong after the rewrite: the project runs as before (planning picks each step) and the thread says why;
+        // a bad graph never adds an approval.
+        const graphOk = tasks.length > 0 && lintTasks(tasks, kept, { ownerJudged }).length === 0;
+        const taskPlan = graphOk ? startPlan(tasks, iso(now)) : null;
+        const planNote = graphOk ? `\n작업 계획 ${tasks.length}개:\n${planSummary(taskPlan)}` : (plan.tasks?.length ? '\n작업 계획은 점검을 통과하지 못해 쓰지 않습니다 (기획팀이 단계마다 다음 작업을 정함).' : '');
         const notes = [...left, ...dropped.map(c => `증명할 수 없는 조건이라 뺐습니다 (팀 보고는 근거가 아님): ${c}`)];
         // 8차 P0-2: what the engine will check on its own, whatever check a team later chooses.
         const own = engineGateSummary(kept);
@@ -673,15 +684,15 @@ export class GoalScheduler {
         const level = this.autonomy(goal.projectId);
         const auto = level ? autonomyDecision('criteria', { level, criteria: kept, issues: left, ownerJudged: kept.filter(ownerJudged).length, rewritten: !!team.criteriaLinted }) : null;
         if (auto?.decision === 'auto') {
-          this.update(goal, { completionCriteria: kept, criteriaApprovalPending: false,
-            messages: this.withControl(goal, `자율 ${level} · 완료 조건 ${kept.length}개를 자동 확정 (${auto.rule})${notes.length ? `\n남은 점: ${notes.join(' / ')}` : ''}${ownText}`) });
+          this.update(goal, { completionCriteria: kept, criteriaApprovalPending: false, taskPlan,
+            messages: this.withControl(goal, `자율 ${level} · 완료 조건 ${kept.length}개를 자동 확정 (${auto.rule})${notes.length ? `\n남은 점: ${notes.join(' / ')}` : ''}${ownText}${planNote}`) });
           void this.store.emit({ type: 'policy.auto', kind: 'criteria', goalId: goal.id, projectId: goal.projectId, level, rule: auto.rule, criteria: kept.length });
           return goTo('plan');
         }
-        this.update(goal, { completionCriteria: kept, criteriaApprovalPending: true });
+        this.update(goal, { completionCriteria: kept, criteriaApprovalPending: true, taskPlan });
         return review('criteria_approval_required', { question: (notes.length
           ? `도출한 완료 조건을 확인하고 승인해 주세요. 엔진 사전 점검에서 남은 점:\n- ${notes.join('\n- ')}`
-          : '도출한 완료 조건을 확인하고 승인해 주세요.') + ownText });
+          : '도출한 완료 조건을 확인하고 승인해 주세요.') + ownText + planNote });
       }
       // After 대장's message planning may propose a changed list; only a real change needs approval again.
       if (team.criteriaCheck) {
@@ -706,6 +717,13 @@ export class GoalScheduler {
       // next_task needs the running lane's result: wait without spending steps, plan again when it is done.
       if (plan.waitParallel && this.openLanes(goal).length) return this.waitForLane(team, this.openLanes(goal)[0], evidence);
       team.worker = WORKERS.includes(plan.team) ? plan.team : 'dev';
+      // 작업 계획: the next task by its id — its own team does it, and the engine marks it running. An id that is not
+      // ready (or none) leaves the step as planning chose it, without a task.
+      team.taskId = null;
+      if (goal.taskPlan?.tasks?.length && !plan.allDone && plan.taskId) {
+        const task = readyTasks(goal.taskPlan).find(t => t.id === plan.taskId);
+        if (task) { team.worker = task.team; team.taskId = task.id; this.update(goal, { taskPlan: markRunning(goal.taskPlan, task.id) }); }
+      }
       team.profile = taskProfile(plan.profile);
       if (team.profile.effects.length) return review('needs_decision', { question: `승인 범위가 필요한 작업: ${team.profile.effects.join(', ')}. 해당 외부 작업은 아직 실행하지 않았습니다.` });
       // "All done" with no work step since the last verification: the files are the ones the reviews already passed,
@@ -782,6 +800,10 @@ export class GoalScheduler {
       return advance(extra);
     }
     const findings = result.findings ?? { feedback: '', improvements: [] };
+    if (goal.taskPlan?.tasks?.length) {
+      const settled = settleTasks(goal.taskPlan, goal.completionCriteria, evidence);
+      this.update(goal, { taskPlan: { ...settled, tasks: settled.tasks.map(t => t.status === 'running' ? { ...t, status: 'pending' } : t) } });
+    }
     // Failing tests or a secret the engine found keep the goal open even if every criterion has proof.
     const gate = (findings.blocking ?? []).map(b => `[엔진 검사] ${b}`);
     team.blockers = gate;
