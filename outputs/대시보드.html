@@ -709,8 +709,8 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
   .msg.team>.mono-tile{display:none}
   .msg.team>:not(.mono-tile){grid-column:1}
 }
-/* ── 사무실 (2026-10-18, 10차 리디자인 2): a floor plan in the dashboard's own language — white cards, 1px lines,
-   dashed zones on a dot grid, one accent; each team is a person (avatar) at a desk card ── */
+/* ── 사무실 (2026-10-18, 10차 리디자인 3): people really at work — seated at desks, typing at screens, walking work
+   over — drawn in the dashboard's palette (neutral furniture, team colour only on clothes, white chips for labels) ── */
 main.is-office{max-width:none;padding:14px 24px 14px}
 .office-page{display:flex;flex-direction:column;gap:12px;height:calc(100dvh - var(--top-h,73px) - 28px);min-height:540px}
 .of-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -762,49 +762,73 @@ main.is-office{max-width:none;padding:14px 24px 14px}
 .of-work .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .of-work .pill{font-size:11.5px}
 .of-more{margin:6px 0 0;font-size:12px;color:var(--text-3)}
-/* the floor plan */
-.of-grid-dot{fill:#E7E7EA}
+/* the room */
+.of-grid-dot{fill:#ECECEF}
 .of-zone{fill:#FCFCFD;stroke:#E4E4E7;stroke-dasharray:4 4}
-.of-zone-l{font-size:11.5px;font-weight:600;fill:var(--text-3)}
+.of-zone-l{font-size:11.5px;font-weight:600;fill:var(--text-4)}
 .of-divider{stroke:#E4E4E7;stroke-dasharray:4 4}
 .of-legend{font-size:11.5px;fill:var(--text-3)}
 .of-door{stroke:var(--text-4);stroke-width:2;stroke-dasharray:2 5;stroke-linecap:round;fill:none}
 .of-door-l{font-size:11px;fill:var(--text-3)}
-.of-card-bg{fill:#fff}.of-card-line{fill:none;stroke:var(--line);transition:stroke .18s}
+.of-floor{fill:#F1F1F3}
+.of-chair-d{fill:#3F3F46}.of-chair-m{fill:#52525B}.of-chair-l{fill:#A1A1AA}
+.of-desk-t{fill:#E4E4E7}.of-desk-e{fill:#D4D4D8}
+.of-mon{fill:#18181B}.of-mon-s{fill:#A1A1AA}
+.of-screen{fill:#3F3F46;transition:fill .3s}
+.of-desk.working .of-screen,.of-desk.verifying .of-screen{fill:#fff}
+.of-desk.asking .of-screen,.of-desk.stopped .of-screen{fill:#F4F4F5}
+.of-code{fill:var(--team-accent);opacity:0}
+.of-desk.working .of-code,.of-desk.verifying .of-code{opacity:.85}
+.of-check{fill:none;stroke:var(--done);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;opacity:0}
+.of-desk.verifying .of-check{opacity:1}
+.of-alert{fill:var(--stop);opacity:0}.of-desk.stopped .of-alert{opacity:1}
+.of-kbd{fill:#A1A1AA}
+.of-pants{stroke:#3F3F46;stroke-linecap:round;fill:none}
+.of-shoe{fill:#27272A}
+.of-shirt{fill:var(--team-accent)}
+.of-arm{stroke:var(--team-accent);stroke-linecap:round;stroke-linejoin:round;fill:none}
+.of-eye{fill:#27272A}.of-mouth{stroke:#7C5A4A;stroke-width:1.2;stroke-linecap:round;fill:none}
+.of-specs{fill:none;stroke:#3F3F46;stroke-width:1.2}
+.of-mug{fill:#fff;stroke:#A1A1AA;stroke-width:1.2}
 .of-desk,.of-boss,.of-guard{cursor:pointer;outline:none}
-.of-desk:hover .of-card-line,.of-boss:hover .of-card-line,.of-guard:hover .of-card-line{stroke:var(--line-strong)}
-.of-desk.sel .of-card-line{stroke:var(--accent);stroke-width:1.5}
-.of-desk:focus-visible .of-card-line,.of-boss:focus-visible .of-card-line,.of-guard:focus-visible .of-card-line{stroke:var(--accent);stroke-width:2}
-.of-accent{fill:var(--team-accent);opacity:0;transition:opacity .25s}
-.of-desk.working .of-accent,.of-desk.verifying .of-accent{opacity:1}
-.of-av-bg{fill:var(--team-tint,#F4F4F5)}.of-av-fg{fill:var(--team-accent,#71717A)}
-.of-av-ring{fill:none;stroke:var(--team-accent);stroke-opacity:.18}
-.of-av-away{fill:none;stroke:#D4D4D8;stroke-dasharray:3 3;opacity:0}
-.of-av.away .of-av-bg,.of-av.away .of-av-ring,.of-av.away .of-av-fg{opacity:0}.of-av.away .of-av-away{opacity:1}
-.of-dot{stroke:#fff;stroke-width:2;fill:#D4D4D8}
+.of-label{fill:#fff;stroke:var(--line);transition:stroke .18s}
+.of-desk:hover .of-label,.of-boss:hover .of-label,.of-guard:hover .of-label{stroke:var(--line-strong)}
+.of-desk.sel .of-label{stroke:var(--accent);stroke-width:1.5}
+.of-desk:focus-visible .of-label,.of-boss:focus-visible .of-label,.of-guard:focus-visible .of-label{stroke:var(--accent);stroke-width:2}
+.of-name{font-size:12.5px;font-weight:600;fill:var(--text)}
+.of-status{font-size:11.5px;fill:var(--text-2)}
+.of-desk.asking .of-status,.of-boss.has .of-status{fill:var(--attn);font-weight:500}.of-desk.stopped .of-status{fill:var(--stop);font-weight:500}
+.of-desk.working .of-status,.of-desk.verifying .of-status{fill:var(--run);font-weight:500}
+.of-dot{stroke:#fff;stroke-width:1.5;fill:#D4D4D8}
 .of-dot.working,.of-dot.verifying{fill:var(--run)}.of-dot.asking{fill:var(--attn)}.of-dot.stopped{fill:var(--stop)}.of-dot.queued,.of-dot.usage{fill:var(--text-4)}
-.of-name{font-size:13.5px;font-weight:600;fill:var(--text);letter-spacing:-.005em}
-.of-status{font-size:12px;fill:var(--text-2)}
-.of-desk.asking .of-status{fill:var(--attn);font-weight:500}.of-desk.stopped .of-status{fill:var(--stop);font-weight:500}
-.of-desk.working .of-status,.of-desk.verifying .of-status{fill:var(--text);font-weight:500}
-.of-sep{stroke:var(--line)}
-.of-line{font-size:11.5px;fill:var(--text-3)}.of-line.run{fill:var(--text-2)}.of-line.attn{fill:var(--attn)}.of-line.stop{fill:var(--stop)}
-.of-dots circle{fill:var(--run)}
-.of-boss-av{fill:#18181B}.of-boss-av-t{font-size:11px;font-weight:650;fill:#fff}
+.of-say rect{fill:#fff;stroke:var(--line)}.of-say path{fill:#fff;stroke:var(--line)}
+.of-say text{font-size:11.5px;fill:var(--text-2)}
+.of-say.ask rect,.of-say.ask path{stroke:var(--attn);fill:var(--attn-soft)}.of-say.ask text{fill:var(--attn)}
+.of-say.stop rect,.of-say.stop path{stroke:var(--stop);fill:var(--stop-soft)}.of-say.stop text{fill:var(--stop)}
+.of-person.away{opacity:0}
 .of-paper{fill:#fff;stroke:#D4D4D8}
-.of-badge{fill:var(--attn)}.of-badge-t{font-size:11.5px;font-weight:650;fill:#fff;font-variant-numeric:tabular-nums}
-.of-boss.has .of-status{fill:var(--attn);font-weight:500}
-.of-guard-av{fill:var(--accent-soft)}.of-shield{fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linejoin:round}
+.of-badge{fill:var(--attn)}.of-badge-t{font-size:11px;font-weight:650;fill:#fff;font-variant-numeric:tabular-nums}
+.of-uniform{fill:#27324A}.of-uniform-arm{stroke:#27324A;stroke-linecap:round;fill:none}.of-cap{fill:#1E2638}.of-gold{fill:#E0B04A}
 .of-walker{pointer-events:none}
-.of-walker .paper rect{fill:#fff;stroke:#A1A1AA}.of-walker .paper path{stroke:#D4D4D8;stroke-width:1.5}
-.of-walker.empty .paper{display:none}
-.of-walker .of-av-bg{stroke:var(--team-accent);stroke-opacity:.35}
+.of-walker.empty .of-carry{display:none}
 /* motion — only with .motion (system setting or 대장's choice on the page) */
+.office-svg.motion .of-desk.working .of-hands,.office-svg.motion .of-desk.verifying .of-hands{animation:of-type .32s ease-in-out infinite alternate}
+.office-svg.motion .of-desk.working .of-nod,.office-svg.motion .of-desk.verifying .of-nod{animation:of-nod 3s ease-in-out infinite}
+.office-svg.motion .of-desk.idle .of-breath,.office-svg.motion .of-desk.queued .of-breath,.office-svg.motion .of-desk.usage .of-breath{animation:of-breath 4.5s ease-in-out infinite}
+.office-svg.motion .of-desk.asking .of-wave{animation:of-wave 1.2s ease-in-out infinite;transform-box:fill-box;transform-origin:30% 100%}
+.office-svg.motion .of-desk.working .of-code,.office-svg.motion .of-desk.verifying .of-code{animation:of-typeline 2.4s steps(1) infinite}
+.office-svg.motion .of-code:nth-of-type(2){animation-delay:.6s}.office-svg.motion .of-code:nth-of-type(3){animation-delay:1.2s}.office-svg.motion .of-code:nth-of-type(4){animation-delay:1.8s}
 .office-svg.motion .of-dot.working,.office-svg.motion .of-dot.verifying{animation:of-pulse 1.8s ease-in-out infinite}
-.office-svg.motion .of-dots circle{animation:of-dot 1.2s ease-in-out infinite}
-.office-svg.motion .of-dots circle:nth-child(2){animation-delay:.2s}.office-svg.motion .of-dots circle:nth-child(3){animation-delay:.4s}
+.of-walker .of-leg-a,.of-walker .of-leg-b{transform-box:fill-box;transform-origin:50% 0}
+.of-walker:not(.empty) .of-free{display:none}
+.office-svg.motion .of-walker.step-a .of-leg-a{transform:rotate(20deg)}.office-svg.motion .of-walker.step-a .of-leg-b{transform:rotate(-20deg)}
+.office-svg.motion .of-walker.step-b .of-leg-a{transform:rotate(-20deg)}.office-svg.motion .of-walker.step-b .of-leg-b{transform:rotate(20deg)}
+@keyframes of-type{from{transform:translateY(0)}to{transform:translateY(-1.6px)}}
+@keyframes of-nod{0%,100%{transform:translateY(0)}50%{transform:translateY(1px)}}
+@keyframes of-breath{0%,100%{transform:translateY(0)}50%{transform:translateY(-.8px)}}
+@keyframes of-wave{0%,100%{transform:rotate(0)}50%{transform:rotate(-12deg)}}
+@keyframes of-typeline{0%{opacity:.15}25%,100%{opacity:.85}}
 @keyframes of-pulse{0%,100%{opacity:1}50%{opacity:.45}}
-@keyframes of-dot{0%,100%{opacity:.25}50%{opacity:1}}
 @media (max-width:1000px){.office-page{height:auto;min-height:0}.office-body{grid-template-columns:minmax(0,1fr)}.office-room{aspect-ratio:1000/620}.of-side{overflow:visible}}
 @media (max-width:640px){main.is-office{padding:12px}.office-room{aspect-ratio:auto;overflow-x:auto}.office-svg{width:680px;min-width:680px;height:auto}.of-chips{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
@@ -837,75 +861,123 @@ main.is-office{max-width:none;padding:14px 24px 14px}
 <div class="office-page">
   <div class="of-head">
     <div class="t"><h1>사무실</h1><p class="lede">{{of.lede}}</p></div>
-    <div class="row-f"><button class="btn ghost sm" aria-pressed="{{of.motionOn}}" onClick="{{of.toggleMotion}}" title="팀이 일을 넘길 때 아바타가 이동하는 움직임">{{of.motionL}}</button><button class="btn sm" onClick="{{openNew}}">새 프로젝트</button></div>
+    <div class="row-f"><button class="btn ghost sm" aria-pressed="{{of.motionOn}}" onClick="{{of.toggleMotion}}" title="타자 치기·걸어가기 같은 움직임">{{of.motionL}}</button><button class="btn sm" onClick="{{openNew}}">새 프로젝트</button></div>
   </div>
   <div class="office-body">
     <section class="office-room" aria-labelledby="office-h">
       <h2 id="office-h" class="sr">AI 팀 사무실</h2>
       <svg class="{{of.svgCls}}" viewBox="0 0 1000 620" preserveAspectRatio="xMidYMid meet" role="group" aria-label="{{of.summary}}">
-        <defs>
-          <pattern id="of-grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle class="of-grid-dot" cx="1" cy="1" r="1"></circle></pattern>
-          <filter id="of-lift" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#11111A" flood-opacity=".05"></feDropShadow><feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#11111A" flood-opacity=".05"></feDropShadow></filter>
-          <clipPath id="of-av-clip"><rect x="0" y="0" width="40" height="40" rx="12"></rect></clipPath>
-        </defs>
+        <defs><pattern id="of-grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle class="of-grid-dot" cx="1" cy="1" r="1"></circle></pattern></defs>
         <rect x="0" y="0" width="1000" height="620" fill="url(#of-grid)"></rect>
         <sc-for list="{{of.zones}}" as="z"><rect class="of-zone" x="{{z.x}}" y="{{z.y}}" width="{{z.w}}" height="{{z.h}}" rx="16"></rect><text class="of-zone-l" x="{{z.lx}}" y="{{z.ly}}">{{z.l}}</text></sc-for>
-        <line class="of-divider" x1="682" y1="246" x2="682" y2="376"></line>
-        <text class="of-zone-l" x="696" y="256">검증</text>
+        <line class="of-divider" x1="716" y1="252" x2="716" y2="420"></line>
+        <text class="of-zone-l" x="732" y="426">검증</text>
         <sc-for list="{{of.legend}}" as="l"><g transform="translate({{l.x}},74)"><circle class="{{l.cls}}" cx="0" cy="-4" r="4.5"></circle><text class="of-legend" x="10" y="0">{{l.t}}</text></g></sc-for>
-        <path class="of-door" d="M44 606H150"></path><text class="of-door-l" x="97" y="598" text-anchor="middle">출입구</text>
+        <path class="of-door" d="M30 610H150"></path><text class="of-door-l" x="90" y="602" text-anchor="middle">출입구</text>
 
         <sc-for list="{{of.desks}}" as="d">
           <g id="of-desk-{{d.id}}" class="{{d.cls}}" transform="translate({{d.x}},{{d.y}})" role="button" tabindex="0" aria-label="{{d.aria}}" onClick="{{d.pick}}" onKeydown="{{d.key}}">
-            <rect class="of-card-bg" x="0" y="0" width="184" height="96" rx="14" filter="url(#of-lift)"></rect>
-            <rect class="of-card-line" x="0.5" y="0.5" width="183" height="95" rx="13.5"></rect>
-            <rect class="of-accent" x="0" y="20" width="3" height="56" rx="1.5"></rect>
-            <g class="{{d.avCls}}" transform="translate(14,14)">
-              <rect class="of-av-bg" width="40" height="40" rx="12"></rect>
-              <g clip-path="url(#of-av-clip)"><circle class="of-av-fg" cx="20" cy="16" r="7"></circle><path class="of-av-fg" d="M7 42C7 31 13 26 20 26C27 26 33 31 33 42Z"></path></g>
-              <rect class="of-av-ring" x="0.5" y="0.5" width="39" height="39" rx="11.5"></rect>
-              <rect class="of-av-away" x="0.5" y="0.5" width="39" height="39" rx="11.5"></rect>
+            <ellipse class="of-floor" cx="92" cy="108" rx="86" ry="6"></ellipse>
+            <rect class="of-chair-d" x="12" y="36" width="10" height="42" rx="5"></rect>
+            <rect class="of-chair-m" x="14" y="72" width="46" height="7" rx="3.5"></rect>
+            <rect class="of-chair-l" x="35" y="79" width="4" height="18"></rect>
+            <rect class="of-chair-l" x="21" y="96" width="32" height="3" rx="1.5"></rect>
+            <circle class="of-chair-m" cx="23" cy="102" r="2.6"></circle><circle class="of-chair-m" cx="37" cy="102" r="2.6"></circle><circle class="of-chair-m" cx="51" cy="102" r="2.6"></circle>
+            <g class="{{d.personCls}}">
+              <path class="of-pants" stroke-width="12" d="M40 74H80"></path>
+              <path class="of-pants" stroke-width="10" d="M80 74L83 101"></path>
+              <ellipse class="of-shoe" cx="88" cy="104" rx="7.5" ry="3.5"></ellipse>
             </g>
-            <circle class="{{d.dotCls}}" cx="52" cy="16" r="5"></circle>
-            <text class="of-name" x="66" y="31">{{d.name}}</text>
-            <text class="of-status" x="66" y="48">{{d.state}}</text>
-            <line class="of-sep" x1="14" y1="64" x2="170" y2="64"></line>
-            <text class="{{d.lineCls}}" x="14" y="82">{{d.line}}</text>
-            <sc-if value="{{d.typing}}"><g class="of-dots"><circle cx="156" cy="78" r="2.2"></circle><circle cx="163" cy="78" r="2.2"></circle><circle cx="170" cy="78" r="2.2"></circle></g></sc-if>
+            <rect class="of-desk-e" x="86" y="65" width="3" height="43"></rect><rect class="of-desk-e" x="169" y="65" width="3" height="43"></rect>
+            <rect class="of-desk-t" x="78" y="59" width="100" height="6" rx="2"></rect>
+            <rect class="of-mon-s" x="143" y="48" width="6" height="11"></rect><rect class="of-mon-s" x="134" y="57" width="24" height="3" rx="1.5"></rect>
+            <rect class="of-mon" x="116" y="12" width="60" height="38" rx="4"></rect>
+            <rect class="of-screen" x="119" y="15" width="54" height="31" rx="2"></rect>
+            <rect class="of-code" x="123" y="19" width="30" height="2.6" rx="1.3"></rect>
+            <rect class="of-code" x="127" y="25" width="38" height="2.6" rx="1.3"></rect>
+            <rect class="of-code" x="127" y="31" width="22" height="2.6" rx="1.3"></rect>
+            <rect class="of-code" x="123" y="37" width="34" height="2.6" rx="1.3"></rect>
+            <path class="of-check" d="M157 20l2.5 2.5 4.5-5M157 32l2.5 2.5 4.5-5"></path>
+            <rect class="of-alert" x="119" y="15" width="54" height="5" rx="2"></rect>
+            <rect class="of-kbd" x="96" y="56" width="24" height="3" rx="1.2"></rect>
+            <g class="{{d.personCls}}">
+              <g transform="rotate({{d.lean}} 40 76)"><g class="of-breath">
+                <path class="of-shirt" d="M28 77C26 60 29 44 37 36C43 31 53 32 57 38C61 46 60 62 56 77Z"></path>
+                <g class="of-nod">
+                  <rect x="41" y="25" width="7" height="9" fill="{{d.skin}}"></rect>
+                  <circle cx="47" cy="18" r="10.5" fill="{{d.skin}}"></circle>
+                  <path d="{{d.hair}}" fill="{{d.hairColor}}"></path>
+                  <circle class="of-eye" cx="53" cy="17" r="1.3"></circle>
+                  <path class="of-mouth" d="M52.5 23.2h2.6"></path>
+                  <sc-if value="{{d.specs}}"><g class="of-specs"><rect x="50" y="14.5" width="6.5" height="5" rx="1.6"></rect><path d="M50 16.5H44"></path></g></sc-if>
+                </g>
+                <sc-if value="{{d.poseType}}"><g class="of-hands"><path class="of-arm" stroke-width="8" d="M48 41L59 58L88 56"></path><circle cx="93" cy="55.5" r="3.6" fill="{{d.skin}}"></circle></g></sc-if>
+                <sc-if value="{{d.poseMug}}"><path class="of-arm" stroke-width="8" d="M48 41L55 59L64 47"></path><circle cx="66" cy="45" r="3.4" fill="{{d.skin}}"></circle><rect class="of-mug" x="63" y="35" width="8" height="10" rx="1.5"></rect><path class="of-mug" fill="none" d="M71 37.5c3.2 0 3.2 5 0 5"></path></sc-if>
+                <sc-if value="{{d.poseLap}}"><path class="of-arm" stroke-width="8" d="M48 41L53 60L68 70"></path><circle cx="71" cy="70.5" r="3.4" fill="{{d.skin}}"></circle></sc-if>
+                <sc-if value="{{d.poseRaise}}"><g class="of-wave"><path class="of-arm" stroke-width="8" d="M48 41L57 24L60 7"></path><circle cx="60.5" cy="4" r="3.6" fill="{{d.skin}}"></circle></g></sc-if>
+                <sc-if value="{{d.poseHead}}"><path class="of-arm" stroke-width="8" d="M48 41L62 31L57 14"></path><circle cx="55.5" cy="11" r="3.6" fill="{{d.skin}}"></circle></sc-if>
+              </g></g>
+            </g>
+            <sc-if value="{{d.hasSay}}"><g class="{{d.sayCls}}"><rect x="{{d.sx}}" y="-24" width="{{d.sw}}" height="22" rx="7"></rect><text x="{{d.tx}}" y="-9" text-anchor="middle">{{d.say}}</text></g></sc-if>
+            <rect class="of-label" x="2" y="116" width="176" height="28" rx="9"></rect>
+            <circle class="{{d.dotCls}}" cx="15" cy="130" r="4"></circle>
+            <text class="of-name" x="25" y="134">{{d.name}}</text>
+            <text class="of-status" x="170" y="134" text-anchor="end">{{d.state}}</text>
           </g>
         </sc-for>
 
-        <g id="of-boss" class="{{of.boss.cls}}" transform="translate(400,458)" role="button" tabindex="0" aria-label="{{of.boss.aria}}" onClick="{{of.boss.go}}" onKeydown="{{of.boss.key}}">
-          <rect class="of-card-bg" x="0" y="0" width="220" height="108" rx="14" filter="url(#of-lift)"></rect>
-          <rect class="of-card-line" x="0.5" y="0.5" width="219" height="107" rx="13.5"></rect>
-          <rect class="of-boss-av" x="14" y="14" width="40" height="40" rx="12"></rect>
-          <text class="of-boss-av-t" x="34" y="38" text-anchor="middle">대장</text>
-          <text class="of-name" x="66" y="31">대장 자리</text>
-          <text class="of-status" x="66" y="48">{{of.boss.state}}</text>
-          <sc-for list="{{of.boss.papers}}" as="p"><rect class="of-paper" x="{{p.x}}" y="{{p.y}}" width="26" height="32" rx="3"></rect></sc-for>
-          <sc-if value="{{of.boss.has}}"><circle class="of-badge" cx="204" cy="14" r="11"></circle><text class="of-badge-t" x="204" y="18" text-anchor="middle">{{of.boss.n}}</text></sc-if>
-          <line class="of-sep" x1="14" y1="72" x2="206" y2="72"></line>
-          <text class="of-line" x="14" y="92">{{of.boss.line}}</text>
+        <g id="of-boss" class="{{of.boss.cls}}" transform="translate(390,462)" role="button" tabindex="0" aria-label="{{of.boss.aria}}" onClick="{{of.boss.go}}" onKeydown="{{of.boss.key}}">
+          <ellipse class="of-floor" cx="120" cy="108" rx="104" ry="6"></ellipse>
+          <rect class="of-chair-d" x="98" y="16" width="44" height="48" rx="11"></rect>
+          <rect class="of-mon-s" x="58" y="46" width="6" height="13"></rect><rect class="of-mon-s" x="49" y="57" width="24" height="3" rx="1.5"></rect>
+          <rect class="of-mon" x="38" y="22" width="46" height="26" rx="3"></rect><rect class="of-screen" x="40.5" y="24.5" width="41" height="21" rx="1.5"></rect>
+          <rect class="of-desk-t" x="28" y="59" width="184" height="7" rx="2"></rect>
+          <rect class="of-desk-t" x="34" y="66" width="172" height="40" rx="3" stroke="#D4D4D8"></rect>
+          <rect x="98" y="78" width="44" height="15" rx="3" fill="#18181B"></rect><text x="120" y="88.5" text-anchor="middle" font-size="9.5" font-weight="650" fill="#fff">대장</text>
+          <sc-for list="{{of.boss.papers}}" as="p"><rect class="of-paper" x="{{p.x}}" y="{{p.y}}" width="36" height="3.4" rx="1"></rect></sc-for>
+          <sc-if value="{{of.boss.has}}"><circle class="of-badge" cx="200" cy="36" r="11"></circle><text class="of-badge-t" x="200" y="40" text-anchor="middle">{{of.boss.n}}</text></sc-if>
+          <rect class="of-label" x="30" y="116" width="180" height="28" rx="9"></rect>
+          <circle class="of-dot {{of.boss.dot}}" cx="43" cy="130" r="4"></circle>
+          <text class="of-name" x="53" y="134">대장 자리</text>
+          <text class="of-status" x="202" y="134" text-anchor="end">{{of.boss.state}}</text>
         </g>
 
-        <g id="of-guard" class="of-guard" transform="translate(44,470)" role="button" tabindex="0" aria-label="{{of.guard.aria}}" onClick="{{of.guard.go}}" onKeydown="{{of.guard.key}}">
-          <rect class="of-card-bg" x="0" y="0" width="236" height="96" rx="14" filter="url(#of-lift)"></rect>
-          <rect class="of-card-line" x="0.5" y="0.5" width="235" height="95" rx="13.5"></rect>
-          <rect class="of-guard-av" x="14" y="14" width="40" height="40" rx="12"></rect>
-          <path class="of-shield" d="M34 23l9 3.5v6.5c0 6-4 9.5-9 11.5c-5-2-9-5.5-9-11.5v-6.5z"></path><path class="of-shield" d="M30 33.5l3 3 5.5-6"></path>
-          <text class="of-name" x="66" y="31">감시 에이전트</text>
-          <text class="of-status" x="66" y="48">{{of.guard.state}}</text>
-          <line class="of-sep" x1="14" y1="64" x2="222" y2="64"></line>
-          <text class="of-line" x="14" y="82">작업 폴더 밖·위험한 동작은 문 앞에서 막습니다</text>
+        <g id="of-guard" class="of-guard" transform="translate(44,462)" role="button" tabindex="0" aria-label="{{of.guard.aria}}" onClick="{{of.guard.go}}" onKeydown="{{of.guard.key}}">
+          <ellipse class="of-floor" cx="42" cy="108" rx="24" ry="5"></ellipse>
+          <path class="of-uniform-arm" stroke-width="9" d="M37 70L36 103"></path><path class="of-uniform-arm" stroke-width="9" d="M45 70L47 103"></path>
+          <ellipse class="of-shoe" cx="38" cy="106" rx="6.5" ry="3"></ellipse><ellipse class="of-shoe" cx="50" cy="106" rx="6.5" ry="3"></ellipse>
+          <path class="of-uniform" d="M28 73C27 57 30 43 37 38C42 35 48 35 52 39C57 45 57 59 55 73Z"></path>
+          <circle class="of-gold" cx="48" cy="47" r="2.6"></circle>
+          <path class="of-uniform-arm" stroke-width="8" d="M48 43L53 59L51 70"></path><circle cx="51" cy="73" r="3.4" fill="#D7A887"></circle>
+          <rect x="41" y="29" width="7" height="8" fill="#D7A887"></rect>
+          <circle cx="45" cy="23" r="10.5" fill="#D7A887"></circle>
+          <path class="of-cap" d="M34.5 20C34.5 11 40 8 46 8C52 8 56.5 11.5 56.5 17.5Z"></path><path class="of-cap" d="M51 17h10q2 0 1.5 2.2h-11.5z"></path>
+          <circle class="of-gold" cx="45" cy="13" r="2"></circle>
+          <circle class="of-eye" cx="52" cy="23" r="1.3"></circle><path class="of-mouth" d="M51 28h2.6"></path>
+          <rect class="of-label" x="70" y="58" width="190" height="46" rx="10"></rect>
+          <text class="of-name" x="84" y="77">감시 에이전트</text>
+          <text class="of-status" x="84" y="94">{{of.guard.state}}</text>
         </g>
 
         <sc-for list="{{of.walkers}}" as="w">
-          <g class="{{w.cls}}" data-walker="{{w.key}}" transform="translate({{w.x}},{{w.y}})" filter="url(#of-lift)">
-            <g transform="translate(-20,-20)">
-              <rect class="of-av-bg" width="40" height="40" rx="12"></rect>
-              <g clip-path="url(#of-av-clip)"><circle class="of-av-fg" cx="20" cy="16" r="7"></circle><path class="of-av-fg" d="M7 42C7 31 13 26 20 26C27 26 33 31 33 42Z"></path></g>
+          <g class="{{w.cls}}" data-walker="{{w.key}}" transform="translate({{w.x}},{{w.y}})">
+            <g class="of-flip" transform="scale({{w.dir}},1)">
+              <ellipse class="of-floor" cx="0" cy="2" rx="16" ry="3.5"></ellipse>
+              <g class="of-leg-b"><path class="of-pants" stroke-width="9" d="M0-34L-2-3"></path><ellipse class="of-shoe" cx="2" cy="0" rx="6" ry="3"></ellipse></g>
+              <path class="of-arm" stroke-width="7.5" d="M-1-60L-7-45L-5-37"></path>
+              <path class="of-shirt" d="M-10-32C-11-46-9-58-2-64C3-67 9-66 11-61C13-53 12-42 10-32Z"></path>
+              <g class="of-leg-a"><path class="of-pants" stroke-width="9" d="M0-34L2-3"></path><ellipse class="of-shoe" cx="6" cy="0" rx="6" ry="3"></ellipse></g>
+              <g transform="translate(-46,-92)">
+                <rect x="41" y="25" width="7" height="9" fill="{{w.skin}}"></rect>
+                <circle cx="47" cy="18" r="10.5" fill="{{w.skin}}"></circle>
+                <path d="{{w.hair}}" fill="{{w.hairColor}}"></path>
+                <circle class="of-eye" cx="53" cy="17" r="1.3"></circle>
+                <path class="of-mouth" d="M52.5 23.2h2.6"></path>
+                <sc-if value="{{w.specs}}"><g class="of-specs"><rect x="50" y="14.5" width="6.5" height="5" rx="1.6"></rect><path d="M50 16.5H44"></path></g></sc-if>
+              </g>
+              <g class="of-carry"><path class="of-arm" stroke-width="7.5" d="M3-58L12-46L21-50"></path><rect class="of-paper" x="19" y="-63" width="12" height="15" rx="1.5"></rect></g>
+              <path class="of-arm of-free" stroke-width="7.5" d="M3-58L8-44L7-36"></path>
             </g>
-            <g class="paper" transform="translate(10,2)"><rect width="18" height="22" rx="3"></rect><path d="M5 8h8M5 12h8M5 16h5"></path></g>
           </g>
         </sc-for>
       </svg>
@@ -1882,34 +1954,45 @@ function stateOf(g) {
 const pillCls = (tone) => 'pill ' + tone;
 const RUNNING_LIKE = ['scheduled', 'running', 'retry_wait', 'model_wait'];
 
-// ── 사무실 (2026-10-18, 10차 리디자인 2) ──
-// A floor plan: each team's desk card (top-left in the 1000×620 plan) — planning and the reviewers on the back row,
-// the work teams and verification on the front row, 대장's desk in front, the guard by the door.
-const OFFICE_DESKS = { plan: [50, 84], security: [580, 84], policy: [776, 84], research: [50, 278], dev: [258, 278], design: [466, 278], qa: [776, 278] };
+// ── 사무실 (2026-10-18, 10차 리디자인 3) ──
+// People at work in the dashboard's palette. Each team's workstation (top-left of a 180-wide box in the 1000×620
+// room): planning and the reviewers on the back row, the work teams and verification in front, 대장's desk and the
+// guard by the door at the bottom.
+const OFFICE_DESKS = { plan: [44, 46], security: [600, 46], policy: [790, 46], research: [44, 258], dev: [244, 258], design: [444, 258], qa: [790, 258] };
 const OFFICE_ORDER = Object.keys(OFFICE_DESKS);
 const OFFICE_ZONES = [
-  { l: '기획', x: 28, y: 36, w: 228, h: 160 }, { l: '검토', x: 560, y: 36, w: 412, h: 160 },
-  { l: '작업', x: 28, y: 226, w: 944, h: 166 }, { l: '대장', x: 378, y: 420, w: 264, h: 186 },
-].map((z) => Object.assign(z, { lx: z.x + 16, ly: z.y + 22 }));
-// Each team in its own words (the desk shows it while the team rests; the side card when it is picked).
+  { l: '기획', x: 24, y: 24, w: 220, h: 200 }, { l: '검토', x: 580, y: 24, w: 396, h: 200 },
+  { l: '작업', x: 24, y: 236, w: 952, h: 200 }, { l: '대장', x: 370, y: 448, w: 280, h: 166 },
+].map((z) => Object.assign(z, { lx: z.x + 16, ly: z.y + z.h - 10 }));
+// Hair for a head at (47, 18) seen from the side, facing right.
+const OFFICE_HAIR = {
+  short: 'M36.6 19C35.5 10 41 6.5 47.5 6.6C54 6.7 58 10.5 57.6 15C54.5 12.6 49.5 12.2 46 14.6C43.6 16.3 42.6 19.6 41.6 23.4C39.3 23.2 37.2 21.6 36.6 19Z',
+  long: 'M36.4 19C35.3 9.5 41 6.4 47.6 6.5C54 6.6 58 10.4 57.6 15C54.4 12.5 49.6 12.2 46.4 14.4C44.6 15.8 44 19 44 23L44 33C40.5 33 37.4 31 36.6 27Z',
+  curly: 'M36 19C34 15 35.5 10 39.5 8.5C40.5 5.5 45 4.8 47.5 6.2C50.5 4.8 55 6 56.5 9C58.6 10.4 58.8 13.4 57.4 15.2C54.4 12.8 49.4 12.4 46 14.6C43.6 16.4 42.6 19.8 41.6 23.6C38.8 23.4 36.6 21.6 36 19Z',
+  buzz: 'M37.2 18.5C36.6 11 41.2 7.5 47.5 7.4C53.4 7.4 57 10.6 57.2 14.4C54 12.4 49.4 12.2 46.2 14.2C43.8 15.8 42.8 18.6 42 21.8C39.8 21.6 37.8 20.4 37.2 18.5Z',
+  bun: 'M36.6 19C35.5 10 41 6.5 47.5 6.6C54 6.7 58 10.5 57.6 15C54.5 12.6 49.5 12.2 46 14.6C43.6 16.3 42.6 19.6 41.6 23.4C39.3 23.2 37.2 21.6 36.6 19ZM32.6 12.5a4.6 4.6 0 1 0 9.2 0a4.6 4.6 0 1 0-9.2 0Z',
+  pony: 'M36.6 19C35.5 10 41 6.5 47.5 6.6C54 6.7 58 10.5 57.6 15C54.5 12.6 49.5 12.2 46 14.6C43.6 16.3 42.6 19.6 41.6 23.4C39.3 23.2 37.2 21.6 36.6 19ZM37.4 14C31 15 29 22 31 30C33 26 35.4 22 38.6 20Z',
+};
+// The people: one look and their own words per team (the card shows the short line, the side panel the intro).
 const OFFICE_PEOPLE = {
-  plan: { short: '다음 할 일을 정해요', intro: '다음에 할 일 하나를 고르고, 누가 맡을지 정해요.' },
-  research: { short: '출처를 찾아 저장해요', intro: '공식 출처를 찾아서 원문까지 저장해 둘게요.' },
-  dev: { short: '코드를 쓰고 테스트해요', intro: '코드를 쓰고, 테스트로 확인한 다음 넘길게요.' },
-  design: { short: '화면을 보기 좋게 다듬어요', intro: '휴대폰에서도 편하게 보이도록 화면을 만들어요.' },
-  security: { short: '위험한 코드를 살펴봐요', intro: '비밀정보나 위험한 코드가 섞이지 않았는지 봐요.' },
-  policy: { short: '약관·개인정보를 봐요', intro: '라이선스·약관·개인정보를 꼼꼼하게 봐요.' },
-  qa: { short: '조건을 증거로 확인해요', intro: '완료 조건을 하나씩 증거로 확인해요.' },
+  plan: { skin: '#E9C4A6', hairColor: '#2F2A28', hair: 'short', short: '다음 할 일을 정해요', intro: '다음에 할 일 하나를 고르고, 누가 맡을지 정해요.' },
+  research: { skin: '#D7A887', hairColor: '#4A3B32', hair: 'curly', specs: true, short: '출처를 찾아 저장해요', intro: '공식 출처를 찾아서 원문까지 저장해 둘게요.' },
+  dev: { skin: '#F0CFB4', hairColor: '#1F1F23', hair: 'short', short: '코드를 쓰고 테스트해요', intro: '코드를 쓰고, 테스트로 확인한 다음 넘길게요.' },
+  design: { skin: '#EBC7A9', hairColor: '#3B2F2A', hair: 'long', short: '화면을 보기 좋게 다듬어요', intro: '휴대폰에서도 편하게 보이도록 화면을 만들어요.' },
+  security: { skin: '#B57D5E', hairColor: '#1F1F23', hair: 'buzz', short: '위험한 코드를 살펴봐요', intro: '비밀정보나 위험한 코드가 섞이지 않았는지 봐요.' },
+  policy: { skin: '#DDB291', hairColor: '#5A4033', hair: 'bun', specs: true, short: '약관·개인정보를 봐요', intro: '라이선스·약관·개인정보를 꼼꼼하게 봐요.' },
+  qa: { skin: '#C68F6E', hairColor: '#2F2A28', hair: 'pony', short: '조건을 증거로 확인해요', intro: '완료 조건을 하나씩 증거로 확인해요.' },
 };
-// The avatar's centre at its desk; a visitor stands on the top edge of the desk it brings work to (clear of its name), and each team has
-// its own spot along the top of 대장's desk.
-const officeSeat = (id) => [OFFICE_DESKS[id][0] + 34, OFFICE_DESKS[id][1] + 34];
+const officeLook = (id) => { const p = OFFICE_PEOPLE[id] || OFFICE_PEOPLE.dev; return { skin: p.skin, hairColor: p.hairColor, hair: OFFICE_HAIR[p.hair], specs: !!p.specs }; };
+// Where a person stands up from (beside the chair), where a visitor stops (left of the chair it brings work to), and
+// each team's own spot to the left of 대장's desk.
+const officeSeat = (id) => [OFFICE_DESKS[id][0] + 40, OFFICE_DESKS[id][1] + 104];
 const officeStand = (id, who) => {
-  if (id !== 'boss') return [OFFICE_DESKS[id][0] + 152, OFFICE_DESKS[id][1] - 6];
+  if (id !== 'boss') return [OFFICE_DESKS[id][0] - 2, OFFICE_DESKS[id][1] + 106];
   const i = Math.max(0, OFFICE_ORDER.indexOf(who));
-  return [446 + i * 22, 446];
+  return [376 - i * 12, 568];
 };
-// Walkers live outside the render tree: a refresh rebuilds the page, but an avatar halfway to a desk keeps moving
+// Walkers live outside the render tree: a refresh rebuilds the page, but someone halfway to a desk keeps walking
 // (each frame sets the new element's position from the clock, and the render reads the same position).
 // lastId: the newest hand-off already shown. The first look at the engine's records only notes it, so a reload or a
 // reconnect never replays an old hand-off; each new team.handoff event (by its stored id) plays once.
@@ -1924,25 +2007,28 @@ function officePlay(handoffs, now) {
   list.forEach((e) => {
     if (e.id <= OFFICE.lastId) return;
     OFFICE.lastId = e.id;
-    if (officeReduce()) return; // the 최근 인계 list says it in words; nobody moves
+    if (officeReduce()) return; // the 최근 인계 list says it in words; nobody walks
     const courier = e.from === 'boss' ? e.to : e.from;
     if (!OFFICE_DESKS[courier]) return;
     const home = officeSeat(courier), there = e.from === 'boss' || e.to === 'boss' ? officeStand('boss', courier) : OFFICE_DESKS[e.to] ? officeStand(e.to) : null;
     if (!there) return;
     const t0 = OFFICE.walkers.filter((w) => w.team === courier).reduce((t, w) => Math.max(t, w.end), now);
-    const dur = Math.max(800, Math.min(2200, Math.hypot(there[0] - home[0], there[1] - home[1]) / 0.32));
-    OFFICE.walkers.push({ key: 'h' + e.id, team: courier, home: home, there: there, t0: t0, dur: dur, end: t0 + dur * 2 + 600 });
+    const dur = Math.max(1000, Math.min(3200, Math.hypot(there[0] - home[0], there[1] - home[1]) / 0.2));
+    OFFICE.walkers.push({ key: 'h' + e.id, team: courier, home: home, there: there, t0: t0, dur: dur, end: t0 + dur * 2 + 700 });
   });
   if (OFFICE.walkers.length) officeAnimate();
 }
-// Where a walker is now: out with the paper (eased), a short stop at the desk, then back empty-handed.
+// Where a walker is now: out with the paper, a short stop at the desk, then back empty-handed — facing the way they go.
 function officeWalkerAt(w, now) {
   const t = now - w.t0;
   if (t < 0 || now >= w.end) return null;
-  const back = t >= w.dur + 600;
-  const k = t < w.dur ? t / w.dur : back ? 1 - Math.min(1, (t - w.dur - 600) / w.dur) : 1;
-  const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-  return { x: Math.round(w.home[0] + (w.there[0] - w.home[0]) * e), y: Math.round(w.home[1] + (w.there[1] - w.home[1]) * e), carrying: !back };
+  const back = t >= w.dur + 700;
+  const k = t < w.dur ? t / w.dur : back ? 1 - Math.min(1, (t - w.dur - 700) / w.dur) : 1;
+  const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+  const moving = t < w.dur || back;
+  const right = (w.there[0] >= w.home[0]) !== back;
+  return { x: Math.round(w.home[0] + (w.there[0] - w.home[0]) * e), y: Math.round(w.home[1] + (w.there[1] - w.home[1]) * e),
+    carrying: !back, dir: right ? 1 : -1, step: moving ? (Math.floor(t / 190) % 2 ? 'step-a' : 'step-b') : '' };
 }
 function officeAnimate() {
   if (OFFICE.frame) return;
@@ -1956,7 +2042,11 @@ function officeAnimate() {
       const el = document.querySelector('[data-walker="' + w.key + '"]');
       if (!el) { redraw = redraw || here; return; }
       el.setAttribute('transform', 'translate(' + p.x + ',' + p.y + ')');
+      const flip = el.querySelector('.of-flip');
+      if (flip) flip.setAttribute('transform', 'scale(' + p.dir + ',1)');
       el.classList.toggle('empty', !p.carrying);
+      el.classList.toggle('step-a', p.step === 'step-a');
+      el.classList.toggle('step-b', p.step === 'step-b');
     });
     if (redraw) scheduleRender();
     OFFICE.frame = OFFICE.walkers.length ? requestAnimationFrame(step) : 0;
@@ -3297,19 +3387,24 @@ class Component extends DCLogic {
       const mode = running.length ? (t.id === 'qa' ? 'verifying' : 'working') : asking.length ? 'asking' : stopped.length ? 'stopped'
         : usage.length ? 'usage' : queued.length ? 'queued' : 'idle';
       // The card has room for a short state and one line of about 13 characters; project names live in the side panel.
-      const state = { working: running.length > 1 ? running.length + '건 작업 중' : '작업 중', verifying: '검증 중', asking: '대장 답 기다림 ' + asking.length + '건',
-        stopped: '멈춤', usage: '사용량 기다림', queued: '다음 차례', idle: '쉬는 중' }[mode];
+      const state = { working: running.length > 1 ? running.length + '건 작업 중' : '작업 중', verifying: '검증 중', asking: '대장 답 기다림',
+        stopped: '멈춤', usage: '사용량 대기', queued: '다음 차례', idle: '쉬는 중' }[mode];
       const person = OFFICE_PEOPLE[t.id] || {};
       const intro = person.intro || '';
       const named = (list) => !list.length ? '' : clip(list[0].p.name, list.length > 1 ? 7 : 13) + (list.length > 1 ? ' 외 ' + (list.length - 1) + '개' : '');
       const line = { working: clip(doing, 14), verifying: clip(doing, 14), asking: named(asking), stopped: named(stopped),
         usage: named(usage), queued: named(queued), idle: person.short || '' }[mode];
       const away = OFFICE.walkers.some((w) => w.team === t.id && now >= w.t0 && now < w.end);
-      return { id: t.id, x: xy[0], y: xy[1], name: t.name, state: state, line: line, mode: mode, intro: intro,
-        lineCls: 'of-line' + ({ working: ' run', verifying: ' run', asking: ' attn', stopped: ' stop' }[mode] || ''),
-        cls: 'of-desk team-' + t.id + ' ' + mode + (sel === t.id ? ' sel' : ''), avCls: 'of-av' + (away ? ' away' : ''), dotCls: 'of-dot ' + mode,
-        typing: running.length > 0, aria: t.name + ' · ' + state + (line ? ' · ' + line : '') + (sel === t.id ? ' (선택됨)' : ''),
-        pick: pickSel(t.id), key: keyed(pickSel(t.id)), mine: mine, asking: asking, doing: doing, running: running };
+      // What they say: the step's latest activity over the screen while working, a word to 대장 when asking or stuck.
+      const say = { working: clip(doing, 16), verifying: clip(doing, 16), asking: '대장님, 확인 부탁드려요', stopped: '도움이 필요해요' }[mode] || '';
+      const sw = Math.round(Math.min(176, say.length * 11.5 + 22)), sx = ['working', 'verifying'].includes(mode) ? 178 - sw : 22;
+      return Object.assign(officeLook(t.id), { id: t.id, x: xy[0], y: xy[1], name: t.name, state: state, line: line, mode: mode, intro: intro,
+        cls: 'of-desk team-' + t.id + ' ' + mode + (sel === t.id ? ' sel' : ''), personCls: 'of-person' + (away ? ' away' : ''), dotCls: 'of-dot ' + mode,
+        lean: { working: 5, verifying: 5, asking: 0, stopped: 2 }[mode] ?? -4,
+        poseType: ['working', 'verifying'].includes(mode), poseRaise: mode === 'asking', poseHead: mode === 'stopped', poseLap: ['queued', 'usage'].includes(mode), poseMug: mode === 'idle',
+        hasSay: !!say && !away, say: say, sw: sw, sx: sx, tx: sx + Math.round(sw / 2), sayCls: 'of-say' + (mode === 'asking' ? ' ask' : mode === 'stopped' ? ' stop' : ''),
+        aria: t.name + ' · ' + state + (line ? ' · ' + line : '') + (sel === t.id ? ' (선택됨)' : ''),
+        pick: pickSel(t.id), key: keyed(pickSel(t.id)), mine: mine, asking: asking, doing: doing, running: running });
     });
     const count = (modes) => desks.filter((d) => modes.includes(d.mode)).length;
     const working = desks.filter((d) => ['working', 'verifying'].includes(d.mode));
@@ -3336,7 +3431,8 @@ class Component extends DCLogic {
     }));
     if (!usageLine.length) usageLine.push({ l: '확인 전', v: '', cls: '' });
     const walkers = OFFICE.walkers.map((w) => ({ w: w, p: officeWalkerAt(w, now) })).filter((x) => x.p)
-      .map((x) => ({ key: x.w.key, x: x.p.x, y: x.p.y, cls: 'of-walker team-' + x.w.team + (x.p.carrying ? '' : ' empty') }));
+      .map((x) => Object.assign(officeLook(x.w.team), { key: x.w.key, x: x.p.x, y: x.p.y, dir: x.p.dir,
+        cls: 'of-walker team-' + x.w.team + (x.p.carrying ? '' : ' empty') + (x.p.step ? ' ' + x.p.step : '') }));
     // 최근 인계: the same records in words — always there, and all there is when motion is off.
     const nameOf = (id) => id === 'boss' ? '대장' : TEAM_NAME[id] || id;
     const projName = (pid) => { const p = P.find((x) => x.id === pid); return p ? clip(p.name, 16) : ''; };
@@ -3367,9 +3463,9 @@ class Component extends DCLogic {
       summary: 'AI 팀 사무실 · ' + lede + (working.length ? ' · ' + working.map((d) => d.name + ' ' + d.state).join(', ') : ''),
       chips: [['run', count(['working', 'verifying']), '일하는 중'], ['wait', count(['queued', 'usage']), '차례 기다림'], ['stop', count(['stopped']), '멈춤'], ['boss', pendingTotal, '대장 확인']]
         .map((c) => ({ cls: 'of-chip ' + c[0], n: c[1], l: c[2] })),
-      boss: { n: pendingTotal, has: pendingTotal > 0, cls: 'of-boss' + (pendingTotal ? ' has' : ''), state: pendingTotal ? '확인할 일 ' + pendingTotal + '건' : '확인할 일 없음',
+      boss: { n: pendingTotal, has: pendingTotal > 0, cls: 'of-boss' + (pendingTotal ? ' has' : ''), dot: pendingTotal ? 'asking' : '', state: pendingTotal ? '확인할 일 ' + pendingTotal + '건' : '확인할 일 없음',
         line: pendingTotal ? '누르면 승인함에서 차례로 처리합니다' : '팀이 결정을 기다리면 여기에 쌓입니다',
-        papers: Array.from({ length: Math.min(pendingTotal, 4) }, (_, i) => ({ x: 160 + i * 3, y: 22 - i * 3 })),
+        papers: Array.from({ length: Math.min(pendingTotal, 6) }, (_, i) => ({ x: 150 + (i % 2), y: 55 - i * 3.4 })),
         aria: '대장 자리 · ' + (pendingTotal ? '확인할 일 ' + pendingTotal + '건 · 승인함 열기' : '확인할 일 없음'), go: () => this.go('inbox'), key: keyed(() => this.go('inbox')) },
       guard: { state: obs ? '최근 7일 허용 ' + obs.sentinel.allow + ' · 막음 ' + obs.sentinel.deny : '관측 기록 확인 전',
         aria: '감시 에이전트 · ' + (obs ? '최근 7일 허용 ' + obs.sentinel.allow + '번, 막음 ' + obs.sentinel.deny + '번' : '') + ' · 관측 화면 열기',
