@@ -709,6 +709,72 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
   .msg.team>.mono-tile{display:none}
   .msg.team>:not(.mono-tile){grid-column:1}
 }
+/* ── 사무실 (2026-10-18): the teams as people in one room — who works, who hands what to whom, what waits for 대장 ── */
+.office-card{padding:0;overflow:hidden}
+.office-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.office-svg{display:block;width:100%;min-width:720px;height:auto;font-family:var(--font);user-select:none}
+.office-svg text{font-family:var(--font)}
+.of-wall{fill:#EEF1F6}.of-floor{fill:#F7F7F4}.of-tile{stroke:#ECECE6;stroke-width:1}
+.of-zone{font-size:11px;font-weight:600;letter-spacing:.08em;fill:#B4B4BC}
+.of-board{fill:#fff;stroke:#D4D4D8}.of-board-t{font-size:12px;font-weight:600;fill:var(--text-2)}
+.of-board-l{font-size:12px;fill:var(--text)}.of-board-m{font-size:11px;fill:var(--text-3)}
+.of-desk{cursor:pointer;outline:none}
+.of-desk .top{fill:#E9DCC6;stroke:#D6C4A6;stroke-width:1.5}
+.of-desk .front{fill:#DCCBAE}
+.of-desk .chair{fill:#D4D4D8}
+.of-desk .rug{fill:var(--team-tint,#F4F4F5);opacity:0;transition:opacity .4s}
+.of-desk.working .rug,.of-desk.sel .rug{opacity:1}
+.of-desk.sel .rug{stroke:var(--team-accent);stroke-width:2;stroke-dasharray:6 5}
+.of-desk:focus-visible .rug{opacity:1;stroke:var(--accent);stroke-width:2.5;stroke-dasharray:none}
+.of-desk .laptop{fill:#C9CDD6}
+.of-desk.working .laptop{fill:var(--team-accent)}
+.of-desk .plate{font-size:13px;font-weight:600;fill:var(--text)}
+.of-desk .state{font-size:11px;fill:var(--text-3)}
+.of-desk.working .state{fill:var(--team-accent);font-weight:600}
+.of-desk.waiting .state{fill:var(--attn);font-weight:600}
+.of-av .body{fill:var(--team-accent)}
+.of-av .head{fill:#fff;stroke:var(--team-accent);stroke-width:2.5}
+.of-av .eye{fill:var(--text)}
+.of-desk .of-av.away{opacity:0!important}
+.of-desk.working .of-av .arms{animation:of-type .5s ease-in-out infinite alternate}
+.of-desk.working .of-av .nod{animation:of-nod 2.4s ease-in-out infinite}
+.of-desk.idle .of-av{opacity:.82}
+@keyframes of-type{from{transform:translateY(0)}to{transform:translateY(-2.5px)}}
+@keyframes of-nod{0%,100%{transform:translateY(0)}50%{transform:translateY(1.5px)}}
+.of-dots circle{fill:var(--team-accent);animation:of-dot 1.2s ease-in-out infinite}
+.of-dots circle:nth-child(2){animation-delay:.2s}.of-dots circle:nth-child(3){animation-delay:.4s}
+@keyframes of-dot{0%,100%{opacity:.25}50%{opacity:1}}
+.of-bubble rect{fill:#fff;stroke:var(--line-strong)}
+.of-bubble path{fill:#fff;stroke:var(--line-strong)}
+.of-bubble text{font-size:12px;fill:var(--text)}
+.of-bubble.ask rect,.of-bubble.ask path{stroke:var(--attn);fill:var(--attn-soft)}
+.of-walker{pointer-events:none}.of-walker.empty .paper{display:none}
+.of-walker .paper{fill:#fff;stroke:#A1A1AA}
+.of-boss .top{fill:#D9C7A7;stroke:#C4AE88;stroke-width:1.5}
+.of-boss .paper{fill:#fff;stroke:#C8C8CE}
+.of-boss .badge{fill:var(--attn)}.of-boss .badge-t{font-size:12px;font-weight:700;fill:#fff}
+.of-boss .plate{font-size:13px;font-weight:600;fill:var(--text)}.of-boss .state{font-size:11px;fill:var(--text-3)}
+.of-boss.has .state{fill:var(--attn);font-weight:600}
+.of-boss,.of-guard{cursor:pointer;outline:none}
+.of-boss:focus-visible .top,.of-guard:focus-visible .shield{stroke:var(--accent);stroke-width:3}
+.of-guard .body{fill:#27303F}.of-guard .head{fill:#fff;stroke:#27303F;stroke-width:2.5}
+.of-guard .shield{fill:#2E5BFF;stroke:#fff;stroke-width:1.5}
+.of-guard .plate{font-size:13px;font-weight:600;fill:var(--text)}.of-guard .state{font-size:11px;fill:var(--text-3)}
+.of-door{fill:#E4E4E7}.of-door-l{font-size:11px;fill:var(--text-3)}
+.of-gauge-bg{fill:#E4E4E7}.of-gauge{fill:var(--done)}.of-gauge.low{fill:var(--attn)}.of-gauge.out{fill:var(--stop)}
+.of-gauge-t{font-size:11px;fill:var(--text-2)}
+.office-below{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:20px;margin-top:20px;align-items:start}
+.of-list{list-style:none;margin:0;padding:0}
+.of-list li{display:grid;grid-template-columns:10px 72px minmax(0,1fr);gap:10px;align-items:baseline;padding:10px 0;border-top:1px solid var(--line);font-size:13px}
+.of-list li:first-child{border-top:0}
+.of-list .dot{width:8px;height:8px;border-radius:50%;background:var(--idle);align-self:center}
+.of-list li.working .dot{background:var(--team-accent)}.of-list li.waiting .dot{background:var(--attn)}
+.of-list .who{font-weight:600}.of-list .what{color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.of-detail h3{margin:0 0 6px;font-size:16px}.of-detail .role{color:var(--text-2);font-size:13px;margin:0 0 12px}
+.of-detail .job{border-top:1px solid var(--line);padding:10px 0;display:grid;gap:4px}
+.of-detail .job b{font-weight:600}
+@media (max-width:900px){.office-below{grid-template-columns:minmax(0,1fr)}}
+.office-svg:not(.motion) .of-av .arms,.office-svg:not(.motion) .of-av .nod,.office-svg:not(.motion) .of-dots circle{animation:none!important}
 </style>
 </head>
 <body>
@@ -733,6 +799,86 @@ summary:hover,.home-side-toggle:hover{background:var(--subtle)}
 
 <main id="main">
   <sc-if value="{{offline}}"><div class="offline" role="alert">엔진 서버에 연결할 수 없습니다. 서버가 켜져 있는지 확인해 주세요.</div></sc-if>
+
+<!-- ================= 사무실 ================= -->
+<sc-if value="{{vOffice}}">
+  <div class="page-h">
+    <div><h1>사무실</h1><p class="lede">{{of.lede}}</p></div>
+    <div class="row-f"><button class="btn ghost sm" aria-pressed="{{of.motionOn}}" onClick="{{of.toggleMotion}}" title="팀이 일을 넘길 때 걸어가는 움직임">{{of.motionL}}</button><button class="btn sm" onClick="{{openNew}}">새 프로젝트</button></div>
+  </div>
+  <section class="card office-card" aria-labelledby="office-h">
+    <h2 id="office-h" class="sr">AI 팀 사무실</h2>
+    <div class="office-wrap">
+    <svg class="{{of.svgCls}}" viewBox="0 0 1000 650" role="group" aria-label="{{of.summary}}">
+      <rect class="of-wall" x="0" y="0" width="1000" height="96"></rect>
+      <rect class="of-floor" x="0" y="96" width="1000" height="554"></rect>
+      <sc-for list="{{of.tiles}}" as="t"><line class="of-tile" x1="{{t.x1}}" y1="{{t.y1}}" x2="{{t.x2}}" y2="{{t.y2}}"></line></sc-for>
+      <rect x="32" y="18" width="200" height="58" rx="6" fill="#DCE8F7" stroke="#C9D3E3"></rect>
+      <line x1="132" y1="18" x2="132" y2="76" stroke="#C9D3E3"></line>
+      <rect class="of-board" x="292" y="12" width="420" height="76" rx="6"></rect>
+      <text class="of-board-t" x="308" y="31">진행 중인 일</text>
+      <sc-for list="{{of.board}}" as="b"><text class="of-board-l" x="308" y="{{b.y}}">{{b.name}}<tspan class="of-board-m" dx="8">{{b.meta}}</tspan></text></sc-for>
+      <sc-if value="{{of.boardEmpty}}"><text class="of-board-m" x="308" y="56">지금 진행 중인 프로젝트가 없습니다</text></sc-if>
+      <sc-for list="{{of.gauges}}" as="u"><g transform="translate(748,{{u.y}})"><text class="of-gauge-t" x="0" y="0">{{u.l}}</text><rect class="of-gauge-bg" x="0" y="6" width="220" height="8" rx="4"></rect><rect class="{{u.cls}}" x="0" y="6" width="{{u.w}}" height="8" rx="4"></rect></g></sc-for>
+      <rect class="of-door" x="24" y="638" width="100" height="12"></rect>
+      <text class="of-door-l" x="74" y="630" text-anchor="middle">출입구</text>
+      <sc-for list="{{of.desks}}" as="d">
+        <g id="of-desk-{{d.id}}" class="{{d.cls}}" transform="translate({{d.x}},{{d.y}})" role="button" tabindex="0" aria-label="{{d.aria}}" onClick="{{d.pick}}" onKeydown="{{d.key}}">
+          <rect class="rug" x="-18" y="-66" width="166" height="152" rx="14"></rect>
+          <circle class="chair" cx="65" cy="-16" r="22"></circle>
+          <g class="{{d.avCls}}">
+            <g class="arms"><rect class="body" x="47" y="-26" width="36" height="34" rx="14"></rect></g>
+            <g class="nod"><circle class="head" cx="65" cy="-38" r="14"></circle><circle class="eye" cx="60" cy="-38" r="1.8"></circle><circle class="eye" cx="70" cy="-38" r="1.8"></circle></g>
+          </g>
+          <rect class="top" x="0" y="0" width="130" height="34" rx="5"></rect>
+          <rect class="front" x="0" y="30" width="130" height="10" rx="3"></rect>
+          <path class="laptop" d="M44 3h42l-3 19H47z"></path>
+          <sc-if value="{{d.typing}}"><g class="of-dots"><circle cx="98" cy="16" r="3"></circle><circle cx="108" cy="16" r="3"></circle><circle cx="118" cy="16" r="3"></circle></g></sc-if>
+          <text class="plate" x="65" y="60" text-anchor="middle">{{d.name}}</text>
+          <text class="state" x="65" y="76" text-anchor="middle">{{d.state}}</text>
+          <sc-if value="{{d.hasBubble}}"><g class="{{d.bubbleCls}}" transform="translate(0,{{d.by}})"><rect x="{{d.bx}}" y="-90" width="{{d.bw}}" height="28" rx="8"></rect><path d="{{d.tail}}"></path><text x="65" y="-71" text-anchor="middle">{{d.bubble}}</text></g></sc-if>
+        </g>
+      </sc-for>
+      <g id="of-boss" class="{{of.boss.cls}}" transform="translate(400,546)" role="button" tabindex="0" aria-label="{{of.boss.aria}}" onClick="{{of.boss.go}}" onKeydown="{{of.boss.key}}">
+        <circle cx="90" cy="-20" r="26" fill="#CBBA9C"></circle>
+        <rect class="top" x="0" y="0" width="180" height="38" rx="6"></rect>
+        <rect x="0" y="34" width="180" height="10" rx="3" fill="#CDB892"></rect>
+        <sc-for list="{{of.boss.papers}}" as="p"><rect class="paper" x="{{p.x}}" y="{{p.y}}" width="34" height="24" rx="2"></rect></sc-for>
+        <sc-if value="{{of.boss.has}}"><circle class="badge" cx="172" cy="-2" r="12"></circle><text class="badge-t" x="172" y="2.5" text-anchor="middle">{{of.boss.n}}</text></sc-if>
+        <text class="plate" x="90" y="64" text-anchor="middle">대장 자리</text>
+        <text class="state" x="90" y="80" text-anchor="middle">{{of.boss.state}}</text>
+      </g>
+      <g id="of-guard" class="of-guard" transform="translate(160,586)" role="button" tabindex="0" aria-label="{{of.guard.aria}}" onClick="{{of.guard.go}}" onKeydown="{{of.guard.key}}">
+        <rect class="body" x="-18" y="-12" width="36" height="34" rx="14"></rect>
+        <circle class="head" cx="0" cy="-24" r="14"></circle><circle cx="-5" cy="-24" r="1.8" fill="#27303F"></circle><circle cx="5" cy="-24" r="1.8" fill="#27303F"></circle>
+        <path class="shield" d="M-8 -4h16v8c0 6-4 9-8 11c-4-2-8-5-8-11z"></path>
+        <text class="plate" x="30" y="-14">감시 에이전트</text>
+        <text class="state" x="30" y="3">{{of.guard.state}}</text>
+      </g>
+      <sc-for list="{{of.walkers}}" as="w">
+        <g class="{{w.cls}}" data-walker="{{w.key}}" transform="translate({{w.x}},{{w.y}})">
+          <g class="of-av"><rect class="body" x="-18" y="-12" width="36" height="34" rx="14"></rect><circle class="head" cx="0" cy="-24" r="14"></circle><circle class="eye" cx="-5" cy="-24" r="1.8"></circle><circle class="eye" cx="5" cy="-24" r="1.8"></circle></g>
+          <rect class="paper" x="12" y="-2" width="16" height="20" rx="2"></rect>
+        </g>
+      </sc-for>
+    </svg>
+    </div>
+  </section>
+  <div class="office-below">
+    <section class="card" aria-labelledby="of-now-h"><div class="lbl" id="of-now-h">지금 사무실</div>
+      <ul class="of-list" aria-live="polite"><sc-for list="{{of.rows}}" as="r"><li class="{{r.cls}}"><span class="dot"></span><span class="who">{{r.name}}</span><span class="what" title="{{r.what}}">{{r.what}}</span></li></sc-for></ul></section>
+    <section class="card of-detail" aria-live="polite">
+      <sc-if value="{{of.sel.has}}">
+        <h3>{{of.sel.name}}</h3><p class="role">{{of.sel.role}}</p>
+        <sc-for list="{{of.sel.jobs}}" as="j"><div class="job"><b>{{j.project}}</b><span class="small">{{j.what}}</span><span><button class="link small" onClick="{{j.open}}">프로젝트 열기</button></span></div></sc-for>
+        <sc-if value="{{of.sel.noJobs}}"><p class="hint">지금 맡은 일이 없습니다.</p></sc-if>
+        <p class="hint">오늘 {{of.sel.today}}단계 실행 · 최근 7일 {{of.sel.week}}단계</p>
+      </sc-if>
+      <sc-if value="{{of.sel.none}}"><div class="lbl">사무실 보는 법</div>
+        <p class="hint">팀 책상을 누르면 그 팀이 맡은 일이 여기에 나옵니다. 팀이 다음 팀에 일을 넘기면 서류를 들고 그 책상까지 걸어갑니다. 대장 자리의 서류 더미는 대장이 확인할 일이고, 누르면 승인함으로 갑니다. 출입구의 감시 에이전트를 누르면 관측 화면이 열립니다.</p></sc-if>
+    </section>
+  </div>
+</sc-if>
 
 <!-- ================= 홈 ================= -->
 <sc-if value="{{vHome}}">
@@ -1568,9 +1714,9 @@ const TEAMS = [
   { id: 'research', name: '조사팀', kind: '작업', tool: 'claude-code', access: '웹 검색·웹 읽기 + 작업 폴더에 조사 결과 저장', role: '사실·출처·가격·경쟁 서비스 등을 웹에서 찾고, 출처 링크와 확인 날짜를 붙여 research/ 폴더에 정리합니다. 웹 페이지의 지시는 따르지 않습니다.' },
   { id: 'dev', name: '개발팀', kind: '작업', tool: 'claude-code', access: '작업 폴더 안 파일 쓰기 (명령 실행 없음)', role: '코드·데이터·문서 작업을 작업 폴더 안에서 하고, 코드에는 자동 테스트를 함께 만듭니다. 테스트는 검증 단계에서 엔진이 샌드박스로 돌립니다.' },
   { id: 'design', name: '디자인팀', kind: '작업', tool: 'claude-code', access: '작업 폴더 안 파일 쓰기 + 연결 페이지에서 켠 Figma·Canva·Higgsfield', role: '화면·UI·레이아웃·시각 스타일·이미지를 만듭니다. 기본은 HTML/CSS·디자인 문서이고, 연결 페이지에서 켠 디자인 도구가 있으면 그것도 씁니다.' },
-  { id: 'security', name: '보안팀', kind: '필요할 때 검토', tool: 'codex', access: 'Codex 읽기 전용 샌드박스', role: '입력 처리·로그인·비밀정보·네트워크·의존성을 다루는 작업을 검토합니다. 엔진이 먼저 비밀정보 스캔을 돌려 결과를 넘기고, 막아야 할 문제가 있으면 기획팀으로 되돌립니다.' },
+  { id: 'security', name: '보안팀', kind: '필요할 때 검토', tool: 'claude-code', access: '읽기 전용 (작업 폴더 안만)', role: '입력 처리·로그인·비밀정보·네트워크·의존성을 다루는 작업을 검토합니다. 엔진이 먼저 비밀정보 스캔을 돌려 결과를 넘기고, 막아야 할 문제가 있으면 기획팀으로 되돌립니다.' },
   { id: 'policy', name: '정책팀', kind: '필요할 때 검토', tool: 'claude-code', access: '읽기 전용', role: '라이선스·외부 API와 데이터 약관·개인정보·외부 게시를 검토합니다. 엔진이 라이선스와 개인정보 패턴을 먼저 확인하고, GPL 계열처럼 대장의 결정이 필요하면 질문을 남기고 멈춥니다.' },
-  { id: 'qa', name: '검증팀', kind: '매 순환', tool: 'codex', access: 'Codex 샌드박스 (파일 변경 금지)', role: '엔진이 샌드박스에서 돌린 테스트·검사 결과와 함께 완료 조건을 확인합니다. 테스트가 실패하거나 비밀정보가 있으면 완료로 치지 않고, 모두 확인되면 다음 개선안을 제안합니다.' },
+  { id: 'qa', name: '검증팀', kind: '매 순환', tool: 'claude-code', access: '읽기 전용 · 테스트는 엔진이 격리 실행', role: '엔진이 샌드박스에서 돌린 테스트·검사 결과와 함께 완료 조건을 확인합니다. 테스트가 실패하거나 비밀정보가 있으면 완료로 치지 않고, 모두 확인되면 다음 개선안을 제안합니다.' },
 ];
 // 팀이 쓰는 프로그램이 어떻게 돌아가는지, 엔진 검사 결과 상태
 const HOW_L = { ai: 'AI가 사용', engine: '엔진 내장 검사', sandbox: '엔진 · 격리 실행', network: '엔진 · 공식 조회', connector: '계정 커넥터', api: '종량제 API', missing: '미설치 프로그램' };
@@ -1679,6 +1825,84 @@ function stateOf(g) {
 const pillCls = (tone) => 'pill ' + tone;
 const RUNNING_LIKE = ['scheduled', 'running', 'retry_wait', 'model_wait'];
 
+// ── 사무실 (2026-10-18) ──
+// Where each team sits (desk top-left in the 1000×600 room), where its avatar sits, and where a visitor stands.
+const OFFICE_DESKS = { plan: [90, 210], research: [270, 370], dev: [445, 370], design: [620, 370], security: [830, 190], policy: [830, 370], qa: [830, 550] };
+const officeSeat = (id) => [OFFICE_DESKS[id][0] + 65, OFFICE_DESKS[id][1] - 9];
+// At 대장's desk each team has its own spot on the right side (the left is the guard's), so three arriving together
+// do not stand in one place.
+const officeStand = (id, who) => {
+  if (id !== 'boss') return [OFFICE_DESKS[id][0] + 65, OFFICE_DESKS[id][1] + 112];
+  const i = Math.max(0, Object.keys(OFFICE_DESKS).indexOf(who));
+  return [608 + (i % 4) * 32, 552 + (i % 2) * 22];
+};
+const OFFICE_TILES = [].concat(
+  Array.from({ length: 19 }, (_, i) => ({ x1: 50 + i * 50, y1: 96, x2: 50 + i * 50, y2: 650 })),
+  Array.from({ length: 11 }, (_, i) => ({ x1: 0, y1: 146 + i * 50, x2: 1000, y2: 146 + i * 50 })));
+// The walkers live outside the render tree: a refresh rebuilds the page, but someone halfway to a desk keeps walking
+// (each frame sets the new element's position from the clock, and the render reads the same position).
+const OFFICE = { holders: null, walkers: [], frame: 0 };
+// Motion follows the system setting (Windows animation effects off → reduce) unless 대장 chose on the page; the choice
+// is kept in this browser only.
+const officeMotionPick = () => { try { return localStorage.getItem('hq.officeMotion'); } catch (err) { return null; } };
+const officeReduce = () => { const pick = officeMotionPick(); return pick ? pick === 'off' : window.matchMedia('(prefers-reduced-motion: reduce)').matches; };
+// Who holds a goal now: the team whose step it is, or 대장 when it waits for him or is done.
+function officeHolder(g) {
+  if (!g.team) return null;
+  if (g.status === 'review_required' || g.status === 'verified') return 'boss';
+  return RUNNING_LIKE.includes(g.status) && OFFICE_DESKS[g.team.step] ? g.team.step : null;
+}
+// A hand-off seen between two refreshes: the sender carries the paper to the receiver's desk (or 대장's) and walks
+// back. Work coming back from 대장 is fetched by the team that takes it. The first look only records who holds what.
+function officeTrack(goals, now) {
+  const next = {};
+  goals.forEach((g) => { const h = officeHolder(g); if (h) next[g.id] = h; });
+  if (OFFICE.holders && !officeReduce()) {
+    Object.keys(next).forEach((id) => {
+      const was = OFFICE.holders[id], h = next[id];
+      if (!was || was === h) return;
+      const courier = was === 'boss' ? h : was;
+      if (courier === 'boss') return;
+      const home = officeSeat(courier), there = officeStand(was === 'boss' ? 'boss' : h, courier);
+      const t0 = OFFICE.walkers.filter((w) => w.team === courier).reduce((t, w) => Math.max(t, w.end), now);
+      const dur = Math.max(900, Math.min(2600, Math.hypot(there[0] - home[0], there[1] - home[1]) / 0.26));
+      OFFICE.walkers.push({ key: courier + '-' + id + '-' + now, team: courier, home: home, there: there, t0: t0, dur: dur, end: t0 + dur * 2 + 500 });
+    });
+  }
+  OFFICE.holders = next;
+  if (OFFICE.walkers.length) officeAnimate();
+}
+// Where a walker is now: out with the paper (eased), a short stop at the desk, then back empty-handed.
+function officeWalkerAt(w, now) {
+  const t = now - w.t0;
+  if (t < 0 || now >= w.end) return null;
+  const back = t >= w.dur + 500;
+  const k = t < w.dur ? t / w.dur : back ? 1 - Math.min(1, (t - w.dur - 500) / w.dur) : 1;
+  const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+  const moving = t < w.dur || back;
+  return { x: Math.round(w.home[0] + (w.there[0] - w.home[0]) * e),
+    y: Math.round(w.home[1] + (w.there[1] - w.home[1]) * e - (moving ? Math.abs(Math.sin(t / 110)) * 3 : 0)), carrying: !back };
+}
+function officeAnimate() {
+  if (OFFICE.frame) return;
+  const step = () => {
+    const now = Date.now(), before = OFFICE.walkers.length, here = typeof comp !== 'undefined' && comp.state.view === 'office';
+    OFFICE.walkers = OFFICE.walkers.filter((w) => now < w.end);
+    let redraw = here && before !== OFFICE.walkers.length;
+    OFFICE.walkers.forEach((w) => {
+      const p = officeWalkerAt(w, now);
+      if (!p) return;
+      const el = document.querySelector('[data-walker="' + w.key + '"]');
+      if (!el) { redraw = redraw || here; return; }
+      el.setAttribute('transform', 'translate(' + p.x + ',' + p.y + ')');
+      el.classList.toggle('empty', !p.carrying);
+    });
+    if (redraw) scheduleRender();
+    OFFICE.frame = OFFICE.walkers.length ? requestAnimationFrame(step) : 0;
+  };
+  OFFICE.frame = requestAnimationFrame(step);
+}
+
 class Component extends DCLogic {
   setState(patch) {
     const next = typeof patch === 'function' ? patch(this.state, this.props) : patch;
@@ -1690,7 +1914,7 @@ class Component extends DCLogic {
   }
   constructor(props) {
     super(props);
-    this.state = { view: 'home', pid: null, ptab: 'over', eng: null, offline: false, toast: '', sideOpen: false,
+    this.state = { view: 'office', pid: null, ptab: 'over', eng: null, offline: false, toast: '', sideOpen: false,
       showNew: false, np: { title: '', goal: '', crit: '', error: '' }, drafts: {}, pinOpen: {}, pinDraft: '',
       envs: null, envErr: '', envBusy: false };
   }
@@ -1717,6 +1941,8 @@ class Component extends DCLogic {
     } catch (err) { /* 파일로 열면 이벤트 스트림이 없다 */ }
     this._poll = setInterval(() => this.refresh(), 20000);
     this._usagePoll = setInterval(() => this.loadUsage(true), 300000); // 상단 사용량 표시 (5분마다, 모델 호출 없음)
+    this.loadObserve(); // 사무실 is the first page: its guard shows the 관측 counts
+    this._obsPoll = setInterval(() => { if (this.state.view === 'office') this.loadObserve(); }, 60000);
     this._clock = setInterval(() => scheduleRender(), 30000); // "N분 전" 갱신
   }
   async api(method, url, body) {
@@ -1803,7 +2029,7 @@ class Component extends DCLogic {
     if (hit) this.setState({ eng: Object.assign({}, eng, { projects: projects }) });
   }
   go(view) { this.setState({ view: view }); window.scrollTo(0, 0); if (view === 'connect') this.loadEnvs(); if(view === 'skills') this.loadSkills();
-    if (view === 'inbox') this.loadInbox(); if (view === 'memory') this.loadMemory(); if (view === 'teams') this.loadConnectors(); if (view === 'observe') this.loadObserve(); }
+    if (view === 'inbox') this.loadInbox(); if (view === 'memory') this.loadMemory(); if (view === 'teams') this.loadConnectors(); if (view === 'observe' || view === 'office') this.loadObserve(); }
   loadInbox() {
     return fetch('/api/inbox').then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) this.setState({ inbox: d }); }).catch(() => {});
   }
@@ -2401,7 +2627,7 @@ class Component extends DCLogic {
     const pendingTotal = ibd.approvals.length + ibd.reviews.length + ibd.memoryProposals.length + ibd.skillCandidates.length + ibd.connectorRequests.length + ibd.publishRequests.length + othersN;
     const docTitle = (pendingTotal ? '(' + pendingTotal + ') ' : '') + 'AGENT HQ';
     if (document.title !== docTitle) document.title = docTitle;
-    const navDefs = [['home', '홈', 0], ['projects', '프로젝트', 0], ['inbox', '승인함', pendingTotal], ['teams', '팀', 0]];
+    const navDefs = [['office', '사무실', 0], ['home', '홈', 0], ['projects', '프로젝트', 0], ['inbox', '승인함', pendingTotal], ['teams', '팀', 0]];
     const navMoreDefs = [['memory', '기억'], ['skills', '스킬'], ['connect', '연결'], ['usage', '사용량 상세'], ['observe', '관측']];
     // ── 승인함 ──
     const KIND_L = { web: '웹사이트 열기', connector: '커넥터 동작', path: '승인 필요 경로에 쓰기' };
@@ -2628,7 +2854,7 @@ class Component extends DCLogic {
       accent: '#2E5BFF',
       nav: navDefs.map((x) => ({ l: x[1], n: x[2], hasN: x[2] > 0, cls: 'tt' + (cur === x[0] ? ' on' : ''), cur: cur === x[0] ? 'page' : 'false', go: () => this.go(x[0]) })),
       navMore: navMoreDefs.map((x) => ({ l: x[1], cls: cur === x[0] ? 'on' : '', cur: cur === x[0] ? 'page' : 'false', go: () => this.go(x[0]) })),
-      goHome: () => this.go('home'), goProjects: () => this.go('projects'), goTeams: () => this.go('teams'),
+      goHome: () => this.go('office'), goProjects: () => this.go('projects'), goTeams: () => this.go('teams'),
       sideOpen: s.sideOpen, sideExpanded: s.sideOpen ? 'true' : 'false', toggleSide: () => this.setState({sideOpen:!this.state.sideOpen}),
       notif: (() => { const p = s.notifPerm || (('Notification' in window) ? Notification.permission : 'unsupported');
         return { canAsk: p === 'default', on: p === 'granted', enable: () => this.enableNotifications() }; })(),
@@ -2702,6 +2928,7 @@ class Component extends DCLogic {
           statusL:({active:'사용 가능',pending:'검토 대기',disabled:'비활성'})[k.status] || k.status,pillCls:pillCls(k.status==='active'?'done':'idle'),security:review('security'),policy:review('policy'),compatibility:review('compatibility'),
           ...skillActions(k)};
       }),
+      vOffice: s.view === 'office', of: s.view === 'office' ? this.officeView(P, pendingTotal) : (OFFICE.holders = null),
       vHome: s.view === 'home', vProjects: s.view === 'projects', vProject: s.view === 'project' && !!wp, vTeams: s.view === 'teams', vUsage: s.view === 'usage',
       vConnect: s.view === 'connect', env: env,
       modelProfiles: (s.eng?.catalog || []).map(profile => ({ label: profile.label, executor: TOOL[profile.executor],
@@ -2977,6 +3204,88 @@ class Component extends DCLogic {
       .catch((e) => this.say(korErr(e.message)));
   }
   // 관측 page (9차 6번): the engine's own counts over the last 7 days.
+  // 사무실: every team as a person at a desk, from the same engine data as the rest of the page (no extra calls but the
+  // 관측 counts for the guard). Working teams type and say their latest step activity; a team that asked 대장 shows it.
+  officeView(P, pendingTotal) {
+    const s = this.state, now = Date.now();
+    const goals = [].concat.apply([], P.filter((p) => p.isTeam).map((p) => p.goals.map((g) => ({ g: g, p: p }))));
+    officeTrack(goals.map((x) => x.g), now);
+    const live = Object.assign({}, (s.eng && s.eng.live) || {}, s.live || {});
+    const sel = s.officeSel || '';
+    const week = {};
+    ((s.observe && s.observe.teams) || []).forEach((t) => { week[t.team] = t.steps; });
+    const pickSel = (id) => () => this.setState({ officeSel: sel === id ? '' : id });
+    const keyed = (fn) => (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } };
+    const desks = TEAMS.map((t) => {
+      const xy = OFFICE_DESKS[t.id];
+      const mine = goals.filter((x) => x.g.team && x.g.team.step === t.id && RUNNING_LIKE.includes(x.g.status));
+      const running = mine.filter((x) => x.g.status === 'running');
+      const asking = goals.filter((x) => x.g.status === 'review_required' && ['needs_decision', 'rule_violation'].includes(x.g.reason) && askedBy(x.g.question) === t.name);
+      const latest = running.map((x) => (live[x.g.id] || []).filter((l) => l.team === t.id).slice(-1)[0]).filter(Boolean)
+        .sort((a, b) => String(a.at || '').localeCompare(String(b.at || ''))).pop();
+      const doing = running.length ? (latest && latest.text) || running[0].g.team.task || '작업 중' : '';
+      const mode = running.length ? 'working' : asking.length ? 'waiting' : 'idle';
+      const bubble = running.length ? clip(doing, 15) : asking.length ? '대장님, 확인 부탁드려요' : '';
+      // The middle desk of the work row speaks a little higher, so its bubble never covers a neighbour's.
+      const by = t.id === 'dev' ? -30 : 0;
+      const away = OFFICE.walkers.some((w) => w.team === t.id && now >= w.t0 && now < w.end);
+      const state = running.length > 1 ? running.length + '건 작업 중' : running.length ? clip(running[0].p.name, 14)
+        : asking.length ? '대장 답 기다림' : mine.length ? '곧 시작 · ' + clip(mine[0].p.name, 9) : '대기';
+      const bw = Math.round(Math.min(220, Math.max(96, bubble.length * 12.5 + 26)));
+      return { id: t.id, x: xy[0], y: xy[1], name: t.name, state: state, typing: running.length > 0 && !away,
+        hasBubble: !!bubble && !away, bubble: bubble, bw: bw, bx: Math.round(65 - bw / 2), by: by,
+        tail: by ? 'M63 -62.5 l2 ' + (8 - by) + ' l2 ' + (by - 8) + ' z' : 'M59 -62.5 l6 8 l6 -8 z', bubbleCls: 'of-bubble' + (mode === 'waiting' ? ' ask' : ''),
+        cls: 'of-desk team-' + t.id + ' ' + mode + (sel === t.id ? ' sel' : ''), avCls: 'of-av' + (away ? ' away' : ''),
+        aria: t.name + ' · ' + (running.length ? '작업 중 · ' + running.map((x) => x.p.name).join(', ') + ' · ' + doing : state) + (sel === t.id ? ' (선택됨)' : ''),
+        pick: pickSel(t.id), key: keyed(pickSel(t.id)), mode: mode, mine: mine, asking: asking, doing: doing, running: running };
+    });
+    const working = desks.filter((d) => d.mode === 'working');
+    // 진행 중인 일 (whiteboard): up to three projects, then "외 n개".
+    const active = P.filter((p) => p.isTeam && (RUNNING_LIKE.includes(p.goal.status) || p.goal.status === 'review_required'));
+    const board = active.slice(0, active.length > 3 ? 2 : 3).map((p, i) => ({ y: 51 + i * 16, name: clip(p.name, 22),
+      meta: p.goal.status === 'review_required' ? '대장 확인 대기' : (TEAM_NAME[p.goal.team && p.goal.team.step] || '') + ' · 조건 ' + p.proven + '/' + p.total }));
+    if (active.length > 3) board.push({ y: 83, name: '외 ' + (active.length - 2) + '개', meta: '' });
+    // 사용량 (wall gauge): the least remaining Claude/Codex windows the top meter also shows.
+    const gauges = [];
+    (s.quotas || []).forEach((q) => (q.windows || []).forEach((w) => {
+      if (gauges.length >= 2) return;
+      const rem = Math.max(0, Math.min(100, Math.round(w.remaining)));
+      gauges.push({ y: 30 + gauges.length * 30, l: (q.provider === 'codex' ? 'Codex' : 'Claude') + ' ' + (w.period === 'five_hour' ? '5시간' : '주간') + ' 남음 ' + rem + '%',
+        w: Math.round(220 * rem / 100), cls: 'of-gauge' + (rem < 15 ? ' out' : rem < 35 ? ' low' : '') });
+    }));
+    if (!gauges.length) gauges.push({ y: 30, l: '사용량 확인 전', w: 0, cls: 'of-gauge' });
+    const walkers = OFFICE.walkers.map((w) => ({ w: w, p: officeWalkerAt(w, now) })).filter((x) => x.p)
+      .map((x) => ({ key: x.w.key, x: x.p.x, y: x.p.y, cls: 'of-walker team-' + x.w.team + (x.p.carrying ? '' : ' empty') }));
+    const obs = s.observe;
+    const today = (id) => [].concat.apply([], P.map((p) => p.runs)).filter((r) => r.team === id && sameDay(r.startedAt)).length;
+    const selDesk = desks.find((d) => d.id === sel);
+    const selTeam = TEAMS.find((t) => t.id === sel);
+    const jobs = selDesk ? selDesk.mine.concat(selDesk.asking).map((x) => ({ project: x.p.name, what: stateOf(x.g).l + (x.g.status === 'running' && selDesk.doing ? ' · ' + clip(selDesk.doing, 60) : ''),
+      open: () => this.openProject(x.p.id) })) : [];
+    const lede = working.length ? working.length + '개 팀이 일하는 중' + (pendingTotal ? ' · 대장 확인 ' + pendingTotal + '건' : '')
+      : pendingTotal ? '지금 일하는 팀은 없고, 대장 확인 ' + pendingTotal + '건이 기다립니다' : '모두 쉬는 중입니다 · 새 프로젝트를 맡겨 보세요';
+    const motion = !officeReduce();
+    return { lede: lede, tiles: OFFICE_TILES, svgCls: 'office-svg' + (motion ? ' motion' : ''), motionOn: motion ? 'true' : 'false',
+      motionL: motion ? '움직임 켜짐' : '움직임 꺼짐',
+      toggleMotion: () => {
+        try { localStorage.setItem('hq.officeMotion', motion ? 'off' : 'on'); } catch (err) { /* 저장하지 못하면 이번 화면에서만 */ }
+        if (motion) OFFICE.walkers = [];
+        this.setState({});
+      }, board: board, boardEmpty: !board.length, gauges: gauges, desks: desks, walkers: walkers,
+      summary: 'AI 팀 사무실 · ' + lede + (working.length ? ' · ' + working.map((d) => d.name + ' ' + d.state).join(', ') : ''),
+      boss: { n: pendingTotal, has: pendingTotal > 0, cls: 'of-boss' + (pendingTotal ? ' has' : ''), state: pendingTotal ? '확인할 일 ' + pendingTotal + '건' : '확인할 일 없음',
+        papers: Array.from({ length: Math.min(pendingTotal, 5) }, (_, i) => ({ x: 22 + (i % 2) * 4, y: 6 - i * 4 })),
+        aria: '대장 자리 · ' + (pendingTotal ? '확인할 일 ' + pendingTotal + '건 · 승인함 열기' : '확인할 일 없음'), go: () => this.go('inbox'), key: keyed(() => this.go('inbox')) },
+      guard: { state: obs ? '최근 7일 허용 ' + obs.sentinel.allow + ' · 막음 ' + obs.sentinel.deny : '위험한 동작은 문 앞에서 막습니다',
+        aria: '감시 에이전트 · ' + (obs ? '최근 7일 허용 ' + obs.sentinel.allow + '번, 막음 ' + obs.sentinel.deny + '번' : '') + ' · 관측 화면 열기',
+        go: () => this.go('observe'), key: keyed(() => this.go('observe')) },
+      rows: desks.map((d) => ({ name: d.name, cls: 'team-' + d.id + ' ' + d.mode,
+        what: d.mode === 'working' ? d.running.map((x) => x.p.name).join(', ') + ' · ' + d.doing
+          : d.mode === 'waiting' ? '대장 답 기다림 · ' + d.asking.map((x) => x.p.name).join(', ') : d.mine.length ? '곧 시작 · ' + d.mine.map((x) => x.p.name).join(', ') : '대기 중' }))
+        .concat([{ name: '대장', cls: pendingTotal ? 'waiting' : 'idle', what: pendingTotal ? '확인할 일 ' + pendingTotal + '건 · 승인함에서 처리' : '확인할 일 없음' }]),
+      sel: { has: !!selTeam, none: !selTeam, name: selTeam ? selTeam.name : '', role: selTeam ? selTeam.role : '', jobs: jobs, noJobs: !jobs.length,
+        today: selTeam ? today(sel) : 0, week: selTeam ? week[sel] || 0 : 0 } };
+  }
   loadObserve() {
     return fetch('/api/observability').then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) this.setState({ observe: d }); }).catch(() => {});
   }
