@@ -4,6 +4,7 @@ import path from 'node:path';
 import { FORBIDDEN_NAMES, WRITE_TOOLS, hasSecret } from './보안감시.js';
 import { CHART_NAMES } from './엑셀.js';
 import { SLIDE_TEXT } from './슬라이드.js';
+import { checkLinks, koreanNameIssues } from './링크검사.js';
 
 // The tool may claim a criterion is done, but only a check this engine runs itself counts as evidence.
 // Allowed checks are deliberately tiny and read-only, and confined to the project workspace.
@@ -33,6 +34,11 @@ export function reportInstructions(criteria, { verifying = false } = {}) {
     '  {"type":"stayed_inside"}  (the engine checks its own records: every step of this project ran under its write',
     '   limits, and the folder has no forbidden settings file (.claude, .codex, .mcp.json, CLAUDE.md, AGENTS.md, .env, .git),',
     '   no link and no secret-looking text; it proves only that part of a criterion, not what was read or guessed)',
+    '  {"type":"links_ok"}  (the engine reads every .html/.md/.css page in the work folder, decodes each local link (%20,',
+    '   한글), resolves it from that page and checks it opens a real file inside the folder with the same letter case;',
+    '   external https links are not followed. Use it for "링크·경로가 실제 파일로 이어진다")',
+    '  {"type":"korean_names"}  (every file the team made has 한글 in its name; index.html, package.json, README.md and',
+    '   the engine\'s own files are left out. Use it for "파일 이름이 한글이다")',
     '  {"type":"source_contains","source":"sources/…","text":"exact text","path":"relative/path"}  (the text is in a web',
     '   page original the engine itself saved under sources/, unchanged since; with "path", that file contains it too —',
     '   e.g. a version in research.md that matches the official page)',
@@ -139,7 +145,11 @@ export function parseReport(answer) {
 // file_updated compares with the fingerprints the engine took when a repeated round started (2026-10-02 routine test:
 // the engine proved "기록.md 이번 회차에 새로 생김", the verifier could not see that record and said not done, and the
 // team appended the same line again).
-const ENGINE_OWNED = ['document_made', 'spreadsheet_made', 'stayed_inside', 'file_updated'];
+const ENGINE_OWNED = ['document_made', 'spreadsheet_made', 'stayed_inside', 'file_updated', 'links_ok', 'korean_names'];
+// 10차 1번: what a criterion about links or 한글 file names asks, in its own words.
+const LINK_TOPIC = c => /링크|하이퍼링크|경로|href|연결/.test(c) && /깨진|끊긴|연결|이어|열리|맞|같은\s*이름|가리키|존재|올바르|정상/.test(c) && !/외부\s*링크|https?:/.test(c);
+const KOREAN_NAME_TOPIC = c => /파일\s*이름|파일명|이름이/.test(c) && /한글|한국어/.test(c);
+const linkChecks = c => [...(KOREAN_NAME_TOPIC(c) ? [{ type: 'korean_names' }] : []), ...(LINK_TOPIC(c) ? [{ type: 'links_ok' }] : [])];
 // "엔진 빌드·화면 검사에서 넘침·잘림·겹침이 없다": all of it is what the engine's own build or screen check looks at,
 // so its result decides even when the verifier sent "not done" (자율 시험 3차, 2026-10-02: the deck's build passed
 // with no overflow, the verifier said not done, and the day's steps ran out). A criterion that also asks about
@@ -188,6 +198,10 @@ export function engineGate(criterion, cwd, ctx = {}) {
     const r = runCheck(check, cwd, ctx);
     gate.push({ check, label: '엔진이 돌린 테스트 통과', status: r.status, reason: r.reason ?? '' });
   }
+  for (const check of linkChecks(String(criterion))) {
+    const r = runCheck(check, cwd, ctx);
+    gate.push({ check, label: check.type === 'links_ok' ? '링크가 모두 실제 파일로 연결' : '만든 파일 이름이 한글', status: r.status, reason: r.reason ?? '' });
+  }
   return gate;
 }
 // What the engine will check on its own for a list of criteria, in words, shown to 대장 with the approval request.
@@ -195,7 +209,8 @@ export function engineGateSummary(criteria) {
   return (criteria ?? []).flatMap((c, i) => {
     if (PERSON_MARK.test(String(c))) return [];
     const parts = [...namedFiles(c).map(f => `${f} 있음`),
-      ...(/테스트[^.。]{0,12}(?:통과|성공)|tests?\s+pass/i.test(String(c)) && !CLAIMS_ABSENCE.test(String(c)) ? ['엔진이 돌린 테스트 통과'] : [])];
+      ...(/테스트[^.。]{0,12}(?:통과|성공)|tests?\s+pass/i.test(String(c)) && !CLAIMS_ABSENCE.test(String(c)) ? ['엔진이 돌린 테스트 통과'] : []),
+      ...linkChecks(String(c)).map(k => k.type === 'links_ok' ? '링크가 모두 실제 파일로 연결' : '만든 파일 이름이 한글')];
     return parts.length ? [`${i + 1}번: ${parts.join(', ')}`] : [];
   });
 }
@@ -223,6 +238,9 @@ function engineCheckFor(criterion, ctx, cwd = null) {
   if (names.length === 1 && /^\s*\S+\s*(?:파일)?\s*(?:이|가)\s*(?:작업\s*폴더에\s*)?(?:있다|만들어져\s*있다|생겼다)\.?\s*$/.test(String(criterion))) {
     return [{ type: 'file_exists', path: resolveNamed(names[0], cwd) }];
   }
+  // "파일 이름이 한글이고 링크가 같은 이름을 쓴다" (9차 웹페이지): both parts are the engine's to check, and nothing else is.
+  const linkish = linkChecks(String(criterion));
+  if (linkish.length) return linkish;
   const sheets = Object.keys(ctx.spreadsheets ?? {});
   const namedSheets = sheets.filter(p => c.includes(path.basename(p).toLowerCase()));
   // "집계.xlsx 에 막대 차트가 2개 들어 있다": the engine's record of the charts it put in covers it; a criterion about
@@ -374,6 +392,8 @@ function relatesTo(check, criterion) {
   if (check.type === 'tests_pass') return true;
   if (check.type === 'stayed_inside') return BOUNDARY_TOPIC.test(c);
   if (check.type === 'file_updated') return /회차|갱신|새로|update/.test(c);
+  if (check.type === 'links_ok') return LINK_TOPIC(c);
+  if (check.type === 'korean_names') return KOREAN_NAME_TOPIC(c);
   if (check.type === 'document_made') {
     return namesFile(c, check.path) || (check.text && words(check.text).some(w => mentions(c, w))) || DOCUMENT_TOPIC.test(c);
   }
@@ -511,6 +531,23 @@ function runCheck(check, cwd, ctx = {}) {
   if (check?.type === 'document_made') return checkDocument(check, cwd, ctx.documents ?? {});
   if (check?.type === 'spreadsheet_made') return checkSpreadsheet(check, cwd, ctx.spreadsheets ?? {});
   if (check?.type === 'file_updated') return checkUpdated(check, cwd, ctx.baseline);
+  if (check?.type === 'links_ok' || check?.type === 'korean_names') {
+    const made = [...Object.keys(ctx.documents ?? {}), ...Object.keys(ctx.spreadsheets ?? {})];
+    const skip = f => isEngineFile(f, made);
+    if (check.type === 'korean_names') {
+      const r = koreanNameIssues(cwd, { skip });
+      if (!r.files) return { status: 'fail', reason: '이름을 확인할 파일이 없음' };
+      return r.offenders.length ? { status: 'fail', reason: `한글이 없는 파일 이름 ${r.offenders.length}개: ${r.offenders.slice(0, 6).join(', ')}` }
+        : { status: 'pass', proof: `엔진 확인 · 만든 파일 ${r.files}개 이름에 모두 한글 (index.html 같은 고정 이름 제외)` };
+    }
+    const r = checkLinks(cwd, { skip });
+    if (!r.pages) return { status: 'fail', reason: '링크를 확인할 페이지(.html·.md·.css)가 없음' };
+    if (r.broken.length) {
+      const b = r.broken.slice(0, 4).map(x => `${x.file}:${x.line} "${x.link}" → ${x.reason}`).join(' / ');
+      return { status: 'fail', reason: `끊긴 링크 ${r.broken.length}개: ${b}` };
+    }
+    return { status: 'pass', proof: `엔진 확인 · 페이지 ${r.pages}개의 작업 폴더 안 링크 ${r.links}개가 모두 실제 파일로 연결` };
+  }
   const target = insideWorkspace(check.path, cwd);
   if (!target) return { status: 'invalid', reason: '작업 폴더 밖이거나 잘못된 경로' };
   const rel = path.relative(cwd, target).replace(/\\/g, '/');

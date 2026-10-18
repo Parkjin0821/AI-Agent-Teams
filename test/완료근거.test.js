@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { parseReport, reportInstructions, verifyReport, workspaceFingerprint } from '../src/완료근거.js';
@@ -279,8 +279,12 @@ test('slides re-test: N items found in the deck prove "N개 이상", and the eng
   assert.equal(run(ask, items.slice(0, 2)), 'unrelated', 'two items do not speak to "3개 이상"');
   assert.equal(run('참여 셀러 분류가 3개 이상이고 외부 이미지가 없다', items), 'unrelated', 'a count never proves an absence');
   const names = '새로 만든 소스·문서·결과물 파일 이름이 역할이 드러나는 한글이다';
-  assert.equal(run(names, [{ type: 'file_exists', path: 'design/화면설계.md' }, { type: 'file_exists', path: deck }]), 'pass');
   assert.equal(run(names, [{ type: 'file_exists', path: 'design/화면설계.md' }, { type: 'file_exists', path: 'design/plan.md' }]), 'unrelated', 'an English name is not a Korean one');
+  // 10차 1번: the engine reads every name in the folder itself, so a team listing only its 한글 files no longer hides
+  // design/plan.md beside them.
+  assert.equal(run(names, [{ type: 'file_exists', path: 'design/화면설계.md' }, { type: 'file_exists', path: deck }]), 'fail');
+  rmSync(path.join(cwd, 'design', 'plan.md'));
+  assert.equal(run(names, [{ type: 'file_exists', path: 'design/화면설계.md' }, { type: 'file_exists', path: deck }]), 'pass');
 });
 
 test('자율 시험: menu items counted in the page, engine-only proofs run by the engine, and the new pre-check rules', async () => {
