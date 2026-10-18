@@ -255,7 +255,7 @@ export function createGoalRunner({ adapter, workspaces, store, toolsFor = () => 
           await store.emit({ type: 'workbench.used', goalId: goal.id, team, calls: calls.length, by });
         }
       }
-      const base = { model: result.model ?? null, answer: result.answer ?? null, tools: toolsSaved, approvalRequests: approvalRequests.map(r => r.id),
+      const base = { model: result.model ?? null, answer: result.answer ?? null, usage: result.usage ?? null, tools: toolsSaved, approvalRequests: approvalRequests.map(r => r.id),
         ...(ruleViolations.length ? { ruleViolations } : {}) };
       if (result.outcome === 'limited') return { ...base, outcome: 'error', errorKind: 'limit' };
       if (result.outcome !== 'completed') return { ...base, outcome: 'error', errorKind: result.errorKind ?? 'unclassified' };
