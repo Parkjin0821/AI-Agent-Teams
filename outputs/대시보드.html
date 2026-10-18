@@ -920,8 +920,8 @@ main.is-office{max-width:none;padding:14px 24px 14px}
           <filter id="of-lift" x="-10%" y="-20%" width="120%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#11111A" flood-opacity=".06"></feDropShadow><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#11111A" flood-opacity=".06"></feDropShadow></filter></defs>
         <rect x="0" y="0" width="1000" height="620" fill="url(#of-grid)"></rect>
         <sc-for list="{{of.zones}}" as="z"><rect class="of-zone" x="{{z.x}}" y="{{z.y}}" width="{{z.w}}" height="{{z.h}}" rx="16"></rect><text class="of-zone-l" x="{{z.lx}}" y="{{z.ly}}">{{z.l}}</text></sc-for>
-        <line class="of-divider" x1="716" y1="252" x2="716" y2="420"></line>
-        <text class="of-zone-l" x="732" y="426">검증</text>
+        <line class="of-divider" x1="716" y1="260" x2="716" y2="432"></line>
+        <text class="of-zone-l" x="732" y="440">검증</text>
         <sc-for list="{{of.legend}}" as="l"><g transform="translate({{l.x}},74)"><circle class="{{l.cls}}" cx="0" cy="-4" r="4.5"></circle><text class="of-legend" x="10" y="0">{{l.t}}</text></g></sc-for>
         <path class="of-door" d="M30 610H150"></path><text class="of-door-l" x="90" y="602" text-anchor="middle">출입구</text>
 
@@ -969,7 +969,7 @@ main.is-office{max-width:none;padding:14px 24px 14px}
                 <sc-if value="{{d.poseHead}}"><path class="of-arm" stroke-width="8" d="M48 41L62 31L57 14"></path><circle cx="55.5" cy="11" r="3.6" fill="{{d.skin}}"></circle></sc-if>
               </g></g>
             </g>
-            <sc-if value="{{d.hasSay}}"><g class="{{d.sayCls}}" data-tip="{{d.tip}}" data-right="{{d.right}}" transform="translate({{d.sx}},-31)" onClick="{{d.sayGo}}" role="button" aria-label="{{d.sayAria}}">
+            <sc-if value="{{d.hasSay}}"><g class="{{d.sayCls}}" data-tip="{{d.tip}}" data-right="{{d.right}}" data-max="{{d.maxX}}" transform="translate({{d.sx}},-31)" onClick="{{d.sayGo}}" role="button" aria-label="{{d.sayAria}}">
               <rect class="of-say-bg" width="{{d.sw}}" height="24" rx="8" filter="url(#of-lift)"></rect>
               <path class="of-say-tail" d="{{d.tail}}"></path>
               <circle class="of-say-ico" cx="13" cy="12" r="{{d.icoR}}"></circle>
@@ -983,7 +983,7 @@ main.is-office{max-width:none;padding:14px 24px 14px}
           </g>
         </sc-for>
 
-        <g id="of-boss" class="{{of.boss.cls}}" transform="translate(390,462)" role="button" tabindex="0" aria-label="{{of.boss.aria}}" onClick="{{of.boss.go}}" onKeydown="{{of.boss.key}}">
+        <g id="of-boss" class="{{of.boss.cls}}" transform="translate(390,466)" role="button" tabindex="0" aria-label="{{of.boss.aria}}" onClick="{{of.boss.go}}" onKeydown="{{of.boss.key}}">
           <ellipse class="of-floor" cx="120" cy="108" rx="104" ry="6"></ellipse>
           <rect class="of-chair-d" x="98" y="16" width="44" height="48" rx="11"></rect>
           <rect class="of-mon-s" x="58" y="46" width="6" height="13"></rect><rect class="of-mon-s" x="49" y="57" width="24" height="3" rx="1.5"></rect>
@@ -999,7 +999,7 @@ main.is-office{max-width:none;padding:14px 24px 14px}
           <text class="of-status" x="202" y="134" text-anchor="end">{{of.boss.state}}</text>
         </g>
 
-        <g id="of-guard" class="of-guard" transform="translate(44,462)" role="button" tabindex="0" aria-label="{{of.guard.aria}}" onClick="{{of.guard.go}}" onKeydown="{{of.guard.key}}">
+        <g id="of-guard" class="of-guard" transform="translate(44,466)" role="button" tabindex="0" aria-label="{{of.guard.aria}}" onClick="{{of.guard.go}}" onKeydown="{{of.guard.key}}">
           <ellipse class="of-floor" cx="42" cy="108" rx="24" ry="5"></ellipse>
           <path class="of-uniform-arm" stroke-width="9" d="M37 70L36 103"></path><path class="of-uniform-arm" stroke-width="9" d="M45 70L47 103"></path>
           <ellipse class="of-shoe" cx="38" cy="106" rx="6.5" ry="3"></ellipse><ellipse class="of-shoe" cx="50" cy="106" rx="6.5" ry="3"></ellipse>
@@ -2024,11 +2024,12 @@ const RUNNING_LIKE = ['scheduled', 'running', 'retry_wait', 'model_wait'];
 // People at work in the dashboard's palette. Each team's workstation (top-left of a 180-wide box in the 1000×620
 // room): planning and the reviewers on the back row, the work teams and verification in front, 대장's desk and the
 // guard by the door at the bottom.
-const OFFICE_DESKS = { plan: [44, 46], security: [600, 46], policy: [790, 46], research: [44, 258], dev: [244, 258], design: [444, 258], qa: [790, 258] };
+// Desks sit 38 below their zone's top edge, so a speech bubble (31 above the desk) stays inside the zone (2026-10-18).
+const OFFICE_DESKS = { plan: [44, 62], security: [600, 62], policy: [790, 62], research: [44, 282], dev: [244, 282], design: [444, 282], qa: [790, 282] };
 const OFFICE_ORDER = Object.keys(OFFICE_DESKS);
 const OFFICE_ZONES = [
-  { l: '기획', x: 24, y: 24, w: 220, h: 200 }, { l: '검토', x: 580, y: 24, w: 396, h: 200 },
-  { l: '작업', x: 24, y: 236, w: 952, h: 200 }, { l: '대장', x: 370, y: 448, w: 280, h: 166 },
+  { l: '기획', x: 24, y: 24, w: 220, h: 210 }, { l: '검토', x: 580, y: 24, w: 396, h: 210 },
+  { l: '작업', x: 24, y: 244, w: 952, h: 206 }, { l: '대장', x: 370, y: 456, w: 280, h: 160 },
 ].map((z) => Object.assign(z, { lx: z.x + 16, ly: z.y + z.h - 10 }));
 // Hair for a head at (47, 18) seen from the side, facing right.
 const OFFICE_HAIR = {
@@ -2056,7 +2057,7 @@ const officeSeat = (id) => [OFFICE_DESKS[id][0] + 40, OFFICE_DESKS[id][1] + 104]
 const officeStand = (id, who) => {
   if (id !== 'boss') return [OFFICE_DESKS[id][0] - 2, OFFICE_DESKS[id][1] + 106];
   const i = Math.max(0, OFFICE_ORDER.indexOf(who));
-  return [376 - i * 12, 568];
+  return [376 - i * 12, 572];
 };
 // Walkers live outside the render tree: a refresh rebuilds the page, but someone halfway to a desk keeps walking
 // (each frame sets the new element's position from the clock, and the render reads the same position).
@@ -2109,7 +2110,8 @@ function officeFit(scope) {
     const t = g.querySelector('.of-say-t'), bg = g.querySelector('.of-say-bg'), tail = g.querySelector('.of-say-tail');
     if (!t || !bg || typeof t.getComputedTextLength !== 'function') return;
     const w = Math.ceil(Number(t.getAttribute('x')) + t.getComputedTextLength() + 12);
-    const sx = g.dataset.right ? Math.max(-12, 178 - w) : 14, tip = Math.round(Number(g.dataset.tip) - sx);
+    const max = Number(g.dataset.max) || 1000;
+    const sx = Math.min(g.dataset.right ? Math.max(-12, 178 - w) : 14, max - w), tip = Math.round(Number(g.dataset.tip) - sx);
     bg.setAttribute('width', w);
     g.setAttribute('transform', 'translate(' + sx + ',-31)');
     if (tail) tail.setAttribute('d', 'M' + (tip - 5) + ' 23.5L' + tip + ' 29.5L' + (tip + 5) + ' 23.5');
@@ -3500,7 +3502,10 @@ class Component extends DCLogic {
         cls: 'of-desk team-' + t.id + ' ' + mode + (sel === t.id ? ' sel' : ''), personCls: 'of-person' + (away ? ' away' : ''), dotCls: 'of-dot ' + mode,
         lean: { working: 5, verifying: 5, asking: 0, stopped: 2 }[mode] ?? -4,
         poseType: ['working', 'verifying'].includes(mode), poseRaise: mode === 'asking', poseHead: mode === 'stopped', poseLap: ['queued', 'usage'].includes(mode), poseMug: mode === 'idle',
-        hasSay: !!say && !away, say: say, sw: sw, sx: sx, textX: textX, tip: run ? 146 : 47, right: run ? '1' : '', tail: 'M' + (tip - 5) + ' 23.5L' + tip + ' 29.5L' + (tip + 5) + ' 23.5',
+        hasSay: !!say && !away, say: say, sw: sw, sx: sx, textX: textX, tip: run ? 146 : 47, right: run ? '1' : '',
+        // the right edge of this desk's zone (less a margin), in the desk's own units: a bubble never crosses it
+        maxX: ((OFFICE_ZONES.find((z) => xy[0] >= z.x && xy[0] < z.x + z.w && xy[1] >= z.y && xy[1] < z.y + z.h) || { x: 0, w: 1000 }).x
+          + (OFFICE_ZONES.find((z) => xy[0] >= z.x && xy[0] < z.x + z.w && xy[1] >= z.y && xy[1] < z.y + z.h) || { x: 0, w: 1000 }).w) - 8 - xy[0], tail: 'M' + (tip - 5) + ' 23.5L' + tip + ' 29.5L' + (tip + 5) + ' 23.5',
         icoR: run ? 3.5 : 7, icoT: mode === 'asking' ? '?' : mode === 'stopped' ? '!' : '', sayTextCls: 'of-say-t' + (run ? ' quiet' : ''),
         sayCls: 'of-say ' + (run ? 'run' : mode === 'asking' ? 'ask' : 'stop'), sayAria: target ? say + ' · ' + target.p.name + ' 열기' : say,
         sayGo: (e) => { if (e) e.stopPropagation(); if (target) this.openProject(target.p.id); else this.setState({ officeSel: t.id }); },
