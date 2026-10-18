@@ -208,7 +208,15 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       return notionRelay({ bins: resolveBins(), sentinel: { script: path.join(root, 'scripts', '보안감시-훅.mjs'), rules: rules.file },
         knownConnectors: (monitor?.snapshot?.connectors ?? []).map(c => c.name), plugins, deny: state.review?.deny ?? [] })(args);
     },
-    githubPush: github.hasToken && github.repo ? githubPush({ token: github.token }) : null });
+    githubPush: github.hasToken && github.repo ? githubPush({ token: github.token }) : null,
+    notionAuto: () => setting('publish.notionAuto', false) === true });
+  // Notion 자동 기록 (10차): a top-level team project that finished, stopped for 대장 or got stuck brings its record page
+  // up to date (only on the real-execution server, and only while 대장 keeps it on).
+  store.subscribe(ev => {
+    if (!executing || !['goal.verified', 'goal.review_required', 'goal.blocked', 'goal.recovery_required'].includes(ev.type)) return;
+    const g = store.getGoal(ev.goalId);
+    if (g?.kind === 'team' && !g.parentGoalId && !g.lane) void publisher.sync(g.projectId);
+  });
   const resumedAfterRestart = scheduler.autoRecover((goal, run) => changedSince(workspaces.resolve(goal.projectId), run.checkpoint?.before));
   if (resumedAfterRestart.length) console.log(`restart recovery: ${resumedAfterRestart.length} step(s) resumed`);
   const teamsView = () => {
@@ -348,7 +356,13 @@ export function createApp({ root, dataDir, projectsDir, enableExec = false, cloc
       sentinelLog, now: clock.now(), days: 7 })],
     // ── 외부 저장: 요청 → 승인함 → 전송 ──
     ['GET', /^\/api\/publish$/, () => ({ items: publisher.list().slice(0, 50), github: { repo: github.repo, hasToken: github.hasToken },
-      notionParent: setting('publish.notionParent', DEFAULT_NOTION_PARENT), notionConnected: connectorGate.get('notion')?.stage === 'connected' })],
+      notionParent: setting('publish.notionParent', DEFAULT_NOTION_PARENT), notionConnected: connectorGate.get('notion')?.stage === 'connected',
+      notionAuto: setting('publish.notionAuto', false) === true, notionPages: publisher.notionPages() })],
+    // Notion 자동 기록: bring one project's record page up to date now (대장's button; also works while auto is off).
+    ['POST', /^\/api\/projects\/([^/]+)\/notion-sync$/, async m => {
+      existingWorkspace(m[1]);
+      return publisher.sync(validateProjectId(m[1]), { force: true }).then(() => publisher.notionPage(validateProjectId(m[1])));
+    }],
     ['POST', /^\/api\/projects\/([^/]+)\/publish$/, (m, body) => {
       existingWorkspace(m[1]);
       if (!['notion', 'github'].includes(body.provider)) throw new Error('provider must be notion or github');

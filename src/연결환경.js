@@ -53,6 +53,8 @@ export const SETTINGS = Object.freeze({
   'tools.workbench': { type: 'boolean', default: true },
   // 외부 저장: the Notion page new work-record pages go under (32 hex).
   'publish.notionParent': { type: 'string', default: '2d96029496a28095b8e6d6a7db5b8208', pattern: /^[0-9a-f]{32}$/ },
+  // Notion 자동 기록 (10차): each project keeps one record page under that parent, updated by the engine at milestones.
+  'publish.notionAuto': { type: 'boolean', default: false },
   // 읽기 전용 커넥터 (커넥터.js): a reading team gets Notion's search/read tools only after the gate is approved.
   'connectors.notion.research': { type: 'boolean', default: false },
   'connectors.notion.plan': { type: 'boolean', default: false },

@@ -125,6 +125,21 @@ export function decide(input, { workspace, grants = [], project = null, webMode 
       }
       return { decision: 'allow', reason: '대장이 승인한 보고서 올리기', target: tool };
     }
+    // Notion 자동 기록 (10차): the project's own record page, made earlier by the engine, gets its content replaced with the
+    // engine's newest record — that page only, the whole text exactly as the engine wrote it, once per update, and never
+    // the option that deletes child pages. No other page can be changed.
+    if (/__notion-update-page$/.test(tool)) {
+      if (!notionWrite?.pageId) return { decision: 'deny', reason: 'Notion 페이지 고치기는 엔진의 자동 기록에서 그 프로젝트 기록 페이지만', target: tool };
+      const ok = Object.keys(args).every(k => ['page_id', 'command', 'new_str', 'allow_async'].includes(k))
+        && String(args.page_id ?? '').replace(/-/g, '').toLowerCase() === notionWrite.pageId
+        && args.command === 'replace_content' && typeof args.new_str === 'string' && textSha(args.new_str) === notionWrite.contentSha;
+      if (!ok) return { decision: 'deny', reason: 'Notion 고치기 인수가 엔진 기록과 다름 (페이지·명령·본문)', target: tool };
+      if (notionWrite.once) {
+        try { writeFileSync(notionWrite.once, new Date().toISOString(), { flag: 'wx' }); }
+        catch { return { decision: 'deny', reason: '이 기록은 이미 한 번 고침 (중복 방지)', target: tool }; }
+      }
+      return { decision: 'allow', reason: '프로젝트 기록 페이지 자동 갱신', target: tool };
+    }
     // Read-only connectors (Notion) open single tools; everything else under them — create, update, comment — is denied.
     if (mcpAllow && !(mcpAllow.tools ?? []).includes(tool) && !(mcpAllow.prefixes ?? []).some(p => tool.startsWith(`${p}__`))) {
       return { decision: 'deny', reason: '이 단계에 열리지 않은 연결 도구 (읽기 전용 커넥터는 검색·읽기 도구만)', target: tool };

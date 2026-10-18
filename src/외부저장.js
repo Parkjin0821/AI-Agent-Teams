@@ -17,6 +17,10 @@ import { readProbe } from './커넥터.js';
 // A request whose content changed after it was made is refused (make a new one). An upload cut off midway is marked
 // "확인 필요" and never retried on its own, so nothing is written twice.
 export const PUBLISH_KEY = 'publish.job.';
+// Notion 자동 기록 (10차): per project, the record page the engine keeps up to date ({ pageId, url, digest, at, status }).
+export const NOTION_PAGE_KEY = 'publish.notionPage.';
+// The page id at the end of a Notion address (…/AI-3e96029496a280aebbcbee4e8cf1beab or …/p/3e96…).
+export const notionPageId = url => (String(url ?? '').replace(/-/g, '').match(/([0-9a-f]{32})(?![0-9a-f])/i) ?? [])[1]?.toLowerCase() ?? null;
 const sha = v => createHash('sha256').update(typeof v === 'string' ? v : JSON.stringify(v)).digest('hex');
 const NOTION_ID = /^[0-9a-f]{32}$/;
 
@@ -28,8 +32,12 @@ export function githubConfig(env = process.env) {
 
 export class Publisher {
   // record(projectId) → { title, notionMarkdown }; files(projectId) → AutoSave.prepare payload; notionParent() → 32-hex id
-  constructor({ store, clock = { now: () => Date.now() }, record, files, notionParent, notionRelay = null, githubPush = null, github = () => githubConfig() }) {
-    Object.assign(this, { store, clock, record, files, notionParent, notionRelay, githubPush, github });
+  constructor({ store, clock = { now: () => Date.now() }, record, files, notionParent, notionRelay = null, githubPush = null, github = () => githubConfig(), notionAuto = () => false }) {
+    Object.assign(this, { store, clock, record, files, notionParent, notionRelay, githubPush, github, notionAuto });
+    this.syncing = Promise.resolve();
+    this.waiting = new Set();
+    // A page being made when the server died is never made again on its own (it may exist); 대장 checks Notion.
+    for (const p of this.notionPages()) if (p.status === 'sending') this.store.setSetting(NOTION_PAGE_KEY + p.projectId, { ...p, status: p.pageId ? 'idle' : 'unknown', reason: p.pageId ? null : '만드는 중 서버가 꺼짐 · Notion에서 확인 필요' });
     // An upload the server died in the middle of: never sent again on its own.
     for (const job of this.list()) if (job.status === 'sending') this.save({ ...job, status: 'unknown', reason: '보내는 중 서버가 꺼짐 · 상대 서비스에서 올라갔는지 확인 필요' });
   }
@@ -37,6 +45,44 @@ export class Publisher {
   get(id) { return this.store.getSettings()[PUBLISH_KEY + id] ?? null; }
   save(job) { this.store.setSetting(PUBLISH_KEY + job.id, job); return job; }
   requests() { return this.list().filter(j => j.status === 'approval_required'); }
+  notionPages() { return Object.entries(this.store.getSettings()).filter(([k, v]) => k.startsWith(NOTION_PAGE_KEY) && v).map(([, v]) => v); }
+  notionPage(projectId) { return this.store.getSettings()[NOTION_PAGE_KEY + projectId] ?? null; }
+
+  // Notion 자동 기록: bring the project's record page up to date — made the first time, its text replaced afterwards.
+  // 대장 turned this on for one parent page, so no request waits in the inbox; the Sentinel still holds each write to
+  // that page and the engine's exact text. One sync at a time; a project already waiting is not queued twice; nothing
+  // is sent when the record has not changed; a page whose creation went unconfirmed is never made again on its own.
+  sync(projectId, { force = false } = {}) {
+    if ((!this.notionAuto() && !force) || this.waiting.has(projectId)) return this.syncing;
+    this.waiting.add(projectId);
+    this.syncing = this.syncing.then(() => this.syncNow(projectId)).catch(() => null).finally(() => this.waiting.delete(projectId));
+    return this.syncing;
+  }
+  async syncNow(projectId) {
+    const key = NOTION_PAGE_KEY + projectId, at = () => new Date(this.clock.now()).toISOString();
+    const was = this.notionPage(projectId) ?? { projectId };
+    if (was.status === 'unknown') return was;
+    let p;
+    try { p = this.payload(projectId, 'notion'); } catch (e) { const f = { ...was, projectId, status: 'failed', reason: String(e.message).slice(0, 200), at: at() }; this.store.setSetting(key, f); return f; }
+    if (was.pageId && was.digest === p.digest && was.status === 'idle') return was;
+    this.store.setSetting(key, { ...was, projectId, status: 'sending', at: at() });
+    try {
+      const jobId = randomUUID();
+      const r = was.pageId ? await this.notionRelay({ mode: 'update', pageId: was.pageId, content: p.content, jobId })
+        : await this.notionRelay({ mode: 'create', parent: p.parent, title: p.title, content: p.content, jobId });
+      const pageId = was.pageId ?? notionPageId(r.url);
+      const next = pageId ? { projectId, pageId, url: was.url ?? r.url ?? null, digest: p.digest, status: 'idle', reason: null, at: at(), syncs: (was.syncs ?? 0) + 1 }
+        : { projectId, url: r.url ?? null, status: 'unknown', reason: '페이지는 만들었지만 주소를 확인하지 못함 · Notion에서 확인 필요', at: at() };
+      this.store.setSetting(key, next);
+      await this.store.emit({ type: 'publish.synced', projectId, provider: 'notion', created: !was.pageId });
+      return next;
+    } catch (e) {
+      const next = { ...was, projectId, status: e.unknown && !was.pageId ? 'unknown' : was.pageId ? 'idle' : 'failed', reason: String(e.message).slice(0, 300), at: at(), failedAt: at() };
+      this.store.setSetting(key, next);
+      await this.store.emit({ type: 'publish.failed', projectId, provider: 'notion', auto: true });
+      return next;
+    }
+  }
 
   // What would be sent, computed from the engine's records now (also at approval, to refuse a changed request).
   payload(projectId, provider) {
@@ -90,21 +136,24 @@ export class Publisher {
   }
 }
 
-// The Notion relay: one Claude Code run that may call only notion-create-pages, with the Sentinel holding it to the
-// approved arguments. deny: every other Notion tool (from the read-only connector check), so none is even offered.
+// The Notion relay: one Claude Code run that may call one Notion write tool — notion-create-pages for a new page, or
+// notion-update-page to replace the text of the record page it made before — with the Sentinel holding it to those
+// exact arguments. deny: every other Notion tool (from the read-only connector check), so none is even offered.
 export function notionRelay({ bins, sentinel, knownConnectors, plugins, deny = [], model = 'claude-sonnet-5-5', timeoutMs = 240_000, run = runClaude }) {
-  return async ({ parent, title, content, jobId }) => {
-    const create = `${connectorTool('Notion')}__notion-create-pages`;
+  return async ({ mode = 'create', parent, pageId, title, content, jobId }) => {
+    const create = `${connectorTool('Notion')}__${mode === 'update' ? 'notion-update-page' : 'notion-create-pages'}`;
     const cwd = mkdtempSync(path.join(tmpdir(), 'hq-publish-'));
     try {
       const log = path.join(cwd, '.sentinel.jsonl');
       const command = buildCommand('claude', { cwd, model, access: 'read', bins, knownConnectors, plugins,
         readOnly: [{ name: 'Notion', allow: [create], deny: deny.filter(t => t !== create) }],
         sentinel: { ...sentinel, log, project: 'publish', team: 'publish', webMode: 'ask' },
-        notionWrite: { parent, title, contentSha: textSha(content), once: path.join(cwd, `.once-${jobId}`) } });
-      const args = { parent: { page_id: parent }, pages: [{ properties: { title }, content }] };
+        notionWrite: mode === 'update' ? { pageId, contentSha: textSha(content), once: path.join(cwd, `.once-${jobId}`) }
+          : { parent, title, contentSha: textSha(content), once: path.join(cwd, `.once-${jobId}`) } });
+      const args = mode === 'update' ? { page_id: pageId, command: 'replace_content', new_str: content }
+        : { parent: { page_id: parent }, pages: [{ properties: { title }, content }] };
       const prompt = `아래 JSON 을 인수로 ${create} 를 정확히 한 번 호출하라. 인수는 한 글자도 바꾸지 않는다. `
-        + '다른 도구는 쓰지 않는다. 호출이 끝나면 만들어진 페이지 주소만 한 줄로 답한다.\n\n' + JSON.stringify(args);
+        + '다른 도구는 쓰지 않는다. 호출이 끝나면 ' + (mode === 'update' ? '"갱신함" 한 단어만' : '만들어진 페이지 주소만 한 줄로') + ' 답한다.\n\n' + JSON.stringify(args);
       const out = await run(command, prompt, timeoutMs);
       const probe = readProbe(out.stdout);
       const call = probe.calls.find(c => c.name === create);

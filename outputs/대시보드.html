@@ -1417,9 +1417,11 @@ main.is-office{max-width:none;padding:14px 24px 14px}
         <dl class="facts" style="margin-top: 16px"><dt>최근 실제 모델</dt><dd class="mono small">{{m.actual}}</dd></dl>
       </div>
       <sc-if value="{{pb.show}}"><div class="card">
-        <div class="lbl">외부 저장 · 매번 대장 승인</div>
-        <p class="hint" style="margin: 0 0 12px">요청하면 승인함에 올라가고, 승인해야 보냅니다. Notion 에는 엔진이 쓴 작업 기록(대화 원문·답변·파일 경로 없음)을 새 하위 페이지로, GitHub 에는 결과물 텍스트 파일(비밀정보·라이선스 검사 통과분)을 커밋 하나로 올립니다.</p>
-        <div class="row-f"><button class="btn sm" disabled="{{pb.noNotion}}" onClick="{{pb.notion}}">Notion 에 기록 올리기</button><button class="btn sm" disabled="{{pb.noGithub}}" onClick="{{pb.github}}">GitHub 에 올리기</button></div>
+        <div class="lbl">외부 저장</div>
+        <div class="row-f" style="justify-content: space-between; margin-bottom: 8px"><span class="small"><b>Notion 자동 기록</b> · {{pb.autoL}}</span><button class="btn ghost sm" disabled="{{pb.noNotion}}" aria-pressed="{{pb.autoOn}}" onClick="{{pb.toggleAuto}}">{{pb.autoBtn}}</button></div>
+        <p class="hint" style="margin: 0 0 10px">켜 두면 프로젝트마다 Notion 기록 페이지를 하나 두고, 완료·대장 확인 대기·멈춤 때마다 엔진이 쓴 최신 작업 기록(대화 원문·답변·파일 경로 없음)으로 바꿉니다. 감시 에이전트가 그 페이지와 그 내용만 허용합니다.</p>
+        <sc-if value="{{pb.hasPage}}"><p class="small" style="margin: 0 0 10px">이 프로젝트 기록 페이지 · {{pb.pageL}} <sc-if value="{{pb.pageUrl}}"><a class="link small" href="{{pb.pageUrl}}" target="_blank" rel="noopener">열기</a></sc-if></p></sc-if>
+        <div class="row-f"><button class="btn sm" disabled="{{pb.noNotion}}" onClick="{{pb.syncNow}}">Notion 기록 지금 갱신</button><button class="btn sm" disabled="{{pb.noGithub}}" onClick="{{pb.github}}">GitHub 에 올리기 (승인 후)</button></div>
         <p class="hint" style="margin-top: 8px">{{pb.status}}</p>
         <sc-for list="{{pb.jobs}}" as="j"><div class="small muted">{{j.line}}</div></sc-for>
       </div></sc-if>
@@ -3621,12 +3623,21 @@ class Component extends DCLogic {
     if (!wp || !wp.isTeam) return { show: false };
     const d = this.state.publish || { items: [], github: {}, notionConnected: false };
     const ST = { approval_required: '승인 대기', sending: '보내는 중', sent: '보냄', failed: '실패', refused: '거절함', unknown: '확인 필요' };
+    const pg = (d.notionPages || []).find((x) => x.projectId === wp.id) || null;
     const ask2 = (provider) => this.act(this.api('POST', '/api/projects/' + encodeURIComponent(wp.id) + '/publish', { provider: provider })
       .then((v) => { this.loadPublish(); this.loadInbox(); return v; }), (provider === 'notion' ? 'Notion' : 'GitHub') + ' 올리기 요청을 승인함에 올렸습니다');
     return { show: true, noNotion: !d.notionConnected, noGithub: !(d.github && d.github.repo && d.github.hasToken),
       status: (d.notionConnected ? 'Notion: 연결됨 · 부모 페이지 ' + d.notionParent : 'Notion: 연결 승인 필요 (팀 화면)') + ' · '
         + (d.github && d.github.repo && d.github.hasToken ? 'GitHub: ' + d.github.repo : 'GitHub: 전용 토큰 미설정 (AGENT_HQ_GITHUB_TOKEN · AGENT_HQ_GITHUB_REPO)'),
       notion: () => ask2('notion'), github: () => ask2('github'),
+      // Notion 자동 기록 (10차): one switch for all projects, and this project's page.
+      autoOn: d.notionAuto ? 'true' : 'false', autoBtn: d.notionAuto ? '끄기' : '켜기',
+      autoL: d.notionAuto ? '켜짐 · 부모 페이지 ' + d.notionParent : '꺼짐',
+      toggleAuto: () => this.act(this.api('PUT', '/api/settings', { key: 'publish.notionAuto', value: !d.notionAuto }).then((v) => { this.loadPublish(); return v; }),
+        d.notionAuto ? 'Notion 자동 기록을 껐습니다' : 'Notion 자동 기록을 켰습니다 · 프로젝트 기록이 바뀌는 때마다 페이지를 갱신합니다'),
+      syncNow: () => this.act(this.api('POST', '/api/projects/' + encodeURIComponent(wp.id) + '/notion-sync', {}).then((v) => { this.loadPublish(); return v; }), 'Notion 기록 갱신을 요청했습니다'),
+      hasPage: !!pg, pageUrl: pg && pg.url ? pg.url : '',
+      pageL: !pg ? '' : ({ idle: '최신 · ' + fmt(pg.at) + ' · ' + (pg.syncs || 0) + '번 갱신', sending: '갱신 중…', failed: '실패 · ' + (pg.reason || ''), unknown: '확인 필요 · ' + (pg.reason || '') }[pg.status] || pg.status),
       jobs: (d.items || []).filter((j) => j.projectId === wp.id).slice(0, 5).map((j) => ({ line: (j.provider === 'notion' ? 'Notion' : 'GitHub') + ' · ' + (ST[j.status] || j.status)
         + ' · ' + fmt(j.createdAt) + (j.url ? ' · ' + j.url : '') + (j.reason ? ' · ' + j.reason : '') })) };
   }

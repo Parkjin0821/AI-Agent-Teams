@@ -98,3 +98,57 @@ test('the Notion relay runs with only notion-create-pages offered and the approv
   const nw = JSON.parse(seen.env.AGENT_HQ_NOTION_WRITE);
   assert.deepEqual([nw.parent, nw.title, nw.contentSha], [PARENT, 'T', textSha('본문')]);
 });
+
+test('10차 Notion 자동 기록: the Sentinel lets the record page be replaced only on that page, with the exact text, once', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'hq-nu-'));
+  const UPDATE = 'mcp__claude_ai_Notion__notion-update-page';
+  const PAGE = '3e96029496a280aebbcbee4e8cf1beab';
+  const nw = { pageId: PAGE, contentSha: textSha('# 기록\n- 2단계 완료'), once: path.join(dir, '.once') };
+  const call = (args, w = nw) => decide({ tool_name: UPDATE, tool_input: args }, { workspace: dir, mcpAllow: { prefixes: [], tools: [UPDATE] }, notionWrite: w }).decision;
+  const good = { page_id: '3e960294-96a2-80ae-bbcb-ee4e8cf1beab', command: 'replace_content', new_str: '# 기록\n\n- 2단계 완료' };
+  assert.equal(call(good, null), 'deny', 'no auto record, no change');
+  assert.equal(call(good, { parent: PAGE, title: 'x', contentSha: nw.contentSha }), 'deny', 'a create permission does not open updates');
+  assert.equal(call({ ...good, page_id: 'f'.repeat(32) }), 'deny', 'another page');
+  assert.equal(call({ ...good, command: 'update_content' }), 'deny', 'only a full replace');
+  assert.equal(call({ ...good, new_str: '# 기록\n- 2단계 완료\n- 몰래 넣은 줄' }), 'deny', 'changed text');
+  assert.equal(call({ ...good, allow_deleting_content: true }), 'deny', 'never the option that deletes child pages');
+  assert.equal(call(good), 'allow');
+  assert.equal(call(good), 'deny', 'once per update');
+  assert.equal(decide({ tool_name: CREATE, tool_input: { parent: { page_id: PAGE }, pages: [{ properties: { title: 'x' }, content: 'y' }] } },
+    { workspace: dir, mcpAllow: { prefixes: [], tools: [CREATE] }, notionWrite: nw }).decision, 'deny', 'an update permission does not make pages');
+});
+
+test('10차 Notion 자동 기록: first sync makes the page, later ones replace its text; unchanged is skipped; off means off', async () => {
+  const { notionPageId } = await import('../src/외부저장.js');
+  assert.equal(notionPageId('https://app.notion.com/p/AI-3e96029496a280aebbcbee4e8cf1beab?source=copy_link'), '3e96029496a280aebbcbee4e8cf1beab');
+  assert.equal(notionPageId('https://www.notion.so/AGENT-HQ-3e960294-96a2-80ae-bbcb-ee4e8cf1beab'), '3e96029496a280aebbcbee4e8cf1beab');
+  assert.equal(notionPageId('https://www.notion.so/'), null);
+  const store = Object.assign(memStore(), { emit: async () => {} });
+  let record = '# 기록\n- 1단계', auto = true;
+  const calls = [];
+  let relay = async (a) => { calls.push(a.mode); return a.mode === 'create' ? { url: 'https://www.notion.so/AGENT-HQ-' + 'a'.repeat(32) } : {}; };
+  const pub = new Publisher({ store, record: () => ({ title: '가계부', notionMarkdown: record }), files: () => null, notionParent: () => PARENT,
+    notionRelay: (a) => relay(a), notionAuto: () => auto });
+  await pub.sync('p1');
+  assert.deepEqual(calls, ['create']);
+  assert.equal(pub.notionPage('p1').pageId, 'a'.repeat(32));
+  await pub.sync('p1');
+  assert.deepEqual(calls, ['create'], 'nothing changed, nothing sent');
+  record = '# 기록\n- 1단계\n- 2단계';
+  await pub.sync('p1');
+  assert.deepEqual(calls, ['create', 'update']);
+  assert.equal(pub.notionPage('p1').syncs, 2);
+  auto = false; record += '\n- 3단계';
+  await pub.sync('p1');
+  assert.deepEqual(calls, ['create', 'update'], 'off means off');
+  await pub.sync('p1', { force: true });
+  assert.deepEqual(calls, ['create', 'update', 'update'], "대장's button works while auto is off");
+  // a create whose answer was lost is never made again on its own
+  auto = true;
+  relay = async () => { throw Object.assign(new Error('응답을 확인하지 못함'), { unknown: true }); };
+  await pub.sync('p2');
+  assert.equal(pub.notionPage('p2').status, 'unknown');
+  relay = async (a) => { calls.push('again-' + a.mode); return {}; };
+  await pub.sync('p2');
+  assert.ok(!calls.some(c => c.startsWith('again')), 'not made a second time');
+});
