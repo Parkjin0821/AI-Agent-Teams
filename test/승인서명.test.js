@@ -126,7 +126,7 @@ test('commit check: with a key registered, a protected change needs a signature 
   const repo = mkdtempSync(path.join(tmpdir(), 'hq-hook-'));
   const keys = mkdtempSync(path.join(tmpdir(), 'hq-hook-key-'));
   try {
-    for (const p of ['src', 'scripts', 'test', '.githooks', 'architecture-policy.json', 'AGENT_HQ_CONSTITUTION.md', 'package.json']) if (has(path.join(ROOT, p))) cpSync(path.join(ROOT, p), path.join(repo, p), { recursive: true });
+    for (const p of ['src', 'scripts', 'test', '.githooks', '.github', 'architecture-policy.json', 'AGENT_HQ_CONSTITUTION.md', 'package.json']) if (has(path.join(ROOT, p))) cpSync(path.join(ROOT, p), path.join(repo, p), { recursive: true });
     const git = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: repo, encoding: 'utf8' });
     git('init', '-q'); git('add', '-A'); git('commit', '-q', '-m', 'base', '--no-verify');
     const key = path.join(keys, 'k');
