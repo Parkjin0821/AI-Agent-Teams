@@ -117,3 +117,44 @@ test('this repository: protected files match 대장\'s signed approvals', { skip
   const r = checkProtected({ files: protectedHashes({ policy }) });
   assert.ok(r.ok, r.problems.join('\n'));
 });
+
+// The commit check itself (scripts/아키텍처-검사.mjs --staged), in a throwaway git repository holding a copy of the
+// engine: once a key is registered the environment marker no longer counts — only a signed approval of exactly the
+// staged content lets a protected change through.
+test('commit check: with a key registered, a protected change needs a signature of exactly that content', { skip, timeout: 120_000 }, async () => {
+  const { cpSync, existsSync: has } = await import('node:fs');
+  const repo = mkdtempSync(path.join(tmpdir(), 'hq-hook-'));
+  const keys = mkdtempSync(path.join(tmpdir(), 'hq-hook-key-'));
+  try {
+    for (const p of ['src', 'scripts', 'test', '.githooks', 'architecture-policy.json', 'AGENT_HQ_CONSTITUTION.md', 'package.json']) if (has(path.join(ROOT, p))) cpSync(path.join(ROOT, p), path.join(repo, p), { recursive: true });
+    const git = (...a) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: repo, encoding: 'utf8' });
+    git('init', '-q'); git('add', '-A'); git('commit', '-q', '-m', 'base', '--no-verify');
+    const key = path.join(keys, 'k');
+    spawnSync(keygen, ['-q', '-t', 'ed25519', '-N', '', '-C', 'test', '-f', key]);
+    mkdirSync(path.join(repo, 'approvals'), { recursive: true });
+    writeFileSync(path.join(repo, ALLOWED_SIGNERS), `${SIGNER} namespaces="${NAMESPACE}" ${readFileSync(`${key}.pub`, 'utf8').trim().split(/\s+/).slice(0, 2).join(' ')}\n`);
+    const policyFile = path.join(repo, 'architecture-policy.json');
+    // First, the one-time initial registration 대장 signs when the key is set up: every protected file as it is now.
+    const policy = JSON.parse(readFileSync(policyFile, 'utf8'));
+    const initial = writeRequest(makeRequest({ kind: 'protected-change', purpose: '서명 키 등록 — 보호 파일 초기 승인', policyVersion: 'test',
+      targets: Object.entries(protectedHashes({ root: repo, policy })).map(([p, h]) => ({ path: p, sha256: h })), now: new Date(Date.now() - 60_000) }), repo);
+    spawnSync(keygen, ['-Y', 'sign', '-n', NAMESPACE, '-f', key, initial.file]);
+    writeFileSync(policyFile, readFileSync(policyFile, 'utf8').replace('"reviewBy": "2026-11-15"', '"reviewBy": "2026-11-16"'));
+    git('add', 'architecture-policy.json');
+    const check = env => spawnSync(process.execPath, ['scripts/아키텍처-검사.mjs', '--staged'], { cwd: repo, encoding: 'utf8', env: { ...process.env, ...env } });
+    const marker = check({ AGENT_HQ_ARCH_APPROVED: '대장' });
+    assert.equal(marker.status, 1, 'the marker alone must not pass');
+    assert.match(marker.stdout, /대장 서명 승인과 다르다/);
+    // 대장 signs a request for exactly the staged content.
+    const { file } = writeRequest(makeRequest({ kind: 'protected-change', purpose: '재검토일 변경 시험', policyVersion: 'test',
+      targets: [{ path: 'architecture-policy.json', sha256: sha256(readFileSync(policyFile, 'utf8').replace(/\r\n/g, '\n')) }] }), repo);
+    spawnSync(keygen, ['-Y', 'sign', '-n', NAMESPACE, '-f', key, file]);
+    const signed = check({});
+    assert.equal(signed.status, 0, signed.stdout.split(/\r?\n/).filter(l => /^[✗!]|보류|실패/.test(l)).join(' | '));
+    assert.match(signed.stdout, /대장 서명 승인 확인/);
+    // Changing the staged content after signing is caught again.
+    writeFileSync(policyFile, readFileSync(policyFile, 'utf8').replace('"reviewBy": "2026-11-16"', '"reviewBy": "2026-11-17"'));
+    git('add', 'architecture-policy.json');
+    assert.equal(check({ AGENT_HQ_ARCH_APPROVED: '대장' }).status, 1);
+  } finally { rmSync(repo, { recursive: true, force: true }); rmSync(keys, { recursive: true, force: true }); }
+});

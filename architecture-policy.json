@@ -44,7 +44,8 @@
     "test/스케줄러-팀.test.js",
     "test/업무도메인.test.js",
     "test/코덱스격리.test.js",
-    "test/작업묶음.test.js"
+    "test/작업묶음.test.js",
+    "test/승인서명.test.js"
   ],
   "protectedFiles": [
     "AGENT_HQ_CONSTITUTION.md",
@@ -52,7 +53,9 @@
     "src/아키텍처가드.js",
     "test/아키텍처가드.test.js",
     "scripts/아키텍처-검사.mjs",
-    ".githooks/pre-commit"
+    ".githooks/pre-commit",
+    "src/승인서명.js",
+    "scripts/승인-서명.mjs"
   ],
   "approvalMarker": "AGENT_HQ_ARCH_APPROVED=대장"
 }
